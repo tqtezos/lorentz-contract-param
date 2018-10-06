@@ -282,6 +282,77 @@ i_SENDER = string "SENDER" >> return M.SENDER
 
 -- Types
 
+parse_t :: Parser M.T
+parse_t = undefined
+
+t_key :: Parser M.T
+t_key= string "key" >> return M.T_key
+
+t_unit :: Parser M.T
+t_unit= string "unit" >> return M.T_unit
+
+t_signature :: Parser M.T
+t_signature = string "signature" >> return M.T_signature
+
+t_option :: Parser M.T
+t_option = do
+  string "option"
+  a <- parse_t
+  return $ M.T_option a
+
+t_list :: Parser M.T
+t_list = do
+  string "list"
+  a <- parse_t
+  return $ M.T_list a
+
+t_set :: Parser M.T
+t_set = do
+  string "set"
+  a <- parse_ct
+  return $ M.T_set a
+
+t_contract :: Parser M.T
+t_contract = do
+  string "contract"
+  a <- parse_t
+  b <- parse_t
+  return $ M.T_contract a b
+
+t_pair :: Parser M.T
+t_pair = do
+  string "pair"
+  a <- parse_t
+  b <- parse_t
+  return $ M.T_pair a b
+
+t_or :: Parser M.T
+t_or = do
+  string "or"
+  a <- parse_t
+  b <- parse_t
+  return $ M.T_or a b
+
+t_lambda :: Parser M.T
+t_lambda = do
+  string "lambda"
+  a <- parse_t
+  b <- parse_t
+  return $ M.T_lambda a b
+
+t_map :: Parser M.T
+t_map = do
+  string "map"
+  a <- parse_ct
+  b <- parse_t
+  return $ M.T_map a b
+
+t_big_map :: Parser M.T
+t_big_map = do
+  string "big_map"
+  a <- parse_ct
+  b <- parse_t
+  return $ M.T_big_map a b
 
 -- Comparable Types
 
@@ -295,22 +366,22 @@ parse_ct = ct_int
   <|> ct_timestamp
 
 ct_int :: Parser M.CT
-ct_int = string "int" >> return M.TInt
+ct_int = string "int" >> return M.T_int
 
 ct_nat :: Parser M.CT
-ct_nat = string "nat" >> return M.TNat
+ct_nat = string "nat" >> return M.T_nat
 
 ct_string :: Parser M.CT
-ct_string = string "string" >> return M.TString
+ct_string = string "string" >> return M.T_string
 
 ct_tez :: Parser M.CT
-ct_tez = string "tez" >> return M.TTez
+ct_tez = string "tez" >> return M.T_tez
 
 ct_bool :: Parser M.CT
-ct_bool = string "bool" >> return M.TBool
+ct_bool = string "bool" >> return M.T_bool
 
 ct_keyhash :: Parser M.CT
-ct_keyhash = string "key_hash" >> return M.TKeyHash
+ct_keyhash = string "key_hash" >> return M.T_key_hash
 
 ct_timestamp :: Parser M.CT
-ct_timestamp = string "timestamp" >> return M.TTimestamp
+ct_timestamp = string "timestamp" >> return M.T_timestamp
