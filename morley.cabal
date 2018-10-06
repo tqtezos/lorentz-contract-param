@@ -3,7 +3,7 @@ version:             0.1.0.0
 -- synopsis:
 -- description:
 homepage:            https://github.com/johnchandlerburnham/morley#readme
-license:             BSD3
+license:             AGPL-3
 license-file:        LICENSE
 author:              John C. Burnham
 maintainer:          jcb@johnchandlerburnham.com
