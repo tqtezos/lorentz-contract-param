@@ -8,6 +8,15 @@ import qualified Data.Text as T
 import Prelude (Integer, Show)
 import Data.Natural
 
+{-
+type Prim = K | D | I | T
+
+data K where
+  K_parameter :: K
+  K_storage   :: K
+  K_code      :: K
+-}
+
 data Elt = Elt D D deriving Show
 
 data D where
@@ -106,29 +115,29 @@ data I where
   deriving Show
 
 data T where
-  Comparable :: CT -> T
-  Key        :: T
-  Unit       :: T
-  Signature  :: T
-  Option     :: T -> T
-  List       :: T -> T
-  Set        :: CT -> T
-  Contract   :: T -> T -> T
-  Pair       :: T -> T -> T
-  Or         :: T -> T -> T
-  Lambda     :: T -> T -> T
-  Map        :: CT -> T -> T
-  BigMap     :: CT -> T -> T
+  T_comparable :: CT -> T
+  T_key        :: T
+  T_unit       :: T
+  T_signature  :: T
+  T_option     :: T -> T
+  T_list       :: T -> T
+  T_set        :: CT -> T
+  T_contract   :: T -> T -> T
+  T_pair       :: T -> T -> T
+  T_or         :: T -> T -> T
+  T_lambda     :: T -> T -> T
+  T_map        :: CT -> T -> T
+  T_big_map    :: CT -> T -> T
   deriving Show
 
 data CT where
-  TInt       :: CT
-  TNat       :: CT
-  TString    :: CT
-  TTez       :: CT
-  TBool      :: CT
-  TKeyHash   :: CT
-  TTimestamp :: CT
+  T_int       :: CT
+  T_nat       :: CT
+  T_string    :: CT
+  T_tez       :: CT
+  T_bool      :: CT
+  T_key_hash  :: CT
+  T_timestamp :: CT
   deriving Show
 
 
