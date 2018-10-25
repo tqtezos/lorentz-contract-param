@@ -2,14 +2,14 @@
 
 module Language.Michelson.Parser where
 
-import Text.Megaparsec
-import Text.Megaparsec.Char
+import qualified Data.Text                  as T
+import           Text.Megaparsec
+import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
-import qualified Data.Text as T
 
-import qualified Language.Michelson.Types as M
+import qualified Language.Michelson.Types   as M
 
-import Data.Void (Void)
+import           Data.Void                (Void)
 
 type Parser = Parsec Void T.Text
 
@@ -18,8 +18,7 @@ type Parser = Parsec Void T.Text
 -- todo: natural numbers, signed numbers
 
 l_int :: Parser Integer
-l_int = L.decimal <|> (string "0x">> L.hexadecimal)
-
+l_int = L.decimal <|> (string "0x" >> L.hexadecimal)
 -- todo: escape sequences
 
 l_string :: Parser T.Text
@@ -247,8 +246,8 @@ i_SET_DELEGATE = string "SET_DELEGATE" >> return M.SET_DELEGATE
 i_CREATE_ACCOUNT :: Parser M.I
 i_CREATE_ACCOUNT = string "CREATE_ACCOUNT" >> return M.CREATE_ACCOUNT
 
-i_CREATE_CONTRACT :: Parser M.I
-i_CREATE_CONTRACT = string "CREATE_CONTRACT" >> return M.CREATE_CONTRACT
+-- i_CREATE_CONTRACT :: Parser M.I
+-- i_CREATE_CONTRACT = string "CREATE_CONTRACT" >> return M.CREATE_CONTRACT
 
 i_IMPLICIT_ACCOUNT :: Parser M.I
 i_IMPLICIT_ACCOUNT = string "IMPLICIT_ACCOUNT" >> return M.IMPLICIT_ACCOUNT
@@ -286,84 +285,83 @@ parse_t :: Parser M.T
 parse_t = undefined
 
 t_key :: Parser M.T
-t_key= string "key" >> return M.T_key
+t_key = string "key" >> return M.T_key
 
 t_unit :: Parser M.T
-t_unit= string "unit" >> return M.T_unit
+t_unit = string "unit" >> return M.T_unit
 
 t_signature :: Parser M.T
 t_signature = string "signature" >> return M.T_signature
 
 t_option :: Parser M.T
 t_option = do
-  string "option"
+  string "option "
   a <- parse_t
   return $ M.T_option a
 
 t_list :: Parser M.T
 t_list = do
-  string "list"
+  string "list "
   a <- parse_t
   return $ M.T_list a
 
 t_set :: Parser M.T
 t_set = do
-  string "set"
+  string "set "
   a <- parse_ct
   return $ M.T_set a
 
 t_contract :: Parser M.T
 t_contract = do
-  string "contract"
+  string "contract "
   a <- parse_t
-  b <- parse_t
-  return $ M.T_contract a b
+  return $ M.T_contract a
 
 t_pair :: Parser M.T
 t_pair = do
-  string "pair"
+  string "pair "
   a <- parse_t
   b <- parse_t
   return $ M.T_pair a b
 
 t_or :: Parser M.T
 t_or = do
-  string "or"
+  string "or "
   a <- parse_t
   b <- parse_t
   return $ M.T_or a b
 
 t_lambda :: Parser M.T
 t_lambda = do
-  string "lambda"
+  string "lambda "
   a <- parse_t
   b <- parse_t
   return $ M.T_lambda a b
 
 t_map :: Parser M.T
 t_map = do
-  string "map"
+  string "map "
   a <- parse_ct
   b <- parse_t
   return $ M.T_map a b
 
 t_big_map :: Parser M.T
 t_big_map = do
-  string "big_map"
+  string "big_map "
   a <- parse_ct
   b <- parse_t
   return $ M.T_big_map a b
 
 -- Comparable Types
-
 parse_ct :: Parser M.CT
-parse_ct = ct_int
-  <|> ct_nat
-  <|> ct_string
-  <|> ct_tez
-  <|> ct_bool
-  <|> ct_keyhash
-  <|> ct_timestamp
+parse_ct =
+  ct_int
+    <|> ct_nat
+    <|> ct_string
+    <|> ct_mutez
+    <|> ct_bool
+    <|> ct_keyhash
+    <|> ct_timestamp
 
 ct_int :: Parser M.CT
 ct_int = string "int" >> return M.T_int
@@ -374,8 +372,8 @@ ct_nat = string "nat" >> return M.T_nat
 ct_string :: Parser M.CT
 ct_string = string "string" >> return M.T_string
 
-ct_tez :: Parser M.CT
-ct_tez = string "tez" >> return M.T_tez
+ct_mutez :: Parser M.CT
+ct_mutez = string "mutez" >> return M.T_mutez
 
 ct_bool :: Parser M.CT
 ct_bool = string "bool" >> return M.T_bool

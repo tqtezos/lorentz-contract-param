@@ -1,21 +1,46 @@
-{-# LANGUAGE GADTs #-}
+{-# LANGUAGE GADTs             #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 
 module Language.Michelson.Types where
 
-import Data.Sequence
-import qualified Data.Text as T
-import Prelude (Integer, Show)
-import Data.Natural
+import           Data.Natural
+import           Data.Sequence
+import qualified Data.Text     as T
+import           Prelude       (Integer, Show)
 
-{-
-type Prim = K | D | I | T
+data SC = SC Parameter Storage Code
 
-data K where
-  K_parameter :: K
-  K_storage   :: K
-  K_code      :: K
--}
+data Parameter = Parameter T
+
+data Storage = Storage T
+
+data Code = Code ISeq
+
+data T where
+  T_comparable :: CT -> T
+  T_key        :: T
+  T_unit       :: T
+  T_signature  :: T
+  T_option     :: T -> T
+  T_list       :: T -> T
+  T_set        :: CT -> T
+  T_contract   :: T -> T
+  T_pair       :: T -> T -> T
+  T_or         :: T -> T -> T
+  T_lambda     :: T -> T -> T
+  T_map        :: CT -> T -> T
+  T_big_map    :: CT -> T -> T
+  deriving Show
+
+data CT where
+  T_int       :: CT
+  T_nat       :: CT
+  T_string    :: CT
+  T_mutez     :: CT
+  T_bool      :: CT
+  T_key_hash  :: CT
+  T_timestamp :: CT
+  deriving Show
 
 data Elt = Elt D D deriving Show
 
@@ -42,37 +67,39 @@ data D where
   DInst       :: I -> D
   deriving Show
 
+data ISeq = ISeq (Seq I) deriving Show
+
 data I where
-  ISeq              :: Seq I -> I
   DROP              :: I
   DUP               :: I
   SWAP              :: I
   PUSH              :: T -> D -> I
   SOME              :: I
   NONE              :: T -> I
-  IF_NONE           :: I -> I -> I
+  IF_NONE           :: ISeq -> ISeq -> I
   PAIR              :: I
   CAR               :: I
   CDR               :: I
   LEFT              :: T -> I
   RIGHT             :: T -> I
-  IF_LEFT           :: I -> I -> I
+  IF_LEFT           :: ISeq -> ISeq -> I
+  IF_RIGHT          :: ISeq -> ISeq -> I
   NIL               :: T -> I
   CONS              :: I
-  IF_CONS           :: I-> I -> I
+  IF_CONS           :: ISeq -> ISeq -> I
   EMPTY_SET         :: T -> I
   EMPTY_MAP         :: CT -> T -> I
-  MAP               :: I -> I
-  ITER              :: I -> I
+  MAP               :: ISeq -> I
+  ITER              :: ISeq -> I
   MEM               :: I
   GET               :: I
   UPDATE            :: I
-  IF                :: I -> I -> I
-  LOOP              :: I -> I
-  LOOP_LEFT         :: I -> I
-  LAMBDA            :: T -> T -> I -> I
+  IF                :: ISeq -> ISeq -> I
+  LOOP              :: ISeq -> I
+  LOOP_LEFT         :: ISeq -> I
+  LAMBDA            :: T -> T -> ISeq -> I
   EXEC              :: I
-  DIP               :: I -> I
+  DIP               :: ISeq -> I
   FAILWITH          :: I
   CAST              :: I
   RENAME            :: I
@@ -101,7 +128,8 @@ data I where
   TRANSFER_TOKENS   :: I
   SET_DELEGATE      :: I
   CREATE_ACCOUNT    :: I
-  CREATE_CONTRACT   :: I
+-- CREATE_CONTRACT :: I
+  CREATE_CONTRACT   :: ISeq -> I
   IMPLICIT_ACCOUNT  :: I
   NOW               :: I
   AMOUNT            :: I
@@ -114,31 +142,6 @@ data I where
   SENDER            :: I
   deriving Show
 
-data T where
-  T_comparable :: CT -> T
-  T_key        :: T
-  T_unit       :: T
-  T_signature  :: T
-  T_option     :: T -> T
-  T_list       :: T -> T
-  T_set        :: CT -> T
-  T_contract   :: T -> T -> T
-  T_pair       :: T -> T -> T
-  T_or         :: T -> T -> T
-  T_lambda     :: T -> T -> T
-  T_map        :: CT -> T -> T
-  T_big_map    :: CT -> T -> T
-  deriving Show
-
-data CT where
-  T_int       :: CT
-  T_nat       :: CT
-  T_string    :: CT
-  T_tez       :: CT
-  T_bool      :: CT
-  T_key_hash  :: CT
-  T_timestamp :: CT
-  deriving Show
 
 
 
