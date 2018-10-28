@@ -23,6 +23,7 @@ library
                      , containers
                      , natural-numbers
                      , text
+                     , parser-combinators >= 1.0.0
 
 executable morley
   hs-source-dirs:      src
