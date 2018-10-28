@@ -2,16 +2,17 @@
 
 module Language.Michelson.Parser where
 
-import qualified Data.Text                  as T
-import qualified Data.Text.IO as TIO
+import qualified Data.Text                        as T
+import qualified Data.Text.IO                     as TIO
 import           Text.Megaparsec
 import           Text.Megaparsec.Char
-import qualified Text.Megaparsec.Char.Lexer as L
+import qualified Text.Megaparsec.Char.Lexer       as L
 
-import qualified Language.Michelson.Types   as M
+import qualified Language.Michelson.Types         as M
 
-import           Data.Void                (Void)
-import qualified Data.Sequence as Seq
+import Control.Applicative.Permutations
+import qualified Data.Sequence                    as Seq
+import           Data.Void                        (Void)
 
 type Parser = Parsec Void T.Text
 
@@ -19,7 +20,7 @@ parseFile :: String -> IO M.SC
 parseFile file = do
   code <- TIO.readFile file
   case parse smart_contract file code of
-    Left e -> print e >> fail "error"
+    Left e   -> print e >> fail "error"
     Right sc -> return sc
 
 emptySC = M.SC (M.Param M.T_unit)
@@ -35,11 +36,13 @@ parens = between (symbol "(") (symbol ")")
 braces = between (symbol "{") (symbol "}")
 sem = symbol ";"
 
+
 smart_contract :: Parser M.SC
 smart_contract = do
-  p <- param
-  s <- storage
-  c <- code
+  (p,s,c) <- runPermutation $
+              (,,) <$> toPermutation param
+                   <*> toPermutation storage
+                   <*> toPermutation code
   return $ M.SC p s c
 
 param :: Parser M.Param
@@ -63,10 +66,10 @@ l_int = L.decimal <|> (string "0x" >> L.hexadecimal)
 -- todo: escape sequences
 
 --strChar :: Parser Char
---strChar = oneOf [' '...'
+-- strChar = oneOf [' '...'
 
---escapeSeqs :: Parser Char
---escapeSeqs =
+-- escapeSeqs :: Parser Char
+-- escapeSeqs =
 
 l_string :: Parser T.Text
 l_string = do
