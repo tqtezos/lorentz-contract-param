@@ -6,6 +6,7 @@ module Language.Michelson.Types where
 import           Data.Natural
 import           Data.Sequence
 import qualified Data.Text     as T
+import qualified Data.ByteString     as B
 import           Prelude       (Integer, Show)
 
 data SC = SC Param Storage Code deriving Show
@@ -20,14 +21,8 @@ data Elt = Elt D D deriving Show
 
 data D where
   LInt        :: Integer -> D
-  LNat        :: Natural -> D
   LString     :: T.Text -> D
-  LTimestamp  :: T.Text -> D
-  LSignature  :: T.Text -> D
-  LKey        :: T.Text -> D
-  LKey_HASH   :: T.Text -> D
-  LTez        :: T.Text -> D
-  LContract   :: T.Text -> D
+  LBytes      :: B.ByteString -> D
   DUnit       :: D
   DTrue       :: D
   DFalse      :: D
@@ -36,9 +31,9 @@ data D where
   DRight      :: D -> D
   DSome       :: D -> D
   DNone       :: D
-  DList       :: Seq D -> D
+  DSeq        :: Seq D -> D
   DMap        :: Seq Elt -> D
-  DInst       :: I -> D
+  DInst       :: ISeq -> D
   deriving Show
 
 data ISeq = ISeq (Seq I) deriving Show
@@ -129,6 +124,7 @@ data T where
   T_option     :: T -> T
   T_list       :: T -> T
   T_set        :: CT -> T
+  T_operation  :: T
   T_contract   :: T -> T
   T_pair       :: T -> T -> T
   T_or         :: T -> T -> T

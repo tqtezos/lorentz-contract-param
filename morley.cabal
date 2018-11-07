@@ -23,7 +23,9 @@ library
                      , containers
                      , natural-numbers
                      , text
+                     , bytestring
                      , parser-combinators >= 1.0.0
+                     , base16-bytestring
 
 executable morley
   hs-source-dirs:      src
