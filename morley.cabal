@@ -6,8 +6,8 @@ homepage:            https://github.com/johnchandlerburnham/morley#readme
 license:             AGPL-3
 license-file:        LICENSE
 author:              John C. Burnham
-maintainer:          jcb@johnchandlerburnham.com
-copyright:           2018 John C. Burnham
+maintainer:          john@camlcase.io
+copyright:           2018 CamlCase Technologies
 category:            Web
 build-type:          Simple
 cabal-version:       >=1.10
