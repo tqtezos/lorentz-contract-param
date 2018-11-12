@@ -1,145 +1,196 @@
 {-# LANGUAGE GADTs             #-}
-{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE NoImplicitPrelude             #-}
 
 module Language.Michelson.Types where
 
 import           Data.Natural
-import           Data.Sequence
+import           Data.Maybe
+import           Data.Sequence as S
 import qualified Data.Text     as T
 import qualified Data.ByteString     as B
-import           Prelude       (Integer, Show)
+import Prelude (Show, Integer)
 
-data SC = SC Param Storage Code deriving Show
 
-data Param = Param T deriving Show
+-- smart contract
+data Contract = Contract Parameter Storage Code deriving Show
 
-data Storage = Storage T deriving Show
+-- parameter
+data Parameter = Parameter Type deriving Show
 
-data Code = Code ISeq deriving Show
+data Storage = Storage Type deriving Show
 
-data Elt = Elt D D deriving Show
+data Code = Code Instructions deriving Show
 
-data D where
-  LInt        :: Integer -> D
-  LString     :: T.Text -> D
-  LBytes      :: B.ByteString -> D
-  DUnit       :: D
-  DTrue       :: D
-  DFalse      :: D
-  DPair       :: D -> D -> D
-  DLeft       :: D -> D
-  DRight      :: D -> D
-  DSome       :: D -> D
-  DNone       :: D
-  DSeq        :: Seq D -> D
-  DMap        :: Seq Elt -> D
-  DInst       :: ISeq -> D
+-- element of a map
+data Element = Element Data Data deriving Show
+
+-- data
+data Data where
+  Int        :: Integer -> Data
+  String     :: T.Text -> Data
+  Bytes      :: B.ByteString -> Data
+  Unit       :: Data
+  True       :: Data
+  False      :: Data
+  Pair       :: Data -> Data -> Data
+  Left       :: Data -> Data
+  Right      :: Data -> Data
+  Some       :: Data -> Data
+  None       :: Data
+  Seq        :: Seq Data -> Data
+  Map        :: Seq Element -> Data
+  DataOps    :: Instructions -> Data
   deriving Show
 
-data ISeq = ISeq (Seq I) deriving Show
+-- instruction sequence
+data Instructions = Instructions { instructions :: Seq Op } deriving Show
 
-data I where
-  DROP              :: I
-  DUP               :: I
-  SWAP              :: I
-  PUSH              :: T -> D -> I
-  SOME              :: I
-  NONE              :: T -> I
-  UNIT              :: I
-  IF_NONE           :: ISeq -> ISeq -> I
-  PAIR              :: I
-  CAR               :: I
-  CDR               :: I
-  LEFT              :: T -> I
-  RIGHT             :: T -> I
-  IF_LEFT           :: ISeq -> ISeq -> I
-  IF_RIGHT          :: ISeq -> ISeq -> I
-  NIL               :: T -> I
-  CONS              :: I
-  IF_CONS           :: ISeq -> ISeq -> I
-  EMPTY_SET         :: CT -> I
-  EMPTY_MAP         :: CT -> T -> I
-  MAP               :: ISeq -> I
-  ITER              :: ISeq -> I
-  MEM               :: I
-  GET               :: I
-  UPDATE            :: I
-  IF                :: ISeq -> ISeq -> I
-  LOOP              :: ISeq -> I
-  LOOP_LEFT         :: ISeq -> I
-  LAMBDA            :: T -> T -> ISeq -> I
-  EXEC              :: I
-  DIP               :: ISeq -> I
-  FAILWITH          :: D -> I
-  CAST              :: I
-  RENAME            :: I
-  CONCAT            :: I
-  SLICE             :: I
-  PACK              :: I
-  UNPACK            :: I
-  ADD               :: I
-  SUB               :: I
-  MUL               :: I
-  DIV               :: I
-  ABS               :: I
-  NEG               :: I
-  MOD               :: I
-  LSL               :: I
-  LSR               :: I
-  OR                :: I
-  AND               :: I
-  NOT               :: I
-  COMPARE           :: I
-  EQ                :: I
-  NEQ               :: I
-  LT                :: I
-  GT                :: I
-  LE                :: I
-  GE                :: I
-  INT               :: I
-  SELF              :: I
-  TRANSFER_TOKENS   :: I
-  SET_DELEGATE      :: I
-  CREATE_ACCOUNT    :: I
-  CREATE_CONTRACT   :: I
-  CREATE_CONTRACT2  :: ISeq -> I
-  IMPLICIT_ACCOUNT  :: I
-  NOW               :: I
-  AMOUNT            :: I
-  BALANCE           :: I
-  CHECK_SIGNATURE   :: I
-  BLAKE2B           :: I
-  HASH_KEY          :: I
-  STEPS_TO_QUOTA    :: I
-  SOURCE            :: I
-  SENDER            :: I
-  ADDRESS           :: I
+-- instruction
+data Op where
+  DROP              :: Op
+  DUP               :: VarAnnotation -> Op
+  SWAP              :: Op
+  PUSH              :: VarAnnotation -> Type -> Data -> Op
+  SOME              :: TypeAnnotation
+                       -> VarAnnotation
+                       -> FieldAnnotation
+                       -> Op
+  NONE              :: TypeAnnotation
+                       -> VarAnnotation
+                       -> FieldAnnotation
+                       -> Type
+                       -> Op
+  UNIT              :: TypeAnnotation -> Op
+  IF_NONE           :: Instructions -> Instructions -> Op
+  PAIR              :: TypeAnnotation
+                       -> VarAnnotation
+                       -> FieldAnnotation
+                       -> FieldAnnotation
+                       -> Op
+  CAR               :: VarAnnotation -> FieldAnnotation -> Op
+  CDR               :: VarAnnotation -> FieldAnnotation -> Op
+  LEFT              :: TypeAnnotation
+                       -> VarAnnotation
+                       -> FieldAnnotation
+                       -> FieldAnnotation
+                       -> Type
+                       -> Op
+  RIGHT             :: TypeAnnotation
+                       -> VarAnnotation
+                       -> FieldAnnotation
+                       -> FieldAnnotation
+                       -> Type
+                       -> Op
+  IF_LEFT           :: Instructions -> Instructions -> Op
+  IF_RIGHT          :: Instructions -> Instructions -> Op
+  NIL               :: TypeAnnotation -> VarAnnotation -> Type -> Op
+  CONS              :: VarAnnotation -> Op
+  IF_CONS           :: Instructions -> Instructions -> Op
+  SIZE              :: VarAnnotation -> Op
+  EMPTY_SET         :: TypeAnnotation -> VarAnnotation -> ComparableType -> Op
+  EMPTY_MAP         :: TypeAnnotation
+                       -> VarAnnotation
+                       -> ComparableType
+                       -> Type
+                       -> Op
+  MAP               :: VarAnnotation -> Instructions -> Op
+  ITER              :: VarAnnotation -> Instructions -> Op
+  MEM               :: VarAnnotation -> Op
+  GET               :: VarAnnotation -> Op
+  UPDATE            :: Op
+  IF                :: Instructions -> Instructions -> Op
+  LOOP              :: Instructions -> Op
+  LOOP_LEFT         :: Instructions -> Op
+  LAMBDA            :: VarAnnotation -> Type -> Type -> Instructions -> Op
+  EXEC              :: VarAnnotation -> Op
+  DIP               :: Instructions -> Op
+  FAILWITH          :: Data -> Op
+  CAST              :: TypeAnnotation -> VarAnnotation -> Op
+  RENAME            :: VarAnnotation -> Op
+  CONCAT            :: VarAnnotation -> Op
+  SLICE             :: Op
+  PACK              :: Op
+  UNPACK            :: Op
+  ADD               :: VarAnnotation -> Op
+  SUB               :: VarAnnotation -> Op
+  MUL               :: VarAnnotation -> Op
+  EDIV              :: VarAnnotation -> Op
+  ABS               :: VarAnnotation -> Op
+  NEG               :: Op
+  MOD               :: Op
+  LSL               :: VarAnnotation -> Op
+  LSR               :: VarAnnotation -> Op
+  OR                :: VarAnnotation -> Op
+  AND               :: VarAnnotation -> Op
+  NOT               :: VarAnnotation -> Op
+  COMPARE           :: VarAnnotation -> Op
+  EQ                :: VarAnnotation -> Op
+  NEQ               :: VarAnnotation -> Op
+  LT                :: VarAnnotation -> Op
+  GT                :: VarAnnotation -> Op
+  LE                :: VarAnnotation -> Op
+  GE                :: VarAnnotation -> Op
+  INT               :: VarAnnotation -> Op
+  SELF              :: VarAnnotation -> Op
+  TRANSFER_TOKENS   :: Op
+  SET_DELEGATE      :: Op
+  CREATE_ACCOUNT    :: VarAnnotation -> VarAnnotation -> Op
+  CREATE_CONTRACT   :: VarAnnotation -> VarAnnotation -> Op
+  CREATE_CONTRACT2  :: VarAnnotation -> VarAnnotation -> Instructions -> Op
+  IMPLICIT_ACCOUNT  :: VarAnnotation -> Op
+  NOW               :: VarAnnotation -> Op
+  AMOUNT            :: VarAnnotation -> Op
+  BALANCE           :: VarAnnotation -> Op
+  CHECK_SIGNATURE   :: VarAnnotation -> Op
+  BLAKE2B           :: VarAnnotation -> Op
+  HASH_KEY          :: VarAnnotation -> Op
+  STEPS_TO_QUOTA    :: VarAnnotation -> Op
+  SOURCE            :: VarAnnotation -> Op
+  SENDER            :: VarAnnotation -> Op
+  ADDRESS           :: VarAnnotation -> Op
   deriving Show
 
-data T where
-  T_comparable :: CT -> T
-  T_key        :: T
-  T_unit       :: T
-  T_signature  :: T
-  T_option     :: T -> T
-  T_list       :: T -> T
-  T_set        :: CT -> T
-  T_operation  :: T
-  T_contract   :: T -> T
-  T_pair       :: T -> T -> T
-  T_or         :: T -> T -> T
-  T_lambda     :: T -> T -> T
-  T_map        :: CT -> T -> T
-  T_big_map    :: CT -> T -> T
+-- type
+data Type where
+  T_comparable :: TypeAnnotation -> ComparableType -> Type
+  T_key        :: TypeAnnotation -> Type
+  T_unit       :: TypeAnnotation -> Type
+  T_signature  :: TypeAnnotation -> Type
+  T_option     :: TypeAnnotation -> FieldAnnotation -> Type -> Type
+  T_list       :: TypeAnnotation -> Type -> Type
+  T_set        :: TypeAnnotation -> ComparableType -> Type
+  T_operation  :: TypeAnnotation -> Type
+  T_contract   :: TypeAnnotation -> Type -> Type
+  T_pair       :: TypeAnnotation
+                  -> FieldAnnotation
+                  -> FieldAnnotation
+                  -> Type
+                  -> Type
+                  -> Type
+  T_or         :: TypeAnnotation
+                  -> FieldAnnotation
+                  -> FieldAnnotation
+                  -> Type
+                  -> Type
+                  -> Type
+  T_lambda     :: TypeAnnotation -> Type -> Type -> Type
+  T_map        :: TypeAnnotation -> ComparableType -> Type -> Type
+  T_big_map    :: TypeAnnotation -> ComparableType -> Type -> Type
   deriving Show
 
-data CT where
-  T_int       :: CT
-  T_nat       :: CT
-  T_string    :: CT
-  T_bytes     :: CT
-  T_mutez     :: CT
-  T_bool      :: CT
-  T_key_hash  :: CT
-  T_timestamp :: CT
+-- comparable type
+data ComparableType where
+  T_int       :: ComparableType
+  T_nat       :: ComparableType
+  T_string    :: ComparableType
+  T_bytes     :: ComparableType
+  T_mutez     :: ComparableType
+  T_bool      :: ComparableType
+  T_key_hash  :: ComparableType
+  T_timestamp :: ComparableType
   deriving Show
+
+-- Annotation type
+data TypeAnnotation = TypeAnnotation (Maybe T.Text) deriving Show-- Type Annotation
+data FieldAnnotation = FieldAnnotation (Maybe T.Text) deriving Show-- Field Annotation
+data VarAnnotation = VarAnnotation (Maybe T.Text) deriving Show-- Variable Annotation
