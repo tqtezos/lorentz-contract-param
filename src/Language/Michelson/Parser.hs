@@ -53,7 +53,7 @@ storage = do
 code :: P.Parser M.Code
 code = do
   P.symbol "code";
-  a <- P.instructions
+  a <- P.ops
   optional P.semicolon
   return $ M.Code a
 

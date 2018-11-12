@@ -1,5 +1,5 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Language.Michelson.Parser.Prim where
 
@@ -9,22 +9,24 @@ import           Data.Char                        as Char
 import qualified Data.Text                        as T
 import           Data.Text.Encoding               (encodeUtf8)
 import qualified Data.Text.IO                     as TIO
+import           Text.Megaparsec                  hiding (some)
 import qualified Text.Megaparsec                  as P
-import  Text.Megaparsec hiding (some)
-import           Text.Megaparsec.Char             as C
+import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer       as L
 
 import qualified Language.Michelson.Types         as M
 
-import           Data.Natural
 import           Data.Maybe
+import           Data.Natural
+import           Data.Sequence                    (Seq)
 import qualified Data.Sequence                    as Seq
-import Data.Sequence (Seq)
 import           Data.Void                        (Void)
 
 import           Control.Applicative.Permutations
 
-import Prelude hiding (not, some, and, compare, concat, abs, mod, or, drop, map)
+import           Prelude                          hiding (abs, and, compare,
+                                                   concat, drop, map, mod, not,
+                                                   or, some)
 
 type Parser = Parsec Void T.Text
 
@@ -54,7 +56,7 @@ data_ = lexeme $ (dataInner <|> parens dataInner)
           <|> (do symbol "None"; return M.None)
           <|> (try $ M.Seq <$> dataList)
           <|> (try $ M.Map <$> dataMap)
-          <|> (M.DataOps <$> instructions)
+          <|> (M.DataOps <$> ops)
 
 literalInt :: Parser Integer
 literalInt = (L.signed (return ()) L.decimal)
@@ -100,9 +102,8 @@ dataMap :: Parser (Seq M.Element)
 dataMap = Seq.fromList <$> (braces $ sepEndBy dataElement semicolon)
 
 -- Instructions
-instructions :: Parser M.Instructions
-instructions =
-  M.Instructions . Seq.fromList <$> (braces $ sepEndBy op semicolon)
+ops :: Parser M.Instructions
+ops = M.Instructions . Seq.fromList <$> (braces $ sepEndBy op semicolon)
 
 op :: Parser M.Op
 op = drop
@@ -225,8 +226,8 @@ unit = do
 
 ifNone = do
   symbol "IF_NONE"
-  a <- instructions
-  b <- instructions;
+  a <- ops
+  b <- ops;
   return $ M.IF_NONE a b
 
 pair = do
@@ -270,8 +271,8 @@ cons = do
 
 ifCons = do
   symbol "IF_CONS"
-  a <- instructions
-  b <- instructions
+  a <- ops
+  b <- ops
   return $ M.IF_CONS a b
 
 emptySet = do
@@ -292,13 +293,13 @@ emptyMap = do
 map = do
   symbol "MAP"
   v <- varNote
-  a <- instructions
+  a <- ops
   return $ M.MAP v a
 
 iter = do
   symbol "ITER"
   v <- varNote
-  a <- instructions
+  a <- ops
   return $ M.ITER v a
 
 mem = do
@@ -315,18 +316,18 @@ update = symbol "UPDATE" >> return M.UPDATE
 
 if_ = do
   symbol "IF"
-  a <- instructions
-  b <- instructions
+  a <- ops
+  b <- ops
   return $ M.IF a b
 
 loop = do
   symbol "LOOP"
-  a <- instructions
+  a <- ops
   return $ M.LOOP a
 
 loopLeft = do
   symbol "LOOP_LEFT"
-  a <- instructions
+  a <- ops
   return $ M.LOOP_LEFT a
 
 lambda = do
@@ -334,7 +335,7 @@ lambda = do
   v <- varNote
   a <- type_
   b <- type_
-  c <- instructions
+  c <- ops
   return $ M.LAMBDA v a b c
 
 exec = do
@@ -344,13 +345,10 @@ exec = do
 
 dip = do
   symbol "DIP"
-  a <- instructions
+  a <- ops
   return $ M.DIP a
 
-failWith = do
-  symbol "FAILWITH"
-  a <- data_
-  return $ M.FAILWITH a
+failWith = symbol "FAILWITH" >> return M.FAILWITH
 
 cast = do
   symbol "CAST"
@@ -486,7 +484,7 @@ createContract2 = do
   symbol "CREATE_CONTRACT"
   v <- varNote
   v' <- varNote
-  a <- instructions
+  a <- ops
   return $ M.CREATE_CONTRACT2 v v' a
 
 createContract = do
@@ -589,26 +587,29 @@ typeField = lexeme $ (mtf <|> parens mtf)
       return (mt, nf)
 
 typeInner :: Parser M.Type
-typeInner = (do comparableType <- comparableType; t <- typeNote; return $ M.T_comparable t comparableType)
-  <|> (do symbol "key"; t <- typeNote; return $ M.T_key t)
-  <|> (do symbol "unit"; t <- typeNote; return $ M.T_unit t)
-  <|> (do symbol "signature"; t <- typeNote; return $ M.T_signature t)
-  <|> (do symbol "option"; t <- typeNote; (a, f) <- typeField;
-          return $ M.T_option t f a)
-  <|> (do symbol "list"; t <- typeNote; a <- type_; return $ M.T_list t a)
-  <|> (do symbol "set"; t <- typeNote; a <- comparableType; return $ M.T_set t a)
-  <|> (do symbol "operation"; t <- typeNote; return $ M.T_operation t)
-  <|> (do symbol "contract"; t <- typeNote; a <- type_; return $ M.T_contract t a)
-  <|> (do symbol "pair"; t <- typeNote; (a, f) <- typeField; (b, f') <- typeField;
+typeInner = (do ct <- ct; t <- tN; return $ M.T_comparable t ct)
+  <|> (do symbol "key"; t <- tN; return $ M.T_key t)
+  <|> (do symbol "unit"; t <- tN; return $ M.T_unit t)
+  <|> (do symbol "signature"; t <- tN; return $ M.T_signature t)
+  <|> (do symbol "option"; t <- tN; (a, f) <- tF; return $ M.T_option t f a)
+  <|> (do symbol "list"; t <- tN; a <- type_; return $ M.T_list t a)
+  <|> (do symbol "set"; t <- tN; a <- ct; return $ M.T_set t a)
+  <|> (do symbol "operation"; t <- tN; return $ M.T_operation t)
+  <|> (do symbol "contract"; t <- tN; a <- type_; return $ M.T_contract t a)
+  <|> (do symbol "pair"; t <- tN; (a, f) <- tF; (b, f') <- tF;
           return $ M.T_pair t f f' a b)
-  <|> (do symbol "or"; t <- typeNote; (a, f) <- typeField; (b, f') <- typeField;
+  <|> (do symbol "or"; t <- tN; (a, f) <- tF; (b, f') <- tF;
           return $ M.T_or t f f' a b)
-  <|> (do symbol "lambda"; t <- typeNote; a <- type_; b <- type_;
+  <|> (do symbol "lambda"; t <- tN; a <- type_; b <- type_;
           return $ M.T_lambda t a b)
-  <|> (do symbol "map"; t <- typeNote; a <- comparableType; b <- type_;
+  <|> (do symbol "map"; t <- tN; a <- ct; b <- type_;
           return $ M.T_map t a b)
-  <|> (do symbol "big_map"; t <- typeNote; a <- comparableType; b <- type_;
+  <|> (do symbol "big_map"; t <- tN; a <- ct; b <- type_;
           return $ M.T_big_map t a b)
+  where
+    ct = comparableType
+    tN = typeNote
+    tF = typeField
 
 -- Comparable Types
 comparableType :: Parser M.ComparableType

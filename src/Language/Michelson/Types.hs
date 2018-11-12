@@ -5,10 +5,10 @@ module Language.Michelson.Types where
 
 import           Data.Natural
 import           Data.Maybe
-import           Data.Sequence as S
+import           Data.Sequence as Seq
 import qualified Data.Text     as T
 import qualified Data.ByteString     as B
-import Prelude (Show, Integer)
+import Prelude (Show, Integer, (.))
 
 
 -- smart contract
@@ -44,6 +44,12 @@ data Data where
 
 -- instruction sequence
 data Instructions = Instructions { instructions :: Seq Op } deriving Show
+
+noInstructions :: Instructions
+noInstructions = Instructions Seq.empty
+
+instructionsFromList :: [Op] -> Instructions
+instructionsFromList = Instructions . Seq.fromList
 
 -- instruction
 data Op where
@@ -104,7 +110,7 @@ data Op where
   LAMBDA            :: VarAnnotation -> Type -> Type -> Instructions -> Op
   EXEC              :: VarAnnotation -> Op
   DIP               :: Instructions -> Op
-  FAILWITH          :: Data -> Op
+  FAILWITH          :: Op
   CAST              :: TypeAnnotation -> VarAnnotation -> Op
   RENAME            :: VarAnnotation -> Op
   CONCAT            :: VarAnnotation -> Op
