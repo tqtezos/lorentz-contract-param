@@ -19,7 +19,7 @@ data Parameter = Parameter Type deriving Show
 
 data Storage = Storage Type deriving Show
 
-data Code = Code Instructions deriving Show
+data Code = Code Ops deriving Show
 
 -- element of a map
 data Element = Element Data Data deriving Show
@@ -39,20 +39,49 @@ data Data where
   None       :: Data
   Seq        :: Seq Data -> Data
   Map        :: Seq Element -> Data
-  DataOps    :: Instructions -> Data
+  DataOps    :: Ops -> Data
   deriving Show
 
 -- instruction sequence
-data Instructions = Instructions { instructions :: Seq Op } deriving Show
+data Ops = Ops { ops :: Seq Op } deriving Show
 
-noInstructions :: Instructions
-noInstructions = Instructions Seq.empty
+opsConcat :: Ops -> Ops -> Ops
+opsConcat x y = Ops ((ops x) Seq.>< (ops y))
 
-instructionsFromList :: [Op] -> Instructions
-instructionsFromList = Instructions . Seq.fromList
+(><) :: Ops -> Ops -> Ops
+infixr 9 ><
+(><) = opsConcat
+
+opsLappend :: Op -> Ops -> Ops
+opsLappend x y = Ops (x Seq.<| (ops y))
+
+(<|) :: Op -> Ops -> Ops
+infixr 9 <|
+(<|) = opsLappend
+
+opsRappend :: Ops -> Op -> Ops
+opsRappend x y = Ops ((ops x) Seq.|> y)
+
+(|>) :: Ops -> Op -> Ops
+infixr 9 |>
+(|>) = opsRappend
+
+noOps :: Ops
+noOps = Ops Seq.empty
+
+opsFromList :: [Op] -> Ops
+opsFromList = Ops . Seq.fromList
+
+(|:) :: [Op] -> Ops
+infixr 9 |:
+(|:) = opsFromList
+
+opsSingleton :: Op -> Ops
+opsSingleton x = opsFromList [x]
 
 -- instruction
 data Op where
+  OpsSeq            :: Ops -> Op
   DROP              :: Op
   DUP               :: VarAnnotation -> Op
   SWAP              :: Op
@@ -67,7 +96,7 @@ data Op where
                        -> Type
                        -> Op
   UNIT              :: TypeAnnotation -> Op
-  IF_NONE           :: Instructions -> Instructions -> Op
+  IF_NONE           :: Ops -> Ops -> Op
   PAIR              :: TypeAnnotation
                        -> VarAnnotation
                        -> FieldAnnotation
@@ -87,11 +116,11 @@ data Op where
                        -> FieldAnnotation
                        -> Type
                        -> Op
-  IF_LEFT           :: Instructions -> Instructions -> Op
-  IF_RIGHT          :: Instructions -> Instructions -> Op
+  IF_LEFT           :: Ops -> Ops -> Op
+  IF_RIGHT          :: Ops -> Ops -> Op
   NIL               :: TypeAnnotation -> VarAnnotation -> Type -> Op
   CONS              :: VarAnnotation -> Op
-  IF_CONS           :: Instructions -> Instructions -> Op
+  IF_CONS           :: Ops -> Ops -> Op
   SIZE              :: VarAnnotation -> Op
   EMPTY_SET         :: TypeAnnotation -> VarAnnotation -> ComparableType -> Op
   EMPTY_MAP         :: TypeAnnotation
@@ -99,17 +128,17 @@ data Op where
                        -> ComparableType
                        -> Type
                        -> Op
-  MAP               :: VarAnnotation -> Instructions -> Op
-  ITER              :: VarAnnotation -> Instructions -> Op
+  MAP               :: VarAnnotation -> Ops -> Op
+  ITER              :: VarAnnotation -> Ops -> Op
   MEM               :: VarAnnotation -> Op
   GET               :: VarAnnotation -> Op
   UPDATE            :: Op
-  IF                :: Instructions -> Instructions -> Op
-  LOOP              :: Instructions -> Op
-  LOOP_LEFT         :: Instructions -> Op
-  LAMBDA            :: VarAnnotation -> Type -> Type -> Instructions -> Op
+  IF                :: Ops -> Ops -> Op
+  LOOP              :: Ops -> Op
+  LOOP_LEFT         :: Ops -> Op
+  LAMBDA            :: VarAnnotation -> Type -> Type -> Ops -> Op
   EXEC              :: VarAnnotation -> Op
-  DIP               :: Instructions -> Op
+  DIP               :: Ops -> Op
   FAILWITH          :: Op
   CAST              :: TypeAnnotation -> VarAnnotation -> Op
   RENAME            :: VarAnnotation -> Op
@@ -142,7 +171,7 @@ data Op where
   SET_DELEGATE      :: Op
   CREATE_ACCOUNT    :: VarAnnotation -> VarAnnotation -> Op
   CREATE_CONTRACT   :: VarAnnotation -> VarAnnotation -> Op
-  CREATE_CONTRACT2  :: VarAnnotation -> VarAnnotation -> Instructions -> Op
+  CREATE_CONTRACT2  :: VarAnnotation -> VarAnnotation -> Ops -> Op
   IMPLICIT_ACCOUNT  :: VarAnnotation -> Op
   NOW               :: VarAnnotation -> Op
   AMOUNT            :: VarAnnotation -> Op
@@ -200,3 +229,5 @@ data ComparableType where
 data TypeAnnotation = TypeAnnotation (Maybe T.Text) deriving Show-- Type Annotation
 data FieldAnnotation = FieldAnnotation (Maybe T.Text) deriving Show-- Field Annotation
 data VarAnnotation = VarAnnotation (Maybe T.Text) deriving Show-- Variable Annotation
+
+
