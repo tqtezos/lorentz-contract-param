@@ -8,7 +8,8 @@ import           Data.Maybe
 import           Data.Sequence as Seq
 import qualified Data.Text     as T
 import qualified Data.ByteString     as B
-import Prelude (Show, Integer, (.))
+import Text.Show
+import Prelude (Integer, (.), (++), Eq, Ord)
 
 
 -- smart contract
@@ -83,151 +84,151 @@ opsSingleton x = opsFromList [x]
 data Op where
   OpsSeq            :: Ops -> Op
   DROP              :: Op
-  DUP               :: VarAnnotation -> Op
+  DUP               :: VarNote -> Op
   SWAP              :: Op
-  PUSH              :: VarAnnotation -> Type -> Data -> Op
-  SOME              :: TypeAnnotation
-                       -> VarAnnotation
-                       -> FieldAnnotation
+  PUSH              :: VarNote -> Type -> Data -> Op
+  SOME              :: TypeNote -> VarNote -> FieldNote
                        -> Op
-  NONE              :: TypeAnnotation
-                       -> VarAnnotation
-                       -> FieldAnnotation
-                       -> Type
-                       -> Op
-  UNIT              :: TypeAnnotation -> Op
+  NONE              :: TypeNote -> VarNote -> FieldNote
+                       -> Type -> Op
+  UNIT              :: TypeNote -> Op
   IF_NONE           :: Ops -> Ops -> Op
-  PAIR              :: TypeAnnotation
-                       -> VarAnnotation
-                       -> FieldAnnotation
-                       -> FieldAnnotation
+  PAIR              :: TypeNote -> VarNote -> FieldNote -> FieldNote
                        -> Op
-  CAR               :: VarAnnotation -> FieldAnnotation -> Op
-  CDR               :: VarAnnotation -> FieldAnnotation -> Op
-  LEFT              :: TypeAnnotation
-                       -> VarAnnotation
-                       -> FieldAnnotation
-                       -> FieldAnnotation
-                       -> Type
-                       -> Op
-  RIGHT             :: TypeAnnotation
-                       -> VarAnnotation
-                       -> FieldAnnotation
-                       -> FieldAnnotation
-                       -> Type
-                       -> Op
+  CAR               :: VarNote -> FieldNote -> Op
+  CDR               :: VarNote -> FieldNote -> Op
+  LEFT              :: TypeNote -> VarNote -> FieldNote -> FieldNote
+                       -> Type -> Op
+  RIGHT             :: TypeNote -> VarNote -> FieldNote -> FieldNote
+                       -> Type -> Op
   IF_LEFT           :: Ops -> Ops -> Op
   IF_RIGHT          :: Ops -> Ops -> Op
-  NIL               :: TypeAnnotation -> VarAnnotation -> Type -> Op
-  CONS              :: VarAnnotation -> Op
+  NIL               :: TypeNote -> VarNote -> Type -> Op
+  CONS              :: VarNote -> Op
   IF_CONS           :: Ops -> Ops -> Op
-  SIZE              :: VarAnnotation -> Op
-  EMPTY_SET         :: TypeAnnotation -> VarAnnotation -> ComparableType -> Op
-  EMPTY_MAP         :: TypeAnnotation
-                       -> VarAnnotation
-                       -> ComparableType
-                       -> Type
-                       -> Op
-  MAP               :: VarAnnotation -> Ops -> Op
-  ITER              :: VarAnnotation -> Ops -> Op
-  MEM               :: VarAnnotation -> Op
-  GET               :: VarAnnotation -> Op
+  SIZE              :: VarNote -> Op
+  EMPTY_SET         :: TypeNote -> VarNote -> Comparable -> Op
+  EMPTY_MAP         :: TypeNote -> VarNote
+                       -> Comparable -> Type -> Op
+  MAP               :: VarNote -> Ops -> Op
+  ITER              :: VarNote -> Ops -> Op
+  MEM               :: VarNote -> Op
+  GET               :: VarNote -> Op
   UPDATE            :: Op
   IF                :: Ops -> Ops -> Op
   LOOP              :: Ops -> Op
   LOOP_LEFT         :: Ops -> Op
-  LAMBDA            :: VarAnnotation -> Type -> Type -> Ops -> Op
-  EXEC              :: VarAnnotation -> Op
+  LAMBDA            :: VarNote -> Type -> Type -> Ops -> Op
+  EXEC              :: VarNote -> Op
   DIP               :: Ops -> Op
   FAILWITH          :: Op
-  CAST              :: TypeAnnotation -> VarAnnotation -> Op
-  RENAME            :: VarAnnotation -> Op
-  CONCAT            :: VarAnnotation -> Op
+  CAST              :: TypeNote -> VarNote -> Op
+  RENAME            :: VarNote -> Op
+  CONCAT            :: VarNote -> Op
   SLICE             :: Op
   PACK              :: Op
   UNPACK            :: Op
-  ADD               :: VarAnnotation -> Op
-  SUB               :: VarAnnotation -> Op
-  MUL               :: VarAnnotation -> Op
-  EDIV              :: VarAnnotation -> Op
-  ABS               :: VarAnnotation -> Op
+  ADD               :: VarNote -> Op
+  SUB               :: VarNote -> Op
+  MUL               :: VarNote -> Op
+  EDIV              :: VarNote -> Op
+  ABS               :: VarNote -> Op
   NEG               :: Op
   MOD               :: Op
-  LSL               :: VarAnnotation -> Op
-  LSR               :: VarAnnotation -> Op
-  OR                :: VarAnnotation -> Op
-  AND               :: VarAnnotation -> Op
-  NOT               :: VarAnnotation -> Op
-  COMPARE           :: VarAnnotation -> Op
-  EQ                :: VarAnnotation -> Op
-  NEQ               :: VarAnnotation -> Op
-  LT                :: VarAnnotation -> Op
-  GT                :: VarAnnotation -> Op
-  LE                :: VarAnnotation -> Op
-  GE                :: VarAnnotation -> Op
-  INT               :: VarAnnotation -> Op
-  SELF              :: VarAnnotation -> Op
+  LSL               :: VarNote -> Op
+  LSR               :: VarNote -> Op
+  OR                :: VarNote -> Op
+  AND               :: VarNote -> Op
+  NOT               :: VarNote -> Op
+  COMPARE           :: VarNote -> Op
+  EQ                :: VarNote -> Op
+  NEQ               :: VarNote -> Op
+  LT                :: VarNote -> Op
+  GT                :: VarNote -> Op
+  LE                :: VarNote -> Op
+  GE                :: VarNote -> Op
+  INT               :: VarNote -> Op
+  SELF              :: VarNote -> Op
   TRANSFER_TOKENS   :: Op
   SET_DELEGATE      :: Op
-  CREATE_ACCOUNT    :: VarAnnotation -> VarAnnotation -> Op
-  CREATE_CONTRACT   :: VarAnnotation -> VarAnnotation -> Op
-  CREATE_CONTRACT2  :: VarAnnotation -> VarAnnotation -> Ops -> Op
-  IMPLICIT_ACCOUNT  :: VarAnnotation -> Op
-  NOW               :: VarAnnotation -> Op
-  AMOUNT            :: VarAnnotation -> Op
-  BALANCE           :: VarAnnotation -> Op
-  CHECK_SIGNATURE   :: VarAnnotation -> Op
-  BLAKE2B           :: VarAnnotation -> Op
-  HASH_KEY          :: VarAnnotation -> Op
-  STEPS_TO_QUOTA    :: VarAnnotation -> Op
-  SOURCE            :: VarAnnotation -> Op
-  SENDER            :: VarAnnotation -> Op
-  ADDRESS           :: VarAnnotation -> Op
+  CREATE_ACCOUNT    :: VarNote -> VarNote -> Op
+  CREATE_CONTRACT   :: VarNote -> VarNote -> Op
+  CREATE_CONTRACT2  :: VarNote -> VarNote -> Ops -> Op
+  IMPLICIT_ACCOUNT  :: VarNote -> Op
+  NOW               :: VarNote -> Op
+  AMOUNT            :: VarNote -> Op
+  BALANCE           :: VarNote -> Op
+  CHECK_SIGNATURE   :: VarNote -> Op
+  BLAKE2B           :: VarNote -> Op
+  HASH_KEY          :: VarNote -> Op
+  STEPS_TO_QUOTA    :: VarNote -> Op
+  SOURCE            :: VarNote -> Op
+  SENDER            :: VarNote -> Op
+  ADDRESS           :: VarNote -> Op
   deriving Show
 
 -- type
-data Type where
-  T_comparable :: TypeAnnotation -> ComparableType -> Type
-  T_key        :: TypeAnnotation -> Type
-  T_unit       :: TypeAnnotation -> Type
-  T_signature  :: TypeAnnotation -> Type
-  T_option     :: TypeAnnotation -> FieldAnnotation -> Type -> Type
-  T_list       :: TypeAnnotation -> Type -> Type
-  T_set        :: TypeAnnotation -> ComparableType -> Type
-  T_operation  :: TypeAnnotation -> Type
-  T_contract   :: TypeAnnotation -> Type -> Type
-  T_pair       :: TypeAnnotation
-                  -> FieldAnnotation
-                  -> FieldAnnotation
-                  -> Type
-                  -> Type
-                  -> Type
-  T_or         :: TypeAnnotation
-                  -> FieldAnnotation
-                  -> FieldAnnotation
-                  -> Type
-                  -> Type
-                  -> Type
-  T_lambda     :: TypeAnnotation -> Type -> Type -> Type
-  T_map        :: TypeAnnotation -> ComparableType -> Type -> Type
-  T_big_map    :: TypeAnnotation -> ComparableType -> Type -> Type
+
+data TypeNote = TypeNote (Maybe T.Text) deriving (Show, Eq, Ord)
+data FieldNote = FieldNote (Maybe T.Text) deriving (Show, Eq, Ord)
+data VarNote = VarNote (Maybe T.Text) deriving (Show, Eq, Ord)
+
+data Type = Type T TypeNote FieldNote deriving Show
+
+--instance Show Type where
+--  show (Type (T_comparable ct) tn fn) = (show ct) ++ (show tn) ++ (show fn)
+--  show (Type t tn fn) = (show t) ++ (show tn) ++ (show fn)
+
+data T where
+  T_comparable :: CT -> T
+  T_key        :: T
+  T_unit       :: T
+  T_signature  :: T
+  T_option     :: Type -> T
+  T_list       :: Type -> T
+  T_set        :: Comparable -> T
+  T_operation  :: T
+  T_address    :: T
+  T_contract   :: Type -> T
+  T_pair       :: Type -> Type -> T
+  T_or         :: Type -> Type -> T
+  T_lambda     :: Type -> Type -> T
+  T_map        :: Comparable -> Type -> T
+  T_big_map    :: Comparable -> Type -> T
   deriving Show
 
 -- comparable type
-data ComparableType where
-  T_int       :: ComparableType
-  T_nat       :: ComparableType
-  T_string    :: ComparableType
-  T_bytes     :: ComparableType
-  T_mutez     :: ComparableType
-  T_bool      :: ComparableType
-  T_key_hash  :: ComparableType
-  T_timestamp :: ComparableType
+data Comparable = Comparable CT TypeNote deriving Show
+
+-- instance Show Comparable where
+--   show (Comparable t tn) = (show t) ++ (show tn)
+
+data CT where
+  T_int       :: CT
+  T_nat       :: CT
+  T_string    :: CT
+  T_bytes     :: CT
+  T_mutez     :: CT
+  T_bool      :: CT
+  T_key_hash  :: CT
+  T_timestamp :: CT
   deriving Show
 
--- Annotation type
-data TypeAnnotation = TypeAnnotation (Maybe T.Text) deriving Show-- Type Annotation
-data FieldAnnotation = FieldAnnotation (Maybe T.Text) deriving Show-- Field Annotation
-data VarAnnotation = VarAnnotation (Maybe T.Text) deriving Show-- Variable Annotation
+-- Note type
 
+--instance Show TypeNote where
+--  show (TypeNote Nothing) = ""
+--  show (TypeNote (Just tn)) = ':' : (T.unpack tn)
+--
+--instance Show FieldNote where
+--  show (FieldNote Nothing) = ""
+--  show (FieldNote (Just fn)) = '%' : (T.unpack fn)
+--
+--instance Show VarNote where
+--  show (VarNote Nothing) = ""
+--  show (VarNote (Just vn)) = '@' : (T.unpack vn)
+
+noTN = TypeNote Nothing
+noFN = FieldNote Nothing
+noVN = VarNote Nothing
 

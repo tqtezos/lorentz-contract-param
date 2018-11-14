@@ -8,7 +8,6 @@ import qualified Data.ByteString.Base16           as B16
 import           Data.Char                        as Char
 import qualified Data.Text                        as T
 import           Data.Text.Encoding               (encodeUtf8)
-import qualified Data.Text.IO                     as TIO
 import           Text.Megaparsec
 import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer       as L
@@ -23,16 +22,7 @@ import           Data.Void                        (Void)
 
 import           Control.Applicative.Permutations
 
-parseFile :: String -> IO M.Contract
-parseFile file = do
-  code <- TIO.readFile file
-  case parse contract file code of
-    Left e   -> print e >> fail "error"
-    Right sc -> return sc
 
---emptyContract = M.Contract (M.Parameter M.T_unit)
---               (M.Storage M.T_unit)
---               (M.Code (M.ISeq Seq.Empty))
 
 contract :: Parser M.Contract
 contract = do
@@ -81,9 +71,9 @@ semicolon = symbol ";"
 data_ :: Parser M.Data
 data_ = lexeme $ (dataInner <|> parens dataInner)
   where
-    dataInner = (try $ M.Int <$> literalInt)
-          <|> (try $ M.String <$> literalString)
-          <|> (try $ M.Bytes <$> literalBytes)
+    dataInner = (try $ M.Int <$> intLiteral)
+          <|> (try $ M.String <$> stringLiteral)
+          <|> (try $ M.Bytes <$> bytesLiteral)
           <|> (do symbol "Unit"; return M.Unit)
           <|> (do symbol "True"; return M.True)
           <|> (do symbol "False"; return M.False)
@@ -92,15 +82,15 @@ data_ = lexeme $ (dataInner <|> parens dataInner)
           <|> (do symbol "Right"; a <- data_; return $ M.Right a)
           <|> (do symbol "Some"; a <- data_; return $ M.Some a)
           <|> (do symbol "None"; return M.None)
-          <|> (try $ M.Seq <$> dataList)
-          <|> (try $ M.Map <$> dataMap)
+          <|> (try $ M.Seq <$> listData)
+          <|> (try $ M.Map <$> mapData)
           <|> (M.DataOps <$> ops)
 
-literalInt :: Parser Integer
-literalInt = (L.signed (return ()) L.decimal)
+intLiteral :: Parser Integer
+intLiteral = (L.signed (return ()) L.decimal)
 
-literalBytes :: Parser B.ByteString
-literalBytes = do
+bytesLiteral :: Parser B.ByteString
+bytesLiteral = do
   symbol "0x"
   hexdigits <- takeWhile1P Nothing Char.isHexDigit
   let (bytes, remain) = B16.decode $ encodeUtf8 hexdigits
@@ -110,8 +100,8 @@ literalBytes = do
 
 -- this parses more escape sequences than are in the michelson spec
 -- should investigate which sequences this matters for, e.g. \xa == \n
-literalString :: Parser T.Text
-literalString = T.pack <$> (char '"' >> (manyTill L.charLiteral (char '"')))
+stringLiteral :: Parser T.Text
+stringLiteral = T.pack <$> (char '"' >> (manyTill L.charLiteral (char '"')))
 
 {-
 -- could do something explicit based on this
@@ -126,251 +116,263 @@ strEscape = char '\\' >> esc
 -}
 
 
-dataList :: Parser (Seq M.Data)
-dataList = Seq.fromList <$> (braces $ sepEndBy data_ semicolon)
+listData :: Parser (Seq M.Data)
+listData = Seq.fromList <$> (braces $ sepEndBy data_ semicolon)
 
-dataElement :: Parser M.Element
-dataElement = do
+elementData :: Parser M.Element
+elementData = do
   symbol "Elt"
   key <- data_
   val <- data_
   return $ M.Element key val
 
-dataMap :: Parser (Seq M.Element)
-dataMap = Seq.fromList <$> (braces $ sepEndBy dataElement semicolon)
+mapData :: Parser (Seq M.Element)
+mapData = Seq.fromList <$> (braces $ sepEndBy elementData semicolon)
 
 -- Ops
 ops :: Parser M.Ops
-ops = (M.|:) <$> (braces $ sepEndBy (op <|> (M.OpsSeq <$> macro)) semicolon)
-
-
+ops = (M.|:) <$> (braces $ sepEndBy ((try op) <|> (M.OpsSeq <$> macro)) semicolon)
 
 op :: Parser M.Op
-op = drop_
-  <|> dup_
-  <|> swap_
-  <|> push_
-  <|> some_
-  <|> none_
-  <|> unit_
-  <|> ifNone_
-  <|> pair_
-  <|> car_
-  <|> cdr_
-  <|> left_
-  <|> right_
-  <|> nil_
-  <|> cons_
-  <|> ifCons_
-  <|> emptySet_
-  <|> emptyMap_
-  <|> map_
-  <|> iter_
-  <|> mem_
-  <|> get_
-  <|> update_
-  <|> if_
-  <|> loop_
-  <|> loopLeft_
-  <|> lambda_
-  <|> exec_
-  <|> dip_
-  <|> failWith_
-  <|> cast_
-  <|> rename_
-  <|> concat_
-  <|> add_
-  <|> sub_
-  <|> ediv_
-  <|> abs_
-  <|> neg_
-  <|> mod_
-  <|> lsl_
-  <|> lsr_
-  <|> or_
-  <|> and_
-  <|> not_
-  <|> compare_
-  <|> eq_
-  <|> neq_
-  <|> lt_
-  <|> gt_
-  <|> ge_
-  <|> int_
-  <|> self_
-  <|> transferTokens_
-  <|> setDelegate_
-  <|> createAccount_
-  <|> createContract2_
-  <|> createContract_
-  <|> implicitAccount_
-  <|> now_
-  <|> amount_
-  <|> balance_
-  <|> checkSignature_
-  <|> blake2B_
-  <|> hashKey_
-  <|> stepsToQuota_
-  <|> source_
-  <|> sender_
-  <|> address_
+op = dropOp
+  <|> dupOp
+  <|> swapOp
+  <|> pushOp
+  <|> someOp
+  <|> noneOp
+  <|> unitOp
+  <|> ifNoneOp
+  <|> pairOp
+  <|> carOp
+  <|> cdrOp
+  <|> leftOp
+  <|> rightOp
+  <|> nilOp
+  <|> consOp
+  <|> ifConsOp
+  <|> emptySetOp
+  <|> emptyMapOp
+  <|> mapOp
+  <|> iterOp
+  <|> memOp
+  <|> getOp
+  <|> updateOp
+  <|> ifOp
+  <|> loopOp
+  <|> loopLeftOp
+  <|> lambdaOp
+  <|> execOp
+  <|> dipOp
+  <|> failWithOp
+  <|> castOp
+  <|> renameOp
+  <|> concatOp
+  <|> addOp
+  <|> subOp
+  <|> edivOp
+  <|> absOp
+  <|> negOp
+  <|> modOp
+  <|> lslOp
+  <|> lsrOp
+  <|> orOp
+  <|> andOp
+  <|> notOp
+  <|> compareOp
+  <|> eqOp
+  <|> neqOp
+  <|> ltOp
+  <|> gtOp
+  <|> geOp
+  <|> intOp
+  <|> selfOp
+  <|> transferTokensOp
+  <|> setDelegateOp
+  <|> createAccountOp
+  <|> createContract2Op
+  <|> createContractOp
+  <|> implicitAccountOp
+  <|> nowOp
+  <|> amountOp
+  <|> balanceOp
+  <|> checkSignatureOp
+  <|> blake2BOp
+  <|> hashKeyOp
+  <|> stepsToQuotaOp
+  <|> sourceOp
+  <|> senderOp
+  <|> addressOp
 
-permute2 :: Parser a -> Parser b -> Parser (a,b)
-permute2 x y = runPermutation $
-  (,) <$> toPermutation x
-      <*> toPermutation y
+permute2WithDefault :: Parser a -> Parser b -> a -> b -> Parser (a,b)
+permute2WithDefault x y a b = runPermutation $
+  (,) <$> (toPermutationWithDefault a x)
+      <*> (toPermutationWithDefault b y)
 
-permute3 :: Parser a -> Parser b -> Parser c -> Parser (a,b,c)
-permute3 x y z = runPermutation $
-  (,,) <$> toPermutation x
-       <*> toPermutation y
-       <*> toPermutation z
+permute3WithDefault :: Parser a -> Parser b -> Parser c
+                        -> a -> b -> c -> Parser (a,b,c)
+permute3WithDefault x y z a b c= runPermutation $
+  (,,) <$> (toPermutationWithDefault a x)
+       <*> (toPermutationWithDefault b y)
+       <*> (toPermutationWithDefault c z)
 
-fields2 :: Parser (M.FieldAnnotation, M.FieldAnnotation)
+
+fields2 :: Parser (M.FieldNote, M.FieldNote)
 fields2 = do
-  a <- fieldNote
-  b <- fieldNote
+  a <- fieldNote'
+  b <- fieldNote'
   return (a, b)
 
-drop_ = symbol "DROP" >> return M.DROP
+typeVarField1 :: Parser (M.TypeNote, M.VarNote, M.FieldNote)
+typeVarField1 =
+  permute3WithDefault typeNote' varNote' fieldNote' M.noTN M.noVN M.noFN
 
-dup_ = do
+typeVarField2 :: Parser (M.TypeNote, M.VarNote, (M.FieldNote, M.FieldNote))
+typeVarField2 =
+  permute3WithDefault typeNote' varNote' fields2 M.noTN M.noVN (M.noFN, M.noFN)
+
+typeAndVar :: Parser (M.TypeNote, M.VarNote)
+typeAndVar = permute2WithDefault typeNote' varNote' M.noTN M.noVN
+
+varAndField :: Parser (M.VarNote, M.FieldNote)
+varAndField  = permute2WithDefault varNote' fieldNote' M.noVN M.noFN
+
+dropOp = symbol "DROP" >> return M.DROP
+
+dupOp = do
   symbol "DUP"
   v <- varNote
   return $ M.DUP v
 
-swap_ = symbol "SWAP" >> return M.SWAP
+swapOp = symbol "SWAP" >> return M.SWAP
 
-push_ = do
+pushOp = do
   symbol "PUSH"
   v <- varNote
   a <- type_
   b <- data_
   return $ M.PUSH v a b
 
-some_ = do
+someOp = do
   symbol "SOME"
-  (t, v, f) <- permute3 typeNote varNote fieldNote
+  (t, v, f) <- typeVarField1
   return $ M.SOME t v f
 
-none_ = do
+noneOp = do
   symbol "NONE"
-  (t, v, f) <- permute3 typeNote varNote fieldNote
+  (t, v, f) <- typeVarField1
   a <- type_
   return $ M.NONE t v f a
 
-unit_ = do
+unitOp = do
   symbol "UNIT"
   t <- typeNote
   return $ M.UNIT t
 
-ifNone_ = do
+ifNoneOp = do
   symbol "IF_NONE"
   a <- ops
   b <- ops;
   return $ M.IF_NONE a b
 
-pair_ = do
+pairOp = do
   symbol "PAIR"
-  (t, v, (f, f')) <- permute3 typeNote varNote fields2
+  (t, v, (f, f')) <- typeVarField2
   return $ M.PAIR t v f f'
 
-car_ = do
+carOp = do
   symbol "CAR"
-  v <- varNote; f <- fieldNote
+  (v, f) <- varAndField
   return $ M.CAR v f
 
-cdr_ = do
+cdrOp = do
   symbol "CDR"
-  v <- varNote
-  f <- fieldNote
+  (v, f) <- varAndField
   return $ M.CDR v f
 
-left_ = do
+leftOp = do
   symbol "LEFT"
-  (t, v, (f, f')) <- permute3 typeNote varNote fields2
+  (t, v, (f, f')) <- typeVarField2
   a <- type_
   return $ M.LEFT t v f f' a
 
-right_ = do
+rightOp = do
   symbol "RIGHT"
-  (t, v, (f, f')) <- permute3 typeNote varNote fields2
+  (t, v, (f, f')) <- typeVarField2
   a <- type_
   return $ M.RIGHT t v f f' a
 
-nil_ = do
+nilOp = do
   symbol "NIL"
-  (t, v) <- permute2 typeNote varNote
+  (t, v) <- typeAndVar
   a <- type_;
   return $ M.NIL t v a
 
-cons_ = do
+consOp = do
   symbol "CONS"
   v <- varNote
   return $ M.CONS v
 
-ifCons_ = do
+ifConsOp = do
   symbol "IF_CONS"
   a <- ops
   b <- ops
   return $ M.IF_CONS a b
 
-emptySet_ = do
+emptySetOp = do
   symbol "EMPTY_SET"
-  t <- typeNote
-  v <- varNote
-  a <- comparableType
+  (t, v) <- typeAndVar
+  a <- comparable
   return $ M.EMPTY_SET t v a
 
-emptyMap_ = do
+emptyMapOp = do
   symbol "EMPTY_MAP"
-  t <- typeNote
-  v <- varNote
-  a <- comparableType
+  (t, v) <- typeAndVar
+  a <- comparable
+  a <- comparable
   b <- type_
   return $ M.EMPTY_MAP t v a b
 
-map_ = do
+mapOp = do
   symbol "MAP"
   v <- varNote
   a <- ops
   return $ M.MAP v a
 
-iter_ = do
+iterOp = do
   symbol "ITER"
   v <- varNote
   a <- ops
   return $ M.ITER v a
 
-mem_ = do
+memOp = do
   symbol "MEM"
   v <- varNote
   return $ M.MEM v
 
-get_ = do
+getOp = do
   symbol "GET"
   v <- varNote
   return $ M.GET v
 
-update_ = symbol "UPDATE" >> return M.UPDATE
+updateOp = symbol "UPDATE" >> return M.UPDATE
 
-if_ = do
+ifOp = do
   symbol "IF"
   a <- ops
   b <- ops
   return $ M.IF a b
 
-loop_ = do
+loopOp = do
   symbol "LOOP"
   a <- ops
   return $ M.LOOP a
 
-loopLeft_ = do
+loopLeftOp = do
   symbol "LOOP_LEFT"
   a <- ops
   return $ M.LOOP_LEFT a
 
-lambda_ = do
+lambdaOp = do
   symbol "LAMBDA"
   v <- varNote
   a <- type_
@@ -378,293 +380,390 @@ lambda_ = do
   c <- ops
   return $ M.LAMBDA v a b c
 
-exec_ = do
+execOp = do
   symbol "EXEC"
   v <- varNote
   return $ M.EXEC v
 
-dip_ = do
+dipOp = do
   symbol "DIP"
   a <- ops
   return $ M.DIP a
 
-failWith_ = symbol "FAILWITH" >> return M.FAILWITH
+failWithOp = symbol "FAILWITH" >> return M.FAILWITH
 
-cast_ = do
+castOp = do
   symbol "CAST"
   t <- typeNote
   v <- varNote
   return $ M.CAST t v
 
-rename_ = do
+renameOp = do
   symbol "RENAME"
   v <- varNote
   return $ M.RENAME v
 
-concat_ = do
+concatOp = do
   symbol "CONCAT"
   v <- varNote
   return $ M.CONCAT v
 
-add_ = do
+addOp = do
   symbol "ADD"
   v <- varNote
   return $ M.ADD v
 
-sub_ = do
+subOp = do
   symbol "SUB"
   v <- varNote
   return $ M.SUB v
 
-mul_ = do
+mulOp = do
   symbol "MUL"
   v <- varNote
   return $ M.MUL v
 
-ediv_ = do
+edivOp = do
   symbol "EDIV"
   v <- varNote
   return $ M.EDIV v
 
-abs_ = do
+absOp = do
   symbol "ABS"
   v <- varNote
   return $ M.ABS v
 
-neg_ = do
+negOp = do
   symbol "NEG"
   -- v <- varNote
   return M.NEG
 
-mod_ = do
+modOp = do
   symbol "MOD"
   -- v <- varNote
   return M.MOD
 
-lsl_ = do
+lslOp = do
   symbol "LSL"
   v <- varNote
   return $ M.LSL v
 
-lsr_ = do
+lsrOp = do
   symbol "LSR"
   v <- varNote
   return $ M.LSR v
 
-or_ = do
+orOp = do
   symbol "OR"
   v <- varNote
   return $ M.OR v
 
-and_ = do
+andOp = do
   symbol "AND"
   v <- varNote
   return $ M.AND v
 
-not_ = do
+notOp = do
   symbol "NOT"
   v <- varNote
   return $ M.NOT v
 
-compare_ = do
+compareOp = do
   symbol "COMPARE"
   v <- varNote
   return $ M.COMPARE v
 
-eq_ = do
+eqOp = do
   symbol "EQ"
   v <- varNote
   return $ M.EQ v
 
-neq_ = do
+neqOp = do
   symbol "NEQ"
   v <- varNote
   return $ M.NEQ v
 
-lt_ = do
+ltOp = do
   symbol "LT"
   v <- varNote
   return $ M.LT v
 
-gt_ = do
+gtOp = do
   symbol "GT"
   v <- varNote
   return $ M.GT v
 
-le_ = do
+leOp = do
   symbol "LE"
   v <- varNote
   return $ M.LE v
 
-ge_ = do
+geOp = do
   symbol "GE"
   v <- varNote
   return $ M.GE v
 
-int_ = do
+intOp = do
   symbol "INT"
   v <- varNote
   return $ M.INT v
 
-self_ = do
+selfOp = do
   symbol "SELF"
   v <- varNote
   return $ M.SELF v
 
-transferTokens_ = do
+transferTokensOp = do
   symbol "TRANSFER_TOKENS"
   return $ M.TRANSFER_TOKENS
 
-setDelegate_ = do
+setDelegateOp = do
   symbol "SET_DELEGATE"
   return $ M.SET_DELEGATE
 
-createAccount_ = do
+createAccountOp = do
   symbol "CREATE_ACCOUNT"
   v <- varNote
   v' <- varNote
   return $ M.CREATE_ACCOUNT v v'
 
-createContract2_ = do
+createContract2Op = do
   symbol "CREATE_CONTRACT"
   v <- varNote
   v' <- varNote
   a <- ops
   return $ M.CREATE_CONTRACT2 v v' a
 
-createContract_ = do
+createContractOp = do
   symbol "CREATE_CONTRACT"
   v <- varNote
   v' <- varNote
   return $ M.CREATE_CONTRACT v v'
 
-implicitAccount_ = do
+implicitAccountOp = do
   symbol "IMPLICIT_ACCOUNT"
   v <- varNote
   return $ M.IMPLICIT_ACCOUNT v
 
-now_ = do
+nowOp = do
   symbol "NOW"
   v <- varNote
   return $ M.NOW v
 
-amount_ = do
+amountOp = do
   symbol "AMOUNT"
   v <- varNote
   return $ M.AMOUNT v
 
-balance_ = do
+balanceOp = do
   symbol "BALANCE"
   v <- varNote
   return $ M.BALANCE v
 
-checkSignature_ = do
+checkSignatureOp = do
   symbol "CHECK_SIGNATURE"
   v <- varNote
   return $ M.CHECK_SIGNATURE v
 
-blake2B_ = do
+blake2BOp = do
   symbol "BLAKE2B"
   v <- varNote
   return $ M.BLAKE2B v
 
-hashKey_ = do
+hashKeyOp = do
   symbol "HASH_KEY"
   v <- varNote
   return $ M.HASH_KEY v
 
-stepsToQuota_ = do
+stepsToQuotaOp = do
   symbol "STEPS_TO_QUOTA"
   v <- varNote
   return $ M.STEPS_TO_QUOTA v
 
-source_ = do
+sourceOp = do
   symbol "SOURCE"
   v <- varNote
   return $ M.SOURCE v
 
-sender_ = do
+senderOp = do
   symbol "SENDER"
   v <- varNote
   return $ M.SENDER v
 
-address_ = do
+addressOp = do
   symbol "ADDRESS"
   v <- varNote
   return $ M.ADDRESS v
 
--- Annotations
-noTNote = M.TypeAnnotation Nothing
-noFNote = M.FieldAnnotation Nothing
-noVNote = M.VarAnnotation Nothing
+-- Notes
 
-typeNote :: Parser M.TypeAnnotation
-typeNote = M.TypeAnnotation <$> note ':'
+typeNote :: Parser M.TypeNote
+typeNote = M.TypeNote <$> ((try $ note ":") <|> pure Nothing)
 
+fieldNote :: Parser M.FieldNote
+fieldNote = M.FieldNote <$> ((try $ note "%") <|> pure Nothing)
 
-fieldNote :: Parser M.FieldAnnotation
-fieldNote = M.FieldAnnotation <$> note '%'
+varNote :: Parser M.VarNote
+varNote = M.VarNote <$> ((try $ note "@") <|> pure Nothing)
 
-varNote :: Parser M.VarAnnotation
-varNote = M.VarAnnotation <$> note '@'
+-- for permutation
+typeNote' :: Parser M.TypeNote
+typeNote' = M.TypeNote <$> note ":"
 
-note :: Char -> Parser (Maybe T.Text)
-note c = optional $ lexeme $ char c >> (note' <|> pure "")
+fieldNote' :: Parser M.FieldNote
+fieldNote' = M.FieldNote <$> note "%"
+
+varNote' :: Parser M.VarNote
+varNote' = M.VarNote <$> note "@"
+
+note :: T.Text -> Parser (Maybe T.Text)
+note c = Just <$> (lexeme $ string c >> (note' <|> pure ""))
   where
     note' = do
       a <- string "@"
            <|> string "%"
            <|> string "%%"
            <|> T.singleton <$> satisfy isAlphaNum
-      b <- takeWhileP Nothing (\ x -> isAlphaNum x || x `elem` ['\\', '.', '-'])
+      let chars = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'] ++ ['\\', '.', '_']
+      b <- takeWhileP Nothing (\ x -> x `elem` chars)
       return $ T.append a b
 
 -- Types
+
 type_ :: Parser M.Type
-type_ = lexeme $ (typeInner <|> parens typeInner)
-
-typeField :: Parser (M.Type, M.FieldAnnotation)
-typeField = lexeme $ (mtf <|> parens mtf)
+type_ = lexeme $ (ti <|> parens ti)
   where
-    mtf = do
-      mt <- typeInner
-      nf <- fieldNote
-      return (mt, nf)
+    ti = typeInner (return M.noFN)
 
-typeInner :: Parser M.Type
-typeInner = (do ct <- ct; t <- tN; return $ M.T_comparable t ct)
-  <|> (do symbol "key"; t <- tN; return $ M.T_key t)
-  <|> (do symbol "unit"; t <- tN; return $ M.T_unit t)
-  <|> (do symbol "signature"; t <- tN; return $ M.T_signature t)
-  <|> (do symbol "option"; t <- tN; (a, f) <- tF; return $ M.T_option t f a)
-  <|> (do symbol "list"; t <- tN; a <- type_; return $ M.T_list t a)
-  <|> (do symbol "set"; t <- tN; a <- ct; return $ M.T_set t a)
-  <|> (do symbol "operation"; t <- tN; return $ M.T_operation t)
-  <|> (do symbol "contract"; t <- tN; a <- type_; return $ M.T_contract t a)
-  <|> (do symbol "pair"; t <- tN; (a, f) <- tF; (b, f') <- tF;
-          return $ M.T_pair t f f' a b)
-  <|> (do symbol "or"; t <- tN; (a, f) <- tF; (b, f') <- tF;
-          return $ M.T_or t f f' a b)
-  <|> (do symbol "lambda"; t <- tN; a <- type_; b <- type_;
-          return $ M.T_lambda t a b)
-  <|> (do symbol "map"; t <- tN; a <- ct; b <- type_;
-          return $ M.T_map t a b)
-  <|> (do symbol "big_map"; t <- tN; a <- ct; b <- type_;
-          return $ M.T_big_map t a b)
-  where
-    ct = comparableType
-    tN = typeNote
-    tF = typeField
+typeInner :: Parser M.FieldNote -> Parser M.Type
+typeInner fp = lexeme $ comparableType fp
+  <|> keyType fp
+  <|> unitType fp
+  <|> signatureType fp
+  <|> optionType fp
+  <|> listType fp
+  <|> setType fp
+  <|> operationType fp
+  <|> addressType fp
+  <|> contractType fp
+  <|> pairType fp
+  <|> orType fp
+  <|> mapType fp
+  <|> bigMapType fp
+
+field :: Parser M.Type
+field = (try $ typeInner fieldNote) <|> (parens $ typeInner fieldNote)
+
+typeAndField :: Parser M.FieldNote -> Parser (M.TypeNote, M.FieldNote)
+typeAndField fp = permute2WithDefault typeNote fp M.noTN M.noFN
+
+keyType fp = do
+  symbol "key"
+  (t, f) <- typeAndField fp
+  return $ M.Type (M.T_key) t f
+
+unitType fp = do
+  symbol "unit"
+  (t, f) <- typeAndField fp
+  return $ M.Type M.T_unit t f
+
+signatureType fp = do
+  symbol "signature"
+  (t, f) <- typeAndField fp
+  return $ M.Type M.T_signature t f
+
+optionType fp = do
+  symbol "option"
+  (t, f) <- typeAndField fp
+  a <- field
+  return $ M.Type (M.T_option a) t f
+
+listType fp = do
+  symbol "list"
+  (t, f) <- typeAndField fp
+  a <- type_
+  return $ M.Type (M.T_list a) t f
+
+setType fp = do
+  symbol "set"
+  (t, f) <- typeAndField fp
+  a <- comparable
+  return $ M.Type (M.T_set a) t f
+
+operationType fp = do
+  symbol "operation"
+  (t, f) <- typeAndField fp
+  return $ M.Type M.T_operation t f
+
+addressType fp = do
+  symbol "address"
+  (t, f) <- typeAndField fp
+  return $ M.Type M.T_address t f
+
+contractType fp = do
+  symbol "contract"
+  (t, f) <- typeAndField fp
+  a <- type_
+  return $ M.Type (M.T_contract a) t f
+
+--pairType :: Parser M.FieldNote -> Parser M.Type
+pairType fp = do
+  symbol "pair"
+  (t, f) <- typeAndField fp
+  a <- field
+  b <- field
+  return $ M.Type (M.T_pair a b) t f
+
+orType fp = do
+  symbol "or"
+  (t, f) <- typeAndField fp
+  a <- field
+  b <- field
+  return $ M.Type (M.T_or a b) t f
+
+lambdaType fp = do
+  symbol "lambda"
+  (t, f) <- typeAndField fp
+  a <- type_
+  b <- type_
+  return $ M.Type (M.T_lambda a b) t f
+
+mapType fp = do
+  symbol "map"
+  (t, f) <- typeAndField fp
+  a <- comparable
+  b <- type_
+  return $ M.Type (M.T_map a b) t f
+
+bigMapType fp = do
+  symbol "big_map"
+  (t, f) <- typeAndField fp
+  a <- comparable
+  b <- type_
+  return $ M.Type (M.T_map a b) t f
 
 -- Comparable Types
-comparableType :: Parser M.ComparableType
-comparableType = (symbol "int" >> return M.T_int)
- <|> (symbol "nat" >> return M.T_nat)
- <|> (symbol "string" >> return M.T_string)
- <|> (symbol "mutez" >> return M.T_mutez)
- <|> (symbol "bool" >> return M.T_bool)
- <|> (symbol "key_hash" >> return M.T_key_hash)
- <|> (symbol "timestamp" >> return M.T_timestamp)
+comparableType :: Parser M.FieldNote -> Parser M.Type
+comparableType fp = do
+  ct <- ct
+  (t, f) <- typeAndField fp
+  return $ (M.Type (M.T_comparable ct) t f)
+
+comparable :: Parser M.Comparable
+comparable = do
+  ct <- ct
+  t <- typeNote
+  return $ M.Comparable ct t
+
+ct :: Parser M.CT
+ct = (symbol "int" >> return M.T_int)
+  <|> (symbol "nat" >> return M.T_nat)
+  <|> (symbol "string" >> return M.T_string)
+  <|> (symbol "bytes" >> return M.T_bytes)
+  <|> (symbol "mutez" >> return M.T_mutez)
+  <|> (symbol "bool" >> return M.T_bool)
+  <|> (symbol "key_hash" >> return M.T_key_hash)
+  <|> (symbol "timestamp" >> return M.T_timestamp)
 
 -- Macros
 
@@ -684,8 +783,9 @@ macro = cmpMac
   <|> dupMac
   <|> pairMac
   <|> unpairMac
+  <|> cadrMac
 
-cmpOp = eq_ <|> neq_ <|> lt_ <|> gt_ <|> le_ <|> gt_
+cmpOp = eqOp <|> neqOp <|> ltOp <|> gtOp <|> leOp <|> gtOp
 
 
 cmpMac :: Parser M.Ops
@@ -695,7 +795,7 @@ cmpMac = do
   return $ cmpX a
 
 cmpX :: M.Op -> M.Ops
-cmpX op = M.opsFromList [M.COMPARE noVNote, op]
+cmpX op = M.opsFromList [M.COMPARE M.noVN, op]
 
 ifMac :: Parser M.Ops
 ifMac = do
@@ -717,7 +817,7 @@ ifcmpMac = do
   return $ ifcmpX a bt bf
 
 ifcmpX :: M.Op -> M.Ops -> M.Ops -> M.Ops
-ifcmpX op bt bf = M.opsFromList [M.COMPARE noVNote, op, M.IF bt bf]
+ifcmpX op bt bf = M.opsFromList [M.COMPARE M.noVN, op, M.IF bt bf]
 
 -- fail
 
@@ -725,7 +825,7 @@ failMac :: Parser M.Ops
 failMac = symbol "FAIL" >> return failX
 
 failX :: M.Ops
-failX = M.opsFromList [M.UNIT noTNote, M.FAILWITH]
+failX = M.opsFromList [M.UNIT M.noTN, M.FAILWITH]
 
 {- assertion macros:
   * assert
@@ -808,7 +908,7 @@ dupMac = do
 
 -- TODO: annotation?
 dupX :: Natural -> M.Ops
-dupX n = go n (M.opsFromList [M.DIP $ M.opsFromList [(M.DUP noVNote)], M.SWAP])
+dupX n = go n (M.opsFromList [M.DIP $ M.opsFromList [(M.DUP M.noVN)], M.SWAP])
   where
     go 1 x = x
     go n x = go (n - 1) (M.opsFromList [M.DIP x, M.SWAP])
@@ -833,7 +933,7 @@ pairX (Nest l Stop) = M.opsConcat (M.opsFromList [pairN]) (pairX l)
 pairX (Nest l r) =
   M.opsConcat (M.opsConcat (pairX l) (pairX r)) (M.opsFromList [pairN])
 
-pairN = (M.PAIR noTNote noVNote noFNote noFNote)
+pairN = (M.PAIR M.noTN M.noVN M.noFN M.noFN)
 
 --unpair
 unpairMac :: Parser M.Ops
@@ -841,14 +941,26 @@ unpairMac = unpairX <$> (string "UN" >> pairMacInner <* symbol "R")
 
 unpairX :: P -> M.Ops
 unpairX (Nest Stop Stop) =
-  (M.|:) [M.DUP noVNote, M.CAR noVNote noFNote, M.DIP $ (M.|:) [M.CDR noVNote noFNote]]
+  (M.|:) [M.DUP M.noVN, M.CAR M.noVN M.noFN, M.DIP $ (M.|:) [M.CDR M.noVN M.noFN]]
 unpairX (Nest Stop r) = unpairN M.>< (M.|:) [M.DIP $ unpairX r]
 unpairX (Nest l Stop) = unpairN M.>< (unpairX l)
 unpairX (Nest l r) = (unpairN) M.>< (unpairX l) M.>< (unpairX r)
 
 unpairN = unpairX (Nest Stop Stop)
 
---cadr
+cadrMac :: Parser M.Ops
+cadrMac = lexeme $ do
+  string "C"
+  a <- some $ try $ cadrInner <* (notFollowedBy $ string "R")
+  let a' = a <*> pure M.noVN <*> pure M.noFN
+  b <- cadrInner
+  symbol "R"
+  (vn, fn) <- varAndField
+  return $ (M.|:) a' M.|> (b vn fn)
+  where
+    cadrInner = (string "A" >> return M.CAR)
+            <|> (string "D" >> return M.CDR)
+
 --
 --if_some
 --
