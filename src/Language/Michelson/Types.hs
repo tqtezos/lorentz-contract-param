@@ -80,8 +80,30 @@ infixr 9 |:
 opsSingleton :: Op -> Ops
 opsSingleton x = opsFromList [x]
 
+data PairStruct = Leaf | Nest PairStruct PairStruct deriving Show
+data CadrStruct = A | D deriving Show
+
 -- instruction
 data Op where
+  CMP_MAC           :: Op -> Op
+  IF_MAC            :: Op -> Ops -> Ops -> Op
+  IFCMP_MAC         :: Op -> Ops -> Ops ->Op
+  FAIL_MAC          :: Op
+  PAIR_MAC          :: PairStruct -> VarNote -> [FieldNote] -> Op
+  UNPAIR_MAC        :: PairStruct -> [VarNote] -> [FieldNote] -> Op
+  CADR_MAC          :: [CadrStruct] -> VarNote -> FieldNote -> Op
+  SET_CADR_MAC      :: [CadrStruct] -> VarNote -> FieldNote -> Op
+  MAP_CADR_MAC      :: [CadrStruct] -> VarNote -> FieldNote -> Ops -> Op
+  DIP_MAC           :: Integer -> Ops -> Op
+  DUP_MAC           :: Integer -> VarNote -> Op
+  ASSERT_MAC        :: Op
+  ASSERTX_MAC       :: Op -> Op
+  ASSERT_CMP_MAC    :: Op -> Op
+  ASSERT_NONE_MAC   :: Op
+  ASSERT_SOME_MAC   :: Op
+  ASSERT_LEFT_MAC   :: Op
+  ASSERT_RIGHT_MAC  :: Op
+  IF_SOME_MAC       :: Ops -> Ops -> Op
   OpsSeq            :: Ops -> Op
   DROP              :: Op
   DUP               :: VarNote -> Op
@@ -91,7 +113,7 @@ data Op where
                        -> Op
   NONE              :: TypeNote -> VarNote -> FieldNote
                        -> Type -> Op
-  UNIT              :: TypeNote -> Op
+  UNIT              :: TypeNote -> VarNote -> Op
   IF_NONE           :: Ops -> Ops -> Op
   PAIR              :: TypeNote -> VarNote -> FieldNote -> FieldNote
                        -> Op
@@ -124,10 +146,11 @@ data Op where
   FAILWITH          :: Op
   CAST              :: TypeNote -> VarNote -> Op
   RENAME            :: VarNote -> Op
+  PACK              :: VarNote -> Op
+  UNPACK            :: VarNote -> Type -> Op
   CONCAT            :: VarNote -> Op
-  SLICE             :: Op
-  PACK              :: Op
-  UNPACK            :: Op
+  SLICE             :: VarNote -> Op
+  ISNAT             :: Op
   ADD               :: VarNote -> Op
   SUB               :: VarNote -> Op
   MUL               :: VarNote -> Op
@@ -139,6 +162,7 @@ data Op where
   LSR               :: VarNote -> Op
   OR                :: VarNote -> Op
   AND               :: VarNote -> Op
+  XOR               :: VarNote -> Op
   NOT               :: VarNote -> Op
   COMPARE           :: VarNote -> Op
   EQ                :: VarNote -> Op
@@ -149,16 +173,19 @@ data Op where
   GE                :: VarNote -> Op
   INT               :: VarNote -> Op
   SELF              :: VarNote -> Op
-  TRANSFER_TOKENS   :: Op
+  CONTRACT          :: Type -> Op
+  TRANSFER_TOKENS   :: VarNote -> Op
   SET_DELEGATE      :: Op
   CREATE_ACCOUNT    :: VarNote -> VarNote -> Op
   CREATE_CONTRACT   :: VarNote -> VarNote -> Op
-  CREATE_CONTRACT2  :: VarNote -> VarNote -> Ops -> Op
+  CREATE_CONTRACT2  :: VarNote -> VarNote -> Contract -> Op
   IMPLICIT_ACCOUNT  :: VarNote -> Op
   NOW               :: VarNote -> Op
   AMOUNT            :: VarNote -> Op
   BALANCE           :: VarNote -> Op
   CHECK_SIGNATURE   :: VarNote -> Op
+  SHA256            :: VarNote -> Op
+  SHA512            :: VarNote -> Op
   BLAKE2B           :: VarNote -> Op
   HASH_KEY          :: VarNote -> Op
   STEPS_TO_QUOTA    :: VarNote -> Op
@@ -188,7 +215,6 @@ data T where
   T_list       :: Type -> T
   T_set        :: Comparable -> T
   T_operation  :: T
-  T_address    :: T
   T_contract   :: Type -> T
   T_pair       :: Type -> Type -> T
   T_or         :: Type -> Type -> T
@@ -212,6 +238,7 @@ data CT where
   T_bool      :: CT
   T_key_hash  :: CT
   T_timestamp :: CT
+  T_address   :: CT
   deriving Show
 
 -- Note type
