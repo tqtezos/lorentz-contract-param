@@ -22,8 +22,6 @@ import           Data.Void                        (Void)
 
 import           Control.Applicative.Permutations
 
-
-
 contract :: Parser M.Contract
 contract = do
   mSpace
@@ -131,7 +129,7 @@ mapData = Seq.fromList <$> (braces $ sepEndBy elementData semicolon)
 
 -- Ops
 ops :: Parser M.Ops
-ops = (M.|:) <$> (braces $ sepEndBy ((try op) <|> (M.OpsSeq <$> macro)) semicolon)
+ops = (M.|:) <$> (braces $ sepEndBy ((try op) <|> macro) semicolon)
 
 op :: Parser M.Op
 op = dropOp
@@ -142,14 +140,18 @@ op = dropOp
   <|> noneOp
   <|> unitOp
   <|> ifNoneOp
+  <|> ifSomeMac
   <|> pairOp
   <|> carOp
   <|> cdrOp
   <|> leftOp
   <|> rightOp
+  <|> ifLeftOp
+  <|> ifRightOp
   <|> nilOp
   <|> consOp
   <|> ifConsOp
+  <|> sizeOp
   <|> emptySetOp
   <|> emptyMapOp
   <|> mapOp
@@ -158,8 +160,8 @@ op = dropOp
   <|> getOp
   <|> updateOp
   <|> ifOp
-  <|> loopOp
   <|> loopLeftOp
+  <|> loopOp
   <|> lambdaOp
   <|> execOp
   <|> dipOp
@@ -167,8 +169,14 @@ op = dropOp
   <|> castOp
   <|> renameOp
   <|> concatOp
+  <|> packOp
+  <|> unpackOp
+  <|> sliceOp
+  <|> isNatOp
+  <|> addressOp
   <|> addOp
   <|> subOp
+  <|> mulOp
   <|> edivOp
   <|> absOp
   <|> negOp
@@ -177,15 +185,18 @@ op = dropOp
   <|> lsrOp
   <|> orOp
   <|> andOp
+  <|> xorOp
   <|> notOp
   <|> compareOp
   <|> eqOp
   <|> neqOp
   <|> ltOp
+  <|> leOp
   <|> gtOp
   <|> geOp
   <|> intOp
   <|> selfOp
+  <|> contractOp
   <|> transferTokensOp
   <|> setDelegateOp
   <|> createAccountOp
@@ -196,12 +207,13 @@ op = dropOp
   <|> amountOp
   <|> balanceOp
   <|> checkSignatureOp
+  <|> sha256Op
+  <|> sha512Op
   <|> blake2BOp
   <|> hashKeyOp
   <|> stepsToQuotaOp
   <|> sourceOp
   <|> senderOp
-  <|> addressOp
 
 permute2WithDefault :: Parser a -> Parser b -> a -> b -> Parser (a,b)
 permute2WithDefault x y a b = runPermutation $
@@ -265,14 +277,15 @@ noneOp = do
 
 unitOp = do
   symbol "UNIT"
-  t <- typeNote
-  return $ M.UNIT t
+  (t, v) <- typeAndVar
+  return $ M.UNIT t v
 
 ifNoneOp = do
   symbol "IF_NONE"
   a <- ops
-  b <- ops;
+  b <- ops
   return $ M.IF_NONE a b
+
 
 pairOp = do
   symbol "PAIR"
@@ -301,6 +314,18 @@ rightOp = do
   a <- type_
   return $ M.RIGHT t v f f' a
 
+ifLeftOp = do
+  symbol "IF_LEFT"
+  a <- ops
+  b <- ops
+  return $ M.IF_LEFT a b
+
+ifRightOp = do
+  symbol "IF_RIGHT"
+  a <- ops
+  b <- ops
+  return $ M.IF_RIGHT a b
+
 nilOp = do
   symbol "NIL"
   (t, v) <- typeAndVar
@@ -318,6 +343,11 @@ ifConsOp = do
   b <- ops
   return $ M.IF_CONS a b
 
+sizeOp = do
+  symbol "SIZE"
+  a <- varNote
+  return $ M.SIZE a
+
 emptySetOp = do
   symbol "EMPTY_SET"
   (t, v) <- typeAndVar
@@ -327,7 +357,6 @@ emptySetOp = do
 emptyMapOp = do
   symbol "EMPTY_MAP"
   (t, v) <- typeAndVar
-  a <- comparable
   a <- comparable
   b <- type_
   return $ M.EMPTY_MAP t v a b
@@ -408,6 +437,26 @@ concatOp = do
   v <- varNote
   return $ M.CONCAT v
 
+packOp = do
+  symbol "PACK"
+  v <- varNote
+  return $ M.PACK v
+
+unpackOp = do
+  symbol "UNPACK"
+  v <- varNote
+  t <- type_
+  return $ M.UNPACK v t
+
+sliceOp = do
+  symbol "SLICE"
+  v <- varNote
+  return $ M.SLICE v
+
+isNatOp = do
+  symbol "ISNAT"
+  return $ M.ISNAT
+
 addOp = do
   symbol "ADD"
   v <- varNote
@@ -463,6 +512,11 @@ andOp = do
   v <- varNote
   return $ M.AND v
 
+xorOp = do
+  symbol "XOR"
+  v <- varNote
+  return $ M.XOR v
+
 notOp = do
   symbol "NOT"
   v <- varNote
@@ -513,9 +567,15 @@ selfOp = do
   v <- varNote
   return $ M.SELF v
 
+contractOp = do
+  symbol "CONTRACT"
+  t <- type_
+  return $ M.CONTRACT t
+
 transferTokensOp = do
   symbol "TRANSFER_TOKENS"
-  return $ M.TRANSFER_TOKENS
+  v <- varNote
+  return $ M.TRANSFER_TOKENS v
 
 setDelegateOp = do
   symbol "SET_DELEGATE"
@@ -531,7 +591,7 @@ createContract2Op = do
   symbol "CREATE_CONTRACT"
   v <- varNote
   v' <- varNote
-  a <- ops
+  a <- braces $ contract
   return $ M.CREATE_CONTRACT2 v v' a
 
 createContractOp = do
@@ -569,6 +629,16 @@ blake2BOp = do
   symbol "BLAKE2B"
   v <- varNote
   return $ M.BLAKE2B v
+
+sha256Op = do
+  symbol "SHA256"
+  v <- varNote
+  return $ M.SHA256 v
+
+sha512Op = do
+  symbol "SHA512"
+  v <- varNote
+  return $ M.SHA512 v
 
 hashKeyOp = do
   symbol "HASH_KEY"
@@ -644,10 +714,11 @@ typeInner fp = lexeme $ comparableType fp
   <|> listType fp
   <|> setType fp
   <|> operationType fp
-  <|> addressType fp
+  -- <|> addressType fp
   <|> contractType fp
   <|> pairType fp
   <|> orType fp
+  <|> lambdaType fp
   <|> mapType fp
   <|> bigMapType fp
 
@@ -695,10 +766,10 @@ operationType fp = do
   (t, f) <- typeAndField fp
   return $ M.Type M.T_operation t f
 
-addressType fp = do
-  symbol "address"
-  (t, f) <- typeAndField fp
-  return $ M.Type M.T_address t f
+-- addressType fp = do
+--   symbol "address"
+--   (t, f) <- typeAndField fp
+--   return $ M.Type M.T_address t f
 
 contractType fp = do
   symbol "contract"
@@ -750,10 +821,12 @@ comparableType fp = do
   return $ (M.Type (M.T_comparable ct) t f)
 
 comparable :: Parser M.Comparable
-comparable = do
-  ct <- ct
-  t <- typeNote
-  return $ M.Comparable ct t
+comparable = parens c <|> c
+  where
+    c = do
+      ct <- ct
+      t <- typeNote
+      return $ M.Comparable ct t
 
 ct :: Parser M.CT
 ct = (symbol "int" >> return M.T_int)
@@ -764,119 +837,97 @@ ct = (symbol "int" >> return M.T_int)
   <|> (symbol "bool" >> return M.T_bool)
   <|> (symbol "key_hash" >> return M.T_key_hash)
   <|> (symbol "timestamp" >> return M.T_timestamp)
+  <|> (symbol "address" >> return M.T_address)
 
 -- Macros
 
-macro :: Parser M.Ops
+macro :: Parser M.Op
 macro = cmpMac
-  <|> ifMac
   <|> ifcmpMac
+  <|> ifMac
   <|> failMac
-  <|> assert
-  <|> assertMac
   <|> assertCmpMac
   <|> assertNoneMac
   <|> assertSomeMac
   <|> assertLeftMac
   <|> assertRightMac
+  <|> assertMac
+  <|> assert
   <|> dipMac
   <|> dupMac
   <|> pairMac
   <|> unpairMac
   <|> cadrMac
+  <|> setCadrMac
+  <|> mapCadrMac
 
-cmpOp = eqOp <|> neqOp <|> ltOp <|> gtOp <|> leOp <|> gtOp
+cmpOp = eqOp <|> neqOp <|> ltOp <|> gtOp <|> leOp <|> gtOp <|> geOp
 
-
-cmpMac :: Parser M.Ops
+cmpMac :: Parser M.Op
 cmpMac = do
   string "CMP"
   a <- cmpOp
-  return $ cmpX a
+  return $ M.CMP_MAC a
 
-cmpX :: M.Op -> M.Ops
-cmpX op = M.opsFromList [M.COMPARE M.noVN, op]
-
-ifMac :: Parser M.Ops
+ifMac :: Parser M.Op
 ifMac = do
   string "IF"
   a <- cmpOp
   bt <- ops
   bf <- ops
-  return $ ifX a bt bf
+  return $ M.IF_MAC a bt bf
 
-ifX :: M.Op -> M.Ops -> M.Ops -> M.Ops
-ifX op bt bf = M.opsFromList [op, M.IF bt bf]
-
-ifcmpMac :: Parser M.Ops
+ifcmpMac :: Parser M.Op
 ifcmpMac = do
   string "IFCMP"
   a <- cmpOp
   bt <- ops
   bf <- ops
-  return $ ifcmpX a bt bf
+  return $ M.IFCMP_MAC a bt bf
 
-ifcmpX :: M.Op -> M.Ops -> M.Ops -> M.Ops
-ifcmpX op bt bf = M.opsFromList [M.COMPARE M.noVN, op, M.IF bt bf]
+failMac :: Parser M.Op
+failMac = do
+  symbol "FAIL"
+  return $ M.FAIL_MAC
 
--- fail
-
-failMac :: Parser M.Ops
-failMac = symbol "FAIL" >> return failX
-
-failX :: M.Ops
-failX = M.opsFromList [M.UNIT M.noTN, M.FAILWITH]
-
-{- assertion macros:
-  * assert
-  * assert_{eq}
-  * assert_none
-  * assert_some
-  * assert_left
-  * assert_right
--}
-
-
-assert :: Parser M.Ops
+assert :: Parser M.Op
 assert = do
   symbol "ASSERT"
-  return $ M.opsFromList [M.IF M.noOps failX]
+  return $ M.ASSERT_MAC
 
-assertMac :: Parser M.Ops
-assertMac = do
+assertMac :: Parser M.Op
+assertMac = lexeme $ do
   string "ASSERT_"
   a <- cmpOp
-  return $ ifX a (M.noOps) failX
+  return $ M.ASSERTX_MAC a
 
-assertCmpMac :: Parser M.Ops
-assertCmpMac = do
+assertCmpMac :: Parser M.Op
+assertCmpMac = lexeme $ do
   string "ASSERT_CMP"
   a <- cmpOp
-  return $ ifcmpX a (M.noOps) failX
+  return $ M.ASSERT_CMP_MAC a
 
-assertNoneMac :: Parser M.Ops
+assertNoneMac :: Parser M.Op
 assertNoneMac = do
   symbol "ASSERT_NONE"
-  return $ M.opsFromList [M.IF_NONE M.noOps failX]
+  return $ M.ASSERT_NONE_MAC
 
-assertSomeMac :: Parser M.Ops
+assertSomeMac :: Parser M.Op
 assertSomeMac = do
   symbol "ASSERT_SOME"
-  return $ M.opsFromList [M.IF_NONE failX M.noOps]
+  return $ M.ASSERT_SOME_MAC
 
-assertLeftMac :: Parser M.Ops
+assertLeftMac :: Parser M.Op
 assertLeftMac = do
   symbol "ASSERT_LEFT"
-  return $ M.opsFromList [M.IF_LEFT M.noOps failX]
+  return $ M.ASSERT_LEFT_MAC
 
-assertRightMac :: Parser M.Ops
+assertRightMac :: Parser M.Op
 assertRightMac = do
   symbol "ASSERT_RIGHT"
-  return $ M.opsFromList [M.IF_LEFT failX M.noOps]
+  return $ M.ASSERT_RIGHT_MAC
 
 {- syntactic "conveniences"
-   * DII+P code
-   * DUU+P
    * [PAIR]
    * UNPAIR
    * C[AD]R
@@ -885,87 +936,75 @@ assertRightMac = do
    * MAP_C[AD]R
 -}
 
-dipMac :: Parser M.Ops
+dipMac :: Parser M.Op
 dipMac = do
   string "DI"
   n <- fromIntegral . (+1) . length <$> (some $ string "I")
   symbol "P"
-  c <- ops
-  return $ dipX n c
+  a <- ops
+  return $ M.DIP_MAC n a
 
-dipX :: Natural -> M.Ops -> M.Ops
-dipX n code = go n (M.opsFromList [M.DIP code])
-  where
-    go 1 x = x
-    go n x = go (n - 1) (M.opsFromList $ [M.DIP x])
-
-dupMac :: Parser M.Ops
+dupMac :: Parser M.Op
 dupMac = do
   string "DU"
   n <- fromIntegral .(+1) . length <$> (some $ string "U")
   symbol "P"
-  return $ dupX n
+  v <- varNote
+  return $ M.DUP_MAC n v
 
--- TODO: annotation?
-dupX :: Natural -> M.Ops
-dupX n = go n (M.opsFromList [M.DIP $ M.opsFromList [(M.DUP M.noVN)], M.SWAP])
-  where
-    go 1 x = x
-    go n x = go (n - 1) (M.opsFromList [M.DIP x, M.SWAP])
+pairMac :: Parser M.Op
+pairMac = do
+  a <- pairMacInner
+  symbol "R"
+  (vn, fns) <- permute2WithDefault varNote' (some fieldNote') M.noVN []
+  return $ M.PAIR_MAC a vn fns
 
---pair
-data P = Stop | Nest P P deriving Show
-
-pairMac :: Parser M.Ops
-pairMac = pairX <$> (pairMacInner <* symbol "R")
-
-pairMacInner :: Parser P
+pairMacInner :: Parser M.PairStruct
 pairMacInner = do
   string "P"
-  l <- (string "A" >> return Stop) <|> pairMacInner
-  r <- (string "I" >> return Stop) <|> pairMacInner
-  return $ Nest l r
+  l <- (string "A" >> return M.Leaf) <|> pairMacInner
+  r <- (string "I" >> return M.Leaf) <|> pairMacInner
+  return $ M.Nest l r
 
-pairX :: P -> M.Ops
-pairX (Nest Stop Stop) = M.opsFromList $ [pairN]
-pairX (Nest Stop r) = M.opsFromList $ [M.DIP $ pairX r, pairN]
-pairX (Nest l Stop) = M.opsConcat (M.opsFromList [pairN]) (pairX l)
-pairX (Nest l r) =
-  M.opsConcat (M.opsConcat (pairX l) (pairX r)) (M.opsFromList [pairN])
+unpairMac :: Parser M.Op
+unpairMac = do
+  string "UN"
+  a <- pairMacInner
+  symbol "R"
+  (vns, fns) <- permute2WithDefault (some varNote') (some fieldNote') [] []
+  return $ M.UNPAIR_MAC a vns fns
 
-pairN = (M.PAIR M.noTN M.noVN M.noFN M.noFN)
-
---unpair
-unpairMac :: Parser M.Ops
-unpairMac = unpairX <$> (string "UN" >> pairMacInner <* symbol "R")
-
-unpairX :: P -> M.Ops
-unpairX (Nest Stop Stop) =
-  (M.|:) [M.DUP M.noVN, M.CAR M.noVN M.noFN, M.DIP $ (M.|:) [M.CDR M.noVN M.noFN]]
-unpairX (Nest Stop r) = unpairN M.>< (M.|:) [M.DIP $ unpairX r]
-unpairX (Nest l Stop) = unpairN M.>< (unpairX l)
-unpairX (Nest l r) = (unpairN) M.>< (unpairX l) M.>< (unpairX r)
-
-unpairN = unpairX (Nest Stop Stop)
-
-cadrMac :: Parser M.Ops
+cadrMac :: Parser M.Op
 cadrMac = lexeme $ do
   string "C"
   a <- some $ try $ cadrInner <* (notFollowedBy $ string "R")
-  let a' = a <*> pure M.noVN <*> pure M.noFN
   b <- cadrInner
   symbol "R"
   (vn, fn) <- varAndField
-  return $ (M.|:) a' M.|> (b vn fn)
-  where
-    cadrInner = (string "A" >> return M.CAR)
-            <|> (string "D" >> return M.CDR)
+  return $ M.CADR_MAC (a ++ (pure b)) vn fn
 
---
---if_some
---
---set_cadr
---
---map_cadr
---
---
+cadrInner = (string "A" >> return M.A)
+        <|> (string "D" >> return M.D)
+
+ifSomeMac = do
+  symbol "IF_SOME"
+  a <- ops
+  b <- ops
+  return $ M.IF_SOME_MAC a b
+
+setCadrMac :: Parser M.Op
+setCadrMac = do
+  string "SET_C"
+  a <- some cadrInner
+  symbol "R"
+  (v, f) <- varAndField
+  return $ M.SET_CADR_MAC a v f
+
+mapCadrMac :: Parser M.Op
+mapCadrMac = do
+  string "MAP_C"
+  a <- some cadrInner
+  symbol "R"
+  (v, f) <- varAndField
+  c <- ops
+  return $ M.MAP_CADR_MAC a v f c
