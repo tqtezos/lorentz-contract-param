@@ -12,12 +12,11 @@ import           Text.Megaparsec
 import           Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer       as L
 
+import qualified Language.Michelson.Macro         as Macro
 import qualified Language.Michelson.Types         as M
 
 import           Data.Maybe
 import           Data.Natural
-import           Data.Sequence                    (Seq)
-import qualified Data.Sequence                    as Seq
 import           Data.Void                        (Void)
 
 import           Control.Applicative.Permutations
@@ -36,8 +35,8 @@ contract = do
   return $ M.Contract p s c
 
 parameter = do symbol "parameter"; a <- type_; semicolon; return $ M.Parameter a
-storage = do symbol "storage"; a <- type_; semicolon; return $ M.Storage a;
-code = do symbol "code"; a <- ops; optional semicolon; return $ M.Code a
+storage   = do symbol "storage"; a <- type_; semicolon; return $ M.Storage a;
+code      = do symbol "code"; a <- ops; optional semicolon; return $ M.Code a
 
 
 -- Lexing
@@ -68,9 +67,10 @@ data_ = lexeme $ (dataInner <|> parens dataInner)
           <|> (try $ M.Map <$> mapData)
           <|> (M.DataOps <$> ops)
 
-listData = Seq.fromList <$> (braces $ sepEndBy data_ semicolon)
+listData = braces $ sepEndBy data_ semicolon
 eltData = do symbol "Elt"; key <- data_; val <- data_; return $ M.Elt key val
-mapData = Seq.fromList <$> (braces $ sepEndBy eltData semicolon)
+mapData = braces $ sepEndBy eltData semicolon
+
 intLiteral = (L.signed (return ()) L.decimal)
 
 bytesLiteral = do
@@ -226,13 +226,12 @@ ct = (symbol "int" >> return M.T_int)
   <|> (symbol "address" >> return M.T_address)
 
 {- Operations Parsers -}
-ops :: Parser M.Ops
-ops = mkOps <$> (braces $ sepEndBy (prim' <|> mac' <|> seq') semicolon)
+ops :: Parser [M.Op]
+ops = (braces $ sepEndBy (prim' <|> mac' <|> seq') semicolon)
   where
     prim' = M.PRIM <$> (try prim)
     mac'  = M.MAC <$> (try macro)
     seq'  = M.SEQ <$> (try ops)
-    mkOps = M.Ops . Seq.fromList
 
 prim :: Parser M.I
 prim = dropOp
@@ -455,9 +454,9 @@ intOp = do symbol "INT"; v <- noteVDef; return $ M.INT v
 cmpOp = eqOp <|> neqOp <|> ltOp <|> gtOp <|> leOp <|> gtOp <|> geOp
 
 macro :: Parser M.Macro
-macro = (do string "CMP"; a <- cmpOp; return $ M.CMP a)
-  <|> (do string "IFCMP"; a <- cmpOp; bt <- ops; bf <- ops;
-          return $ M.IFCMP a bt bf)
+macro = (do string "CMP"; a <- cmpOp; v <- noteVDef; return $ M.CMP a v)
+  <|> (do string "IFCMP"; a <- cmpOp; v <- noteVDef; bt <- ops; bf <- ops;
+          return $ M.IFCMP a v bt bf)
   <|> (do symbol "IF_SOME"; a <- ops; b <- ops; return $ M.IF_SOME a b)
   <|> (do string "IF"; a <- cmpOp; bt <- ops; bf <- ops; return $ M.IFX a bt bf)
   <|> (do symbol "FAIL"; return $ M.FAIL)
@@ -484,15 +483,15 @@ pairMac :: Parser M.Macro
 pairMac = do
   a <- pairMacInner
   symbol "R"
-  (vn, fns) <- permute2Def noteV (some noteF)
-  return $ M.PAPAIR a vn fns
+  (tn, vn, fns) <- permute3Def noteTDef noteV (some noteF)
+  return $ M.PAPAIR (Macro.mapLeaves ((\ x -> (Nothing, x)) <$> fns) a) tn vn
 
 pairMacInner :: Parser M.PairStruct
 pairMacInner = do
   string "P"
-  l <- (string "A" >> return M.Leaf) <|> pairMacInner
-  r <- (string "I" >> return M.Leaf) <|> pairMacInner
-  return $ M.Nest l r
+  l <- (string "A" >> return (M.F (Nothing, Nothing))) <|> pairMacInner
+  r <- (string "I" >> return (M.F (Nothing, Nothing))) <|> pairMacInner
+  return $ M.P l r
 
 unpairMac :: Parser M.Macro
 unpairMac = do
@@ -500,7 +499,7 @@ unpairMac = do
   a <- pairMacInner
   symbol "R"
   (vns, fns) <- permute2Def (some noteV) (some noteF)
-  return $ M.UNPAIR a vns fns
+  return $ M.UNPAIR (Macro.mapLeaves (zip vns fns) a)
 
 cadrMac :: Parser M.Macro
 cadrMac = lexeme $ do

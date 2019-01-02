@@ -19,6 +19,7 @@ library
   exposed-modules:     Language.Michelson.Types
                      , Language.Michelson.Parser
                      , Language.Michelson.Test
+                     , Language.Michelson.Macro
   build-depends:       base >= 4.7 && < 5
                      , megaparsec >= 7.0.0
                      , containers
@@ -28,6 +29,7 @@ library
                      , parser-combinators >= 1.0.0
                      , base16-bytestring
                      , directory
+                     , mtl
 
 executable morley
   hs-source-dirs:      src
