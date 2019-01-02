@@ -1,4 +1,3 @@
-{-# LANGUAGE GADTs             #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 
 module Language.Michelson.Types where
@@ -6,43 +5,40 @@ module Language.Michelson.Types where
 import qualified Data.ByteString as B
 import           Data.Maybe
 import           Data.Natural
-import           Data.Sequence   as Seq
 import qualified Data.Text       as T
-import           Prelude         (Eq, Integer, Ord, (++), (.))
+import           Prelude         (Eq, Integer, Ord, undefined, (++), (.))
 import           Text.Show
-
 
 {- Contract types -}
 data Contract = Contract Parameter Storage Code deriving Show
 
 data Parameter = Parameter Type deriving Show
 data Storage = Storage Type deriving Show
-data Code = Code Ops deriving Show
+data Code = Code [Op] deriving Show
 
-data Stack = Stack {elems :: Seq Data} deriving Show
+data Stack = Stack {elems :: [Data]} deriving Show
 
 {- Data types -}
-data Data where
-  Int        :: Integer -> Data
-  String     :: T.Text -> Data
-  Bytes      :: B.ByteString -> Data
-  Unit       :: Data
-  True       :: Data
-  False      :: Data
-  Pair       :: Data -> Data -> Data
-  Left       :: Data -> Data
-  Right      :: Data -> Data
-  Some       :: Data -> Data
-  None       :: Data
-  Seq        :: Seq Data -> Data
-  Map        :: Seq Elt -> Data
-  DataOps    :: Ops -> Data
+data Data =
+    Int     Integer
+  | String  T.Text
+  | Bytes   B.ByteString
+  | Unit
+  | True
+  | False
+  | Pair    Data Data
+  | Left    Data
+  | Right   Data
+  | Some    Data
+  | None
+  | Seq     [Data]
+  | Map     [Elt]
+  | DataOps [Op]
   deriving Show
 
 data Elt = Elt Data Data deriving Show
 
 {- Michelson Types -}
-
 -- Type Annotations
 type TypeNote = Maybe T.Text
 type FieldNote = Maybe T.Text
@@ -85,26 +81,28 @@ data CT =
   | T_address
   deriving Show
 
--- instruction sequence
-data Ops = Ops { ops :: Seq Op } deriving Show
-data Prims = Prims { instrs :: Seq I } deriving Show
-
 {- Michelson Instructions and Instruction Macros -}
+data Op =
+    PRIM I
+  | MAC Macro
+  | SEQ [Op]
+  deriving Show
 
-data PairStruct = Leaf | Nest PairStruct PairStruct deriving Show
+data PairStruct = F (VarNote, FieldNote) | P PairStruct PairStruct
+  deriving Show
 data CadrStruct = A | D deriving Show
 
 data Macro =
-    CMP I
-  | IFX I Ops Ops
-  | IFCMP I Ops Ops
+    CMP I VarNote
+  | IFX I [Op] [Op]
+  | IFCMP I VarNote [Op] [Op]
   | FAIL
-  | PAPAIR PairStruct VarNote [FieldNote]
-  | UNPAIR PairStruct [VarNote] [FieldNote]
+  | PAPAIR PairStruct TypeNote VarNote
+  | UNPAIR PairStruct
   | CADR [CadrStruct] VarNote FieldNote
   | SET_CADR [CadrStruct] VarNote FieldNote
-  | MAP_CADR [CadrStruct] VarNote FieldNote Ops
-  | DIIP Integer Ops
+  | MAP_CADR [CadrStruct] VarNote FieldNote [Op]
+  | DIIP Integer [Op]
   | DUUP Integer VarNote
   | ASSERT
   | ASSERTX I
@@ -113,48 +111,42 @@ data Macro =
   | ASSERT_SOME
   | ASSERT_LEFT
   | ASSERT_RIGHT
-  | IF_SOME Ops Ops
-  deriving Show
-
-data Op =
-    PRIM I
-  | MAC Macro
-  | SEQ Ops
+  | IF_SOME [Op] [Op]
   deriving Show
 
 data I =
     DROP
   | DUP VarNote
   | SWAP
-  | PUSH VarNote Type Data
-  | SOME TypeNote VarNote FieldNote
-  | NONE TypeNote VarNote FieldNote Type
-  | UNIT TypeNote VarNote
-  | IF_NONE Ops Ops
+  | PUSH              VarNote Type Data
+  | SOME              TypeNote VarNote FieldNote
+  | NONE              TypeNote VarNote FieldNote Type
+  | UNIT              TypeNote VarNote
+  | IF_NONE           [Op] [Op]
   | PAIR              TypeNote VarNote FieldNote FieldNote
   | CAR               VarNote FieldNote
   | CDR               VarNote FieldNote
   | LEFT              TypeNote VarNote FieldNote FieldNote Type
   | RIGHT             TypeNote VarNote FieldNote FieldNote Type
-  | IF_LEFT           Ops Ops
-  | IF_RIGHT          Ops Ops
+  | IF_LEFT           [Op] [Op]
+  | IF_RIGHT          [Op] [Op]
   | NIL               TypeNote VarNote Type
   | CONS              VarNote
-  | IF_CONS           Ops Ops
+  | IF_CONS           [Op] [Op]
   | SIZE              VarNote
   | EMPTY_SET         TypeNote VarNote Comparable
   | EMPTY_MAP         TypeNote VarNote Comparable Type
-  | MAP               VarNote Ops
-  | ITER              VarNote Ops
+  | MAP               VarNote [Op]
+  | ITER              VarNote [Op]
   | MEM               VarNote
   | GET               VarNote
   | UPDATE
-  | IF                Ops Ops
-  | LOOP              Ops
-  | LOOP_LEFT         Ops
-  | LAMBDA            VarNote Type Type Ops
+  | IF                [Op] [Op]
+  | LOOP              [Op]
+  | LOOP_LEFT         [Op]
+  | LAMBDA            VarNote Type Type [Op]
   | EXEC              VarNote
-  | DIP               Ops
+  | DIP               [Op]
   | FAILWITH
   | CAST              TypeNote VarNote
   | RENAME            VarNote
