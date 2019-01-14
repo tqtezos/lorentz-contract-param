@@ -18,50 +18,83 @@ expand (SEQ s)  = (SEQ $ expand <$> s)
 
 expandMacro :: Macro -> [Op]
 expandMacro = (fmap expand) . \case
-  CMP i v             -> PRIM <$> [COMPARE v, i]
-  IFX i bt bf         -> PRIM <$> [i, IF (xp bt) (xp bf)]
-  IFCMP i v bt bf     -> PRIM <$> [COMPARE v, i, (IF (xp bt) (xp bf))]
-  IF_SOME bt bf       -> PRIM <$> [IF_NONE (xp bf) (xp bt)]
-  FAIL                -> PRIM <$> [UNIT Nothing Nothing, FAILWITH]
-  ASSERT              -> PRIM <$> [IF [] [MAC FAIL]]
-  ASSERTX i           -> MAC  <$> [IFX i [] [MAC FAIL]]
-  ASSERT_CMP i        -> MAC  <$> [IFCMP i Nothing [] [MAC FAIL]]
-  ASSERT_NONE         -> PRIM <$> [IF_NONE [] [MAC FAIL]]
-  ASSERT_SOME         -> PRIM <$> [IF_NONE [MAC FAIL] []]
-  ASSERT_LEFT         -> PRIM <$> [IF_LEFT [] [MAC FAIL]]
-  ASSERT_RIGHT        -> PRIM <$> [IF_LEFT [MAC FAIL] []]
-  PAPAIR ps t v       -> expandPapair ps t v
-  UNPAIR ps           -> expandUnpapair ps
-  CADR (A:[]) v f     -> [PRIM $ CAR v f]
-  CADR (D:[]) v f     -> [PRIM $ CDR v f]
-  CADR (A:cs) v f     -> [PRIM $ CAR Nothing Nothing, MAC $ CADR cs v f]
-  CADR (D:cs) v f     -> [PRIM $ CDR Nothing Nothing, MAC $ CADR cs v f]
-  SET_CADR c v f      -> undefined
-  MAP_CADR c v f ops  -> undefined
-  DIIP 2 ops          -> [PRIM $ DIP [PRIM $ DIP (xp ops)]]
-  DIIP n ops          -> [PRIM $ DIP [MAC $ DIIP (n - 1) (xp ops)]]
-  DUUP 2 v            -> [PRIM $ DIP [PRIM $ DUP v]]
-  DUUP n v            -> [PRIM $ DIP [MAC $ DUUP (n - 1) v]]
+  CMP i v            -> PRIM <$> [COMPARE v, i]
+  IFX i bt bf        -> PRIM <$> [i, IF (xp bt) (xp bf)]
+  IFCMP i v bt bf    -> PRIM <$> [COMPARE v, i, (IF (xp bt) (xp bf))]
+  IF_SOME bt bf      -> PRIM <$> [IF_NONE (xp bf) (xp bt)]
+  FAIL               -> PRIM <$> [UNIT Nothing Nothing, FAILWITH]
+  ASSERT             -> PRIM <$> [IF [] [MAC FAIL]]
+  ASSERTX i          -> MAC  <$> [IFX i [] [MAC FAIL]]
+  ASSERT_CMP i       -> MAC  <$> [IFCMP i Nothing [] [MAC FAIL]]
+  ASSERT_NONE        -> PRIM <$> [IF_NONE [] [MAC FAIL]]
+  ASSERT_SOME        -> PRIM <$> [IF_NONE [MAC FAIL] []]
+  ASSERT_LEFT        -> PRIM <$> [IF_LEFT [] [MAC FAIL]]
+  ASSERT_RIGHT       -> PRIM <$> [IF_LEFT [MAC FAIL] []]
+  PAPAIR ps t v      -> expandPapair ps t v
+  UNPAIR ps          -> expandUnpapair ps
+  CADR c v f         -> expandCadr c v f
+  SET_CADR c v f     -> expandSetCadr c v f
+  MAP_CADR c v f ops -> expandMapCadr c v f ops
+  DIIP 2 ops         -> [PRIM $ DIP [PRIM $ DIP (xp ops)]]
+  DIIP n ops         -> [PRIM $ DIP [MAC $ DIIP (n - 1) (xp ops)]]
+  DUUP 2 v           -> [PRIM $ DIP [PRIM $ DUP v]]
+  DUUP n v           -> [PRIM $ DIP [MAC $ DUUP (n - 1) v]]
   where
     xp = fmap expand
 
+-- the correctness of type-annotation expansion is currently untested, as these
+-- expansions are not explicitly documented in the Michelson Specification
 expandPapair :: PairStruct -> M.TypeNote -> VarNote -> [Op]
 expandPapair ps t v = case ps of
- P (F a) (F b) -> [PRIM $ PAIR t v (snd a) (snd b)]
- P (F a) r     -> PRIM <$> [DIP [MAC $ PAPAIR r n n], PAIR t v (snd a) n]
- P l     (F b) -> [PRIM $ PAIR n n n (snd b), MAC $ PAPAIR l t v]
- P l     r     -> [MAC $ PAPAIR r n n, MAC $ PAPAIR l n n, PRIM $ PAIR t v n n]
- where
-  n = Nothing
+  P (F a) (F b) -> [PRIM $ PAIR t v (snd a) (snd b)]
+  P (F a) r     -> PRIM <$> [DIP [MAC $ PAPAIR r n n], PAIR t v (snd a) n]
+  P l     (F b) -> [PRIM $ PAIR n n n (snd b), MAC $ PAPAIR l t v]
+  P l     r     -> [MAC $ PAPAIR r n n, MAC $ PAPAIR l n n, PRIM $ PAIR t v n n]
+  where
+    n = Nothing
 
 expandUnpapair :: PairStruct -> [Op]
 expandUnpapair = \case
- P (F (v,f)) (F (w,g)) -> PRIM <$> [DUP Nothing, CAR v f, DIP [PRIM $ CDR w g]]
- P (F a) r             -> [MAC $ UNPAIR (F a), PRIM $ DIP [MAC $ UNPAIR r]]
- P l     (F b)         -> [MAC $ UNPAIR (F b), MAC $ UNPAIR l]
- P l      r            -> MAC <$> [UNPAIR (P fn fn), UNPAIR l, UNPAIR r]
+  P (F (v,f)) (F (w,g)) -> PRIM <$> [DUP Nothing, CAR v f, DIP [PRIM $ CDR w g]]
+  P (F a) r             -> [MAC $ UNPAIR (F a), PRIM $ DIP [MAC $ UNPAIR r]]
+  P l     (F b)         -> [MAC $ UNPAIR (F b), MAC $ UNPAIR l]
+  P l      r            -> MAC <$> [UNPAIR (P fn fn), UNPAIR l, UNPAIR r]
   where
     fn = F (Nothing, Nothing)
+
+expandCadr :: [CadrStruct] -> VarNote -> FieldNote -> [Op]
+expandCadr cs v f = case cs of
+  A:[] -> [PRIM $ CAR v f]
+  D:[] -> [PRIM $ CDR v f]
+  A:cs -> [PRIM $ CAR Nothing Nothing, MAC $ CADR cs v f]
+  D:cs -> [PRIM $ CDR Nothing Nothing, MAC $ CADR cs v f]
+
+expandSetCadr :: [CadrStruct] -> VarNote -> FieldNote -> [Op]
+expandSetCadr cs v f = PRIM <$> case cs of
+  A:[] -> [CDR v f, SWAP, pairN]
+  D:[] -> [CAR v f, pairN]
+  A:cs -> [DUP n, DIP [PRIM $ carN, MAC $ SET_CADR cs v f], cdrN, SWAP, pairN]
+  D:cs -> [DUP n, DIP [PRIM $ cdrN, MAC $ SET_CADR cs v f], cdrN, SWAP, pairN]
+  where
+    n = Nothing
+    carN = CAR n n
+    cdrN = CDR n n
+    pairN = PAIR n n n n
+
+expandMapCadr :: [CadrStruct] -> VarNote -> FieldNote -> [Op] -> [Op]
+expandMapCadr cs v f ops = case cs of
+  A:[] -> PRIM <$> [DUP n, cdrN, DIP [PRIM $ CAR v f, SEQ ops], SWAP, pairN]
+  D:[] ->
+    concat [PRIM <$> [DUP n, CDR v f], [SEQ ops], PRIM <$> [SWAP, carN, pairN]]
+  A:cs ->
+    PRIM <$> [DUP n, DIP [PRIM $ carN, MAC $ MAP_CADR cs v f ops], cdrN, pairN]
+  D:cs ->
+    PRIM <$> [DUP n, DIP [PRIM $ cdrN, MAC $ MAP_CADR cs v f ops], carN, pairN]
+  where
+    n = Nothing
+    carN = CAR n n
+    cdrN = CDR n n
+    pairN = PAIR n n n n
 
 expandPrim :: I -> I
 expandPrim = \case
