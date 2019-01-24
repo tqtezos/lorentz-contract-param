@@ -12,11 +12,11 @@ import           Text.Show
 {- Contract types -}
 data Contract = Contract Parameter Storage Code deriving Show
 
-data Parameter = Parameter Type deriving Show
-data Storage = Storage Type deriving Show
-data Code = Code [Op] deriving Show
+newtype Parameter = Parameter Type deriving Show
+newtype Storage = Storage Type deriving Show
+newtype Code = Code [Op] deriving Show
 
-data Stack = Stack {elems :: [Data]} deriving Show
+newtype Stack = Stack {elems :: [Data]} deriving Show
 
 {- Data types -}
 data Data =

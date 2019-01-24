@@ -1,5 +1,5 @@
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE LambdaCase #-}
+--{-# LANGUAGE OverloadedStrings #-}
 
 module Language.Michelson.Macro where
 
@@ -12,15 +12,15 @@ import           Language.Michelson.Types (CadrStruct (..), FieldNote, I (..),
 import qualified Language.Michelson.Types as M
 
 expand :: Op -> Op
-expand (MAC m)  = (SEQ $ expandMacro m)
-expand (PRIM i) = (PRIM $ expandPrim i)
-expand (SEQ s)  = (SEQ $ expand <$> s)
+expand (MAC m)  = SEQ $ expandMacro m
+expand (PRIM i) = PRIM $ expandPrim i
+expand (SEQ s)  = SEQ $ expand <$> s
 
 expandMacro :: Macro -> [Op]
-expandMacro = (fmap expand) . \case
+expandMacro = fmap expand . \case
   CMP i v            -> PRIM <$> [COMPARE v, i]
   IFX i bt bf        -> PRIM <$> [i, IF (xp bt) (xp bf)]
-  IFCMP i v bt bf    -> PRIM <$> [COMPARE v, i, (IF (xp bt) (xp bf))]
+  IFCMP i v bt bf    -> PRIM <$> [COMPARE v, i, IF (xp bt) (xp bf)]
   IF_SOME bt bf      -> PRIM <$> [IF_NONE (xp bf) (xp bt)]
   FAIL               -> PRIM <$> [UNIT Nothing Nothing, FAILWITH]
   ASSERT             -> PRIM <$> [IF [] [MAC FAIL]]
@@ -73,8 +73,8 @@ expandSetCadr :: [CadrStruct] -> VarNote -> FieldNote -> [Op]
 expandSetCadr cs v f = PRIM <$> case cs of
   A:[] -> [CDR v f, SWAP, pairN]
   D:[] -> [CAR v f, pairN]
-  A:cs -> [DUP n, DIP [PRIM $ carN, MAC $ SET_CADR cs v f], cdrN, SWAP, pairN]
-  D:cs -> [DUP n, DIP [PRIM $ cdrN, MAC $ SET_CADR cs v f], cdrN, SWAP, pairN]
+  A:cs -> [DUP n, DIP [PRIM carN, MAC $ SET_CADR cs v f], cdrN, SWAP, pairN]
+  D:cs -> [DUP n, DIP [PRIM cdrN, MAC $ SET_CADR cs v f], cdrN, SWAP, pairN]
   where
     n = Nothing
     carN = CAR n n
