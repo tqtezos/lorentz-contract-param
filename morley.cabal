@@ -20,6 +20,7 @@ library
                      , Language.Michelson.Parser
                      , Language.Michelson.Test
                      , Language.Michelson.Macro
+                     , Language.Michelson.Typecheck
   build-depends:       base >= 4.7 && < 5
                      , megaparsec >= 7.0.0
                      , containers
