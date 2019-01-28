@@ -32,9 +32,9 @@ contract = do
                    <*> toPermutation code
   return $ M.Contract p s c
 
-parameter = do symbol "parameter"; (M.Parameter <$> type_) <* semicolon
-storage   = do symbol "storage"; (M.Storage <$> type_) <* semicolon
-code      = do symbol "code"; (M.Code <$> ops) <* optional semicolon
+parameter = do symbol "parameter"; type_ <* semicolon
+storage   = do symbol "storage"; type_ <* semicolon
+code      = do symbol "code"; ops <* optional semicolon
 
 -- Lexing
 lexeme = L.lexeme mSpace

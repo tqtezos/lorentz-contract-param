@@ -9,7 +9,17 @@ import           Control.Monad.State.Lazy
 import           Language.Michelson.Types (CadrStruct (..), FieldNote, I (..),
                                            Macro (..), Op (..), PairStruct (..),
                                            VarNote (..))
+import           Language.Michelson.Types (Contract (..), code, para, stor)
 import qualified Language.Michelson.Types as M
+
+expandFlat :: [Op] -> [I]
+expandFlat os = unPrim <$> (flatten $ expand <$> os)
+  where
+    unPrim (PRIM i) = i -- not actually partial, but still not great
+
+flatten :: [Op] -> [Op]
+flatten (SEQ s:ops) = s ++ (flatten ops)
+flatten (o:os)      = o : (flatten os)
 
 expand :: Op -> Op
 expand (MAC m)  = SEQ $ expandMacro m
@@ -98,21 +108,21 @@ expandMapCadr cs v f ops = case cs of
 
 expandPrim :: I -> I
 expandPrim = \case
-  (IF_NONE bt bf)    -> IF_NONE (xp bt) (xp bf)
-  (IF_LEFT bt bf)    -> IF_LEFT (xp bt) (xp bf)
-  (IF_RIGHT bt bf)   -> IF_RIGHT (xp bt) (xp bf)
-  (MAP v ops)        -> MAP v (xp ops)
-  (ITER v ops)       -> ITER v (xp ops)
-  (IF bt bf)         -> IF (xp bt) (xp bf)
-  (LOOP ops)         -> LOOP (xp ops)
-  (LOOP_LEFT ops)    -> LOOP_LEFT (xp ops)
-  (LAMBDA v a b ops) -> LAMBDA v a b (xp ops)
-  (DIP ops)          -> DIP (xp ops)
-  (CREATE_CONTRACT2 v w (M.Contract p s (M.Code ops)))
-                     -> CREATE_CONTRACT2 v w $ M.Contract p s (M.Code (xp ops))
-  x                  -> x
+  IF_NONE bt bf          -> IF_NONE (xp bt) (xp bf)
+  IF_LEFT bt bf          -> IF_LEFT (xp bt) (xp bf)
+  IF_RIGHT bt bf         -> IF_RIGHT (xp bt) (xp bf)
+  MAP v ops              -> MAP v (xp ops)
+  ITER v ops             -> ITER v (xp ops)
+  IF bt bf               -> IF (xp bt) (xp bf)
+  LOOP ops               -> LOOP (xp ops)
+  LOOP_LEFT ops          -> LOOP_LEFT (xp ops)
+  LAMBDA v a b ops       -> LAMBDA v a b (xp ops)
+  DIP ops                -> DIP (xp ops)
+  CREATE_CONTRACT2 v w c -> CREATE_CONTRACT2 v w (xp' c)
+  x                      -> x
   where
     xp = fmap expand
+    xp' c = Contract (para c) (stor c) (xp $ code c)
 
 mapLeaves :: [(VarNote, FieldNote)] -> PairStruct -> PairStruct
 mapLeaves fs p = evalState (leavesST p) fs

@@ -10,11 +10,15 @@ import           Prelude         (Eq, Integer, Ord, undefined, (++), (.))
 import           Text.Show
 
 {- Contract types -}
-data Contract = Contract Parameter Storage Code deriving Show
+data Contract = Contract
+  { para :: Parameter
+  , stor :: Storage
+  , code :: Code
+  } deriving (Eq, Show)
 
-newtype Parameter = Parameter Type deriving Show
-newtype Storage = Storage Type deriving Show
-newtype Code = Code [Op] deriving Show
+type Parameter = Type
+type Storage = Type
+type Code = [Op]
 
 newtype Stack = Stack {elems :: [Data]} deriving Show
 
@@ -34,9 +38,9 @@ data Data =
   | Seq     [Data]
   | Map     [Elt]
   | DataOps [Op]
-  deriving Show
+  deriving (Eq, Show)
 
-data Elt = Elt Data Data deriving Show
+data Elt = Elt Data Data deriving (Eq, Show)
 
 {- Michelson Types -}
 -- Type Annotations
@@ -45,10 +49,10 @@ type FieldNote = Maybe T.Text
 type VarNote = Maybe T.Text
 
 -- Annotated type
-data Type = Type T TypeNote FieldNote deriving Show
+data Type = Type T TypeNote FieldNote deriving (Eq, Show)
 
 -- Annotated Comparable Sub-type
-data Comparable = Comparable CT TypeNote deriving Show
+data Comparable = Comparable CT TypeNote deriving (Eq, Show)
 
 -- Michelson Type
 data T =
@@ -66,7 +70,7 @@ data T =
   | T_lambda Type Type
   | T_map Comparable Type
   | T_big_map Comparable Type
-  deriving Show
+  deriving (Eq, Show)
 
 -- Comparable Sub-Type
 data CT =
@@ -79,18 +83,18 @@ data CT =
   | T_key_hash
   | T_timestamp
   | T_address
-  deriving Show
+  deriving (Eq, Show)
 
 {- Michelson Instructions and Instruction Macros -}
 data Op =
     PRIM I
   | MAC Macro
   | SEQ [Op]
-  deriving Show
+  deriving (Eq, Show)
 
 data PairStruct = F (VarNote, FieldNote) | P PairStruct PairStruct
-  deriving Show
-data CadrStruct = A | D deriving Show
+  deriving (Eq, Show)
+data CadrStruct = A | D deriving (Eq, Show)
 
 data Macro =
     CMP I VarNote
@@ -112,7 +116,7 @@ data Macro =
   | ASSERT_LEFT
   | ASSERT_RIGHT
   | IF_SOME [Op] [Op]
-  deriving Show
+  deriving (Eq, Show)
 
 data I =
     DROP
@@ -196,5 +200,5 @@ data I =
   | SOURCE            VarNote
   | SENDER            VarNote
   | ADDRESS           VarNote
-  deriving Show
+  deriving (Eq, Show)
 
