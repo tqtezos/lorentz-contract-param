@@ -1,6 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
---{-# LANGUAGE OverloadedStrings #-}
-
 module Language.Michelson.Macro where
 
 import Language.Michelson.Types

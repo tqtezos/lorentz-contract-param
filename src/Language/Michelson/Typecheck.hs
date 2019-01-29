@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Language.Michelson.Typecheck where
 
 import qualified Language.Michelson.Macro as Macro

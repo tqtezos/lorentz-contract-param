@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Language.Michelson.Test where
 
 import qualified Data.Text.IO as TIO
