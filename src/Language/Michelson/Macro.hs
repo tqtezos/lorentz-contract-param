@@ -3,13 +3,12 @@
 
 module Language.Michelson.Macro where
 
-import qualified Data.Text                as T
+import qualified Data.Text as T
 
-import           Control.Monad.State.Lazy
-import           Language.Michelson.Types (CadrStruct (..), FieldNote, I (..),
-                                           Macro (..), Op (..), PairStruct (..),
-                                           VarNote (..))
-import           Language.Michelson.Types (Contract (..), code, para, stor)
+import Control.Monad.State.Lazy
+import Language.Michelson.Types
+  (CadrStruct(..), FieldNote, I(..), Macro(..), Op(..), PairStruct(..), VarNote(..))
+import Language.Michelson.Types (Contract(..), code, para, stor)
 import qualified Language.Michelson.Types as M
 
 expandFlat :: [Op] -> [I]

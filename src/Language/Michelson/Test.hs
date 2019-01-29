@@ -1,13 +1,13 @@
 module Language.Michelson.Test where
 
-import           Data.IORef
-import qualified Data.Text.IO               as TIO
-import qualified Language.Michelson.Parser  as P
-import qualified Language.Michelson.Types   as M
-import           System.Directory
-import           Text.Megaparsec
-import           Text.Megaparsec.Char
-import           Text.Megaparsec.Char.Lexer as L
+import Data.IORef
+import qualified Data.Text.IO as TIO
+import qualified Language.Michelson.Parser as P
+import qualified Language.Michelson.Types as M
+import System.Directory
+import Text.Megaparsec
+import Text.Megaparsec.Char
+import Text.Megaparsec.Char.Lexer as L
 
 parseFile :: FilePath -> IO M.Contract
 parseFile file = do
@@ -48,4 +48,3 @@ parseFiles dir = do
   putStr "out of "
   putStrLn $ show b'
   return ()
-

@@ -3,11 +3,11 @@
 module Language.Michelson.Types where
 
 import qualified Data.ByteString as B
-import           Data.Maybe
-import           Data.Natural
-import qualified Data.Text       as T
-import           Prelude         (Eq, Integer, Ord, undefined, (++), (.))
-import           Text.Show
+import Data.Maybe
+import Data.Natural
+import qualified Data.Text as T
+import Prelude (Eq, Integer, Ord, undefined, (++), (.))
+import Text.Show
 
 {- Contract types -}
 data Contract = Contract

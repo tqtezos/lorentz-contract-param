@@ -2,11 +2,10 @@
 
 module Language.Michelson.Typecheck where
 
-import           Control.Monad.State.Lazy
+import Control.Monad.State.Lazy
 import qualified Language.Michelson.Macro as Macro
-import           Language.Michelson.Types (Contract (..), Data, FieldNote,
-                                           I (..), Op (..), T (..), Type (..),
-                                           TypeNote)
+import Language.Michelson.Types
+  (Contract(..), Data, FieldNote, I(..), Op(..), T(..), Type(..), TypeNote)
 import qualified Language.Michelson.Types as M
 
 initStackType :: Contract -> [Type]

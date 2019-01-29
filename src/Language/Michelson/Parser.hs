@@ -1,27 +1,24 @@
-{-# LANGUAGE FlexibleInstances    #-}
-{-# LANGUAGE OverloadedStrings    #-}
-{-# LANGUAGE TupleSections        #-}
-{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances, OverloadedStrings, TupleSections, TypeSynonymInstances #-}
 
 module Language.Michelson.Parser where
 
-import qualified Data.ByteString                  as B
-import qualified Data.ByteString.Base16           as B16
-import           Data.Char                        as Char
-import qualified Data.Text                        as T
-import           Data.Text.Encoding               (encodeUtf8)
-import           Text.Megaparsec
-import           Text.Megaparsec.Char
-import qualified Text.Megaparsec.Char.Lexer       as L
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Base16 as B16
+import Data.Char as Char
+import qualified Data.Text as T
+import Data.Text.Encoding (encodeUtf8)
+import Text.Megaparsec
+import Text.Megaparsec.Char
+import qualified Text.Megaparsec.Char.Lexer as L
 
-import qualified Language.Michelson.Macro         as Macro
-import qualified Language.Michelson.Types         as M
+import qualified Language.Michelson.Macro as Macro
+import qualified Language.Michelson.Types as M
 
-import           Data.Maybe
-import           Data.Natural
-import           Data.Void                        (Void)
+import Data.Maybe
+import Data.Natural
+import Data.Void (Void)
 
-import           Control.Applicative.Permutations
+import Control.Applicative.Permutations
 
 type Parser = Parsec Void T.Text
 
