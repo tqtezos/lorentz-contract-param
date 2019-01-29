@@ -5,8 +5,8 @@ module Language.Michelson.Printer where
 
 import qualified Language.Michelson.Types as M
 
-import           Data.Sequence
-import qualified Data.Text                as T
+import Data.Sequence
+import qualified Data.Text as T
 
 pp_SC :: M.SC -> T.Text
 pp_SC (M.SC p s c) = T.concat [pp_Parameter p, pp_Storage s, pp_Code c]
