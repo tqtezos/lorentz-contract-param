@@ -3,9 +3,6 @@
 
 module Language.Michelson.Macro where
 
-import qualified Data.Text as T
-
-import Control.Monad.State.Lazy
 import Language.Michelson.Types
   (CadrStruct(..), FieldNote, I(..), Macro(..), Op(..), PairStruct(..), VarNote(..))
 import Language.Michelson.Types (Contract(..), code, para, stor)

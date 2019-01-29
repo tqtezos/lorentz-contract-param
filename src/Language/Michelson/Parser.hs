@@ -2,11 +2,12 @@
 
 module Language.Michelson.Parser where
 
+import Prelude hiding (note, some, try)
+
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Base16 as B16
 import Data.Char as Char
 import qualified Data.Text as T
-import Data.Text.Encoding (encodeUtf8)
 import Text.Megaparsec
 import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
