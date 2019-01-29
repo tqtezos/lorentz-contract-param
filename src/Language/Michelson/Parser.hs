@@ -1,5 +1,3 @@
-{-# LANGUAGE FlexibleInstances, OverloadedStrings, TupleSections, TypeSynonymInstances #-}
-
 module Language.Michelson.Parser where
 
 import Prelude hiding (note, some, try)
@@ -38,18 +36,25 @@ storage   = do symbol "storage"; type_ <* semicolon
 code      = do symbol "code"; ops <* optional semicolon
 
 -- Lexing
+lexeme :: Parser a -> Parser a
 lexeme = L.lexeme mSpace
 mSpace = L.space space1 (L.skipLineComment "#") (L.skipBlockComment "/*" "*/")
 
 symbol = L.symbol mSpace
+
+parens :: Parser a -> Parser a
 parens = between (symbol "(") (symbol ")")
+
+braces :: Parser a -> Parser a
 braces = between (symbol "{") (symbol "}")
+
 semicolon = symbol ";"
 
 {- Data Parsers -}
 data_ :: Parser M.Data
 data_ = lexeme $ dataInner <|> parens dataInner
   where
+    dataInner :: Parser M.Data
     dataInner = try (M.Int <$> intLiteral)
           <|> try (M.String <$> stringLiteral)
           <|> try (M.Bytes <$> bytesLiteral)
