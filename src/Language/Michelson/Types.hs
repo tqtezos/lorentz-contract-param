@@ -49,7 +49,7 @@ type FieldNote = Maybe T.Text
 type VarNote = Maybe T.Text
 
 -- Annotated type
-data Type = Type T TypeNote FieldNote deriving (Eq, Show)
+data Type = Type T TypeNote deriving (Eq, Show)
 
 -- Annotated Comparable Sub-type
 data Comparable = Comparable CT TypeNote deriving (Eq, Show)
@@ -60,13 +60,13 @@ data T =
   | T_key
   | T_unit
   | T_signature
-  | T_option Type
+  | T_option FieldNote Type
   | T_list Type
   | T_set Comparable
   | T_operation
   | T_contract Type
-  | T_pair Type Type
-  | T_or Type Type
+  | T_pair FieldNote FieldNote Type Type
+  | T_or FieldNote FieldNote Type Type
   | T_lambda Type Type
   | T_map Comparable Type
   | T_big_map Comparable Type

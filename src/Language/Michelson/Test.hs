@@ -1,13 +1,13 @@
 module Language.Michelson.Test where
 
-import qualified Language.Michelson.Types         as M
-import qualified Language.Michelson.Parser        as P
-import qualified Data.Text.IO                     as TIO
-import System.Directory
-import Data.IORef
+import           Data.IORef
+import qualified Data.Text.IO               as TIO
+import qualified Language.Michelson.Parser  as P
+import qualified Language.Michelson.Types   as M
+import           System.Directory
 import           Text.Megaparsec
 import           Text.Megaparsec.Char
-import           Text.Megaparsec.Char.Lexer    as L
+import           Text.Megaparsec.Char.Lexer as L
 
 parseFile :: FilePath -> IO M.Contract
 parseFile file = do
@@ -23,8 +23,8 @@ parseFile file = do
 checkFile :: FilePath -> IO Bool
 checkFile file = do
   code <- TIO.readFile file
-  putStr $ file
-  putStr $ replicate (40 - (length file)) ' '
+  putStr file
+  putStr $ replicate (40 - length file) ' '
   case parse P.contract file code of
     Left e   -> putStrLn "FAIL" >> return False
     Right sc -> putStrLn "SUCCESS" >> return True
