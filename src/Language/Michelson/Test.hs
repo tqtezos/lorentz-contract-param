@@ -1,6 +1,7 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Language.Michelson.Test where
 
-import Data.IORef
 import qualified Data.Text.IO as TIO
 import qualified Language.Michelson.Parser as P
 import qualified Language.Michelson.Types as M
@@ -26,8 +27,8 @@ checkFile file = do
   putStr file
   putStr $ replicate (40 - length file) ' '
   case parse P.contract file code of
-    Left e   -> putStrLn "FAIL" >> return False
-    Right sc -> putStrLn "SUCCESS" >> return True
+    Left e   -> putTextLn "FAIL" >> return False
+    Right sc -> putTextLn "SUCCESS" >> return True
 
 
 parseFiles :: FilePath -> IO ()
@@ -43,8 +44,8 @@ parseFiles dir = do
   traverse (\f -> check f a b) files
   a' <- readIORef a
   b' <- readIORef b
-  putStr "Passing "
-  putStrLn $ show a'
-  putStr "out of "
-  putStrLn $ show b'
+  putText "Passing "
+  print a'
+  putText "out of "
+  print b'
   return ()

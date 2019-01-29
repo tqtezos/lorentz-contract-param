@@ -10,6 +10,9 @@ style:
 
   - [`stylish-haskell` config][stylish-haskell]
   - [`hlint` config][hlint-config]
+  - [`hlint` config][hlint-universum-config]
+    specific to [`universum`](https://github.com/serokell/universum), our custom
+    Prelude
   - [EditorConfig config][editorconfig]
 
 ## General guidelines
@@ -560,6 +563,7 @@ unused dependencies and exported modules.
 
 [stylish-haskell]: /.stylish-haskell.yaml
 [hlint-config]: /.hlint.yaml
+[hlint-universum-config]: /.hlint-universum.yaml
 [editorconfig]: /.editorconfig
 [weeder]: https://hackage.haskell.org/package/weeder
 

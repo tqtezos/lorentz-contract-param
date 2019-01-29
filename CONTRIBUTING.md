@@ -18,6 +18,12 @@ otherwise improve our project, merge requests are most welcome.
 Our merge request template contains a [checklist](/.gitlab/merge_request_templates/default.md#white_check_mark-checklist-for-your-merge-request) of acceptance criteria for your merge request.
 Please read it before you start contributing and make sure your contributions adhere to this checklist.
 
+### Prelude
+
+All Haskell code uses
+[Universum](https://hackage.haskell.org/package/universum) as a
+replacement for the default prelude.
+
 ## Makefile
 
 We have a [Makefile](/Makefile) which provides shortcuts for the most

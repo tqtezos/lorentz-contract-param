@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-hlint --hint .hlint.yaml src
+hlint --hint .hlint.yaml --hint .hlint-universum.yaml src
 
 ex=$?
 
