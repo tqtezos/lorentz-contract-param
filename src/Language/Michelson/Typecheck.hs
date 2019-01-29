@@ -9,9 +9,8 @@ import           Language.Michelson.Types (Contract (..), Data, FieldNote,
                                            TypeNote)
 import qualified Language.Michelson.Types as M
 
-
 initStackType :: Contract -> [Type]
-initStackType c = [Type (T_pair (para c) (stor c)) Nothing Nothing]
+initStackType c = [Type (T_pair Nothing Nothing (para c) (stor c)) Nothing]
 
 data CodeST = CodeST { instructions :: [I], stack :: [Type]}
 
@@ -35,17 +34,8 @@ codeST = do
       Right stk' -> put (CodeST is stk') >> codeST
       l          -> return l
 
-notate :: TypeNote -> FieldNote -> Type -> Type
-notate tn' fn' (Type t tn fn) = Type t tn' fn'
-
-notateT :: TypeNote -> Type -> Type
-notateT tn' (Type t tn fn) = Type t tn' fn
-
-notateF :: FieldNote -> Type -> Type
-notateF fn' (Type t tn fn) = Type t tn fn'
-
-isField :: FieldNote -> Type -> Bool
-isField fn (Type _ _ fn') = fn == fn'
+notate :: TypeNote -> Type -> Type
+notate tn' (Type t tn) = Type t tn'
 
 applyI :: I -> [Type] -> Result
 applyI i stk = case (i, stk) of
@@ -53,25 +43,23 @@ applyI i stk = case (i, stk) of
   (DUP _, t:ts)             -> Right $ t:t:ts
   (SWAP, t:t':ts)           -> Right $ t':t:ts
   (PUSH _ t _, ts)          -> Right $ t:ts
-  (SOME tn _ f, t:ts)       -> Right $ (notate tn f t):ts
-  (NONE tn _  f t, ts)      -> Right $ (notate tn f t):ts
+  (SOME tn _ f, t:ts)       -> Right $ Type (T_option f t) tn : ts
+  (NONE tn _  f t, ts)      -> Right $ Type (T_option f t) tn : ts
   --(IF_NONE bt bf, t:ts) ->
-  --  let (Type (T_option a) _ _) = t
+  --  let (Type (T_option f a) _ ) = t
   --      tt = run bt (t:ts)
   --      ft = run bf (a:ts)
   --   in if tt == ft then Right $ tt:ts else Left $ TypeError i stk
-  (UNIT tn _, ts)           -> Right $ (Type T_unit tn n):ts
-  (PAIR tn _ f f', t:t':ts) ->
-    Right $ (Type (T_pair (nF f t) (nF f' t')) tn n):ts
-  (CAR vn fn, (Type (T_pair l r) _ _):xs) ->
-    if isField fn l then Right $ l:xs else Left $ TypeError i stk
-  (CDR vn fn, (Type (T_pair l r) _ _):xs) ->
-    if isField fn r then Right $ r:xs else Left $ TypeError i stk
+  (UNIT tn _, ts)           -> Right $ Type T_unit tn :ts
+  (PAIR tn _ f f', t:t':ts) -> Right $ Type (T_pair f f' t t') tn:ts
+  (CAR _ f, Type (T_pair l r a b) _ : xs) -> if f == l then Right $ a:xs
+                                             else Left $ TypeError i stk
+  (CDR _ f, Type (T_pair l r a b) _ : xs) -> if f == r then Right $ b:xs
+                                             else Left $ TypeError i stk
   (i, stk)                   -> Left $ TypeError i stk
   where
     n = Nothing
-    nF = notateF
-    nT = notateT
+
   --LEFT              TypeNote VarNote FieldNote FieldNote Type
   --RIGHT             TypeNote VarNote FieldNote FieldNote Type
   --IF_LEFT           [Op] [Op]

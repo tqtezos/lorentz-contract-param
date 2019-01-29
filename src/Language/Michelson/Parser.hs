@@ -1,5 +1,8 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TupleSections     #-}
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE TupleSections        #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+
 module Language.Michelson.Parser where
 
 import qualified Data.ByteString                  as B
@@ -101,6 +104,7 @@ class Default a where def :: a
 instance Default (Maybe a)                       where def = Nothing
 instance Default [a]                             where def = []
 instance (Default a, Default b) => Default (a,b) where def = (def, def)
+instance Default a => Default (Parser a)         where def = pure def
 
 permute2Def :: (Default a, Default b) => Parser a -> Parser b -> Parser (a,b)
 permute2Def a b = runPermutation $
@@ -161,55 +165,53 @@ notesVF :: Parser (M.VarNote, M.FieldNote)
 notesVF  = permute2Def noteV noteF
 
 {- Type Parsers -}
-field :: Parser M.Type
-field = try (typeInner noteFDef) <|> parens (typeInner noteFDef)
+--field :: Parser M.Type
+--field = try (typeInner noteFDef) <|> parens (typeInner noteFDef)
 
-typeField :: Parser M.FieldNote -> Parser (M.TypeNote, M.FieldNote)
-typeField = permute2Def noteT
+field :: Parser (M.FieldNote, M.Type)
+field = lexeme (fi <|> parens fi)
+  where
+    fi = typeInner noteF
 
 type_ :: Parser M.Type
 type_ = lexeme (ti <|> parens ti)
   where
-    ti = typeInner (pure Nothing)
+    ti = snd <$> typeInner (pure Nothing)
 
-typeInner :: Parser M.FieldNote -> Parser M.Type
-typeInner fp = lexeme $ comparableType fp
-  <|> (do symbol "key"; (t, f) <- typeField fp
-          return $ M.Type M.T_key t f)
-  <|> (do symbol "unit"; (t, f) <- typeField fp;
-          return $ M.Type M.T_unit t f;)
-  <|> (do symbol "signature"; (t, f) <- typeField fp;
-          return $ M.Type M.T_signature t f)
-  <|> (do symbol "option"; (t, f) <- typeField fp; a <- field;
-          return $ M.Type (M.T_option a) t f)
-  <|> (do symbol "list"; (t, f) <- typeField fp; a <- type_;
-          return $ M.Type (M.T_list a) t f;)
-  <|> (do symbol "set"; (t, f) <- typeField fp; a <- comparable;
-          return $ M.Type (M.T_set a) t f)
-  <|> (do symbol "operation"; (t, f) <- typeField fp;
-          return $ M.Type M.T_operation t f)
-  -- <|> (do symbol "address"; (t, f) <- typeAndField fp; return $ M.Type M.T_address t f)
-  <|> (do symbol "contract"; (t, f) <- typeField fp; a <- type_;
-          return $ M.Type (M.T_contract a) t f)
-  <|> (do symbol "pair"; (t, f) <- typeField fp; a <- field; b <- field;
-          return $ M.Type (M.T_pair a b) t f)
-  <|> (do symbol "or"; (t, f) <- typeField fp; a <- field; b <- field;
-          return $ M.Type (M.T_or a b) t f)
-  <|> (do symbol "lambda"; (t, f) <- typeField fp; a <- type_; b <- type_;
-          return $ M.Type (M.T_lambda a b) t f)
-  <|> (do symbol "map"; (t, f) <- typeField fp; a <- comparable; b <- type_;
-          return $ M.Type (M.T_map a b) t f)
-  <|> (do symbol "big_map"; (t, f) <- typeField fp; a <- comparable; b <- type_;
-          return $ M.Type (M.T_map a b) t f)
+typeInner :: Parser M.FieldNote -> Parser (M.FieldNote, M.Type)
+typeInner fp = lexeme $
+      do ct <- ct; (f,t) <- ft; return (f, M.Type (M.T_comparable ct) t)
+  <|> do symbol "key"; (f,t) <- ft; return (f, M.Type M.T_key t)
+  <|> do symbol "unit"; (f,t) <- ft; return (f, M.Type M.T_unit t)
+  <|> do symbol "signature"; (f, t) <- ft; return (f, M.Type M.T_signature t)
+  <|> do symbol "option"; (f, t) <- ft; (fa, a) <- field;
+         return (f, M.Type (M.T_option fa a) t)
+  <|> do symbol "list"; (f, t) <- ft; a <- type_;
+         return (f, M.Type (M.T_list a) t)
+  <|> do symbol "set"; (f, t) <- ft; a <- comparable;
+         return (f, M.Type (M.T_set a) t)
+  <|> do symbol "operation"; (f, t) <- ft; return (f, M.Type M.T_operation t)
+  -- <|> (do symbol "address"; (f, t) <- ft; return (f, M.Type M.T_address t)
+  <|> do symbol "contract"; (f, t) <- ft; a <- type_;
+         return (f, M.Type (M.T_contract a) t)
+  <|> do symbol "pair"; (f, t) <- ft; (l, a) <- field; (r, b) <- field;
+         return (f, M.Type (M.T_pair l r a b) t)
+  <|> do symbol "or"; (f, t) <- ft; (l, a) <- field; (r, b) <- field;
+         return (f, M.Type (M.T_or l r a b) t)
+  <|> do symbol "lambda"; (f, t) <- ft; a <- type_; b <- type_;
+         return (f, M.Type (M.T_lambda a b) t)
+  <|> do symbol "map"; (f, t) <- ft; a <- comparable; b <- type_;
+         return (f, M.Type (M.T_map a b) t)
+  <|> do symbol "big_map"; (f, t) <- ft; a <- comparable; b <- type_;
+         return (f, M.Type (M.T_big_map a b) t)
+  where
+    ft = runPermutation $
+      (,) <$> toPermutationWithDefault  def     fp
+          <*> toPermutationWithDefault Nothing noteT
 
 -- Comparable Types
-comparableType :: Parser M.FieldNote -> Parser M.Type
-comparableType fp =
-  do ct <- ct; (t, f) <- typeField fp; return (M.Type (M.T_comparable ct) t f);
-
 comparable :: Parser M.Comparable
-comparable = let c = do ct <- ct; M.Comparable ct <$> noteTDef
-    in parens c <|> c
+comparable = let c = do ct <- ct; M.Comparable ct <$> noteTDef in parens c <|> c
 
 ct :: Parser M.CT
 ct = (symbol "int" >> return M.T_int)
