@@ -1,0 +1,49 @@
+## Description
+
+<!--
+Describes the nature of your changes. If they are substantial, you should
+further subdivide this into a section describing the problem you are solving and
+another describing your solution.
+-->
+
+[//]: # (Here you can add a link to the corresponding issue tracker, e. g. https://issues.serokell.io/issue/AD-)
+## Related issue(s)
+
+<!--
+- Short description of how the MR relates to the issue, including an issue link.
+For example
+- Fixed #1 by adding lenses to exported items
+
+Write 'None' if there are no related issues (which is discouraged).
+-->
+
+https://issues.serokell.io/issue/TM-
+
+## :white_check_mark: Checklist for your Merge Request
+
+<!--
+Ideally a MR has all of the checkmarks set.
+
+If something in this list is irrelevant to your MR, you should still set this
+checkmark indicating that you are sure it is dealt with (be that by irrelevance).
+
+If you don't set a checkmark (e. g. don't add a test for new functionality),
+you must be able to justify that.
+-->
+
+#### Related changes (conditional)
+
+- Tests
+  - [ ] If I added new functionality, I added tests covering it.
+  - [ ] If I fixed a bug, I added a regression test to prevent the bug from
+        silently reappearing again.
+
+- Documentation
+  - [ ] I checked whether I should update the docs and did so if necessary:
+    - [README](../blob/master/README.md)
+    - Haddock
+
+#### Stylistic guide (mandatory)
+
+- [ ] My commits comply with [the following policy](https://www.notion.so/serokell/Where-and-how-to-commit-your-work-58f8973a4b3142c8abbd2e6fd5b3a08e).
+- [ ] My code complies with the [style guide](../blob/master/docs/code-style.md).
