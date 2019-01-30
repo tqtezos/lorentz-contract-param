@@ -3,61 +3,74 @@
 module Language.Michelson.Macro
   ( expandFlat
   , expandContractMacros
-  , flatten
-  , expand
   , mapLeaves
   ) where
 
+import Generics.SYB (everywhere, mkT)
 import Language.Michelson.Types
-  (CadrStruct(..), FieldNote, I(..), Macro(..), Op(..), PairStruct(..), VarNote)
-import Language.Michelson.Types (Contract(..), code, para, stor)
+  (CadrStruct(..), Contract(..), ExpandedInstr, ExpandedOp(..), FieldNote, Instr,
+  InstrAbstract(..), Macro(..), Op(..), PairStruct(..), ParsedOp(..), VarNote)
 import qualified Language.Michelson.Types as M
 
-expandFlat :: [Op] -> [I]
-expandFlat os = unPrim <$> (flatten $ expand <$> os)
+expandFlat :: [ParsedOp] -> [Instr]
+expandFlat = concatMap flatten . fmap expand
+
+flatten :: ExpandedOp -> [Instr]
+flatten (SEQ_EX s) = concatMap flatten s
+flatten (PRIM_EX o) = [flattenInstr o]
+
+-- Here used SYB approach instead pattern matching
+-- flattenInstr (IF_NONE l r) = IF_NONE (concatMap flatten l) (concatMap flatten r)
+-- flattenInstr (IF_LEFT l r) = IF_LEFT (concatMap flatten l) (concatMap flatten r)
+-- ...
+flattenInstr :: ExpandedInstr -> Instr
+flattenInstr = fmap castPrim . everywhere (mkT flattenOps)
   where
-    unPrim (PRIM i) = i -- not actually partial, but still not great
-    unPrim x = error $ "unPrim: expected PRIM, got " <> show x
+    castPrim :: ExpandedOp -> Op
+    castPrim (PRIM_EX x) = Op (castPrim <$> x)
+    castPrim _           = error "unexpeted constructor"
 
-flatten :: [Op] -> [Op]
-flatten [] = []
-flatten (SEQ s:ops) = s ++ (flatten ops)
-flatten (o:os)      = o : (flatten os)
+    flattenOps :: [ExpandedOp] -> [ExpandedOp]
+    flattenOps [] = []
+    flattenOps (SEQ_EX s : xs) = s ++ flattenOps xs
+    flattenOps (x@(PRIM_EX _) : xs) = x : flattenOps xs
 
-expand :: Op -> Op
-expand (MAC m)  = SEQ $ expandMacro m
-expand (PRIM i) = PRIM $ expandPrim i
-expand (SEQ s)  = SEQ $ expand <$> s
+expand :: ParsedOp -> ExpandedOp
+expand (MAC m)  = SEQ_EX $ expandMacro m
+expand (PRIM i) = PRIM_EX $ fmap expand i
+expand (SEQ s)  = SEQ_EX $ expand <$> s
 
-expandMacro :: Macro -> [Op]
-expandMacro = fmap expand . \case
-  CMP i v            -> PRIM <$> [COMPARE v, i]
-  IFX i bt bf        -> PRIM <$> [i, IF (xp bt) (xp bf)]
-  IFCMP i v bt bf    -> PRIM <$> [COMPARE v, i, IF (xp bt) (xp bf)]
-  IF_SOME bt bf      -> PRIM <$> [IF_NONE (xp bf) (xp bt)]
-  FAIL               -> PRIM <$> [UNIT Nothing Nothing, FAILWITH]
-  ASSERT             -> PRIM <$> [IF [] [MAC FAIL]]
-  ASSERTX i          -> MAC  <$> [IFX i [] [MAC FAIL]]
-  ASSERT_CMP i       -> MAC  <$> [IFCMP i Nothing [] [MAC FAIL]]
-  ASSERT_NONE        -> PRIM <$> [IF_NONE [] [MAC FAIL]]
-  ASSERT_SOME        -> PRIM <$> [IF_NONE [MAC FAIL] []]
-  ASSERT_LEFT        -> PRIM <$> [IF_LEFT [] [MAC FAIL]]
-  ASSERT_RIGHT       -> PRIM <$> [IF_LEFT [MAC FAIL] []]
-  PAPAIR ps t v      -> expandPapair ps t v
-  UNPAIR ps          -> expandUnpapair ps
-  CADR c v f         -> expandCadr c v f
-  SET_CADR c v f     -> expandSetCadr c v f
-  MAP_CADR c v f ops -> expandMapCadr c v f ops
-  DIIP 2 ops         -> [PRIM $ DIP [PRIM $ DIP (xp ops)]]
-  DIIP n ops         -> [PRIM $ DIP [MAC $ DIIP (n - 1) (xp ops)]]
-  DUUP 2 v           -> [PRIM $ DIP [PRIM $ DUP v]]
-  DUUP n v           -> [PRIM $ DIP [MAC $ DUUP (n - 1) v]]
+expandMacro :: Macro -> [ExpandedOp]
+expandMacro = \case
+  CMP i v            -> [PRIM_EX (COMPARE v), xo i]
+  IFX i bt bf        -> [xo i, PRIM_EX (IF (xp bt) (xp bf))]
+  IFCMP i v bt bf    -> PRIM_EX <$> [COMPARE v, expand <$> i, IF (xp bt) (xp bf)]
+  IF_SOME bt bf      -> [PRIM_EX (IF_NONE (xp bf) (xp bt))]
+  FAIL               -> PRIM_EX <$> [UNIT Nothing Nothing, FAILWITH]
+  ASSERT             -> xol $ IF [] [MAC FAIL]
+  ASSERTX i          -> [expand $ MAC $ IFX i [] [MAC FAIL]]
+  ASSERT_CMP i       -> [expand $ MAC $ IFCMP i Nothing [] [MAC FAIL]]
+  ASSERT_NONE        -> xol $ IF_NONE [] [MAC FAIL]
+  ASSERT_SOME        -> xol $ IF_NONE [MAC FAIL] []
+  ASSERT_LEFT        -> xol $ IF_LEFT [] [MAC FAIL]
+  ASSERT_RIGHT       -> xol $ IF_LEFT [MAC FAIL] []
+  PAPAIR ps t v      -> expand <$> expandPapair ps t v
+  UNPAIR ps          -> expand <$> expandUnpapair ps
+  CADR c v f         -> expand <$> expandCadr c v f
+  SET_CADR c v f     -> expand <$> expandSetCadr c v f
+  MAP_CADR c v f ops -> expand <$> expandMapCadr c v f ops
+  DIIP 1 ops         -> [PRIM_EX $ DIP (xp ops)]
+  DIIP n ops         -> xol $  DIP [MAC $ DIIP (n - 1) ops]
+  DUUP 1 v           -> [PRIM_EX $ DUP v]
+  DUUP n v           -> xol $ DIP [MAC $ DUUP (n - 1) v]
   where
+    xol = one . xo
+    xo = PRIM_EX . fmap expand
     xp = fmap expand
 
 -- the correctness of type-annotation expansion is currently untested, as these
 -- expansions are not explicitly documented in the Michelson Specification
-expandPapair :: PairStruct -> M.TypeNote -> VarNote -> [Op]
+expandPapair :: PairStruct -> M.TypeNote -> VarNote -> [ParsedOp]
 expandPapair ps t v = case ps of
   P (F a) (F b) -> [PRIM $ PAIR t v (snd a) (snd b)]
   P (F a) r     -> PRIM <$> [DIP [MAC $ PAPAIR r n n], PAIR t v (snd a) n]
@@ -66,7 +79,7 @@ expandPapair ps t v = case ps of
   where
     n = Nothing
 
-expandUnpapair :: PairStruct -> [Op]
+expandUnpapair :: PairStruct -> [ParsedOp]
 expandUnpapair = \case
   P (F (v,f)) (F (w,g)) -> PRIM <$> [DUP Nothing, CAR v f, DIP [PRIM $ CDR w g]]
   P (F a) r             -> [MAC $ UNPAIR (F a), PRIM $ DIP [MAC $ UNPAIR r]]
@@ -75,14 +88,14 @@ expandUnpapair = \case
   where
     fn = F (Nothing, Nothing)
 
-expandCadr :: [CadrStruct] -> VarNote -> FieldNote -> [Op]
+expandCadr :: [CadrStruct] -> VarNote -> FieldNote -> [ParsedOp]
 expandCadr cs v f = case cs of
   A:[] -> [PRIM $ CAR v f]
   D:[] -> [PRIM $ CDR v f]
   A:css -> [PRIM $ CAR Nothing Nothing, MAC $ CADR css v f]
   D:css -> [PRIM $ CDR Nothing Nothing, MAC $ CADR css v f]
 
-expandSetCadr :: [CadrStruct] -> VarNote -> FieldNote -> [Op]
+expandSetCadr :: [CadrStruct] -> VarNote -> FieldNote -> [ParsedOp]
 expandSetCadr cs v f = PRIM <$> case cs of
   A:[] -> [CDR v f, SWAP, pairN]
   D:[] -> [CAR v f, pairN]
@@ -94,7 +107,7 @@ expandSetCadr cs v f = PRIM <$> case cs of
     cdrN = CDR n n
     pairN = PAIR n n n n
 
-expandMapCadr :: [CadrStruct] -> VarNote -> FieldNote -> [Op] -> [Op]
+expandMapCadr :: [CadrStruct] -> VarNote -> FieldNote -> [ParsedOp] -> [ParsedOp]
 expandMapCadr cs v f ops = case cs of
   A:[] -> PRIM <$> [DUP n, cdrN, DIP [PRIM $ CAR v f, SEQ ops], SWAP, pairN]
   D:[] ->
@@ -109,25 +122,7 @@ expandMapCadr cs v f ops = case cs of
     cdrN = CDR n n
     pairN = PAIR n n n n
 
-expandPrim :: I -> I
-expandPrim = \case
-  IF_NONE bt bf          -> IF_NONE (xp bt) (xp bf)
-  IF_LEFT bt bf          -> IF_LEFT (xp bt) (xp bf)
-  IF_RIGHT bt bf         -> IF_RIGHT (xp bt) (xp bf)
-  MAP v ops              -> MAP v (xp ops)
-  ITER v ops             -> ITER v (xp ops)
-  IF bt bf               -> IF (xp bt) (xp bf)
-  LOOP ops               -> LOOP (xp ops)
-  LOOP_LEFT ops          -> LOOP_LEFT (xp ops)
-  LAMBDA v a b ops       -> LAMBDA v a b (xp ops)
-  DIP ops                -> DIP (xp ops)
-  CREATE_CONTRACT2 v w c -> CREATE_CONTRACT2 v w (xp' c)
-  x                      -> x
-  where
-    xp = fmap expand
-    xp' c = Contract (para c) (stor c) (xp $ code c)
-
-expandContractMacros :: Contract -> Contract
+expandContractMacros :: Contract ParsedOp -> Contract ExpandedOp
 expandContractMacros Contract{..} = Contract para stor (map expand code)
 
 mapLeaves :: [(VarNote, FieldNote)] -> PairStruct -> PairStruct

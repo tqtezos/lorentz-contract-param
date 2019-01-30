@@ -30,6 +30,7 @@ library
                      , parser-combinators >= 1.0.0
                      , base16-bytestring
                      , directory
+                     , syb
                      , mtl
                      , universum
   ghc-options:        -Weverything
