@@ -1,9 +1,11 @@
-module Language.Michelson.Typecheck where
+module Language.Michelson.Typecheck
+  ( Result
+  , TypeError (..)
+  , typecheck
+  ) where
 
 import qualified Language.Michelson.Macro as Macro
-import Language.Michelson.Types
-  (Contract(..), Data, FieldNote, I(..), Op(..), T(..), Type(..), TypeNote)
-import qualified Language.Michelson.Types as M
+import Language.Michelson.Types (Contract(..), I(..), T(..), Type(..), TypeNote)
 
 initStackType :: Contract -> [Type]
 initStackType c = [Type (T_pair Nothing Nothing (para c) (stor c)) Nothing]
@@ -13,9 +15,10 @@ data CodeST = CodeST { instructions :: [I], stack :: [Type]}
 type Result = Either TypeError [Type]
 data TypeError = TypeError I [Type] deriving Show
 
---typecheck :: Contract -> Result
---typecheck c = let instrs = Macro.flatten $ Macro.expand (code c) in
---  evalState codeST (CodeST instrs (initStackType c))
+typecheck :: Contract -> Result
+typecheck c =
+  let instrs = Macro.expandFlat (code c)
+   in evalState codeST (CodeST instrs (initStackType c))
 
 --run :: [I] -> [Type] -> Result
 --run is ts = evalState codeST (CodeST is ts)
@@ -30,12 +33,12 @@ codeST = do
       Right stk' -> put (CodeST is stk') >> codeST
       l          -> return l
 
-notate :: TypeNote -> Type -> Type
-notate tn' (Type t tn) = Type t tn'
+_notate :: TypeNote -> Type -> Type
+_notate tn' (Type t _tn) = Type t tn'
 
 applyI :: I -> [Type] -> Result
 applyI i stk = case (i, stk) of
-  (DROP, t:ts)              -> Right ts
+  (DROP, _t:ts)              -> Right ts
   (DUP _, t:ts)             -> Right $ t:t:ts
   (SWAP, t:t':ts)           -> Right $ t':t:ts
   (PUSH _ t _, ts)          -> Right $ t:ts
@@ -48,13 +51,11 @@ applyI i stk = case (i, stk) of
   --   in if tt == ft then Right $ tt:ts else Left $ TypeError i stk
   (UNIT tn _, ts)           -> Right $ Type T_unit tn :ts
   (PAIR tn _ f f', t:t':ts) -> Right $ Type (T_pair f f' t t') tn:ts
-  (CAR _ f, Type (T_pair l r a b) _ : xs) -> if f == l then Right $ a:xs
+  (CAR _ f, Type (T_pair l _ a _) _ : xs) -> if f == l then Right $ a:xs
                                              else Left $ TypeError i stk
-  (CDR _ f, Type (T_pair l r a b) _ : xs) -> if f == r then Right $ b:xs
+  (CDR _ f, Type (T_pair _ r _ b) _ : xs) -> if f == r then Right $ b:xs
                                              else Left $ TypeError i stk
-  (i, stk)                   -> Left $ TypeError i stk
-  where
-    n = Nothing
+  _                         -> Left $ TypeError i stk
 
   --LEFT              TypeNote VarNote FieldNote FieldNote Type
   --RIGHT             TypeNote VarNote FieldNote FieldNote Type

@@ -1,8 +1,12 @@
-module Language.Michelson.Parser where
+{-# OPTIONS_GHC -Wno-missing-signatures #-}
+{-# OPTIONS_GHC -Wno-unused-do-bind #-}
+
+module Language.Michelson.Parser
+  ( contract
+  ) where
 
 import Prelude hiding (note, some, try)
 
-import qualified Data.ByteString as B
 import qualified Data.ByteString.Base16 as B16
 import Data.Char as Char
 import qualified Data.Text as T
@@ -13,8 +17,6 @@ import qualified Text.Megaparsec.Char.Lexer as L
 import qualified Language.Michelson.Macro as Macro
 import qualified Language.Michelson.Types as M
 
-import Data.Maybe
-import Data.Natural
 import Data.Void (Void)
 
 import Control.Applicative.Permutations
@@ -153,7 +155,7 @@ parseDef a = try a <|> pure def
 
 noteTDef = parseDef noteT
 noteVDef = parseDef noteV
-noteFDef = parseDef noteF
+_noteFDef = parseDef noteF
 
 notesTVF :: Parser (M.TypeNote, M.VarNote, M.FieldNote)
 notesTVF = permute3Def noteT noteV noteF
@@ -183,7 +185,7 @@ type_ = lexeme (ti <|> parens ti)
 
 typeInner :: Parser M.FieldNote -> Parser (M.FieldNote, M.Type)
 typeInner fp = lexeme $
-      do ct <- ct; (f,t) <- ft; return (f, M.Type (M.T_comparable ct) t)
+      do ct' <- ct; (f,t) <- ft; return (f, M.Type (M.T_comparable ct') t)
   <|> do symbol "key"; (f,t) <- ft; return (f, M.Type M.T_key t)
   <|> do symbol "unit"; (f,t) <- ft; return (f, M.Type M.T_unit t)
   <|> do symbol "signature"; (f, t) <- ft; return (f, M.Type M.T_signature t)
@@ -214,7 +216,7 @@ typeInner fp = lexeme $
 
 -- Comparable Types
 comparable :: Parser M.Comparable
-comparable = let c = do ct <- ct; M.Comparable ct <$> noteTDef in parens c <|> c
+comparable = let c = do ct' <- ct; M.Comparable ct' <$> noteTDef in parens c <|> c
 
 ct :: Parser M.CT
 ct = (symbol "int" >> return M.T_int)
@@ -502,6 +504,7 @@ cadrMac = lexeme $ do
   (vn, fn) <- notesVF
   return $ M.CADR (a ++ pure b) vn fn
 
+cadrInner :: Parser M.CadrStruct
 cadrInner = (string "A" >> return M.A) <|> (string "D" >> return M.D)
 
 setCadrMac :: Parser M.Macro

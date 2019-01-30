@@ -1,12 +1,14 @@
-module Language.Michelson.Test where
+module Language.Michelson.Test
+  ( parseFile
+  , checkFile
+  , parseFiles
+  ) where
 
 import qualified Data.Text.IO as TIO
 import qualified Language.Michelson.Parser as P
 import qualified Language.Michelson.Types as M
 import System.Directory
 import Text.Megaparsec
-import Text.Megaparsec.Char
-import Text.Megaparsec.Char.Lexer as L
 
 parseFile :: FilePath -> IO M.Contract
 parseFile file = do
@@ -25,15 +27,15 @@ checkFile file = do
   putStr file
   putStr $ replicate (40 - length file) ' '
   case parse P.contract file code of
-    Left e   -> putTextLn "FAIL" >> return False
-    Right sc -> putTextLn "SUCCESS" >> return True
+    Left _  -> putTextLn "FAIL" >> return False
+    Right _ -> putTextLn "SUCCESS" >> return True
 
 
 parseFiles :: FilePath -> IO ()
 parseFiles dir = do
   files <- (fmap . fmap) (\s -> dir ++ s) $ listDirectory dir
-  a <- newIORef 0
-  b <- newIORef 0
+  a <- newIORef @_ @Word 0
+  b <- newIORef @_ @Word 0
   let check file ref1 ref2 = do
         s <- checkFile file
         if s
