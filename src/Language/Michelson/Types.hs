@@ -1,14 +1,20 @@
+{-# LANGUAGE DeriveDataTypeable #-}
+
 module Language.Michelson.Types
   (
-    -- * Contract types
-    Contract (..)
-  , Parameter
+  -- * Contract basics
+    Parameter
   , Storage
-  , Code
+  , Contract (..)
 
     -- * Data types
-  , Data (..)
+  , Value (..)
   , Elt (..)
+
+  -- Typechecker types
+  , InstrAbstract (..)
+  , Instr
+  , Op (..)
 
     -- * Michelson types
   , TypeNote
@@ -19,101 +25,56 @@ module Language.Michelson.Types
   , T (..)
   , CT (..)
 
-    -- * Michelson Instructions and Instruction Macros
-  , Op (..)
+  -- * Typechecker types
+  , ExpandedInstr
+  , ExpandedOp (..)
+
+  -- * Michelson Instructions and Instruction Macros
+  , ParsedOp (..)
   , PairStruct (..)
   , CadrStruct (..)
   , Macro (..)
-  , I (..)
+  , ParsedInstr
   ) where
 
-import qualified Data.ByteString as B
-import Data.Maybe
-import qualified Data.Text as T
-import Prelude (Eq, Integer)
-import Text.Show
+import Prelude
 
-{- Contract types -}
-data Contract = Contract
-  { para :: Parameter
-  , stor :: Storage
-  , code :: Code
-  } deriving (Eq, Show)
+import qualified Data.ByteString as B
+import Data.Data (Data(..))
+import qualified Data.Text as T
 
 type Parameter = Type
 type Storage = Type
-type Code = [Op]
+data Contract op = Contract
+  { para :: Parameter
+  , stor :: Storage
+  , code :: [op]
+  } deriving (Eq, Show, Functor, Data)
 
-newtype Stack = Stack {elems :: [Data]} deriving Show
-
-{- Data types -}
-data Data =
-    Int     Integer
-  | String  T.Text
-  | Bytes   B.ByteString
-  | Unit
-  | True
-  | False
-  | Pair    Data Data
-  | Left    Data
-  | Right   Data
-  | Some    Data
-  | None
-  | Seq     [Data]
-  | Map     [Elt]
-  | DataOps [Op]
+-------------------------------------
+-- Flattened types after macroexpander
+-------------------------------------
+type Instr = InstrAbstract Op
+newtype Op = Op {unOp :: Instr}
   deriving (Eq, Show)
 
-data Elt = Elt Data Data deriving (Eq, Show)
+-------------------------------------
+-- Types after macroexpander
+-------------------------------------
+type ExpandedInstr = InstrAbstract ExpandedOp
+data ExpandedOp =
+    PRIM_EX ExpandedInstr
+  | SEQ_EX [ExpandedOp]
+  deriving (Eq, Show, Data)
 
-{- Michelson Types -}
--- Type Annotations
-type TypeNote = Maybe T.Text
-type FieldNote = Maybe T.Text
-type VarNote = Maybe T.Text
-
--- Annotated type
-data Type = Type T TypeNote deriving (Eq, Show)
-
--- Annotated Comparable Sub-type
-data Comparable = Comparable CT TypeNote deriving (Eq, Show)
-
--- Michelson Type
-data T =
-    T_comparable CT
-  | T_key
-  | T_unit
-  | T_signature
-  | T_option FieldNote Type
-  | T_list Type
-  | T_set Comparable
-  | T_operation
-  | T_contract Type
-  | T_pair FieldNote FieldNote Type Type
-  | T_or FieldNote FieldNote Type Type
-  | T_lambda Type Type
-  | T_map Comparable Type
-  | T_big_map Comparable Type
-  deriving (Eq, Show)
-
--- Comparable Sub-Type
-data CT =
-    T_int
-  | T_nat
-  | T_string
-  | T_bytes
-  | T_mutez
-  | T_bool
-  | T_key_hash
-  | T_timestamp
-  | T_address
-  deriving (Eq, Show)
-
-{- Michelson Instructions and Instruction Macros -}
-data Op =
-    PRIM I
+-------------------------------------
+-- Types produced by parser
+-------------------------------------
+type ParsedInstr = InstrAbstract ParsedOp
+data ParsedOp =
+    PRIM ParsedInstr
   | MAC Macro
-  | SEQ [Op]
+  | SEQ [ParsedOp]
   deriving (Eq, Show)
 
 data PairStruct = F (VarNote, FieldNote) | P PairStruct PairStruct
@@ -121,60 +82,85 @@ data PairStruct = F (VarNote, FieldNote) | P PairStruct PairStruct
 data CadrStruct = A | D deriving (Eq, Show)
 
 data Macro =
-    CMP I VarNote
-  | IFX I [Op] [Op]
-  | IFCMP I VarNote [Op] [Op]
+    CMP ParsedInstr VarNote
+  | IFX ParsedInstr [ParsedOp] [ParsedOp]
+  | IFCMP ParsedInstr VarNote [ParsedOp] [ParsedOp]
   | FAIL
   | PAPAIR PairStruct TypeNote VarNote
   | UNPAIR PairStruct
   | CADR [CadrStruct] VarNote FieldNote
   | SET_CADR [CadrStruct] VarNote FieldNote
-  | MAP_CADR [CadrStruct] VarNote FieldNote [Op]
-  | DIIP Integer [Op]
+  | MAP_CADR [CadrStruct] VarNote FieldNote [ParsedOp]
+  | DIIP Integer [ParsedOp]
   | DUUP Integer VarNote
   | ASSERT
-  | ASSERTX I
-  | ASSERT_CMP I
+  | ASSERTX ParsedInstr
+  | ASSERT_CMP ParsedInstr
   | ASSERT_NONE
   | ASSERT_SOME
   | ASSERT_LEFT
   | ASSERT_RIGHT
-  | IF_SOME [Op] [Op]
+  | IF_SOME [ParsedOp] [ParsedOp]
   deriving (Eq, Show)
 
-data I =
+-------------------------------------
+-- Basic polymorphic types for Parser/Macro/Typechecker modules
+-------------------------------------
+
+{- Data types -}
+data Value op =
+    Int     Integer
+  | String  T.Text
+  | Bytes   B.ByteString
+  | Unit
+  | True
+  | False
+  | Pair    (Value op) (Value op)
+  | Left    (Value op)
+  | Right   (Value op)
+  | Some    (Value op)
+  | None
+  | Seq     [Value op]
+  | Map     [Elt op]
+  | DataOps [op]
+  deriving (Eq, Show, Functor, Data)
+
+data Elt op = Elt (Value op) (Value op)
+  deriving (Eq, Show, Functor, Data)
+
+data InstrAbstract op =
     DROP
-  | DUP VarNote
+  | DUP               VarNote
   | SWAP
-  | PUSH              VarNote Type Data
+  | PUSH              VarNote Type (Value op)
   | SOME              TypeNote VarNote FieldNote
   | NONE              TypeNote VarNote FieldNote Type
   | UNIT              TypeNote VarNote
-  | IF_NONE           [Op] [Op]
+  | IF_NONE           [op] [op]
   | PAIR              TypeNote VarNote FieldNote FieldNote
   | CAR               VarNote FieldNote
   | CDR               VarNote FieldNote
   | LEFT              TypeNote VarNote FieldNote FieldNote Type
   | RIGHT             TypeNote VarNote FieldNote FieldNote Type
-  | IF_LEFT           [Op] [Op]
-  | IF_RIGHT          [Op] [Op]
+  | IF_LEFT           [op] [op]
+  | IF_RIGHT          [op] [op]
   | NIL               TypeNote VarNote Type
   | CONS              VarNote
-  | IF_CONS           [Op] [Op]
+  | IF_CONS           [op] [op]
   | SIZE              VarNote
   | EMPTY_SET         TypeNote VarNote Comparable
   | EMPTY_MAP         TypeNote VarNote Comparable Type
-  | MAP               VarNote [Op]
-  | ITER              VarNote [Op]
+  | MAP               VarNote [op]
+  | ITER              VarNote [op]
   | MEM               VarNote
   | GET               VarNote
   | UPDATE
-  | IF                [Op] [Op]
-  | LOOP              [Op]
-  | LOOP_LEFT         [Op]
-  | LAMBDA            VarNote Type Type [Op]
+  | IF                [op] [op]
+  | LOOP              [op]
+  | LOOP_LEFT         [op]
+  | LAMBDA            VarNote Type Type [op]
   | EXEC              VarNote
-  | DIP               [Op]
+  | DIP               [op]
   | FAILWITH
   | CAST              TypeNote VarNote
   | RENAME            VarNote
@@ -210,7 +196,7 @@ data I =
   | SET_DELEGATE
   | CREATE_ACCOUNT    VarNote VarNote
   | CREATE_CONTRACT   VarNote VarNote
-  | CREATE_CONTRACT2  VarNote VarNote Contract
+  | CREATE_CONTRACT2  VarNote VarNote (Contract op)
   | IMPLICIT_ACCOUNT  VarNote
   | NOW               VarNote
   | AMOUNT            VarNote
@@ -224,4 +210,53 @@ data I =
   | SOURCE            VarNote
   | SENDER            VarNote
   | ADDRESS           VarNote
-  deriving (Eq, Show)
+  deriving (Eq, Show, Functor, Data)
+
+-------------------------------------
+-- Basic types for Michelson types --
+-------------------------------------
+
+{- Michelson Types -}
+-- Type Annotations
+type TypeNote = Maybe T.Text
+type FieldNote = Maybe T.Text
+type VarNote = Maybe T.Text
+
+-- Annotated type
+data Type = Type T TypeNote
+  deriving (Eq, Show, Data)
+
+-- Annotated Comparable Sub-type
+data Comparable = Comparable CT TypeNote
+  deriving (Eq, Show, Data)
+
+-- Michelson Type
+data T =
+    T_comparable CT
+  | T_key
+  | T_unit
+  | T_signature
+  | T_option FieldNote Type
+  | T_list Type
+  | T_set Comparable
+  | T_operation
+  | T_contract Type
+  | T_pair FieldNote FieldNote Type Type
+  | T_or FieldNote FieldNote Type Type
+  | T_lambda Type Type
+  | T_map Comparable Type
+  | T_big_map Comparable Type
+  deriving (Eq, Show, Data)
+
+-- Comparable Sub-Type
+data CT =
+    T_int
+  | T_nat
+  | T_string
+  | T_bytes
+  | T_mutez
+  | T_bool
+  | T_key_hash
+  | T_timestamp
+  | T_address
+  deriving (Eq, Show, Data)

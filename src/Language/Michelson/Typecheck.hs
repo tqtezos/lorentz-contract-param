@@ -4,21 +4,21 @@ module Language.Michelson.Typecheck
   , typecheck
   ) where
 
-import qualified Language.Michelson.Macro as Macro
-import Language.Michelson.Types (Contract(..), I(..), T(..), Type(..), TypeNote)
+import Language.Michelson.Types
+  (Contract(..), Instr, InstrAbstract(..), Op(..), T(..), Type(..), TypeNote)
 
-initStackType :: Contract -> [Type]
+initStackType :: Contract Op -> [Type]
 initStackType c = [Type (T_pair Nothing Nothing (para c) (stor c)) Nothing]
 
-data CodeST = CodeST { instructions :: [I], stack :: [Type]}
+data CodeST = CodeST { instructions :: [Instr], stack :: [Type]}
 
 type Result = Either TypeError [Type]
-data TypeError = TypeError I [Type] deriving Show
+data TypeError = TypeError Instr [Type] deriving Show
 
-typecheck :: Contract -> Result
+typecheck :: Contract Op -> Result
 typecheck c =
-  let instrs = Macro.expandFlat (code c)
-   in evalState codeST (CodeST instrs (initStackType c))
+  let instrs = unOp <$> code c
+  in evalState codeST (CodeST instrs (initStackType c))
 
 --run :: [I] -> [Type] -> Result
 --run is ts = evalState codeST (CodeST is ts)
@@ -36,9 +36,9 @@ codeST = do
 _notate :: TypeNote -> Type -> Type
 _notate tn' (Type t _tn) = Type t tn'
 
-applyI :: I -> [Type] -> Result
+applyI :: Instr -> [Type] -> Result
 applyI i stk = case (i, stk) of
-  (DROP, _t:ts)              -> Right ts
+  (DROP, _t:ts)             -> Right ts
   (DUP _, t:ts)             -> Right $ t:t:ts
   (SWAP, t:t':ts)           -> Right $ t':t:ts
   (PUSH _ t _, ts)          -> Right $ t:ts
