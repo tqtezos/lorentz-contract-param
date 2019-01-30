@@ -41,6 +41,7 @@ packages:
 extra-deps:
   - natural-numbers-0.1.2.0
   - megaparsec-7.0.0
+  - argparser-0.3.4
 
 nix:
   shell-file: shell.nix
