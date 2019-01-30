@@ -1,12 +1,36 @@
-{-# LANGUAGE NoImplicitPrelude #-}
+module Language.Michelson.Types
+  (
+    -- * Contract types
+    Contract (..)
+  , Parameter
+  , Storage
+  , Code
 
-module Language.Michelson.Types where
+    -- * Data types
+  , Data (..)
+  , Elt (..)
+
+    -- * Michelson types
+  , TypeNote
+  , FieldNote
+  , VarNote
+  , Type (..)
+  , Comparable (..)
+  , T (..)
+  , CT (..)
+
+    -- * Michelson Instructions and Instruction Macros
+  , Op (..)
+  , PairStruct (..)
+  , CadrStruct (..)
+  , Macro (..)
+  , I (..)
+  ) where
 
 import qualified Data.ByteString as B
 import Data.Maybe
-import Data.Natural
 import qualified Data.Text as T
-import Prelude (Eq, Integer, Ord, undefined, (++), (.))
+import Prelude (Eq, Integer)
 import Text.Show
 
 {- Contract types -}
@@ -201,4 +225,3 @@ data I =
   | SENDER            VarNote
   | ADDRESS           VarNote
   deriving (Eq, Show)
-
