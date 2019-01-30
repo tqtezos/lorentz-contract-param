@@ -1,23 +1,25 @@
-{-# LANGUAGE LambdaCase #-}
---{-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 
-module Language.Michelson.Macro where
+module Language.Michelson.Macro
+  ( expandFlat
+  , flatten
+  , expand
+  , mapLeaves
+  ) where
 
-import qualified Data.Text                as T
-
-import           Control.Monad.State.Lazy
-import           Language.Michelson.Types (CadrStruct (..), FieldNote, I (..),
-                                           Macro (..), Op (..), PairStruct (..),
-                                           VarNote (..))
-import           Language.Michelson.Types (Contract (..), code, para, stor)
+import Language.Michelson.Types
+  (CadrStruct(..), FieldNote, I(..), Macro(..), Op(..), PairStruct(..), VarNote)
+import Language.Michelson.Types (Contract(..), code, para, stor)
 import qualified Language.Michelson.Types as M
 
 expandFlat :: [Op] -> [I]
 expandFlat os = unPrim <$> (flatten $ expand <$> os)
   where
     unPrim (PRIM i) = i -- not actually partial, but still not great
+    unPrim x = error $ "unPrim: expected PRIM, got " <> show x
 
 flatten :: [Op] -> [Op]
+flatten [] = []
 flatten (SEQ s:ops) = s ++ (flatten ops)
 flatten (o:os)      = o : (flatten os)
 
@@ -76,15 +78,15 @@ expandCadr :: [CadrStruct] -> VarNote -> FieldNote -> [Op]
 expandCadr cs v f = case cs of
   A:[] -> [PRIM $ CAR v f]
   D:[] -> [PRIM $ CDR v f]
-  A:cs -> [PRIM $ CAR Nothing Nothing, MAC $ CADR cs v f]
-  D:cs -> [PRIM $ CDR Nothing Nothing, MAC $ CADR cs v f]
+  A:css -> [PRIM $ CAR Nothing Nothing, MAC $ CADR css v f]
+  D:css -> [PRIM $ CDR Nothing Nothing, MAC $ CADR css v f]
 
 expandSetCadr :: [CadrStruct] -> VarNote -> FieldNote -> [Op]
 expandSetCadr cs v f = PRIM <$> case cs of
   A:[] -> [CDR v f, SWAP, pairN]
   D:[] -> [CAR v f, pairN]
-  A:cs -> [DUP n, DIP [PRIM carN, MAC $ SET_CADR cs v f], cdrN, SWAP, pairN]
-  D:cs -> [DUP n, DIP [PRIM cdrN, MAC $ SET_CADR cs v f], cdrN, SWAP, pairN]
+  A:css -> [DUP n, DIP [PRIM carN, MAC $ SET_CADR css v f], cdrN, SWAP, pairN]
+  D:css -> [DUP n, DIP [PRIM cdrN, MAC $ SET_CADR css v f], cdrN, SWAP, pairN]
   where
     n = Nothing
     carN = CAR n n
@@ -96,10 +98,10 @@ expandMapCadr cs v f ops = case cs of
   A:[] -> PRIM <$> [DUP n, cdrN, DIP [PRIM $ CAR v f, SEQ ops], SWAP, pairN]
   D:[] ->
     concat [PRIM <$> [DUP n, CDR v f], [SEQ ops], PRIM <$> [SWAP, carN, pairN]]
-  A:cs ->
-    PRIM <$> [DUP n, DIP [PRIM $ carN, MAC $ MAP_CADR cs v f ops], cdrN, pairN]
-  D:cs ->
-    PRIM <$> [DUP n, DIP [PRIM $ cdrN, MAC $ MAP_CADR cs v f ops], carN, pairN]
+  A:css ->
+    PRIM <$> [DUP n, DIP [PRIM $ carN, MAC $ MAP_CADR css v f ops], cdrN, pairN]
+  D:css ->
+    PRIM <$> [DUP n, DIP [PRIM $ cdrN, MAC $ MAP_CADR css v f ops], carN, pairN]
   where
     n = Nothing
     carN = CAR n n

@@ -46,4 +46,12 @@ effective.
    include an EVM interpreter and Michelson to EVM transpiler too
    (Michelson-Morley disproved the theory of luminiferous aether)
 
+## Issue Tracker
 
+We use [YouTrack](https://issues.serokell.io/issues/TM) as our issue
+tracker. You can login using your GitHub account to leave a comment or
+create a new issue.
+
+## For Contributors
+
+Please see [CONTRIBUTING.md](CONTRIBUTING.md) for more information.

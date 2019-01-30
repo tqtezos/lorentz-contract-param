@@ -1,27 +1,25 @@
-{-# LANGUAGE FlexibleInstances    #-}
-{-# LANGUAGE OverloadedStrings    #-}
-{-# LANGUAGE TupleSections        #-}
-{-# LANGUAGE TypeSynonymInstances #-}
+{-# OPTIONS_GHC -Wno-missing-signatures #-}
+{-# OPTIONS_GHC -Wno-unused-do-bind #-}
 
-module Language.Michelson.Parser where
+module Language.Michelson.Parser
+  ( contract
+  ) where
 
-import qualified Data.ByteString                  as B
-import qualified Data.ByteString.Base16           as B16
-import           Data.Char                        as Char
-import qualified Data.Text                        as T
-import           Data.Text.Encoding               (encodeUtf8)
-import           Text.Megaparsec
-import           Text.Megaparsec.Char
-import qualified Text.Megaparsec.Char.Lexer       as L
+import Prelude hiding (note, some, try)
 
-import qualified Language.Michelson.Macro         as Macro
-import qualified Language.Michelson.Types         as M
+import qualified Data.ByteString.Base16 as B16
+import Data.Char as Char
+import qualified Data.Text as T
+import Text.Megaparsec
+import Text.Megaparsec.Char
+import qualified Text.Megaparsec.Char.Lexer as L
 
-import           Data.Maybe
-import           Data.Natural
-import           Data.Void                        (Void)
+import qualified Language.Michelson.Macro as Macro
+import qualified Language.Michelson.Types as M
 
-import           Control.Applicative.Permutations
+import Data.Void (Void)
+
+import Control.Applicative.Permutations
 
 type Parser = Parsec Void T.Text
 
@@ -40,18 +38,25 @@ storage   = do symbol "storage"; type_ <* semicolon
 code      = do symbol "code"; ops <* optional semicolon
 
 -- Lexing
+lexeme :: Parser a -> Parser a
 lexeme = L.lexeme mSpace
 mSpace = L.space space1 (L.skipLineComment "#") (L.skipBlockComment "/*" "*/")
 
 symbol = L.symbol mSpace
+
+parens :: Parser a -> Parser a
 parens = between (symbol "(") (symbol ")")
+
+braces :: Parser a -> Parser a
 braces = between (symbol "{") (symbol "}")
+
 semicolon = symbol ";"
 
 {- Data Parsers -}
 data_ :: Parser M.Data
 data_ = lexeme $ dataInner <|> parens dataInner
   where
+    dataInner :: Parser M.Data
     dataInner = try (M.Int <$> intLiteral)
           <|> try (M.String <$> stringLiteral)
           <|> try (M.Bytes <$> bytesLiteral)
@@ -150,7 +155,7 @@ parseDef a = try a <|> pure def
 
 noteTDef = parseDef noteT
 noteVDef = parseDef noteV
-noteFDef = parseDef noteF
+_noteFDef = parseDef noteF
 
 notesTVF :: Parser (M.TypeNote, M.VarNote, M.FieldNote)
 notesTVF = permute3Def noteT noteV noteF
@@ -180,7 +185,7 @@ type_ = lexeme (ti <|> parens ti)
 
 typeInner :: Parser M.FieldNote -> Parser (M.FieldNote, M.Type)
 typeInner fp = lexeme $
-      do ct <- ct; (f,t) <- ft; return (f, M.Type (M.T_comparable ct) t)
+      do ct' <- ct; (f,t) <- ft; return (f, M.Type (M.T_comparable ct') t)
   <|> do symbol "key"; (f,t) <- ft; return (f, M.Type M.T_key t)
   <|> do symbol "unit"; (f,t) <- ft; return (f, M.Type M.T_unit t)
   <|> do symbol "signature"; (f, t) <- ft; return (f, M.Type M.T_signature t)
@@ -211,7 +216,7 @@ typeInner fp = lexeme $
 
 -- Comparable Types
 comparable :: Parser M.Comparable
-comparable = let c = do ct <- ct; M.Comparable ct <$> noteTDef in parens c <|> c
+comparable = let c = do ct' <- ct; M.Comparable ct' <$> noteTDef in parens c <|> c
 
 ct :: Parser M.CT
 ct = (symbol "int" >> return M.T_int)
@@ -499,6 +504,7 @@ cadrMac = lexeme $ do
   (vn, fn) <- notesVF
   return $ M.CADR (a ++ pure b) vn fn
 
+cadrInner :: Parser M.CadrStruct
 cadrInner = (string "A" >> return M.A) <|> (string "D" >> return M.D)
 
 setCadrMac :: Parser M.Macro
