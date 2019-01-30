@@ -2,6 +2,7 @@
 
 module Language.Michelson.Macro
   ( expandFlat
+  , expandContractMacros
   , flatten
   , expand
   , mapLeaves
@@ -125,6 +126,9 @@ expandPrim = \case
   where
     xp = fmap expand
     xp' c = Contract (para c) (stor c) (xp $ code c)
+
+expandContractMacros :: Contract -> Contract
+expandContractMacros Contract{..} = Contract para stor (map expand code)
 
 mapLeaves :: [(VarNote, FieldNote)] -> PairStruct -> PairStruct
 mapLeaves fs p = evalState (leavesST p) fs
