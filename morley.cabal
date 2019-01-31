@@ -16,10 +16,11 @@ extra-source-files:  README.md
 library
   hs-source-dirs:      src
   default-language:    Haskell2010
-  exposed-modules:     Language.Michelson.Types
-                     , Language.Michelson.Parser
-                     , Language.Michelson.Macro
-                     , Language.Michelson.Typecheck
+  exposed-modules:     Michelson.Types
+                     , Michelson.Typecheck
+                     , Morley.Types
+                     , Morley.Macro
+                     , Morley.Parser
                      , Prelude
   build-depends:       base-noprelude >= 4.7 && < 5
                      , megaparsec >= 7.0.0

@@ -1,16 +1,15 @@
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 
-module Language.Michelson.Macro
+module Morley.Macro
   ( expandFlat
   , expandContractMacros
   , mapLeaves
   ) where
 
 import Generics.SYB (everywhere, mkT)
-import Language.Michelson.Types
+import Morley.Types
   (CadrStruct(..), Contract(..), ExpandedInstr, ExpandedOp(..), FieldNote, Instr,
-  InstrAbstract(..), Macro(..), Op(..), PairStruct(..), ParsedOp(..), VarNote)
-import qualified Language.Michelson.Types as M
+  InstrAbstract(..), Macro(..), Op(..), PairStruct(..), ParsedOp(..), TypeNote, VarNote)
 
 expandFlat :: [ParsedOp] -> [Instr]
 expandFlat = concatMap flatten . fmap expand
@@ -70,7 +69,7 @@ expandMacro = \case
 
 -- the correctness of type-annotation expansion is currently untested, as these
 -- expansions are not explicitly documented in the Michelson Specification
-expandPapair :: PairStruct -> M.TypeNote -> VarNote -> [ParsedOp]
+expandPapair :: PairStruct -> TypeNote -> VarNote -> [ParsedOp]
 expandPapair ps t v = case ps of
   P (F a) (F b) -> [PRIM $ PAIR t v (snd a) (snd b)]
   P (F a) r     -> PRIM <$> [DIP [MAC $ PAPAIR r n n], PAIR t v (snd a) n]
