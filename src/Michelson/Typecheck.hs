@@ -1,11 +1,10 @@
-module Language.Michelson.Typecheck
+module Michelson.Typecheck
   ( Result
   , TypeError (..)
   , typecheck
   ) where
 
-import Language.Michelson.Types
-  (Contract(..), Instr, InstrAbstract(..), Op(..), T(..), Type(..), TypeNote)
+import Michelson.Types (Contract(..), Instr, InstrAbstract(..), Op(..), T(..), Type(..), TypeNote)
 
 initStackType :: Contract Op -> [Type]
 initStackType c = [Type (T_pair Nothing Nothing (para c) (stor c)) Nothing]

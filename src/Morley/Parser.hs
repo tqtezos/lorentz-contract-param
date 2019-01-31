@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wno-missing-signatures #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
 
-module Language.Michelson.Parser
+module Morley.Parser
   ( contract
   , ParserException(..)
   ) where
@@ -15,8 +15,8 @@ import Text.Megaparsec
 import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
 
-import qualified Language.Michelson.Macro as Macro
-import qualified Language.Michelson.Types as M
+import qualified Morley.Macro as Macro
+import qualified Morley.Types as M
 
 import Data.Void (Void)
 
