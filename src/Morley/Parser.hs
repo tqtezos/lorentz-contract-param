@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wno-missing-signatures #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
 
-module Language.Michelson.Parser
+module Morley.Parser
   ( contract
   , ParserException(..)
   ) where
@@ -15,8 +15,8 @@ import Text.Megaparsec
 import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
 
-import qualified Language.Michelson.Macro as Macro
-import qualified Language.Michelson.Types as M
+import qualified Morley.Macro as Macro
+import qualified Morley.Types as M
 
 import Data.Void (Void)
 
@@ -31,7 +31,7 @@ instance Exception ParserException where
   displayException (ParserException bundle) = errorBundlePretty bundle
 
 -- top-level parsers
-contract :: Parser M.Contract
+contract :: Parser (M.Contract M.ParsedOp)
 contract = do
   mSpace
   (p,s,c) <- runPermutation $
@@ -59,11 +59,11 @@ braces = between (symbol "{") (symbol "}")
 
 semicolon = symbol ";"
 
-{- Data Parsers -}
-data_ :: Parser M.Data
+{- Value Parsers -}
+data_ :: Parser (M.Value M.ParsedOp)
 data_ = lexeme $ dataInner <|> parens dataInner
   where
-    dataInner :: Parser M.Data
+    dataInner :: Parser (M.Value M.ParsedOp)
     dataInner = try (M.Int <$> intLiteral)
           <|> try (M.String <$> stringLiteral)
           <|> try (M.Bytes <$> bytesLiteral)
@@ -75,13 +75,13 @@ data_ = lexeme $ dataInner <|> parens dataInner
           <|> do symbol "Right"; M.Right <$> data_
           <|> do symbol "Some"; M.Some <$> data_
           <|> do symbol "None"; return M.None
-          <|> try (M.Seq <$> listData)
-          <|> try (M.Map <$> mapData)
+          <|> try (M.Seq <$> listValue)
+          <|> try (M.Map <$> mapValue)
           <|> M.DataOps <$> ops
 
-listData = braces $ sepEndBy data_ semicolon
-eltData = do symbol "Elt"; key <- data_; M.Elt key <$> data_
-mapData = braces $ sepEndBy eltData semicolon
+listValue = braces $ sepEndBy data_ semicolon
+eltValue = do symbol "Elt"; M.Elt <$> data_ <*> data_
+mapValue = braces $ sepEndBy eltValue semicolon
 
 intLiteral = L.signed (return ()) L.decimal
 
@@ -237,14 +237,14 @@ ct = (symbol "int" >> return M.T_int)
   <|> (symbol "address" >> return M.T_address)
 
 {- Operations Parsers -}
-ops :: Parser [M.Op]
+ops :: Parser [M.ParsedOp]
 ops = braces $ sepEndBy (prim' <|> mac' <|> seq') semicolon
   where
     prim' = M.PRIM <$> try prim
     mac'  = M.MAC <$> try macro
     seq'  = M.SEQ <$> try ops
 
-prim :: Parser M.I
+prim :: Parser M.ParsedInstr
 prim = dropOp
   <|> dupOp
   <|> swapOp
@@ -356,7 +356,7 @@ geOp  = do symbol "GE"; M.GE <$> noteVDef
 -- ad-hoc comparison
 compareOp = do symbol "COMPARE"; M.COMPARE <$> noteVDef
 
-{- Operations on Data -}
+{- Operations on Value -}
 -- Operations on booleans
 orOp  = do symbol "OR";  M.OR <$> noteVDef
 andOp = do symbol "AND"; M.AND <$> noteVDef
