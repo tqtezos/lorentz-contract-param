@@ -1,7 +1,7 @@
 module Test.Parser (spec) where
 
 import Data.List (isSuffixOf)
-import Language.Michelson.Parser (contract)
+import Morley.Parser (contract)
 import System.Directory (listDirectory)
 import Test.Hspec (Expectation, Spec, describe, it, shouldSatisfy)
 import Text.Megaparsec (parse)

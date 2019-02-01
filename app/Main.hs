@@ -3,8 +3,8 @@ module Main
   ) where
 
 import Data.Text.IO (getContents)
-import Language.Michelson.Macro (expandContractMacros)
-import qualified Language.Michelson.Parser as P
+import Morley.Macro (expandContractMacros)
+import qualified Morley.Parser as P
 
 import System.Console.ArgParser
 import Text.Megaparsec (parse)

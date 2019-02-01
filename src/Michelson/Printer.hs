@@ -1,24 +1,23 @@
 module Language.Michelson.Printer where
 
+import Michelson.Types
 
-import qualified Language.Michelson.Types as M
-
-import Data.Sequence
 import qualified Data.Text as T
 
-pp_SC :: M.SC -> T.Text
-pp_SC (M.SC p s c) = T.concat [pp_Parameter p, pp_Storage s, pp_Code c]
+{-
+pp_Contract :: Contract -> T.Text
+pp_Contract (Contract p s c) = T.concat [pp_Parameter p, pp_Storage s, pp_Code c]
 
-pp_Parameter :: M.Parameter -> Text
-pp_Parameter (M.Parameter t) = T.concat ["parameter ", pp_T t, ";"]
+pp_Parameter :: Parameter -> Text
+pp_Parameter (Parameter t) = T.concat ["parameter ", pp_T t, ";"]
 
-pp_Storage :: M.Storage -> Text
-pp_Storage (M.Storage t) = T.concat ["storage ", pp_T t, ";"]
+pp_Storage :: Storage -> Text
+pp_Storage (Storage t) = T.concat ["storage ", pp_T t, ";"]
 
-pp_Code :: M.Code -> T.Text
-pp_Code (M.Code s) = T.concat ["code ", pp_ISeq s, ";"]
+pp_Code :: Code -> T.Text
+pp_Code (Code s) = T.concat ["code ", pp_ISeq s, ";"]
 
-pp_T :: M.T -> T.Text
+pp_T :: T -> T.Text
 pp_T (T_comparable ct) = pp_CT ct
 pp_T T_key             = "key"
 pp_T T_unit            = "unit"
@@ -41,7 +40,6 @@ pp_CT T_mutez     = "mutez"
 pp_CT T_bool      = "bool"
 pp_CT T_key_hash  = "key_hash"
 pp_CT T_timestamp = "int"
-
 
 pp_ISeq :: Sequence M.ISeq -> T.Text
 pp_ISeq s = T.concat ["{", go s, "}"]
@@ -136,3 +134,4 @@ pp_D (DRight x)   = T.concat ["(Right ", pp_D x, ")"]
 pp_D (DSome x)   = T.concat ["(Some ", pp_D x, ")"]
 pp_D DNone       = "None"
 -- todo: list, set, map, inst
+-}
