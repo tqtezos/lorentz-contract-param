@@ -80,12 +80,16 @@ library
                        ViewPatterns
 
 executable morley
-  hs-source-dirs:      src
+  hs-source-dirs:      app
   main-is:             Main.hs
-  other-modules:       Prelude
   default-language:    Haskell2010
   build-depends:       base-noprelude >= 4.7 && < 5
                      , universum
+                     , argparser
+                     , pretty-simple
+                     , megaparsec >= 7.0.0
+                     , text
+                     , morley
   ghc-options:        -Weverything
                       -Wno-missing-exported-signatures
                       -Wno-missing-import-lists

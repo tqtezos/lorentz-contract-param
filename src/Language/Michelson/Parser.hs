@@ -3,6 +3,7 @@
 
 module Language.Michelson.Parser
   ( contract
+  , ParserException(..)
   ) where
 
 import Prelude hiding (note, some, try)
@@ -22,6 +23,12 @@ import Data.Void (Void)
 import Control.Applicative.Permutations
 
 type Parser = Parsec Void T.Text
+
+data ParserException = ParserException (ParseErrorBundle T.Text Void)
+  deriving (Show)
+
+instance Exception ParserException where
+  displayException (ParserException bundle) = errorBundlePretty bundle
 
 -- top-level parsers
 contract :: Parser M.Contract
