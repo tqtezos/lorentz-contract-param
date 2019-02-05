@@ -3,7 +3,10 @@
 
 module Morley.Parser
   ( contract
-  , ParserException(..)
+  , ParserException (..)
+  , ops
+  , stringLiteral
+  , type_
   , value
   ) where
 
@@ -21,7 +24,7 @@ import qualified Text.Megaparsec.Char.Lexer as L
 import Morley.Lexer
 import qualified Morley.Macro as Macro
 import Morley.Parser.Annotations
-import Morley.Types (ParsedOp(..), Parser, ParserException(..))
+import Morley.Types (CustomParserException (..), ParsedOp(..), Parser, ParserException(..))
 import qualified Morley.Types as M
 
 -------------------------------------------------------------------------------
@@ -60,24 +63,34 @@ bytesLiteral = try $ do
   let (bytes, remain) = B16.decode $ encodeUtf8 hexdigits
   if remain == ""
   then return $ M.ValueBytes bytes
-  else error "odd number bytes" -- TODO: better errors
+  else customFailure OddNumberBytesException
 
--- this parses more escape sequences than are in the michelson spec
--- should investigate which sequences this matters for, e.g. \xa == \n
+stringLiteral :: Parser (M.Value ParsedOp)
 stringLiteral = try $ M.ValueString <$>
-  (T.pack <$> (char '"' >> manyTill L.charLiteral (char '"')))
+  (T.pack <$>
+    ( (++) <$>
+        (concat <$> (string "\"" >> many validChar)) <*>
+        (manyTill (lineBreakChar <|> (customFailure $ UnexpectedLineBreak)) (string "\""))
+    )
+  )
+  where
+      validChar :: Parser String
+      validChar =
+        try strEscape <|>
+          try ((:[]) <$> satisfy (\x -> x /= '"' && x /= '\n' && x /= '\r'))
+      lineBreakChar :: Parser Char
+      lineBreakChar = char '\n' <|> char '\r'
 
-{-
--- could do something explicit based on this
-strEscape :: Parser T.Text
+strEscape :: Parser String
 strEscape = char '\\' >> esc
   where
-    esc = (char 'n' >> return "\n")
-      <|> (char 't' >> return "\t")
+    esc = (char 't' >> return "\t")
       <|> (char 'b' >> return "\b")
       <|> (char '\\' >> return "\\")
       <|> (char '"' >> return "\"")
--}
+      <|> (char 'n' >> return "\n")
+      <|> (char 'r' >> return "\r")
+
 unitValue = do symbol "Unit"; return M.ValueUnit
 trueValue = do symbol "True"; return M.ValueTrue
 falseValue = do symbol "False"; return M.ValueFalse
@@ -116,7 +129,7 @@ field = lexeme (fi <|> parens fi)
 
 
 type_ :: Parser M.Type
-type_ = (ti <|> parens ti)
+type_ = (ti <|> parens ti) <|> (customFailure UnknownTypeException)
   where
     ti = snd <$> (lexeme $ typeInner (pure M.noAnn))
 
