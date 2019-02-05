@@ -1,8 +1,15 @@
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 
 module Morley.Macro
-  ( expandFlat
+  ( expand
+  , expandFlat
   , expandContractMacros
+  , expandPapair
+  , expandUnpapair
+  , expandCadr
+  , expandSetCadr
+  , expandMapCadr
+  , flatten
   , mapLeaves
   ) where
 

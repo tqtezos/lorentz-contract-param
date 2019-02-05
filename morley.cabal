@@ -145,6 +145,7 @@ test-suite morley-test
   default-language:    Haskell2010
   type:                exitcode-stdio-1.0
   other-modules:       Test.Parser
+                     , Test.Macro
   build-depends:
                        hspec
                      , base-noprelude >= 4.7 && < 5
