@@ -30,6 +30,12 @@ library
                      , Morley.Types
                      , Prelude
                      , Tezos.Crypto
+                     , Advanced.Arith
+                     , Advanced.CValue
+                     , Advanced.Interpreter
+                     , Advanced.Parser
+                     , Advanced.Type
+                     , Advanced.Value
 
   build-depends:       aeson
                      , aeson-options
@@ -54,6 +60,7 @@ library
                      , syb
                      , mtl
                      , universum
+                     , vinyl
   ghc-options:        -Weverything
                       -Wno-missing-exported-signatures
                       -Wno-missing-import-lists
