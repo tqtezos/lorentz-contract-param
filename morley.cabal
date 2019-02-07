@@ -16,7 +16,8 @@ extra-source-files:  README.md
 library
   hs-source-dirs:      src
   default-language:    Haskell2010
-  exposed-modules:     Michelson.Types
+  exposed-modules:     Michelson.Interpret
+                     , Michelson.Types
                      , Michelson.Typecheck
                      , Morley.Types
                      , Morley.Macro

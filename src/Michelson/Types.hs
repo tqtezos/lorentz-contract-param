@@ -8,8 +8,12 @@ module Michelson.Types
   , Contract (..)
 
     -- * Data types
+  , Timestamp (..)
+  , Mutez (..)
+  , Address (..)
   , Value (..)
   , Elt (..)
+  , NetworkOp (..)
 
   -- Typechecker types
   , InstrAbstract (..)
@@ -52,6 +56,18 @@ newtype Op = Op {unOp :: Instr}
 -- Basic polymorphic types for Parser/Macro/Typechecker modules
 -------------------------------------
 
+newtype Timestamp = Timestamp
+  { unTimestamp :: Word64
+  } deriving (Show, Eq, Ord, Data)
+
+newtype Mutez = Mutez
+  { unMutez :: Word64
+  } deriving (Show, Eq, Ord, Data)
+
+newtype Address = Address
+  { unAddress :: Text
+  } deriving (Show, Eq, Ord, Data)
+
 {- Data types -}
 data Value op =
     ValueInt     Integer
@@ -74,6 +90,14 @@ data Value op =
 
 data Elt op = Elt (Value op) (Value op)
   deriving (Eq, Show, Functor, Data)
+
+-- | Corresponds to the @operation@ type in Michelson.
+-- TODO: add actual data.
+data NetworkOp
+  = CreateContract
+  | CreateAccount
+  | TransferTokens
+  | SetDelegate
 
 data InstrAbstract op =
     DROP
