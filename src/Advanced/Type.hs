@@ -1,7 +1,25 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# OPTIONS_GHC -fno-warn-unused-top-binds #-}
 
-module Advanced.Type where
+module Advanced.Type
+  (
+    CT (..)
+  , Sing (..)
+  , T (..)
+  , fromMType
+  , withSomeSingT
+  , withSomeSingCT
+  , fromSingT
+  ) where
+
+import Data.Singletons (Sing (..), SingI(..), fromSing)
+import Data.Singletons.TH (genSingletons)
+import qualified Michelson.Types as M
+import Michelson.Types (CT(..))
+import Data.Kind (Type)
 
 data T =
     T_c CT
@@ -18,66 +36,144 @@ data T =
   | T_lambda T T
   | T_map CT T
   | T_big_map CT T
-
-data CT =
-    T_int
-  | T_nat
-  | T_string
-  | T_bytes
-  | T_mutez
-  | T_bool
-  | T_key_hash
-  | T_timestamp
-  | T_address
   deriving (Eq, Show)
 
-data SomeProxy k where
-  SomeProxy :: Typeable t => Proxy (t :: k) -> SomeProxy k
+$(genSingletons [ ''CT ])
 
-withSomeProxy
-  :: SomeProxy k
-  -> (forall t . Typeable t => Proxy (t :: k) -> b)
-  -> b
-withSomeProxy (SomeProxy p) f = f p
+fromMType :: M.Type -> T
+fromMType (M.Type wholeT _) = conv wholeT
+  where
+    conv (M.T_comparable ct) = T_c ct
+    conv M.T_key = T_key
+    conv M.T_unit = T_unit
+    conv M.T_signature = T_signature
+    conv (M.T_option _ t) = T_option (fromMType t)
+    conv (M.T_list t) = T_list (fromMType t)
+    conv (M.T_set (M.Comparable ct _)) = T_set ct
+    conv M.T_operation = T_operation
+    conv (M.T_contract t) = T_contract (fromMType t)
+    conv (M.T_pair _ _ lT rT) = T_pair (fromMType lT) (fromMType rT)
+    conv (M.T_or _ _ lT rT) = T_or (fromMType lT) (fromMType rT)
+    conv (M.T_lambda lT rT) = T_lambda (fromMType lT) (fromMType rT)
+    conv (M.T_map (M.Comparable key _) val) = T_map key (fromMType val)
+    conv (M.T_big_map (M.Comparable key _) val) = T_big_map key (fromMType val)
 
-ctProxy :: CT -> SomeProxy CT
-ctProxy T_int = SomeProxy @CT (Proxy @'T_int)
-ctProxy T_nat = SomeProxy @CT (Proxy @'T_nat)
-ctProxy T_string = SomeProxy @CT (Proxy @'T_string)
-ctProxy T_bytes = SomeProxy @CT (Proxy @'T_bytes)
-ctProxy T_mutez = SomeProxy @CT (Proxy @'T_mutez)
-ctProxy T_bool = SomeProxy @CT (Proxy @'T_bool)
-ctProxy T_key_hash = SomeProxy @CT (Proxy @'T_key_hash)
-ctProxy T_timestamp = SomeProxy @CT (Proxy @'T_timestamp)
-ctProxy T_address = SomeProxy @CT (Proxy @'T_address)
+-- | Version of SomeSing with Typeable constraint
+data SomeSingT k where
+  SomeSingT :: forall k (a :: k). Typeable a => Sing a -> SomeSingT k
 
-tProxy :: T -> SomeProxy T
-tProxy (T_c ct) = withSomeProxy (ctProxy ct) $ \(_ :: Proxy ct) -> SomeProxy @T (Proxy @('T_c ct))
-tProxy T_key = SomeProxy @T (Proxy @'T_key)
-tProxy T_unit = SomeProxy @T (Proxy @'T_unit)
-tProxy T_signature = SomeProxy @T (Proxy @'T_signature)
-tProxy (T_option t) = withSomeProxy (tProxy t) $ \(_ :: Proxy t) -> SomeProxy @T (Proxy @('T_option t))
-tProxy (T_list t) = withSomeProxy (tProxy t) $ \(_ :: Proxy t) -> SomeProxy @T (Proxy @('T_list t))
-tProxy (T_set ct) = withSomeProxy (ctProxy ct) $ \(_ :: Proxy ct) -> SomeProxy @T (Proxy @('T_set ct))
-tProxy T_operation = SomeProxy @T (Proxy @'T_operation)
-tProxy (T_contract t) = withSomeProxy (tProxy t) $ \(_ :: Proxy t) -> SomeProxy @T (Proxy @('T_contract t))
-tProxy (T_pair l r) =
-  withSomeProxy (tProxy l) $ \(_ :: Proxy l) ->
-  withSomeProxy (tProxy r) $ \(_ :: Proxy r) ->
-    SomeProxy @T (Proxy @('T_pair l r))
-tProxy (T_or l r) =
-  withSomeProxy (tProxy l) $ \(_ :: Proxy l) ->
-  withSomeProxy (tProxy r) $ \(_ :: Proxy r) ->
-    SomeProxy @T (Proxy @('T_or l r))
-tProxy (T_lambda l r) =
-  withSomeProxy (tProxy l) $ \(_ :: Proxy l) ->
-  withSomeProxy (tProxy r) $ \(_ :: Proxy r) ->
-    SomeProxy @T (Proxy @('T_lambda l r))
-tProxy (T_map k v) =
-  withSomeProxy (ctProxy k) $ \(_ :: Proxy k) ->
-  withSomeProxy (tProxy v) $ \(_ :: Proxy v) ->
-    SomeProxy @T (Proxy @('T_map k v))
-tProxy (T_big_map k v) =
-  withSomeProxy (ctProxy k) $ \(_ :: Proxy k) ->
-  withSomeProxy (tProxy v) $ \(_ :: Proxy v) ->
-    SomeProxy @T (Proxy @('T_big_map k v))
+withSomeSingT :: T -> (forall (a :: T). Typeable a => Sing a -> r) -> r
+withSomeSingT t f = (\(SomeSingT s) -> f s) (toSingT t)
+
+withSomeSingCT :: CT -> (forall (a :: CT). Typeable a => Sing a -> r) -> r
+withSomeSingCT ct f = (\(SomeSingT s) -> f s) (toSingCT ct)
+
+toSingT :: T -> SomeSingT T
+toSingT (T_c ct) = withSomeSingCT ct $ \ctSing -> SomeSingT $ ST_c ctSing
+toSingT T_key = SomeSingT ST_key
+toSingT T_unit = SomeSingT ST_unit
+toSingT T_signature = SomeSingT ST_signature
+toSingT (T_option t) = withSomeSingT t $ \tSing -> SomeSingT $ ST_option tSing
+toSingT (T_list t) = withSomeSingT t $ \tSing -> SomeSingT $ ST_list tSing
+toSingT (T_set ct) = withSomeSingCT ct $ \ctSing -> SomeSingT $ ST_set ctSing
+toSingT T_operation = SomeSingT ST_operation
+toSingT (T_contract t) = withSomeSingT t $ \tSing -> SomeSingT $ ST_contract tSing
+toSingT (T_pair l r) =
+  withSomeSingT l $ \lSing ->
+  withSomeSingT r $ \rSing ->
+    SomeSingT $ ST_pair lSing rSing
+toSingT (T_or l r) =
+  withSomeSingT l $ \lSing ->
+  withSomeSingT r $ \rSing ->
+    SomeSingT $ ST_or lSing rSing
+toSingT (T_lambda l r) =
+  withSomeSingT l $ \lSing ->
+  withSomeSingT r $ \rSing ->
+    SomeSingT $ ST_lambda lSing rSing
+toSingT (T_map l r) =
+  withSomeSingCT l $ \lSing ->
+  withSomeSingT r $ \rSing ->
+    SomeSingT $ ST_map lSing rSing
+toSingT (T_big_map l r) =
+  withSomeSingCT l $ \lSing ->
+  withSomeSingT r $ \rSing ->
+    SomeSingT $ ST_big_map lSing rSing
+
+toSingCT :: CT -> SomeSingT CT
+toSingCT T_int = SomeSingT ST_int
+toSingCT T_nat = SomeSingT ST_nat
+toSingCT T_string = SomeSingT ST_string
+toSingCT T_bytes = SomeSingT ST_bytes
+toSingCT T_mutez = SomeSingT ST_mutez
+toSingCT T_bool = SomeSingT ST_bool
+toSingCT T_key_hash = SomeSingT ST_key_hash
+toSingCT T_timestamp = SomeSingT ST_timestamp
+toSingCT T_address = SomeSingT ST_address
+
+
+-----------------------------------------------------
+-- Singletons generated by TH
+-- We need a little bit custom @Sing@ data instance
+-- to add @Typeable@ type class
+-----------------------------------------------------
+
+data instance Sing :: T -> Type where
+    ST_c :: Sing a -> Sing ( 'T_c a)
+    ST_key :: Sing  'T_key
+    ST_unit :: Sing  'T_unit
+    ST_signature :: Sing  'T_signature
+    ST_option :: Typeable a => Sing a -> Sing ( 'T_option a)
+    ST_list :: Typeable a => Sing a -> Sing ( 'T_list a )
+    ST_set :: Typeable a => Sing a -> Sing ( 'T_set a )
+    ST_operation :: Sing 'T_operation
+    ST_contract :: Typeable a => Sing a -> Sing ( 'T_contract a )
+    ST_pair :: (Typeable a, Typeable b) => Sing a -> Sing b -> Sing ('T_pair a b)
+    ST_or :: (Typeable a, Typeable b) => Sing a -> Sing b -> Sing ('T_or a b)
+    ST_lambda :: (Typeable a, Typeable b) => Sing a -> Sing b -> Sing ('T_lambda a b)
+    ST_map :: (Typeable a, Typeable b) => Sing a -> Sing b -> Sing ('T_map a b)
+    ST_big_map :: (Typeable a, Typeable b) => Sing a -> Sing b -> Sing ('T_big_map a b)
+
+instance SingI t => SingI ( 'T_c (t :: CT)) where
+  sing = ST_c sing
+instance SingI  'T_key where
+  sing = ST_key
+instance SingI  'T_unit where
+  sing = ST_unit
+instance SingI  'T_signature where
+  sing = ST_signature
+instance (SingI a, Typeable a) => SingI ( 'T_option (a :: T)) where
+  sing = ST_option sing
+instance (SingI a, Typeable a) => SingI ( 'T_list (a :: T)) where
+  sing = ST_list sing
+instance (SingI a, Typeable a) => SingI ( 'T_set (a :: CT)) where
+  sing = ST_set sing
+instance SingI 'T_operation where
+  sing = ST_operation
+instance (SingI a, Typeable a) => SingI ( 'T_contract (a :: T)) where
+  sing = ST_contract sing
+instance (SingI a, Typeable a, Typeable b, SingI b) => SingI ( 'T_pair a b) where
+  sing = ST_pair sing sing
+instance (SingI a, Typeable a, Typeable b, SingI b) => SingI ( 'T_or a b) where
+  sing = ST_or sing sing
+instance (SingI a, Typeable a, Typeable b, SingI b) => SingI ( 'T_lambda a b) where
+  sing = ST_lambda sing sing
+instance (SingI a, Typeable a, Typeable b, SingI b) => SingI ( 'T_map a b) where
+  sing = ST_map sing sing
+instance (SingI a, Typeable a, Typeable b, SingI b) => SingI ( 'T_big_map a b) where
+  sing = ST_big_map sing sing
+
+fromSingT :: Sing (a :: T) -> T
+fromSingT (ST_c t) = T_c (fromSing t)
+fromSingT ST_key = T_key
+fromSingT ST_unit = T_unit
+fromSingT ST_signature = T_signature
+fromSingT (ST_option t) = T_option (fromSingT t)
+fromSingT (ST_list t) = T_list (fromSingT t)
+fromSingT (ST_set t) = T_set (fromSing t)
+fromSingT ST_operation = T_operation
+fromSingT (ST_contract t) = T_contract (fromSingT t)
+fromSingT (ST_pair a b) = T_pair (fromSingT a) (fromSingT b)
+fromSingT (ST_or a b) = T_or (fromSingT a) (fromSingT b)
+fromSingT (ST_lambda a b) = T_lambda (fromSingT a) (fromSingT b)
+fromSingT (ST_map a b) = T_map (fromSing a) (fromSingT b)
+fromSingT (ST_big_map a b) = T_big_map (fromSing a) (fromSingT b)

@@ -5,16 +5,16 @@ module Advanced.Value
   ( Val (..)
   , Instr (..)
   , (#)
-  , SomeInstr (..)
   , ContractT
   ) where
 
-import Data.Typeable (typeOf)
-import qualified Text.Show
+import Data.Singletons (Sing, SingI, sing)
+import Data.Typeable ((:~:)(..), cast, eqT, typeOf)
+import Data.Vinyl.TypeLevel (AllConstrained)
 
 import Advanced.Arith (Add, ArithOp(..))
 import Advanced.CValue (Address, CVal(..))
-import Advanced.Type (CT(..), T(..))
+import Advanced.Type (CT(..), Sing(..), T(..))
 import Tezos.Crypto (PublicKey, Signature)
 
 -- | Representation of Michelson value.
@@ -49,7 +49,8 @@ deriving instance Show op => Show (Val op t)
 --     | Rem
 --     | NotExisted
 --
--- data BigMap op ref k v = BigMap { bmRef :: ref k v, bmChanges :: Map (CVal k) (ValueOp (Val op v)) }
+-- data BigMap op ref k v = BigMap
+--  { bmRef :: ref k v, bmChanges :: Map (CVal k) (ValueOp (Val op v)) }
 
 -- | Infix version of @Seq@ constructor.
 --
@@ -90,7 +91,7 @@ data Instr op (inp :: [T]) (out :: [T]) where
   DROP :: Instr op (a ': s) s
   DUP  :: Instr op (a ': s) (a ': a ': s)
   SWAP :: Instr op (a ': b ': s) (b ': a ': s)
-  PUSH :: forall t s op. Val op t -> Instr op s (t ': s)
+  PUSH :: Val op t -> Instr op s (t ': s)
   SOME :: Instr op (a ': s) ('T_option a ': s)
   NONE :: forall a s op. Instr op s ('T_option a ': s)
   UNIT :: Instr op s ('T_unit ': s)
@@ -98,12 +99,13 @@ data Instr op (inp :: [T]) (out :: [T]) where
   PAIR :: Instr op (a ': b ': s) ('T_pair a b ': s)
   CAR :: Instr op ('T_pair a b ': s) (a ': s)
   CDR :: Instr op ('T_pair a b ': s) (b ': s)
-  -- CDR               VarNote FieldNote
   -- LEFT              TypeNote VarNote FieldNote FieldNote Type
   -- RIGHT             TypeNote VarNote FieldNote FieldNote Type
   -- IF_LEFT           [op] [op]
   -- IF_RIGHT          [op] [op]
   -- NIL               TypeNote VarNote Type
+  NIL :: Instr op s ('T_list p ': s)
+  CONS :: Instr op (a ': 'T_list a ': s) ('T_list a ': s)
   -- CONS              VarNote
   -- IF_CONS           [op] [op]
   -- SIZE              VarNote
@@ -111,6 +113,7 @@ data Instr op (inp :: [T]) (out :: [T]) where
   -- EMPTY_MAP         TypeNote VarNote Comparable Type
   -- MAP               VarNote [op]
   -- ITER              VarNote [op]
+  ITER :: Instr op (e ': s) s -> Instr op ('T_list e ': s) s
   -- MEM               VarNote
   -- GET               VarNote
   -- UPDATE
@@ -171,12 +174,6 @@ data Instr op (inp :: [T]) (out :: [T]) where
   -- ADDRESS           VarNote
 
 deriving instance Show op => Show (Instr op inp out)
-
-data SomeInstr op where
-  SomeInstr :: (Typeable inp, Typeable out) => Instr op inp out -> SomeInstr op
-
-instance (Show op, Typeable op) => Show (SomeInstr op) where
-  show (SomeInstr instr) = show instr ++ " :: " ++ show (typeOf instr)
 
 type ContractT op storage param =
   Instr op '[ 'T_pair param storage ] '[ 'T_pair ('T_list 'T_operation) storage ]

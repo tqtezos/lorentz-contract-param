@@ -37,8 +37,13 @@ run NONE r = VOption Nothing :& r
 run UNIT r = VUnit :& r
 run (IF_NONE bNone bJust) (VOption m :& r) = maybe (run bNone r) (run bJust . (:& r)) m
 run PAIR (a :& b :& r) = VPair (a, b) :& r
-run CAR (VPair (a, b) :& r) = a :& r
-run CDR (VPair (a, b) :& r) = b :& r
+run CAR (VPair (a, _b) :& r) = a :& r
+run CDR (VPair (_a, b) :& r) = b :& r
+-- More here
+run NIL r = VList [] :& r
+run CONS (a :& VList l :& r) = VList (a : l) :& r
+run (ITER _) (VList [] :& r) = r
+run (ITER e) (VList (lh : lr) :& r) = run (ITER e) (VList lr :& run e (lh :& r))
 -- More here
 run (DIP i) (a :& r) = a :& run i r
 -- More here
@@ -57,20 +62,20 @@ run TRANSFER_TOKENS (p :& VC (CvMutez mutez) :& VContract addr :& r) = VOp (Tran
 --    SOME;
 --    IF_NONE DUP SWAP;
 --    ADD
-myInstr =
-  PUSH (VC $ CvInt 223) #
-  SOME #
-  IF_NONE DUP SWAP #
-  ADD #
-  PUSH (VC $ CvNat 12) #
-  ADD
+--myInstr =
+--  PUSH (VC $ CvInt 223) #
+--  SOME #
+--  IF_NONE DUP SWAP #
+--  ADD #
+--  PUSH (VC $ CvNat 12) #
+--  ADD
 
 -- | @myInstr2@ can not be represented in Michelson
 -- syntax as Michelson has no way to directly push value
 -- of type "option int"
 myInstr2 =
   PUSH (VOption $ Just $ VC $ CvInt 223) #
-  IF_NONE DUP Nop
+  Nop
 
-myInstrEvaluated :: Rec (Val Operation) '[ 'T_c 'T_int ]
-myInstrEvaluated = run myInstr (VC (CvInt 90) :& RNil)
+--myInstrEvaluated :: Rec (Val Operation) '[ 'T_c 'T_int ]
+--myInstrEvaluated = run myInstr (VC (CvInt 90) :& RNil)

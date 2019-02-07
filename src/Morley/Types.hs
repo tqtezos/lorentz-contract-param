@@ -58,12 +58,14 @@ data CustomParserException
   = UnknownTypeException
   | OddNumberBytesException
   | UnexpectedLineBreak
+  | OtherError Text
   deriving (Eq, Data, Ord, Show)
 
 instance ShowErrorComponent CustomParserException where
   showErrorComponent UnknownTypeException = "unknown type"
   showErrorComponent OddNumberBytesException = "odd number bytes"
   showErrorComponent UnexpectedLineBreak = "unexpected linebreak"
+  showErrorComponent (OtherError t) = toString t
 
 type Parser = Parsec CustomParserException T.Text
 instance Default a => Default (Parser a) where
