@@ -26,7 +26,6 @@ module Michelson.Types
   , CT (..)
   ) where
 
-import qualified Data.ByteString as B
 import Data.Data (Data(..))
 import qualified Data.Text as T
 
@@ -51,20 +50,22 @@ newtype Op = Op {unOp :: Instr}
 
 {- Data types -}
 data Value op =
-    Int     Integer
-  | String  T.Text
-  | Bytes   B.ByteString
-  | Unit
-  | True
-  | False
-  | Pair    (Value op) (Value op)
-  | Left    (Value op)
-  | Right   (Value op)
-  | Some    (Value op)
-  | None
-  | Seq     [Value op]
-  | Map     [Elt op]
-  | DataOps [op]
+    ValueInt     Integer
+  | ValueString  Text
+  | ValueBytes   ByteString
+  | ValueUnit
+  | ValueTrue
+  | ValueFalse
+  | ValuePair    (Value op) (Value op)
+  | ValueLeft    (Value op)
+  | ValueRight   (Value op)
+  | ValueSome    (Value op)
+  | ValueNone
+  | ValueSeq     [Value op]
+  -- ^ A sequence of elements: can be a list or a set.
+  -- We can't distinguish lists and sets during parsing.
+  | ValueMap     [Elt op]
+  | ValueLambda  [op]
   deriving (Eq, Show, Functor, Data)
 
 data Elt op = Elt (Value op) (Value op)
