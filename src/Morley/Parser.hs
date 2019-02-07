@@ -41,8 +41,8 @@ storage   = do symbol "storage"; type_
 code      = do symbol "code"; ops
 
 {- Value Parsers -}
-data_ :: Parser (M.Value ParsedOp)
-data_ = lexeme $ dataInner <|> parens dataInner
+value :: Parser (M.Value ParsedOp)
+value = lexeme $ dataInner <|> parens dataInner
   where
     dataInner :: Parser (M.Value M.ParsedOp)
     dataInner = choice $
@@ -82,27 +82,27 @@ trueValue = do symbol "True"; return M.ValueTrue
 falseValue = do symbol "False"; return M.ValueFalse
 pairValue = core <|> tuple
   where
-    core = try $ do symbol "Pair"; a <- data_; M.ValuePair a <$> data_
+    core = try $ do symbol "Pair"; a <- value; M.ValuePair a <$> value
     tuple = try $ do
       symbol "("
-      a <- data_
+      a <- value
       comma
-      b <- tupleInner <|> data_
+      b <- tupleInner <|> value
       symbol ")"
       return $ M.ValuePair a b
     tupleInner = try $ do
-      a <- data_
+      a <- value
       comma
-      b <- tupleInner <|> data_
+      b <- tupleInner <|> value
       return $ M.ValuePair a b
 
-leftValue = do symbol "Left"; M.ValueLeft <$> data_
-rightValue = do symbol "Right"; M.ValueRight <$> data_
-someValue = do symbol "Some"; M.ValueSome <$> data_
+leftValue = do symbol "Left"; M.ValueLeft <$> value
+rightValue = do symbol "Right"; M.ValueRight <$> value
+someValue = do symbol "Some"; M.ValueSome <$> value
 noneValue = do symbol "None"; return M.ValueNone
 lambdaValue = M.ValueLambda <$> ops
-seqValue = M.ValueSeq <$> (braces $ sepEndBy data_ semicolon)
-eltValue = do symbol "Elt"; M.Elt <$> data_ <*> data_
+seqValue = M.ValueSeq <$> (braces $ sepEndBy value semicolon)
+eltValue = do symbol "Elt"; M.Elt <$> value <*> value
 mapValue = M.ValueMap <$> (braces $ sepEndBy eltValue semicolon)
 
 -------------------------------------------------------------------------------
@@ -286,7 +286,7 @@ dipOp   = do symbol' "DIP"; M.DIP <$> ops
 dropOp   = do symbol' "DROP"; return M.DROP;
 dupOp    = do symbol' "DUP"; M.DUP <$> noteVDef
 swapOp   = do symbol' "SWAP"; return M.SWAP;
-pushOp   = do symbol' "PUSH"; v <- noteVDef; a <- type_; M.PUSH v a <$> data_
+pushOp   = do symbol' "PUSH"; v <- noteVDef; a <- type_; M.PUSH v a <$> value
 unitOp   = do symbol' "UNIT"; (t, v) <- notesTV; return $ M.UNIT t v
 lambdaOp = do symbol' "LAMBDA"; v <- noteVDef; a <- type_; b <- type_;
               M.LAMBDA v a b <$> ops
