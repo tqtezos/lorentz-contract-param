@@ -48,22 +48,22 @@ data_ = lexeme $ dataInner <|> parens dataInner
     dataInner = choice $
       [ intLiteral, stringLiteral, bytesLiteral, unitValue
       , trueValue, falseValue, pairValue, leftValue, rightValue
-      , someValue, noneValue, seqValue, mapValue, dataOps
+      , someValue, noneValue, seqValue, mapValue, lambdaValue
       ]
 
 -- Literals
-intLiteral = try $ M.Int <$> (L.signed (return ()) L.decimal)
+intLiteral = try $ M.ValueInt <$> (L.signed (return ()) L.decimal)
 bytesLiteral = try $ do
   symbol "0x"
   hexdigits <- takeWhile1P Nothing Char.isHexDigit
   let (bytes, remain) = B16.decode $ encodeUtf8 hexdigits
   if remain == ""
-  then return $ M.Bytes bytes
+  then return $ M.ValueBytes bytes
   else error "odd number bytes" -- TODO: better errors
 
 -- this parses more escape sequences than are in the michelson spec
 -- should investigate which sequences this matters for, e.g. \xa == \n
-stringLiteral = try $ M.String <$>
+stringLiteral = try $ M.ValueString <$>
   (T.pack <$> (char '"' >> manyTill L.charLiteral (char '"')))
 
 {-
@@ -77,33 +77,33 @@ strEscape = char '\\' >> esc
       <|> (char '\\' >> return "\\")
       <|> (char '"' >> return "\"")
 -}
-unitValue = do symbol "Unit"; return M.Unit
-trueValue = do symbol "True"; return M.True
-falseValue = do symbol "False"; return M.False
+unitValue = do symbol "Unit"; return M.ValueUnit
+trueValue = do symbol "True"; return M.ValueTrue
+falseValue = do symbol "False"; return M.ValueFalse
 pairValue = core <|> tuple
   where
-    core = try $ do symbol "Pair"; a <- data_; M.Pair a <$> data_
+    core = try $ do symbol "Pair"; a <- data_; M.ValuePair a <$> data_
     tuple = try $ do
       symbol "("
       a <- data_
       comma
       b <- tupleInner <|> data_
       symbol ")"
-      return $ M.Pair a b
+      return $ M.ValuePair a b
     tupleInner = try $ do
       a <- data_
       comma
       b <- tupleInner <|> data_
-      return $ M.Pair a b
+      return $ M.ValuePair a b
 
-leftValue = do symbol "Left"; M.Left <$> data_
-rightValue = do symbol "Right"; M.Right <$> data_
-someValue = do symbol "Some"; M.Some <$> data_
-noneValue = do symbol "None"; return M.None
-dataOps = M.DataOps <$> ops
-seqValue = M.Seq <$> (braces $ sepEndBy data_ semicolon)
+leftValue = do symbol "Left"; M.ValueLeft <$> data_
+rightValue = do symbol "Right"; M.ValueRight <$> data_
+someValue = do symbol "Some"; M.ValueSome <$> data_
+noneValue = do symbol "None"; return M.ValueNone
+lambdaValue = M.ValueLambda <$> ops
+seqValue = M.ValueSeq <$> (braces $ sepEndBy data_ semicolon)
 eltValue = do symbol "Elt"; M.Elt <$> data_ <*> data_
-mapValue = M.Map <$> (braces $ sepEndBy eltValue semicolon)
+mapValue = M.ValueMap <$> (braces $ sepEndBy eltValue semicolon)
 
 -------------------------------------------------------------------------------
 -- Types
