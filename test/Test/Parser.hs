@@ -1,4 +1,6 @@
-module Test.Parser (spec) where
+module Test.Parser
+  ( spec
+  ) where
 
 import Data.List (isSuffixOf)
 import Morley.Parser (contract)
