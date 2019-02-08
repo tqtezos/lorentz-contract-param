@@ -17,9 +17,12 @@ module Michelson.Types
   , Op (..)
 
     -- * Michelson types
-  , TypeNote
-  , FieldNote
-  , VarNote
+  , Annotation
+  , TypeAnn
+  , FieldAnn
+  , VarAnn
+  , noAnn
+  , ann
   , Type (..)
   , Comparable (..)
   , T (..)
@@ -27,6 +30,7 @@ module Michelson.Types
   ) where
 
 import Data.Data (Data(..))
+import Data.Default (Default (..))
 import qualified Data.Text as T
 
 type Parameter = Type
@@ -73,104 +77,117 @@ data Elt op = Elt (Value op) (Value op)
 
 data InstrAbstract op =
     DROP
-  | DUP               VarNote
+  | DUP               VarAnn
   | SWAP
-  | PUSH              VarNote Type (Value op)
-  | SOME              TypeNote VarNote FieldNote
-  | NONE              TypeNote VarNote FieldNote Type
-  | UNIT              TypeNote VarNote
+  | PUSH              VarAnn Type (Value op)
+  | SOME              TypeAnn VarAnn FieldAnn
+  | NONE              TypeAnn VarAnn FieldAnn Type
+  | UNIT              TypeAnn VarAnn
   | IF_NONE           [op] [op]
-  | PAIR              TypeNote VarNote FieldNote FieldNote
-  | CAR               VarNote FieldNote
-  | CDR               VarNote FieldNote
-  | LEFT              TypeNote VarNote FieldNote FieldNote Type
-  | RIGHT             TypeNote VarNote FieldNote FieldNote Type
+  | PAIR              TypeAnn VarAnn FieldAnn FieldAnn
+  | CAR               VarAnn FieldAnn
+  | CDR               VarAnn FieldAnn
+  | LEFT              TypeAnn VarAnn FieldAnn FieldAnn Type
+  | RIGHT             TypeAnn VarAnn FieldAnn FieldAnn Type
   | IF_LEFT           [op] [op]
   | IF_RIGHT          [op] [op]
-  | NIL               TypeNote VarNote Type
-  | CONS              VarNote
+  | NIL               TypeAnn VarAnn Type
+  | CONS              VarAnn
   | IF_CONS           [op] [op]
-  | SIZE              VarNote
-  | EMPTY_SET         TypeNote VarNote Comparable
-  | EMPTY_MAP         TypeNote VarNote Comparable Type
-  | MAP               VarNote [op]
-  | ITER              VarNote [op]
-  | MEM               VarNote
-  | GET               VarNote
+  | SIZE              VarAnn
+  | EMPTY_SET         TypeAnn VarAnn Comparable
+  | EMPTY_MAP         TypeAnn VarAnn Comparable Type
+  | MAP               VarAnn [op]
+  | ITER              VarAnn [op]
+  | MEM               VarAnn
+  | GET               VarAnn
   | UPDATE
   | IF                [op] [op]
   | LOOP              [op]
   | LOOP_LEFT         [op]
-  | LAMBDA            VarNote Type Type [op]
-  | EXEC              VarNote
+  | LAMBDA            VarAnn Type Type [op]
+  | EXEC              VarAnn
   | DIP               [op]
   | FAILWITH
-  | CAST              Type VarNote
-  | RENAME            VarNote
-  | PACK              VarNote
-  | UNPACK            VarNote Type
-  | CONCAT            VarNote
-  | SLICE             VarNote
+  | CAST              Type VarAnn
+  | RENAME            VarAnn
+  | PACK              VarAnn
+  | UNPACK            VarAnn Type
+  | CONCAT            VarAnn
+  | SLICE             VarAnn
   | ISNAT
-  | ADD               VarNote
-  | SUB               VarNote
-  | MUL               VarNote
-  | EDIV              VarNote
-  | ABS               VarNote
+  | ADD               VarAnn
+  | SUB               VarAnn
+  | MUL               VarAnn
+  | EDIV              VarAnn
+  | ABS               VarAnn
   | NEG
   | MOD
-  | LSL               VarNote
-  | LSR               VarNote
-  | OR                VarNote
-  | AND               VarNote
-  | XOR               VarNote
-  | NOT               VarNote
-  | COMPARE           VarNote
-  | EQ                VarNote
-  | NEQ               VarNote
-  | LT                VarNote
-  | GT                VarNote
-  | LE                VarNote
-  | GE                VarNote
-  | INT               VarNote
-  | SELF              VarNote
+  | LSL               VarAnn
+  | LSR               VarAnn
+  | OR                VarAnn
+  | AND               VarAnn
+  | XOR               VarAnn
+  | NOT               VarAnn
+  | COMPARE           VarAnn
+  | EQ                VarAnn
+  | NEQ               VarAnn
+  | LT                VarAnn
+  | GT                VarAnn
+  | LE                VarAnn
+  | GE                VarAnn
+  | INT               VarAnn
+  | SELF              VarAnn
   | CONTRACT          Type
-  | TRANSFER_TOKENS   VarNote
+  | TRANSFER_TOKENS   VarAnn
   | SET_DELEGATE
-  | CREATE_ACCOUNT    VarNote VarNote
-  | CREATE_CONTRACT   VarNote VarNote
-  | CREATE_CONTRACT2  VarNote VarNote (Contract op)
-  | IMPLICIT_ACCOUNT  VarNote
-  | NOW               VarNote
-  | AMOUNT            VarNote
-  | BALANCE           VarNote
-  | CHECK_SIGNATURE   VarNote
-  | SHA256            VarNote
-  | SHA512            VarNote
-  | BLAKE2B           VarNote
-  | HASH_KEY          VarNote
-  | STEPS_TO_QUOTA    VarNote
-  | SOURCE            VarNote
-  | SENDER            VarNote
-  | ADDRESS           VarNote
+  | CREATE_ACCOUNT    VarAnn VarAnn
+  | CREATE_CONTRACT   VarAnn VarAnn
+  | CREATE_CONTRACT2  VarAnn VarAnn (Contract op)
+  | IMPLICIT_ACCOUNT  VarAnn
+  | NOW               VarAnn
+  | AMOUNT            VarAnn
+  | BALANCE           VarAnn
+  | CHECK_SIGNATURE   VarAnn
+  | SHA256            VarAnn
+  | SHA512            VarAnn
+  | BLAKE2B           VarAnn
+  | HASH_KEY          VarAnn
+  | STEPS_TO_QUOTA    VarAnn
+  | SOURCE            VarAnn
+  | SENDER            VarAnn
+  | ADDRESS           VarAnn
   deriving (Eq, Show, Functor, Data)
 
 -------------------------------------
 -- Basic types for Michelson types --
 -------------------------------------
+newtype Annotation tag = Annotation T.Text
+  deriving (Eq, Show, Data)
 
-{- Michelson Types -}
--- Type Annotations
-type TypeNote = Maybe T.Text
-type FieldNote = Maybe T.Text
-type VarNote = Maybe T.Text
+instance Default (Annotation tag) where
+  def = Annotation ""
+
+data TypeTag
+data FieldTag
+data VarTag
+
+type TypeAnn = Annotation TypeTag
+type FieldAnn = Annotation FieldTag
+type VarAnn = Annotation VarTag
+
+noAnn :: Annotation a
+noAnn = Annotation ""
+
+ann :: T.Text -> Annotation a
+ann = Annotation
 
 -- Annotated type
-data Type = Type T TypeNote
+data Type = Type T TypeAnn
   deriving (Eq, Show, Data)
 
 -- Annotated Comparable Sub-type
-data Comparable = Comparable CT TypeNote
+data Comparable = Comparable CT TypeAnn
   deriving (Eq, Show, Data)
 
 -- Michelson Type
@@ -179,13 +196,13 @@ data T =
   | T_key
   | T_unit
   | T_signature
-  | T_option FieldNote Type
+  | T_option FieldAnn Type
   | T_list Type
   | T_set Comparable
   | T_operation
   | T_contract Type
-  | T_pair FieldNote FieldNote Type Type
-  | T_or FieldNote FieldNote Type Type
+  | T_pair FieldAnn FieldAnn Type Type
+  | T_or FieldAnn FieldAnn Type Type
   | T_lambda Type Type
   | T_map Comparable Type
   | T_big_map Comparable Type

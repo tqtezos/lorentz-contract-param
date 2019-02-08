@@ -15,8 +15,8 @@ module Morley.Macro
 
 import Generics.SYB (everywhere, mkT)
 import Morley.Types
-  (CadrStruct(..), Contract(..), ExpandedInstr, ExpandedOp(..), FieldNote, Instr,
-  InstrAbstract(..), Macro(..), Op(..), PairStruct(..), ParsedOp(..), TypeNote, VarNote)
+  (CadrStruct(..), Contract(..), ExpandedInstr, ExpandedOp(..), FieldAnn, Instr,
+  InstrAbstract(..), Macro(..), Op(..), PairStruct(..), ParsedOp(..), TypeAnn, VarAnn, noAnn)
 
 expandFlat :: [ParsedOp] -> [Instr]
 expandFlat = concatMap flatten . fmap expand
@@ -52,10 +52,10 @@ expandMacro = \case
   IFX i bt bf        -> [xo i, PRIM_EX (IF (xp bt) (xp bf))]
   IFCMP i v bt bf    -> PRIM_EX <$> [COMPARE v, expand <$> i, IF (xp bt) (xp bf)]
   IF_SOME bt bf      -> [PRIM_EX (IF_NONE (xp bf) (xp bt))]
-  FAIL               -> PRIM_EX <$> [UNIT Nothing Nothing, FAILWITH]
+  FAIL               -> PRIM_EX <$> [UNIT noAnn noAnn, FAILWITH]
   ASSERT             -> xol $ IF [] [MAC FAIL]
   ASSERTX i          -> [expand $ MAC $ IFX i [] [MAC FAIL]]
-  ASSERT_CMP i       -> [expand $ MAC $ IFCMP i Nothing [] [MAC FAIL]]
+  ASSERT_CMP i       -> [expand $ MAC $ IFCMP i noAnn [] [MAC FAIL]]
   ASSERT_NONE        -> xol $ IF_NONE [] [MAC FAIL]
   ASSERT_SOME        -> xol $ IF_NONE [MAC FAIL] []
   ASSERT_LEFT        -> xol $ IF_LEFT [] [MAC FAIL]
@@ -76,65 +76,61 @@ expandMacro = \case
 
 -- the correctness of type-annotation expansion is currently untested, as these
 -- expansions are not explicitly documented in the Michelson Specification
-expandPapair :: PairStruct -> TypeNote -> VarNote -> [ParsedOp]
+expandPapair :: PairStruct -> TypeAnn -> VarAnn -> [ParsedOp]
 expandPapair ps t v = case ps of
   P (F a) (F b) -> [PRIM $ PAIR t v (snd a) (snd b)]
-  P (F a) r     -> PRIM <$> [DIP [MAC $ PAPAIR r n n], PAIR t v (snd a) n]
-  P l     (F b) -> [PRIM $ PAIR n n n (snd b), MAC $ PAPAIR l t v]
-  P l     r     -> [MAC $ PAPAIR r n n, MAC $ PAPAIR l n n, PRIM $ PAIR t v n n]
-  where
-    n = Nothing
+  P (F a) r     -> PRIM <$> [DIP [MAC $ PAPAIR r noAnn noAnn], PAIR t v (snd a) noAnn]
+  P l     (F b) -> [PRIM $ PAIR noAnn noAnn noAnn (snd b), MAC $ PAPAIR l t v]
+  P l     r     -> [MAC $ PAPAIR r noAnn noAnn, MAC $ PAPAIR l noAnn noAnn, PRIM $ PAIR t v noAnn noAnn]
 
 expandUnpapair :: PairStruct -> [ParsedOp]
 expandUnpapair = \case
-  P (F (v,f)) (F (w,g)) -> PRIM <$> [DUP Nothing, CAR v f, DIP [PRIM $ CDR w g]]
+  P (F (v,f)) (F (w,g)) -> PRIM <$> [DUP noAnn, CAR v f, DIP [PRIM $ CDR w g]]
   P (F a) r             -> [MAC $ UNPAIR (F a), PRIM $ DIP [MAC $ UNPAIR r]]
   P l     (F b)         -> [MAC $ UNPAIR (F b), MAC $ UNPAIR l]
   P l      r            -> MAC <$> [UNPAIR (P fn fn), UNPAIR l, UNPAIR r]
   where
-    fn = F (Nothing, Nothing)
+    fn = F (noAnn, noAnn)
 
-expandCadr :: [CadrStruct] -> VarNote -> FieldNote -> [ParsedOp]
+expandCadr :: [CadrStruct] -> VarAnn -> FieldAnn -> [ParsedOp]
 expandCadr cs v f = case cs of
   A:[] -> [PRIM $ CAR v f]
   D:[] -> [PRIM $ CDR v f]
-  A:css -> [PRIM $ CAR Nothing Nothing, MAC $ CADR css v f]
-  D:css -> [PRIM $ CDR Nothing Nothing, MAC $ CADR css v f]
+  A:css -> [PRIM $ CAR noAnn noAnn, MAC $ CADR css v f]
+  D:css -> [PRIM $ CDR noAnn noAnn, MAC $ CADR css v f]
 
-expandSetCadr :: [CadrStruct] -> VarNote -> FieldNote -> [ParsedOp]
+expandSetCadr :: [CadrStruct] -> VarAnn -> FieldAnn -> [ParsedOp]
 expandSetCadr cs v f = PRIM <$> case cs of
   A:[] -> [CDR v f, SWAP, pairN]
   D:[] -> [CAR v f, pairN]
-  A:css -> [DUP n, DIP [PRIM carN, MAC $ SET_CADR css v f], cdrN, SWAP, pairN]
-  D:css -> [DUP n, DIP [PRIM cdrN, MAC $ SET_CADR css v f], cdrN, SWAP, pairN]
+  A:css -> [DUP noAnn, DIP [PRIM carN, MAC $ SET_CADR css v f], cdrN, SWAP, pairN]
+  D:css -> [DUP noAnn, DIP [PRIM cdrN, MAC $ SET_CADR css v f], cdrN, SWAP, pairN]
   where
-    n = Nothing
-    carN = CAR n n
-    cdrN = CDR n n
-    pairN = PAIR n n n n
+    carN = CAR noAnn noAnn
+    cdrN = CDR noAnn noAnn
+    pairN = PAIR noAnn noAnn noAnn noAnn
 
-expandMapCadr :: [CadrStruct] -> VarNote -> FieldNote -> [ParsedOp] -> [ParsedOp]
+expandMapCadr :: [CadrStruct] -> VarAnn -> FieldAnn -> [ParsedOp] -> [ParsedOp]
 expandMapCadr cs v f ops = case cs of
-  A:[] -> PRIM <$> [DUP n, cdrN, DIP [PRIM $ CAR v f, SEQ ops], SWAP, pairN]
+  A:[] -> PRIM <$> [DUP noAnn, cdrN, DIP [PRIM $ CAR v f, SEQ ops], SWAP, pairN]
   D:[] ->
-    concat [PRIM <$> [DUP n, CDR v f], [SEQ ops], PRIM <$> [SWAP, carN, pairN]]
+    concat [PRIM <$> [DUP noAnn, CDR v f], [SEQ ops], PRIM <$> [SWAP, carN, pairN]]
   A:css ->
-    PRIM <$> [DUP n, DIP [PRIM $ carN, MAC $ MAP_CADR css v f ops], cdrN, pairN]
+    PRIM <$> [DUP noAnn, DIP [PRIM $ carN, MAC $ MAP_CADR css v f ops], cdrN, pairN]
   D:css ->
-    PRIM <$> [DUP n, DIP [PRIM $ cdrN, MAC $ MAP_CADR css v f ops], carN, pairN]
+    PRIM <$> [DUP noAnn, DIP [PRIM $ cdrN, MAC $ MAP_CADR css v f ops], carN, pairN]
   where
-    n = Nothing
-    carN = CAR n n
-    cdrN = CDR n n
-    pairN = PAIR n n n n
+    carN = CAR noAnn noAnn
+    cdrN = CDR noAnn noAnn
+    pairN = PAIR noAnn noAnn noAnn noAnn
 
 expandContractMacros :: Contract ParsedOp -> Contract ExpandedOp
 expandContractMacros Contract{..} = Contract para stor (map expand code)
 
-mapLeaves :: [(VarNote, FieldNote)] -> PairStruct -> PairStruct
+mapLeaves :: [(VarAnn, FieldAnn)] -> PairStruct -> PairStruct
 mapLeaves fs p = evalState (leavesST p) fs
 
-leavesST :: PairStruct -> State [(VarNote, FieldNote)] PairStruct
+leavesST :: PairStruct -> State [(VarAnn, FieldAnn)] PairStruct
 leavesST = \case
   (P (F _) (F _)) -> do f1 <- state getLeaf
                         f2 <- state getLeaf
@@ -153,4 +149,4 @@ leavesST = \case
                         return $ P l' r'
   where
     getLeaf (a:as) = (a, as)
-    getLeaf _      = ((Nothing, Nothing), [])
+    getLeaf _      = ((noAnn, noAnn), [])
