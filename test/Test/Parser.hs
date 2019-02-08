@@ -17,7 +17,7 @@ parseContractsTest :: Expectation
 parseContractsTest = do
   let dir = "contracts"
   files <- (fmap . fmap) (\s -> dir ++ "/" ++ s) $
-    fmap (filter (isSuffixOf ".tz")) $ listDirectory dir
+    fmap (filter (\ x -> (isSuffixOf ".tz" x) || (isSuffixOf ".mtz" x))) $ listDirectory dir
   void $ mapM checkFile files
 
 checkFile :: FilePath -> Expectation

@@ -1,0 +1,8 @@
+parameter ();
+storage ();
+code {
+  drop;
+  lambda int int {push int 3; add};
+  cast (\int -> int);
+  unit; nil operation; pair
+}
