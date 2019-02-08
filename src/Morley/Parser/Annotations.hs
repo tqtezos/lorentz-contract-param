@@ -46,16 +46,16 @@ note c = lexeme $ string c >> (note' <|> emptyNote)
       b <- takeWhileP Nothing validChar
       return $ T.append a b
 
-noteT :: Parser M.TypeNote
-noteT = Just <$> note ":"
+noteT :: Parser M.TypeAnn
+noteT = M.ann <$> note ":"
 
-noteV :: Parser M.VarNote
-noteV = Just <$> note "@"
+noteV :: Parser M.VarAnn
+noteV = M.ann <$> note "@"
 
-noteF :: Parser M.FieldNote
-noteF = Just <$> note "%"
+noteF :: Parser M.FieldAnn
+noteF = M.ann <$> note "%"
 
-noteF2 :: Parser (M.FieldNote, M.FieldNote)
+noteF2 :: Parser (M.FieldAnn, M.FieldAnn)
 noteF2 = do a <- noteF; b <- noteF; return (a, b)
 
 parseDef :: Default a => Parser a -> Parser a
@@ -65,18 +65,18 @@ noteTDef = parseDef noteT
 noteVDef = parseDef noteV
 _noteFDef = parseDef noteF
 
-notesTVF :: Parser (M.TypeNote, M.VarNote, M.FieldNote)
+notesTVF :: Parser (M.TypeAnn, M.VarAnn, M.FieldAnn)
 notesTVF = permute3Def noteT noteV noteF
 
-notesTVF2 :: Parser (M.TypeNote, M.VarNote, (M.FieldNote, M.FieldNote))
+notesTVF2 :: Parser (M.TypeAnn, M.VarAnn, (M.FieldAnn, M.FieldAnn))
 notesTVF2 = permute3Def noteT noteV noteF2
 
-notesTV :: Parser (M.TypeNote, M.VarNote)
+notesTV :: Parser (M.TypeAnn, M.VarAnn)
 notesTV = permute2Def noteT noteV
 
-notesVF :: Parser (M.VarNote, M.FieldNote)
+notesVF :: Parser (M.VarAnn, M.FieldAnn)
 notesVF  = permute2Def noteV noteF
 
 fieldType fp = runPermutation $
   (,) <$> toPermutationWithDefault  def     fp
-      <*> toPermutationWithDefault Nothing noteT
+      <*> toPermutationWithDefault M.noAnn noteT

@@ -4,10 +4,10 @@ module Michelson.Typecheck
   , typecheck
   ) where
 
-import Michelson.Types (Contract(..), Instr, InstrAbstract(..), Op(..), T(..), Type(..), TypeNote)
+import Michelson.Types (Contract(..), Instr, InstrAbstract(..), Op(..), T(..), Type(..), TypeAnn, noAnn)
 
 initStackType :: Contract Op -> [Type]
-initStackType c = [Type (T_pair Nothing Nothing (para c) (stor c)) Nothing]
+initStackType c = [Type (T_pair noAnn noAnn (para c) (stor c)) noAnn]
 
 data CodeST = CodeST { instructions :: [Instr], stack :: [Type]}
 
@@ -32,7 +32,7 @@ codeST = do
       Right stk' -> put (CodeST is stk') >> codeST
       l          -> return l
 
-_notate :: TypeNote -> Type -> Type
+_notate :: TypeAnn -> Type -> Type
 _notate tn' (Type t _tn) = Type t tn'
 
 applyI :: Instr -> [Type] -> Result
@@ -56,16 +56,16 @@ applyI i stk = case (i, stk) of
                                              else Left $ TypeError i stk
   _                         -> Left $ TypeError i stk
 
-  --LEFT              TypeNote VarNote FieldNote FieldNote Type
-  --RIGHT             TypeNote VarNote FieldNote FieldNote Type
+  --LEFT              TypeAnn VarNote FieldNote FieldNote Type
+  --RIGHT             TypeAnn VarNote FieldNote FieldNote Type
   --IF_LEFT           [Op] [Op]
   --IF_RIGHT          [Op] [Op]
-  --NIL               TypeNote VarNote Type
+  --NIL               TypeAnn VarNote Type
   --CONS              VarNote
   --IF_CONS           [Op] [Op]
   --SIZE              VarNote
-  --EMPTY_SET         TypeNote VarNote Comparable
-  --EMPTY_MAP         TypeNote VarNote Comparable Type
+  --EMPTY_SET         TypeAnn VarNote Comparable
+  --EMPTY_MAP         TypeAnn VarNote Comparable Type
   --MAP               VarNote [Op]
   --ITER              VarNote [Op]
   --MEM               VarNote
@@ -78,7 +78,7 @@ applyI i stk = case (i, stk) of
   --EXEC              VarNote
   --DIP               [Op]
   --FAILWITH
-  --CAST              TypeNote VarNote
+  --CAST              TypeAnn VarNote
   --RENAME            VarNote
   --PACK              VarNote
   --UNPACK            VarNote Type
