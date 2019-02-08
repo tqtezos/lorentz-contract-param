@@ -104,7 +104,7 @@ data InstrAbstract op =
   | EXEC              VarNote
   | DIP               [op]
   | FAILWITH
-  | CAST              TypeNote VarNote
+  | CAST              Type VarNote
   | RENAME            VarNote
   | PACK              VarNote
   | UNPACK            VarNote Type
