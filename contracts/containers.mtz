@@ -1,0 +1,16 @@
+parameter ();
+storage ();
+code {
+  drop;
+  push [int] ({1;2;3});
+  cast (list int);
+  drop;
+  push [int :r] :t ({1;2;3});
+  drop;
+  push {int} ({1;2;3});
+  cast (set int);
+  drop;
+  push {int :r} :t ({1;2;3});
+  drop;
+  unit; nil operation; pair
+}

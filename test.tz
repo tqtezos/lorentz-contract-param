@@ -1,3 +1,3 @@
-parameter unit;
-storage unit;
-code { PUSH (list unit) Unit;};
+parameter (int | nat);
+storage (\int -> bool);
+code { drop; unit; nil operation; pair}

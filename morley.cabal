@@ -21,10 +21,15 @@ library
                      , Morley.Types
                      , Morley.Macro
                      , Morley.Parser
+                     , Morley.Lexer
+                     , Morley.Parser.Annotations
+                     , Morley.Default
                      , Prelude
+
   build-depends:       base-noprelude >= 4.7 && < 5
                      , megaparsec >= 7.0.0
                      , containers
+                     , data-default
                      , natural-numbers
                      , text
                      , bytestring

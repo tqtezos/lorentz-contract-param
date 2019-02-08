@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 module Morley.Types
   (
@@ -18,6 +19,10 @@ module Morley.Types
   , T (..)
   , CT (..)
 
+  -- Parser types
+  , Parser
+  , ParserException(..)
+
   -- * Typechecker types
   , ExpandedInstr
   , ExpandedOp (..)
@@ -30,11 +35,26 @@ module Morley.Types
   , ParsedInstr
   ) where
 
+import Data.Data (Data(..))
+import qualified Data.Text as T
 import Michelson.Types
   (CT(..), Comparable(..), Contract(..), Elt(..), FieldNote, Instr, InstrAbstract(..), Op(..),
   Parameter, Storage, T(..), Type(..), TypeNote, Value(..), VarNote)
+import Morley.Default (Default(..))
+import Text.Megaparsec
 
-import Data.Data (Data(..))
+-------------------------------------
+-- Types for the parser
+-------------------------------------
+
+type Parser = Parsec Void T.Text
+instance Default a => Default (Parser a)         where def = pure def
+
+data ParserException = ParserException (ParseErrorBundle T.Text Void)
+  deriving (Show)
+
+instance Exception ParserException where
+  displayException (ParserException bundle) = errorBundlePretty bundle
 
 -------------------------------------
 -- Types produced by parser
