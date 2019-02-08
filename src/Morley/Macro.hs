@@ -1,16 +1,24 @@
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 
 module Morley.Macro
-  ( expand
-  , expandFlat
+  (
+    -- * For utilities
+    expandFlattenContract
   , expandContractMacros
+
+    -- * For parsing
+  , mapLeaves
+
+    -- * Internals exported for tests
+  , expand
+  , expandFlat
   , expandPapair
   , expandUnpapair
   , expandCadr
   , expandSetCadr
   , expandMapCadr
   , flatten
-  , mapLeaves
+
   ) where
 
 import Generics.SYB (everywhere, mkT)
@@ -20,6 +28,11 @@ import Morley.Types
 
 expandFlat :: [ParsedOp] -> [Instr]
 expandFlat = concatMap flatten . fmap expand
+
+-- | Expand and flatten and instructions in parsed contract.
+expandFlattenContract :: Contract ParsedOp -> Contract Op
+expandFlattenContract Contract {..} =
+  Contract para stor (map Op . expandFlat $ code)
 
 flatten :: ExpandedOp -> [Instr]
 flatten (SEQ_EX s) = concatMap flatten s
