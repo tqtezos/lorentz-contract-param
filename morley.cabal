@@ -19,21 +19,27 @@ library
   exposed-modules:     Michelson.Interpret
                      , Michelson.Types
                      , Michelson.Typecheck
-                     , Morley.Types
+                     , Morley.Default
+                     , Morley.Lexer
                      , Morley.Macro
                      , Morley.Parser
-                     , Morley.Lexer
                      , Morley.Parser.Annotations
-                     , Morley.Default
+                     , Morley.Runtime
+                     , Morley.Runtime.GState
+                     , Morley.Runtime.TxData
+                     , Morley.Types
                      , Prelude
 
-  build-depends:       base-noprelude >= 4.7 && < 5
+  build-depends:       aeson
+                     , aeson-options
+                     , base-noprelude >= 4.7 && < 5
+                     , bytestring
                      , megaparsec >= 7.0.0
                      , containers
                      , data-default
+                     , lens
                      , natural-numbers
                      , text
-                     , bytestring
                      , parser-combinators >= 1.0.0
                      , base16-bytestring
                      , directory
