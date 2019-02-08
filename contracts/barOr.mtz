@@ -1,0 +1,11 @@
+parameter ();
+storage ();
+code {
+  drop;
+  push (int | int | int) (Left 1);
+  cast (or int (or int int));
+  drop;
+  push ((int %a :r | int %b :s | int %c :t) :q) (Left 1);
+  drop;
+  unit; nil operation; pair
+}
