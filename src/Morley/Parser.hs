@@ -41,29 +41,29 @@ storage   = do symbol "storage"; type_
 code      = do symbol "code"; ops
 
 {- Value Parsers -}
-data_ :: Parser (M.Value ParsedOp)
-data_ = lexeme $ dataInner <|> parens dataInner
+value :: Parser (M.Value ParsedOp)
+value = lexeme $ dataInner <|> parens dataInner
   where
     dataInner :: Parser (M.Value M.ParsedOp)
     dataInner = choice $
       [ intLiteral, stringLiteral, bytesLiteral, unitValue
       , trueValue, falseValue, pairValue, leftValue, rightValue
-      , someValue, noneValue, seqValue, mapValue, dataOps
+      , someValue, noneValue, seqValue, mapValue, lambdaValue
       ]
 
 -- Literals
-intLiteral = try $ M.Int <$> (L.signed (return ()) L.decimal)
+intLiteral = try $ M.ValueInt <$> (L.signed (return ()) L.decimal)
 bytesLiteral = try $ do
   symbol "0x"
   hexdigits <- takeWhile1P Nothing Char.isHexDigit
   let (bytes, remain) = B16.decode $ encodeUtf8 hexdigits
   if remain == ""
-  then return $ M.Bytes bytes
+  then return $ M.ValueBytes bytes
   else error "odd number bytes" -- TODO: better errors
 
 -- this parses more escape sequences than are in the michelson spec
 -- should investigate which sequences this matters for, e.g. \xa == \n
-stringLiteral = try $ M.String <$>
+stringLiteral = try $ M.ValueString <$>
   (T.pack <$> (char '"' >> manyTill L.charLiteral (char '"')))
 
 {-
@@ -77,33 +77,33 @@ strEscape = char '\\' >> esc
       <|> (char '\\' >> return "\\")
       <|> (char '"' >> return "\"")
 -}
-unitValue = do symbol "Unit"; return M.Unit
-trueValue = do symbol "True"; return M.True
-falseValue = do symbol "False"; return M.False
+unitValue = do symbol "Unit"; return M.ValueUnit
+trueValue = do symbol "True"; return M.ValueTrue
+falseValue = do symbol "False"; return M.ValueFalse
 pairValue = core <|> tuple
   where
-    core = try $ do symbol "Pair"; a <- data_; M.Pair a <$> data_
+    core = try $ do symbol "Pair"; a <- value; M.ValuePair a <$> value
     tuple = try $ do
       symbol "("
-      a <- data_
+      a <- value
       comma
-      b <- tupleInner <|> data_
+      b <- tupleInner <|> value
       symbol ")"
-      return $ M.Pair a b
+      return $ M.ValuePair a b
     tupleInner = try $ do
-      a <- data_
+      a <- value
       comma
-      b <- tupleInner <|> data_
-      return $ M.Pair a b
+      b <- tupleInner <|> value
+      return $ M.ValuePair a b
 
-leftValue = do symbol "Left"; M.Left <$> data_
-rightValue = do symbol "Right"; M.Right <$> data_
-someValue = do symbol "Some"; M.Some <$> data_
-noneValue = do symbol "None"; return M.None
-dataOps = M.DataOps <$> ops
-seqValue = M.Seq <$> (braces $ sepEndBy data_ semicolon)
-eltValue = do symbol "Elt"; M.Elt <$> data_ <*> data_
-mapValue = M.Map <$> (braces $ sepEndBy eltValue semicolon)
+leftValue = do symbol "Left"; M.ValueLeft <$> value
+rightValue = do symbol "Right"; M.ValueRight <$> value
+someValue = do symbol "Some"; M.ValueSome <$> value
+noneValue = do symbol "None"; return M.ValueNone
+lambdaValue = M.ValueLambda <$> ops
+seqValue = M.ValueSeq <$> (braces $ sepEndBy value semicolon)
+eltValue = do symbol "Elt"; M.Elt <$> value <*> value
+mapValue = M.ValueMap <$> (braces $ sepEndBy eltValue semicolon)
 
 -------------------------------------------------------------------------------
 -- Types
@@ -286,7 +286,7 @@ dipOp   = do symbol' "DIP"; M.DIP <$> ops
 dropOp   = do symbol' "DROP"; return M.DROP;
 dupOp    = do symbol' "DUP"; M.DUP <$> noteVDef
 swapOp   = do symbol' "SWAP"; return M.SWAP;
-pushOp   = do symbol' "PUSH"; v <- noteVDef; a <- type_; M.PUSH v a <$> data_
+pushOp   = do symbol' "PUSH"; v <- noteVDef; a <- type_; M.PUSH v a <$> value
 unitOp   = do symbol' "UNIT"; (t, v) <- notesTV; return $ M.UNIT t v
 lambdaOp = do symbol' "LAMBDA"; v <- noteVDef; a <- type_; b <- type_;
               M.LAMBDA v a b <$> ops
