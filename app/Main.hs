@@ -10,7 +10,7 @@ import Text.Megaparsec (parse)
 import Text.Pretty.Simple (pPrint)
 
 import Michelson.Types
-import Morley.Macro (expandContractMacros, expandFlattenContract)
+import Morley.Macro (expandContractMacros, expandFlattenContract, expandValue)
 import qualified Morley.Parser as P
 import Morley.Runtime (TxData(..), interpreter)
 import Morley.Types
@@ -72,6 +72,9 @@ txDataSpec =
             parseValue (toText param)
         , tdAmount = Mutez (fromIntegral amount)
         }
+    parseValue :: Text -> Either Text (Value Op)
+    parseValue text =
+      either (Left . show) (Right . expandValue) $ parse P.value "" text
 
 main :: IO ()
 main = do
