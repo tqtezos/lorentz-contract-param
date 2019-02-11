@@ -4,6 +4,7 @@
 module Morley.Parser
   ( contract
   , ParserException(..)
+  , value
   ) where
 
 import Prelude hiding (many, note, some, try)
@@ -101,9 +102,9 @@ rightValue = do symbol "Right"; M.ValueRight <$> value
 someValue = do symbol "Some"; M.ValueSome <$> value
 noneValue = do symbol "None"; return M.ValueNone
 lambdaValue = M.ValueLambda <$> ops
-seqValue = M.ValueSeq <$> (braces $ sepEndBy value semicolon)
+seqValue = M.ValueSeq <$> (try $ braces $ sepEndBy value semicolon)
 eltValue = do symbol "Elt"; M.Elt <$> value <*> value
-mapValue = M.ValueMap <$> (braces $ sepEndBy eltValue semicolon)
+mapValue = M.ValueMap <$> (try $ braces $ sepEndBy eltValue semicolon)
 
 -------------------------------------------------------------------------------
 -- Types
