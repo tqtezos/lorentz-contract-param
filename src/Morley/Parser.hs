@@ -109,8 +109,7 @@ mapValue = M.ValueMap <$> (try $ braces $ sepEndBy eltValue semicolon)
 -------------------------------------------------------------------------------
 -- Types
 -------------------------------------------------------------------------------
-
-field :: Parser (M.FieldNote, M.Type)
+field :: Parser (M.FieldAnn, M.Type)
 field = lexeme (fi <|> parens fi)
   where
     fi = typeInner noteF
@@ -119,9 +118,9 @@ field = lexeme (fi <|> parens fi)
 type_ :: Parser M.Type
 type_ = (ti <|> parens ti)
   where
-    ti = snd <$> (lexeme $ typeInner (pure Nothing))
+    ti = snd <$> (lexeme $ typeInner (pure M.noAnn))
 
-typeInner :: Parser M.FieldNote -> Parser (M.FieldNote, M.Type)
+typeInner :: Parser M.FieldAnn -> Parser (M.FieldAnn, M.Type)
 typeInner fp = choice $ (\x -> x fp) <$>
   [ t_ct, t_key, t_unit, t_signature, t_option, t_list, t_set
   , t_operation, t_contract, t_pair, t_or, t_lambda, t_map, t_big_map]
@@ -176,7 +175,7 @@ t_pair fp = core <|> tuple
       (l, a) <- field
       comma
       (r, b) <- tupleInner <|> field
-      return (Nothing, M.Type (M.T_pair l r a b) Nothing)
+      return (M.noAnn, M.Type (M.T_pair l r a b) M.noAnn)
 
 t_or fp = core <|> bar
   where
@@ -198,7 +197,7 @@ t_or fp = core <|> bar
       (l, a) <- field
       symbol "|"
       (r, b) <- barInner <|> field
-      return (Nothing, M.Type (M.T_or l r a b) Nothing)
+      return (M.noAnn, M.Type (M.T_or l r a b) M.noAnn)
 
 t_option fp = do
   symbol "option"
@@ -432,14 +431,14 @@ pairMac = do
   a <- pairMacInner
   symbol' "R"
   (tn, vn, fns) <- permute3Def noteTDef noteV (some noteF)
-  let ps = Macro.mapLeaves ((Nothing,) <$> fns) a
+  let ps = Macro.mapLeaves ((M.noAnn,) <$> fns) a
   return $ M.PAPAIR ps tn vn
 
 pairMacInner :: Parser M.PairStruct
 pairMacInner = do
   string' "P"
-  l <- (string' "A" >> return (M.F (Nothing, Nothing))) <|> pairMacInner
-  r <- (string' "I" >> return (M.F (Nothing, Nothing))) <|> pairMacInner
+  l <- (string' "A" >> return (M.F (M.noAnn, M.noAnn))) <|> pairMacInner
+  r <- (string' "I" >> return (M.F (M.noAnn, M.noAnn))) <|> pairMacInner
   return $ M.P l r
 
 unpairMac :: Parser M.Macro
