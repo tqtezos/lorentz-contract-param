@@ -30,7 +30,7 @@ checkFile file = do
 valueParserTest :: Expectation
 valueParserTest = do
   parse value "" "{PUSH int 5;}" `shouldBe`
-    (Right $ M.ValueLambda [M.PRIM (M.PUSH Nothing (M.Type (M.T_comparable M.T_int) Nothing) (M.ValueInt 5))])
+    (Right $ M.ValueLambda [M.PRIM (M.PUSH noAnn (M.Type (M.T_comparable M.T_int) noAnn) (M.ValueInt 5))])
   parse value "" "{1; 2}" `shouldBe`
     (Right $ M.ValueSeq [M.ValueInt 1, M.ValueInt 2])
   parse value "" "{Elt 1 2; Elt 3 4}" `shouldBe`
