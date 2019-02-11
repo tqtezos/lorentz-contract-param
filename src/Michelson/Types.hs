@@ -16,7 +16,6 @@ module Michelson.Types
   , Elt (..)
   , NetworkOp (..)
   , contractAddress
-  , parseValue
 
   -- Typechecker types
   , InstrAbstract (..)
@@ -104,11 +103,6 @@ data Value op =
   | ValueMap     [Elt op]
   | ValueLambda  [op]
   deriving (Eq, Show, Functor, Data, Generic)
-
--- | Parse a 'Value' from its textual representation.
--- TODO: implement!
-parseValue :: Text -> Either Text (Value op)
-parseValue = pure . ValueString
 
 data Elt op = Elt (Value op) (Value op)
   deriving (Eq, Show, Functor, Data, Generic)
