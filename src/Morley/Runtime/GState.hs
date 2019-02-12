@@ -8,6 +8,7 @@ module Morley.Runtime.GState
        , writeGState
 
        -- * Operations on GState
+       , addAccount
        , setStorageValue
        ) where
 
@@ -16,6 +17,7 @@ import qualified Data.Aeson as Aeson
 import Data.Aeson.Options (defaultOptions)
 import Data.Aeson.TH (deriveJSON)
 import qualified Data.ByteString.Lazy as LBS
+import qualified Data.Map.Strict as Map
 import System.IO.Error (IOError, isDoesNotExistError)
 
 import Michelson.Types
@@ -27,7 +29,7 @@ data Account = Account
   -- ^ Storage value associated with this account.
   , accContract :: !(Contract Op)
   -- ^ Contract of this account.
-  }
+  } deriving (Show)
 
 deriveJSON defaultOptions ''Account
 
@@ -80,6 +82,14 @@ readGState fp = (LBS.readFile fp >>= parseFile) `catch` onExc
 -- | Write 'GState' to a file.
 writeGState :: FilePath -> GState -> IO ()
 writeGState fp gs = LBS.writeFile fp (Aeson.encode gs)
+
+-- | Add an account if it hasn't been added before.
+addAccount :: Address -> Account -> GState -> Maybe GState
+addAccount addr acc gs
+    | addr `Map.member` accounts = Nothing
+    | otherwise = Just (gs {gsAccounts = accounts & at addr .~ Just acc})
+  where
+    accounts = gsAccounts gs
 
 -- | Updare storage value associated with given address. Does nothing
 -- if the address is unknown.
