@@ -37,6 +37,7 @@ library
                      , megaparsec >= 7.0.0
                      , containers
                      , data-default
+                     , formatting
                      , lens
                      , natural-numbers
                      , text
@@ -100,6 +101,7 @@ executable morley
   build-depends:       base-noprelude >= 4.7 && < 5
                      , universum
                      , argparser
+                     , fmt
                      , pretty-simple
                      , megaparsec >= 7.0.0
                      , text

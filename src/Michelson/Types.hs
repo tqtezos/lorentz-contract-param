@@ -41,6 +41,7 @@ import Data.Aeson.TH (defaultOptions, deriveJSON)
 import Data.Data (Data(..))
 import Data.Default (Default(..))
 import qualified Data.Text as T
+import Formatting.Buildable (Buildable)
 
 type Parameter = Type
 type Storage = Type
@@ -75,7 +76,7 @@ newtype Mutez = Mutez
 newtype Address = Address
   { unAddress :: Text
   } deriving stock (Show, Eq, Ord, Data)
-    deriving newtype (ToJSON, FromJSON, ToJSONKey, FromJSONKey)
+    deriving newtype (ToJSON, FromJSON, ToJSONKey, FromJSONKey, Buildable)
 
 -- TODO [TM-17] I guess it's possible to compute address of a contract, but I
 -- don't know how do it (yet). Maybe it requires more data. In the

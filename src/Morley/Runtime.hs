@@ -1,13 +1,15 @@
 -- | Interpreter of a contract in Morley language.
 
 module Morley.Runtime
-       ( interpreter
+       ( originateContract
+       , runContract
 
        -- * Re-exports
+       , Account (..)
        , TxData (..)
        ) where
 
-import Control.Lens (at, makeLenses, (.=), (<>=))
+import Control.Lens (at, makeLenses, (%=), (.=), (<>=))
 import Control.Monad.Except (Except, runExcept, throwError)
 
 import Michelson.Interpret (ContractEnv(..), MichelsonFailed, michelsonInterpreter)
@@ -22,7 +24,17 @@ import Morley.Runtime.TxData
 -- | Operations executed by interpreter.
 -- In our model one network operation (`operation` type in Michelson)
 -- corresponds to a list (possibly empty) of interpreter operations.
-data InterpreterOp = InterpreterOp (Contract Op) TxData
+--
+-- Note: 'Address' is not part of 'TxData', because 'TxData' is
+-- supposed to be provided by the user, while 'Address' can be
+-- computed by our code.
+data InterpreterOp
+    = OriginateOp Account
+    -- ^ Originate a contract.
+    | TransferOp Address
+                 TxData
+    -- ^ Send a transaction to given address which is assumed to be the
+    -- address of an originated contract.
 
 -- | Result of a single execution of interpreter.
 data InterpreterRes = InterpreterRes
@@ -34,6 +46,9 @@ data InterpreterRes = InterpreterRes
   -- ^ Addresses of all contracts whose storage value was updated and
   -- corresponding new values themselves.
   -- We log these values.
+  , _irSourceAddress :: !(Maybe Address)
+  -- ^ As soon as transfer operation is encountered, this address is
+  -- set to its input.
   }
 
 makeLenses ''InterpreterRes
@@ -41,13 +56,52 @@ makeLenses ''InterpreterRes
 -- TODO: pretty printing
 -- | Errors that can happen during contract interpreting.
 data InterpreterError
-  = IEUnknownContract (Contract Op)
+  = IEUnknownContract Address
   -- ^ The interpreted contract hasn't been originated.
   | IEMichelsonFailed (Contract Op) MichelsonFailed
   -- ^ Michelson contract failed (using Michelson's FAILWITH instruction).
+  | IEAlreadyOriginated Account
+  -- ^ A contract is already originated.
   deriving (Show)
 
 instance Exception InterpreterError
+
+----------------------------------------------------------------------------
+-- Interface
+----------------------------------------------------------------------------
+
+-- | Originate a contract. Returns the address of the originated
+-- contract.
+originateContract :: Bool -> FilePath -> Account -> IO Address
+originateContract verbose dbPath account =
+  contractAddress (accContract account) <$
+  interpreter Nothing verbose dbPath (OriginateOp account)
+
+-- | Run a contract. The contract is originated first (if it's not
+-- already) and then we pretend that we send a transaction to it.
+runContract
+    :: Maybe Timestamp
+    -> Bool
+    -> FilePath
+    -> Value Op
+    -> Contract Op
+    -> TxData
+    -> IO ()
+runContract maybeNow verbose dbPath storageValue contract txData = do
+  addr <- originateContract verbose dbPath acc
+    `catch` ignoreAlreadyOriginated
+  interpreter maybeNow verbose dbPath (TransferOp addr txData)
+  where
+    defaultBalance = Mutez 4000000000
+    acc = Account
+      { accBalance = defaultBalance
+      , accStorage = storageValue
+      , accContract = contract
+      }
+    ignoreAlreadyOriginated :: InterpreterError -> IO Address
+    ignoreAlreadyOriginated =
+      \case IEAlreadyOriginated _ -> pure (contractAddress contract)
+            err -> throwM err
 
 ----------------------------------------------------------------------------
 -- Interpreter
@@ -55,52 +109,69 @@ instance Exception InterpreterError
 
 -- | Interpret a contract on some global state (read from file) and
 -- transaction data (passed explicitly).
-interpreter :: Maybe Timestamp -> Bool -> FilePath -> Contract Op -> TxData -> IO ()
-interpreter maybeNow verbose dbPath contract txData = do
+interpreter :: Maybe Timestamp -> Bool -> FilePath -> InterpreterOp -> IO ()
+interpreter maybeNow verbose dbPath operation = do
   now <- maybe getCurrentTime pure maybeNow
-  let sourceAddr = tdSenderAddress txData
   gState <- readGState dbPath
   let initialState =
         InterpreterRes
           { _irGState = gState
-          , _irOperations = [InterpreterOp contract txData]
+          , _irOperations = [operation]
           , _irUpdatedValues = mempty
+          , _irSourceAddress = Nothing
           }
       eitherRes =
-        runExcept (execStateT (statefulInterpreter now sourceAddr) initialState)
+        runExcept (execStateT (statefulInterpreter now) initialState)
   InterpreterRes {..} <- either throwM pure eitherRes
   -- TODO: pretty print
-  when verbose $ putTextLn $ "Updates: " <> show _irUpdatedValues
+  when (verbose && not (null _irUpdatedValues)) $
+    putTextLn $ "Updates: " <> show _irUpdatedValues
   writeGState dbPath _irGState
 
 -- TODO: do we want to update anything in case of error?
 statefulInterpreter ::
-     Timestamp -> Address -> StateT InterpreterRes (Except InterpreterError) ()
-statefulInterpreter now sourceAddr = do
+     Timestamp -> StateT InterpreterRes (Except InterpreterError) ()
+statefulInterpreter now = do
   curGState <- use irGState
+  mSourceAddr <- use irSourceAddress
   use irOperations >>= \case
     [] -> pass
     (op:opsTail) ->
       -- TODO: is it correct to pass latest GState?
       either throwError (processIntRes opsTail) $
-      interpretOneOp now sourceAddr curGState op
+      interpretOneOp now mSourceAddr curGState op
   where
     processIntRes opsTail InterpreterRes {..} = do
       irGState .= _irGState
       irOperations .= opsTail <> _irOperations
       irUpdatedValues <>= _irUpdatedValues
-      statefulInterpreter now sourceAddr
+      irSourceAddress %= (<|> _irSourceAddress)
+      statefulInterpreter now
 
 -- | Run only one interpreter operation and update 'GState' accordingly.
 interpretOneOp
   :: Timestamp
-  -> Address
+  -> Maybe Address
   -> GState
   -> InterpreterOp
   -> Either InterpreterError InterpreterRes
-interpretOneOp now sourceAddr gs (InterpreterOp contract txData) = do
-    acc <- maybe (Left (IEUnknownContract contract)) Right (accounts ^. at ourAddr)
+interpretOneOp _ _ gs (OriginateOp account) =
+  case addAccount (contractAddress contract) account gs of
+    Nothing -> Left (IEAlreadyOriginated account)
+    Just newGS -> Right $
+      InterpreterRes
+      { _irGState = newGS
+      , _irOperations = mempty
+      , _irUpdatedValues = mempty
+      , _irSourceAddress = Nothing
+      }
+  where
+    contract = accContract account
+interpretOneOp now mSourceAddr gs (TransferOp addr txData) = do
+    acc <- maybe (Left (IEUnknownContract addr)) Right (accounts ^. at addr)
     let
+      sourceAddr = fromMaybe (tdSenderAddress txData) mSourceAddr
+      contract = accContract acc
       contractEnv = ContractEnv
         { ceNow = now
         , ceMaxSteps = 100500  -- TODO [TM-18]
@@ -115,14 +186,13 @@ interpretOneOp now sourceAddr gs (InterpreterOp contract txData) = do
     (networkOps, newValue) <- first (IEMichelsonFailed contract) $
       michelsonInterpreter contractEnv contract
     let
-      _irGState = setStorageValue ourAddr newValue gs
+      _irGState = setStorageValue addr newValue gs
       _irOperations = foldMap convertOp networkOps
-      _irUpdatedValues = [(ourAddr, newValue)]
+      _irUpdatedValues = [(addr, newValue)]
+      _irSourceAddress = Just sourceAddr
     pure InterpreterRes {..}
   where
     accounts = gsAccounts gs
-    ourAddr :: Address
-    ourAddr = contractAddress contract
 
 ----------------------------------------------------------------------------
 -- Simple helpers
