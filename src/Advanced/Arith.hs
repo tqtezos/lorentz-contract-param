@@ -1,6 +1,4 @@
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE DataKinds, MultiParamTypeClasses, TypeFamilies #-}
 
 -- | Module, containing some boilerplate for support of
 -- arithmetic operations in Michelson language.

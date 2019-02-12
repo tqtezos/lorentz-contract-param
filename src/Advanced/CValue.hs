@@ -9,7 +9,7 @@ module Advanced.CValue
 
 import Data.Time.Clock (UTCTime)
 
-import Advanced.Type (CT(..), T(..))
+import Advanced.Type (CT(..))
 import Tezos.Crypto (KeyHash)
 
 -- TODO use proper type

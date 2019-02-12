@@ -14,6 +14,8 @@ cabal-version:       >=1.10
 extra-source-files:  README.md
 
 library
+  build-tool-depends: autoexporter:autoexporter
+
   hs-source-dirs:      src
   default-language:    Haskell2010
   exposed-modules:     Michelson.Interpret
@@ -35,6 +37,10 @@ library
                      , Advanced.Interpreter
                      , Advanced.Parser
                      , Advanced.Type
+                     , Advanced.Type.Annotation
+                     , Advanced.Type.Extract
+                     , Advanced.Type.Sing
+                     , Advanced.Type.T
                      , Advanced.TypeCheck
                      , Advanced.Value
 
