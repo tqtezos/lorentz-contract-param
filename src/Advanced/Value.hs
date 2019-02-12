@@ -8,13 +8,10 @@ module Advanced.Value
   , ContractT
   ) where
 
-import Data.Singletons (Sing, SingI, sing)
-import Data.Typeable ((:~:)(..), cast, eqT, typeOf)
-import Data.Vinyl.TypeLevel (AllConstrained)
 
 import Advanced.Arith (Add, ArithOp(..))
 import Advanced.CValue (Address, CVal(..))
-import Advanced.Type (CT(..), Sing(..), T(..))
+import Advanced.Type (CT(..), T(..))
 import Tezos.Crypto (PublicKey, Signature)
 
 -- | Representation of Michelson value.
@@ -86,7 +83,9 @@ infixl 0 #
 -- of stack that will be left after instruction's execution.
 data Instr op (inp :: [T]) (out :: [T]) where
   Seq :: Instr op a b -> Instr op b c -> Instr op a c
-  Nop :: Instr op s s -- Added to parse construction like  `IF_NONE {} { SWAP; DROP; }`
+  Nop :: Instr op s s
+  -- ^ Nop operation. Missing in Michelson spec, added to parse construction
+  -- like  `IF {} { SWAP; DROP; }`.
 
   DROP :: Instr op (a ': s) s
   DUP  :: Instr op (a ': s) (a ': a ': s)

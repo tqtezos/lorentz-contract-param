@@ -22,7 +22,7 @@ import qualified Text.Megaparsec.Char.Lexer as L
 import Morley.Lexer
 import qualified Morley.Macro as Macro
 import Morley.Parser.Annotations
-import Morley.Types (CustomParserException (..), ParsedOp(..), Parser, ParserException(..))
+import Morley.Types (CustomParserException(..), ParsedOp(..), Parser, ParserException(..))
 import qualified Morley.Types as M
 
 -------------------------------------------------------------------------------

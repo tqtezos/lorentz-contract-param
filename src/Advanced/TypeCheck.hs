@@ -36,14 +36,17 @@ module Advanced.TypeCheck
     , SomeVal (..)
     ) where
 
-import qualified Text.Show
-import Data.Typeable (eqT, (:~:)(..), typeRep)
+import Data.Default (Default(..))
 import Data.Singletons (SingI(sing))
+import Data.Typeable ((:~:)(..), eqT, typeRep)
+import qualified Text.Show
 
-import Advanced.Type (fromSingT, Sing (..), CT(..), T(..), fromMType, withSomeSingT)
-import Advanced.CValue (CVal (..))
-import Advanced.Value (Val (..), Instr (..))
-import Advanced.Arith (ArithOp(..), Add)
+import Advanced.Arith (Add, ArithOp(..))
+import Advanced.CValue (CVal(..))
+import Advanced.Type
+  (CT(..), Converge(converge), Notes(..), Notes'(..), Sing(..), T(..), convergeAnns, extractNotes,
+  fromMType, fromSingT, isStar, notesCase, withSomeSingT)
+import Advanced.Value (Instr(..), Val(..))
 
 import qualified Michelson.Types as M
 
@@ -64,20 +67,22 @@ import qualified Michelson.Types as M
 -- These applications of @Typeable@ class are required for convenient usage
 -- of type encoded by @IT ts@ with some functions from @Data.Typeable@.
 --
--- Data type @IT@ is a heterogenuous list of singletons which is due to its
--- main motivation to be used as representation of @Instr@ type data
--- for pattern-matching.
+-- Data type @IT@ is a heterogenuous list of pairs. Left element of pair is a
+-- type singleton which is due to main motivation behind @IT@, namely for it
+-- to be used as representation of @Instr@ type data for pattern-matching.
+-- Right element of pair is a structure, holding field and type annotations
+-- for a given type.
 data IT (ts :: [T])  where
   INil :: IT '[]
-  (::&) :: (Typeable xs, Typeable x) => Sing x -> IT xs -> IT (x ': xs)
+  (::&) :: (Typeable xs, Typeable x, Converge x) => (Sing x, Notes x) -> IT xs -> IT (x ': xs)
 
 instance Show (IT ts) where
   show INil = "[]"
   show (r ::& rs) = "[ " <> showDo (r ::& rs) <> " ]"
     where
       showDo :: IT (t ': ts_) -> String
-      showDo (a ::& (b ::& c)) = show (fromSingT a) <> ", " <> showDo (b ::& c)
-      showDo (a ::& INil) = show (fromSingT a)
+      showDo ((a, _notes) ::& (b ::& c)) = show (fromSingT a) <> ", " <> showDo (b ::& c)
+      showDo ((a, _notes) ::& INil) = show (fromSingT a)
 
 infixr 7 ::&
 
@@ -99,7 +104,7 @@ instance Show op => Show (SomeInstr op) where
 -- | Data type, holding strictly-typed Michelson value along with its
 -- type singleton.
 data SomeVal op where
-    (::::) :: Typeable t => Val op t -> Sing t -> SomeVal op
+    (::::) :: (Typeable t, Converge t) => Val op t -> Sing t -> SomeVal op
 
 -- | Helper function to construct instructions for binary arithmetic
 -- operations.
@@ -110,8 +115,9 @@ arithImpl
      )
   => IT ('T_c n ': 'T_c m ': s)
   -> Instr op ('T_c n ': 'T_c m ': s) ('T_c (ArithResT aop n m) ': s)
-  -> SomeInstr op
-arithImpl i@(_ ::& _ ::& rs) op = op ::: (i, sing ::& rs)
+  -> Either Text (SomeInstr op)
+arithImpl i@(_ ::& _ ::& rs) op = do
+  pure $ op ::: (i, (sing, NStar) ::& rs)
 
 -- | Function @typeCheck@ converts non-empty list of Michelson instructions
 -- given in representation from @Michelson.Type@ module to representation
@@ -136,7 +142,7 @@ typeCheck (p_ :| (r : rs)) (SomeIT (a :: IT a)) = do
 
 -- | Function @eqT'@ is a simple wrapper around @Data.Typeable.eqT@ suited
 -- for use within @Either Text a@ applicative.
-eqT' :: forall (a_ :: [T]) (b_ :: [T]) . (Typeable a_, Typeable b_) => Either Text (a_ :~: b_)
+eqT' :: forall a_ b_ . (Typeable a_, Typeable b_) => Either Text (a_ :~: b_)
 eqT' = maybe (Left $
                 "Unexpected condition in type checker: types not equal: "
                   <> show (typeRep (Proxy @a_))
@@ -159,34 +165,47 @@ eqT' = maybe (Left $
 -- error.
 typeCheckI :: forall op. M.Instr -> SomeIT -> Either Text (SomeInstr op)
 typeCheckI M.DROP (SomeIT i@(_ ::& rs)) = pure (DROP ::: (i, rs))
+typeCheckI (M.DUP _vn) (SomeIT i@(a ::& rs)) =
+  pure (DUP ::: (i, (a ::& a::& rs)))
 typeCheckI M.SWAP (SomeIT i@(a ::& b ::& rs)) =
   pure (SWAP ::: (i, b ::& a ::& rs))
-typeCheckI (M.PUSH _ mt mval) (SomeIT i) = do
+typeCheckI (M.PUSH _vn mt mval) (SomeIT i) = do
   val :::: t <- typeCheckV mval (fromMType mt)
-  pure $ PUSH val ::: (i, t ::& i)
-typeCheckI (M.NIL _ _ mt) (SomeIT i) = do
-  withSomeSingT (fromMType mt) $ \t ->
-    pure $ NIL ::: (i, ST_list t ::& i)
-typeCheckI (M.CONS _) (SomeIT i@((a :: Sing a) ::& ST_list (_ :: Sing a') ::& rs)) = do
-  Refl <- eqT' @'[a] @'[a']
-  pure $ CONS ::: (i, ST_list a ::& rs)
-typeCheckI (M.ITER (i1 : ir)) (SomeIT i@(ST_list (e :: Sing e) ::& (rs :: IT rs))) = do
-  -- ^ case `M.ITER _ []` is wrong typed (as it is required to at least drop an element)
-  subI ::: ((_ :: IT i), (_ :: IT o)) <- typeCheck @op (fmap M.unOp $ i1 :| ir) (SomeIT (e ::& rs))
+  notes <- extractNotes mt t
+  pure $ PUSH val ::: (i, (t, notes) ::& i)
+typeCheckI (M.NIL tn _vn elMt) (SomeIT i) =
+  withSomeSingT (fromMType elMt) $ \elT -> do
+    let t = ST_list elT
+    notes <- extractNotes (M.Type (M.T_list elMt) tn) t
+    pure $ NIL ::: (i, (t, notes) ::& i)
+typeCheckI (M.CONS _vn) (SomeIT i@(((at, an) :: (Sing a, Notes a)) ::& (ST_list (_ :: Sing a'), ln) ::& rs)) = do
+  Refl <- eqT' @a @a'
+  n <- bool (converge ln (N (NT_list def an))) (pure ln) (isStar an)
+  pure $ CONS ::: (i, (ST_list at, n) ::& rs)
+typeCheckI (M.ITER (i1 : ir)) (SomeIT i@((ST_list (e :: Sing e), n) ::& (rs :: IT rs))) = do
+  -- ^ case `M.ITER _ []` is wrongly typed by definition (as it is required to at least drop an element)
+  let en = notesCase NStar (\(NT_list _ en_) -> en_) n
+  subI ::: ((_ :: IT i), (_ :: IT o)) <- typeCheck @op (fmap M.unOp $ i1 :| ir) (SomeIT ((e, en) ::& rs))
   Refl <- eqT' @i @(e ': rs)
   Refl <- eqT' @o @rs
   pure (ITER subI ::: (i, rs))
-typeCheckI (M.PAIR _ _ _ _) (SomeIT i@(a ::& b ::& rs)) = pure (PAIR ::: (i, ST_pair a b ::& rs))
-typeCheckI (M.CDR _ _) (SomeIT i@(ST_pair _ b ::& rs)) = pure (CDR ::: (i, b ::& rs))
+typeCheckI (M.PAIR tn _vn pfn qfn) (SomeIT i@((a, an) ::& (b, bn) ::& rs)) =
+  pure (PAIR ::: (i, (ST_pair a b, N $ NT_pair tn pfn qfn an bn) ::& rs))
+typeCheckI (M.CAR _vn _) (SomeIT i@((ST_pair a _, NStar) ::& rs)) = pure (CAR ::: (i, (a, NStar) ::& rs))
+typeCheckI (M.CAR _vn fn) (SomeIT i@((ST_pair a _, N (NT_pair _ pfn _ elNote _)) ::& rs)) =
+  convergeAnns fn pfn $> CAR ::: (i, (a, elNote) ::& rs)
+typeCheckI (M.CDR _vn _) (SomeIT i@((ST_pair _ b, NStar) ::& rs)) = pure (CDR ::: (i, (b, NStar) ::& rs))
+typeCheckI (M.CDR _vn fn) (SomeIT i@((ST_pair _ b, N (NT_pair _ _ qfn _ elNote)) ::& rs)) =
+  convergeAnns fn qfn $> CDR ::: (i, (b, elNote) ::& rs)
 typeCheckI (M.DIP []) (SomeIT i@(_ ::& _)) = pure (DIP Nop ::: (i, i))
 typeCheckI (M.DIP (i1 : ir)) (SomeIT i@(a ::& (s :: IT s))) = do
   subI ::: ((_ :: IT s'), t) <- typeCheck @op (fmap M.unOp $ i1 :| ir) (SomeIT s)
   Refl <- eqT' @s @s'
   pure (DIP subI ::: (i, a ::& t))
-typeCheckI (M.ADD _) (SomeIT i@(ST_c ST_int ::& ST_c ST_int ::& _)) = pure $ arithImpl @Add i ADD
-typeCheckI (M.ADD _) (SomeIT i@(ST_c ST_int ::& ST_c ST_nat ::& _)) = pure $ arithImpl @Add i ADD
-typeCheckI (M.ADD _) (SomeIT i@(ST_c ST_nat ::& ST_c ST_int ::& _)) = pure $ arithImpl @Add i ADD
-typeCheckI (M.ADD _) (SomeIT i@(ST_c ST_nat ::& ST_c ST_nat ::& _)) = pure $ arithImpl @Add i ADD
+typeCheckI (M.ADD _vn) (SomeIT i@((ST_c ST_int, _) ::& (ST_c ST_int, _) ::& _)) = arithImpl @Add i ADD
+typeCheckI (M.ADD _vn) (SomeIT i@((ST_c ST_int, _) ::& (ST_c ST_nat, _) ::& _)) = arithImpl @Add i ADD
+typeCheckI (M.ADD _vn) (SomeIT i@((ST_c ST_nat, _) ::& (ST_c ST_int, _) ::& _)) = arithImpl @Add i ADD
+typeCheckI (M.ADD _vn) (SomeIT i@((ST_c ST_nat, _) ::& (ST_c ST_nat, _) ::& _)) = arithImpl @Add i ADD
 typeCheckI instr (SomeIT t) = Left $ "Error checking expression " <> show instr <> " against type " <> show t
 
 -- | Function @typeCheckV@ converts a single Michelson value

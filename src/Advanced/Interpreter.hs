@@ -9,10 +9,10 @@ module Advanced.Interpreter
 
 import Data.Vinyl (Rec(..))
 
+import Advanced.Arith (Add, evalOp)
+import Advanced.CValue (Address, CVal(..))
 import Advanced.Type (CT(..), T(..))
-import Advanced.CValue (CVal (..), Address)
-import Advanced.Arith (evalOp, Add)
-import Advanced.Value (Val (..), Instr (..), (#))
+import Advanced.Value (Instr(..), Val(..), ( # ))
 
 -- | Data type, representing operation, list of which is returned
 -- by Michelson contract (according to calling convention).
@@ -60,22 +60,26 @@ run TRANSFER_TOKENS (p :& VC (CvMutez mutez) :& VContract addr :& r) = VOp (Tran
 --
 --    PUSH int 223;
 --    SOME;
---    IF_NONE DUP SWAP;
---    ADD
---myInstr =
---  PUSH (VC $ CvInt 223) #
---  SOME #
---  IF_NONE DUP SWAP #
---  ADD #
---  PUSH (VC $ CvNat 12) #
---  ADD
+--    IF_NONE { DUP; } { SWAP; };
+--    ADD;
+--    PUSH nat 12
+--    ADD;
+myInstr :: Instr op ('T_c 'T_int : s) ('T_c 'T_int : s)
+myInstr =
+  PUSH (VC $ CvInt 223) #
+  SOME #
+  IF_NONE DUP SWAP #
+  ADD #
+  PUSH (VC $ CvNat 12) #
+  ADD
 
 -- | @myInstr2@ can not be represented in Michelson
 -- syntax as Michelson has no way to directly push value
 -- of type "option int"
-myInstr2 =
+_myInstr2 :: Instr op a ('T_option ('T_c 'T_int) : a)
+_myInstr2 =
   PUSH (VOption $ Just $ VC $ CvInt 223) #
   Nop
 
---myInstrEvaluated :: Rec (Val Operation) '[ 'T_c 'T_int ]
---myInstrEvaluated = run myInstr (VC (CvInt 90) :& RNil)
+_myInstrEvaluated :: Rec (Val Operation) '[ 'T_c 'T_int ]
+_myInstrEvaluated = run myInstr (VC (CvInt 90) :& RNil)
