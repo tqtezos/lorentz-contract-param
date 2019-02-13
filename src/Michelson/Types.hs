@@ -1,4 +1,5 @@
-{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveDataTypeable, DerivingStrategies #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Michelson.Types
   (
@@ -8,8 +9,13 @@ module Michelson.Types
   , Contract (..)
 
     -- * Data types
+  , Timestamp (..)
+  , Mutez (..)
+  , Address (..)
   , Value (..)
   , Elt (..)
+  , NetworkOp (..)
+  , contractAddress
 
   -- Typechecker types
   , InstrAbstract (..)
@@ -29,9 +35,13 @@ module Michelson.Types
   , CT (..)
   ) where
 
+import Data.Aeson
+  (FromJSON(..), FromJSONKey, ToJSON(..), ToJSONKey, genericParseJSON, genericToJSON)
+import Data.Aeson.TH (defaultOptions, deriveJSON)
 import Data.Data (Data(..))
-import Data.Default (Default (..))
+import Data.Default (Default(..))
 import qualified Data.Text as T
+import Formatting.Buildable (Buildable)
 
 type Parameter = Type
 type Storage = Type
@@ -39,18 +49,41 @@ data Contract op = Contract
   { para :: Parameter
   , stor :: Storage
   , code :: [op]
-  } deriving (Eq, Show, Functor, Data)
+  } deriving (Eq, Show, Functor, Data, Generic)
 
 -------------------------------------
 -- Flattened types after macroexpander
 -------------------------------------
 type Instr = InstrAbstract Op
 newtype Op = Op {unOp :: Instr}
-  deriving (Eq, Show)
+  deriving stock (Eq, Show)
+  deriving newtype (ToJSON, FromJSON)
 
 -------------------------------------
 -- Basic polymorphic types for Parser/Macro/Typechecker modules
 -------------------------------------
+
+newtype Timestamp = Timestamp
+  { unTimestamp :: Word64
+  } deriving stock (Show, Eq, Ord, Data)
+    deriving newtype (ToJSON, FromJSON)
+
+newtype Mutez = Mutez
+  { unMutez :: Word64
+  } deriving stock (Show, Eq, Ord, Data)
+    deriving newtype (ToJSON, FromJSON)
+
+newtype Address = Address
+  { unAddress :: Text
+  } deriving stock (Show, Eq, Ord, Data)
+    deriving newtype (ToJSON, FromJSON, ToJSONKey, FromJSONKey, Buildable)
+
+-- TODO [TM-17] I guess it's possible to compute address of a contract, but I
+-- don't know how do it (yet). Maybe it requires more data. In the
+-- worst case we can store such map in GState. Maybe we'll have to
+-- move this function to Morley.
+contractAddress :: Contract Op -> Address
+contractAddress _ = Address "dummy-address"
 
 {- Data types -}
 data Value op =
@@ -70,10 +103,18 @@ data Value op =
   -- We can't distinguish lists and sets during parsing.
   | ValueMap     [Elt op]
   | ValueLambda  [op]
-  deriving (Eq, Show, Functor, Data)
+  deriving (Eq, Show, Functor, Data, Generic)
 
 data Elt op = Elt (Value op) (Value op)
-  deriving (Eq, Show, Functor, Data)
+  deriving (Eq, Show, Functor, Data, Generic)
+
+-- | Corresponds to the @operation@ type in Michelson.
+-- TODO: add actual data.
+data NetworkOp
+  = CreateContract
+  | CreateAccount
+  | TransferTokens
+  | SetDelegate
 
 data InstrAbstract op =
     DROP
@@ -157,13 +198,14 @@ data InstrAbstract op =
   | SOURCE            VarAnn
   | SENDER            VarAnn
   | ADDRESS           VarAnn
-  deriving (Eq, Show, Functor, Data)
+  deriving (Eq, Show, Functor, Data, Generic)
 
 -------------------------------------
 -- Basic types for Michelson types --
 -------------------------------------
 newtype Annotation tag = Annotation T.Text
   deriving (Eq, Show, Data)
+  deriving newtype (ToJSON, FromJSON)
 
 instance Default (Annotation tag) where
   def = Annotation ""
@@ -220,3 +262,51 @@ data CT =
   | T_timestamp
   | T_address
   deriving (Eq, Show, Data)
+
+----------------------------------------------------------------------------
+-- JSON serialization
+--
+-- TODO:
+-- 1. Get rid of dirty hack with bytestrings (unsuppress `-Worphans` once done).
+-- 2. Figure out whether it's possible to use TH for types with parameters.
+-- 3. Maybe write it manually using some specific format, e. g. use JSON
+-- syntax from Michelson specification.
+----------------------------------------------------------------------------
+
+-- FIXME: this is a very bad dirty hack, it's temporary.
+instance ToJSON ByteString where
+  toJSON = toJSON @Text . decodeUtf8
+
+-- FIXME: this is a very bad dirty hack, it's temporary.
+instance FromJSON ByteString where
+  parseJSON = fmap (encodeUtf8 @Text) . parseJSON
+
+-- deriveJSON defaultOptions ''Contract
+instance ToJSON op => ToJSON (Contract op) where
+  toJSON = genericToJSON defaultOptions
+
+instance FromJSON op => FromJSON (Contract op) where
+  parseJSON = genericParseJSON defaultOptions
+
+instance ToJSON op => ToJSON (InstrAbstract op) where
+  toJSON = genericToJSON defaultOptions
+
+instance FromJSON op => FromJSON (InstrAbstract op) where
+  parseJSON = genericParseJSON defaultOptions
+
+instance ToJSON op => ToJSON (Value op) where
+  toJSON = genericToJSON defaultOptions
+
+instance FromJSON op => FromJSON (Value op) where
+  parseJSON = genericParseJSON defaultOptions
+
+instance ToJSON op => ToJSON (Elt op) where
+  toJSON = genericToJSON defaultOptions
+
+instance FromJSON op => FromJSON (Elt op) where
+  parseJSON = genericParseJSON defaultOptions
+
+deriveJSON defaultOptions ''Type
+deriveJSON defaultOptions ''Comparable
+deriveJSON defaultOptions ''T
+deriveJSON defaultOptions ''CT
