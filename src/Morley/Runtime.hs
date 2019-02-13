@@ -7,6 +7,12 @@ module Morley.Runtime
        -- * Re-exports
        , Account (..)
        , TxData (..)
+
+       -- * For testing
+       , InterpreterOp (..)
+       , InterpreterRes (..)
+       , InterpreterError (..)
+       , interpreterPure
        ) where
 
 import Control.Lens (at, makeLenses, (%=), (.=), (<>=))
@@ -35,6 +41,7 @@ data InterpreterOp
                  TxData
     -- ^ Send a transaction to given address which is assumed to be the
     -- address of an originated contract.
+    deriving (Show)
 
 -- | Result of a single execution of interpreter.
 data InterpreterRes = InterpreterRes
@@ -49,7 +56,7 @@ data InterpreterRes = InterpreterRes
   , _irSourceAddress :: !(Maybe Address)
   -- ^ As soon as transfer operation is encountered, this address is
   -- set to its input.
-  }
+  } deriving (Show)
 
 makeLenses ''InterpreterRes
 
@@ -113,20 +120,27 @@ interpreter :: Maybe Timestamp -> Bool -> FilePath -> InterpreterOp -> IO ()
 interpreter maybeNow verbose dbPath operation = do
   now <- maybe getCurrentTime pure maybeNow
   gState <- readGState dbPath
-  let initialState =
-        InterpreterRes
-          { _irGState = gState
-          , _irOperations = [operation]
-          , _irUpdatedValues = mempty
-          , _irSourceAddress = Nothing
-          }
-      eitherRes =
-        runExcept (execStateT (statefulInterpreter now) initialState)
+  let
+    eitherRes = interpreterPure now gState [operation]
   InterpreterRes {..} <- either throwM pure eitherRes
   -- TODO: pretty print
   when (verbose && not (null _irUpdatedValues)) $
     putTextLn $ "Updates: " <> show _irUpdatedValues
   writeGState dbPath _irGState
+
+-- | Implementation of interpreter outside 'IO'.  It reads operations,
+-- interprets them one by one and updates state accordingly.
+interpreterPure ::
+  Timestamp -> GState -> [InterpreterOp] -> Either InterpreterError InterpreterRes
+interpreterPure now gState ops =
+    runExcept (execStateT (statefulInterpreter now) initialState)
+  where
+    initialState = InterpreterRes
+      { _irGState = gState
+      , _irOperations = ops
+      , _irUpdatedValues = mempty
+      , _irSourceAddress = Nothing
+      }
 
 -- TODO: do we want to update anything in case of error?
 statefulInterpreter ::

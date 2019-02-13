@@ -38,7 +38,7 @@ deriveJSON defaultOptions ''Account
 data GState = GState
   { gsAccounts :: Map Address Account
   -- ^ All known accounts and their state.
-  }
+  } deriving Show
 
 deriveJSON defaultOptions ''GState
 
