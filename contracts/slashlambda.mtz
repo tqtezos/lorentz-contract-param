@@ -4,5 +4,6 @@ code {
   drop;
   lambda int int {push int 3; add};
   cast (\int -> int);
+  drop;
   unit; nil operation; pair
 }
