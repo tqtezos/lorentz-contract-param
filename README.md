@@ -9,10 +9,12 @@ effective.
   contracts and expresions.
 - `Michelson.Typecheck`: A typechecker that validates ADT's that conform to
   Michelson's typing rules.
+- `Michelson.Intepreter`: An intepreter for Michelson contracts which doesn't
+  perform any side effects.
 - `Morley.Types`: Types for macros, syntactic sugar, and interpreter directives.
-- `Morley.Parser` A parser to turn a `.tz` file into an ADT
-- `Morley.Runtime`: An interpreter that executes a well-typed Michelson smart
-  contract in a sandbox
+- `Morley.Parser` A parser to turn a `.tz` file into an ADT.
+- `Morley.Runtime`: An interpreter that executes a well-typed Morley smart
+  contract in a sandbox.
 
 ## II: Testing tools (TBD)
 

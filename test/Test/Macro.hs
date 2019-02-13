@@ -17,6 +17,7 @@ spec = describe "Macros tests" $ do
   it "expandMapCadr test" expandMapCadrTest
   it "mapLeaves test" mapLeavesTest
   it "flatten test" flattenTest
+  it "expandValue test" expandValueTest
 
 expandPapairTest :: Expectation
 expandPapairTest = do
@@ -134,3 +135,31 @@ expandTest = do
     diip = MAC (DIIP 2 [PRIM SWAP])
     expandedDiip :: ExpandedOp
     expandedDiip = SEQ_EX [PRIM_EX (DIP [SEQ_EX [PRIM_EX (DIP [PRIM_EX SWAP])]])]
+
+expandValueTest :: Expectation
+expandValueTest = do
+  expandValue parsedPair `shouldBe` expandedPair
+  expandValue parsedPapair `shouldBe` expandedPapair
+  expandValue parsedLambdaWithMac `shouldBe` expandedLambdaWithMac
+  where
+    parsedPair :: Value ParsedOp
+    parsedPair = ValuePair (ValueInt 5) (ValueInt 5)
+
+    expandedPair :: Value Op
+    expandedPair = ValuePair (ValueInt 5) (ValueInt 5)
+
+    parsedPapair :: Value ParsedOp
+    parsedPapair = ValuePair (ValuePair (ValueInt 5) (ValueInt 5)) (ValueInt 5)
+
+    expandedPapair :: Value Op
+    expandedPapair = ValuePair (ValuePair (ValueInt 5) (ValueInt 5)) (ValueInt 5)
+
+    parsedLambdaWithMac :: Value ParsedOp
+    parsedLambdaWithMac = ValueLambda
+      [MAC (PAPAIR (P (F (noAnn, noAnn)) (P (F (noAnn, noAnn)) (F (noAnn, noAnn)))) noAnn noAnn)]
+
+    expandedLambdaWithMac :: Value Op
+    expandedLambdaWithMac = ValueLambda
+      [ Op {unOp = DIP [Op {unOp = PAIR noAnn noAnn noAnn noAnn}]}
+      , Op {unOp = PAIR noAnn noAnn noAnn noAnn}
+      ]

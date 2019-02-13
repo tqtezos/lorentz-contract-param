@@ -16,23 +16,31 @@ extra-source-files:  README.md
 library
   hs-source-dirs:      src
   default-language:    Haskell2010
-  exposed-modules:     Michelson.Types
+  exposed-modules:     Michelson.Interpret
+                     , Michelson.Types
                      , Michelson.Typecheck
-                     , Morley.Types
+                     , Morley.Default
+                     , Morley.Lexer
                      , Morley.Macro
                      , Morley.Parser
-                     , Morley.Lexer
                      , Morley.Parser.Annotations
-                     , Morley.Default
+                     , Morley.Runtime
+                     , Morley.Runtime.GState
+                     , Morley.Runtime.TxData
+                     , Morley.Types
                      , Prelude
 
-  build-depends:       base-noprelude >= 4.7 && < 5
+  build-depends:       aeson
+                     , aeson-options
+                     , base-noprelude >= 4.7 && < 5
+                     , bytestring
                      , megaparsec >= 7.0.0
                      , containers
                      , data-default
+                     , formatting
+                     , lens
                      , natural-numbers
                      , text
-                     , bytestring
                      , parser-combinators >= 1.0.0
                      , base16-bytestring
                      , directory
@@ -93,6 +101,7 @@ executable morley
   build-depends:       base-noprelude >= 4.7 && < 5
                      , universum
                      , argparser
+                     , fmt
                      , pretty-simple
                      , megaparsec >= 7.0.0
                      , text

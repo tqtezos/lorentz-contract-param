@@ -1,25 +1,55 @@
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 
 module Morley.Macro
-  ( expand
-  , expandFlat
+  (
+    -- * For utilities
+    expandFlattenContract
   , expandContractMacros
+  , expandValue
+
+    -- * For parsing
+  , mapLeaves
+
+    -- * Internals exported for tests
+  , expand
+  , expandFlat
   , expandPapair
   , expandUnpapair
   , expandCadr
   , expandSetCadr
   , expandMapCadr
   , flatten
-  , mapLeaves
+
   ) where
 
 import Generics.SYB (everywhere, mkT)
 import Morley.Types
-  (CadrStruct(..), Contract(..), ExpandedInstr, ExpandedOp(..), FieldAnn, Instr,
-  InstrAbstract(..), Macro(..), Op(..), PairStruct(..), ParsedOp(..), TypeAnn, VarAnn, noAnn)
+  (CadrStruct(..), Contract(..), Elt(..), ExpandedInstr, ExpandedOp(..), FieldAnn, Instr,
+  InstrAbstract(..), Macro(..), Op(..), PairStruct(..), ParsedOp(..), TypeAnn, Value(..), VarAnn,
+  noAnn)
 
 expandFlat :: [ParsedOp] -> [Instr]
 expandFlat = concatMap flatten . fmap expand
+
+-- | Expand and flatten and instructions in parsed contract.
+expandFlattenContract :: Contract ParsedOp -> Contract Op
+expandFlattenContract Contract {..} =
+  Contract para stor (map Op . expandFlat $ code)
+
+-- Probably, some SYB can be used here
+expandValue :: Value ParsedOp -> Value Op
+expandValue = \case
+  ValuePair l r -> ValuePair (expandValue l) (expandValue r)
+  ValueLeft x -> ValueLeft (expandValue x)
+  ValueRight x -> ValueRight (expandValue x)
+  ValueSome x -> ValueSome (expandValue x)
+  ValueSeq valueList -> ValueSeq (map expandValue valueList)
+  ValueMap eltList -> ValueMap (map expandElt eltList)
+  ValueLambda opList -> ValueLambda (map Op . expandFlat $ opList)
+  x -> fmap (unsafeCastPrim . expand) x
+
+expandElt :: Elt ParsedOp -> Elt Op
+expandElt (Elt l r) = Elt (expandValue l) (expandValue r)
 
 flatten :: ExpandedOp -> [Instr]
 flatten (SEQ_EX s) = concatMap flatten s
@@ -29,13 +59,13 @@ flatten (PRIM_EX o) = [flattenInstr o]
 -- flattenInstr (IF_NONE l r) = IF_NONE (concatMap flatten l) (concatMap flatten r)
 -- flattenInstr (IF_LEFT l r) = IF_LEFT (concatMap flatten l) (concatMap flatten r)
 -- ...
-flattenInstr :: ExpandedInstr -> Instr
-flattenInstr = fmap castPrim . everywhere (mkT flattenOps)
-  where
-    castPrim :: ExpandedOp -> Op
-    castPrim (PRIM_EX x) = Op (castPrim <$> x)
-    castPrim _           = error "unexpeted constructor"
+unsafeCastPrim :: ExpandedOp -> Op
+unsafeCastPrim (PRIM_EX x) = Op (unsafeCastPrim <$> x)
+unsafeCastPrim _           = error "unexpected constructor"
 
+flattenInstr :: ExpandedInstr -> Instr
+flattenInstr = fmap unsafeCastPrim . everywhere (mkT flattenOps)
+  where
     flattenOps :: [ExpandedOp] -> [ExpandedOp]
     flattenOps [] = []
     flattenOps (SEQ_EX s : xs) = s ++ flattenOps xs
