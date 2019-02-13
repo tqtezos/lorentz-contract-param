@@ -47,19 +47,9 @@ deriveJSON defaultOptions ''GState
 -- in the future.
 initGState :: GState
 initGState =
-  GState {gsAccounts = one (contractAddress dummyContract, acc)}
-  where
-    -- doesn't matter
-    dummyContract = Contract
-      { para = Type T_unit noAnn
-      , stor = Type T_unit noAnn
-      , code = []
-      }
-    acc = Account
-      { accBalance = Mutez 1
-      , accStorage = ValueUnit
-      , accContract = dummyContract
-      }
+  GState
+  { gsAccounts = mempty
+  }
 
 data GStateParseError =
   GStateParseError String
