@@ -11,4 +11,4 @@ data TxData = TxData
   { tdSenderAddress :: !Address
   , tdParameter :: !(Value Op)
   , tdAmount :: !Mutez
-  }
+  } deriving (Show)
