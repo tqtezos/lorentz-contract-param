@@ -43,6 +43,7 @@ extra-deps:
   - megaparsec-7.0.0
   - argparser-0.3.4
   - aeson-options-0.1.0
+  - base58-bytestring-0.1.0
 
 nix:
   shell-file: shell.nix
