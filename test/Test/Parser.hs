@@ -9,7 +9,6 @@ import System.Directory (listDirectory)
 import Test.Hspec (Expectation, Spec, describe, it, shouldBe, shouldSatisfy)
 import Text.Megaparsec (parse)
 
-
 spec :: Spec
 spec = describe "Parser tests" $ do
   it "Successfully parses contracts examples from contracts/" parseContractsTest
