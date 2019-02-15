@@ -160,6 +160,7 @@ test-suite morley-test
   type:                exitcode-stdio-1.0
   other-modules:       Test.Parser
                      , Test.Macro
+                     , Test.Typecheck
   build-depends:
                        hspec
                      , base-noprelude >= 4.7 && < 5
