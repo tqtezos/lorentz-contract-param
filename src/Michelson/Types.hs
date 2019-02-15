@@ -163,7 +163,6 @@ data InstrAbstract op =
   | EDIV              VarAnn
   | ABS               VarAnn
   | NEG
-  | MOD
   | LSL               VarAnn
   | LSR               VarAnn
   | OR                VarAnn

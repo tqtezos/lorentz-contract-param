@@ -277,7 +277,7 @@ prim = choice
   , sizeOp, emptySetOp, emptyMapOp, iterOp, memOp, getOp, updateOp
   , loopLOp, loopOp, lambdaOp, execOp, dipOp, failWithOp, castOp, renameOp
   , concatOp, packOp, unpackOp, sliceOp, isNatOp, addressOp, addOp, subOp
-  , mulOp, edivOp, absOp, negOp, modOp, lslOp, lsrOp, orOp, andOp, xorOp, notOp
+  , mulOp, edivOp, absOp, negOp, lslOp, lsrOp, orOp, andOp, xorOp, notOp
   , compareOp, eqOp, neqOp, ltOp, leOp, gtOp, geOp, intOp, selfOp, contractOp
   , transferTokensOp, setDelegateOp, createAccountOp, createContract2Op
   , createContractOp, implicitAccountOp, nowOp, amountOp, balanceOp, checkSigOp
@@ -328,7 +328,6 @@ mulOp  = do symbol' "MUL"; M.MUL <$> noteVDef
 edivOp = do symbol' "EDIV";M.EDIV <$> noteVDef
 absOp  = do symbol' "ABS"; M.ABS <$> noteVDef
 negOp  = do symbol' "NEG"; return M.NEG;
-modOp  = do symbol' "MOD"; return M.MOD;
 
 -- Bitwise logical operators
 lslOp = do symbol' "LSL"; M.LSL <$> noteVDef
