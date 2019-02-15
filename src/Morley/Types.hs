@@ -22,8 +22,9 @@ module Morley.Types
   , CT (..)
 
   -- Parser types
+  , CustomParserException (..)
   , Parser
-  , ParserException(..)
+  , ParserException (..)
 
   -- * Typechecker types
   , ExpandedInstr
@@ -44,17 +45,31 @@ import Michelson.Types
   Parameter, Storage, T(..), Type(..), TypeAnn, Value(..), VarAnn, ann, noAnn)
 import Morley.Default (Default(..))
 import Text.Megaparsec
+import qualified Text.Show
 
 -------------------------------------
 -- Types for the parser
 -------------------------------------
 
-type Parser = Parsec Void T.Text
+data CustomParserException
+  = UnknownTypeException
+  | OddNumberBytesException
+  | UnexpectedLineBreak
+  deriving (Eq, Data, Ord, Show)
+
+instance ShowErrorComponent CustomParserException where
+  showErrorComponent UnknownTypeException = "unknown type"
+  showErrorComponent OddNumberBytesException = "odd number bytes"
+  showErrorComponent UnexpectedLineBreak = "unexpected linebreak"
+
+type Parser = Parsec CustomParserException T.Text
 instance Default a => Default (Parser a) where
   def = pure def
 
-data ParserException = ParserException (ParseErrorBundle T.Text Void)
-  deriving (Show)
+data ParserException = ParserException (ParseErrorBundle T.Text CustomParserException)
+
+instance Show ParserException where
+  show (ParserException bundle) = errorBundlePretty bundle
 
 instance Exception ParserException where
   displayException (ParserException bundle) = errorBundlePretty bundle
