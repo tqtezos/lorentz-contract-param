@@ -38,8 +38,8 @@ note c = lexeme $ string c >> (note' <|> emptyNote)
     emptyNote = pure ""
     note' = do
       a <- string "@"
-           <|> string "%"
            <|> string "%%"
+           <|> string "%"
            <|> T.singleton <$> satisfy (\ x -> isAlpha x && isAscii x)
       let validChar x =
             isAscii x && (isAlphaNum x || x == '\\' || x == '.' || x == '_')
