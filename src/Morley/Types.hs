@@ -50,7 +50,8 @@ import Text.Megaparsec
 -------------------------------------
 
 type Parser = Parsec Void T.Text
-instance Default a => Default (Parser a)         where def = pure def
+instance Default a => Default (Parser a) where
+  def = pure def
 
 data ParserException = ParserException (ParseErrorBundle T.Text Void)
   deriving (Show)
@@ -62,8 +63,8 @@ instance Exception ParserException where
 -- Types produced by parser
 -------------------------------------
 type ParsedInstr = InstrAbstract ParsedOp
-data ParsedOp =
-    PRIM ParsedInstr
+data ParsedOp
+  = PRIM ParsedInstr
   | MAC Macro
   | SEQ [ParsedOp]
   deriving (Eq, Show)
@@ -72,17 +73,23 @@ data ParsedOp =
 -- Types after macroexpander
 -------------------------------------
 type ExpandedInstr = InstrAbstract ExpandedOp
-data ExpandedOp =
-    PRIM_EX ExpandedInstr
+data ExpandedOp
+  = PRIM_EX ExpandedInstr
   | SEQ_EX [ExpandedOp]
   deriving (Eq, Show, Data)
 
-data PairStruct = F (VarAnn, FieldAnn) | P PairStruct PairStruct
+data PairStruct
+  = F (VarAnn, FieldAnn)
+  | P PairStruct PairStruct
   deriving (Eq, Show)
-data CadrStruct = A | D deriving (Eq, Show)
 
-data Macro =
-    CMP ParsedInstr VarAnn
+data CadrStruct
+  = A
+  | D
+  deriving (Eq, Show)
+
+data Macro
+  = CMP ParsedInstr VarAnn
   | IFX ParsedInstr [ParsedOp] [ParsedOp]
   | IFCMP ParsedInstr VarAnn [ParsedOp] [ParsedOp]
   | FAIL
