@@ -1,0 +1,10 @@
+# This contract is ill-typed, it tries to `ADD` input string to storage string
+
+parameter string;
+storage string;
+code {
+      DUP;
+      CAR;
+      DIP { CDR };
+      ADD;
+      NIL operation; PAIR;};
