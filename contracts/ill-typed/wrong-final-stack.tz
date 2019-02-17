@@ -1,0 +1,9 @@
+# This contract is ill-typed, it leaves `(pair (list bytes) bytes)` on the
+# stack in the end (list should contain `operation`s).
+
+parameter mutez;
+storage bytes;
+code {
+      CDR;
+      SHA256;
+      NIL bytes; PAIR;};

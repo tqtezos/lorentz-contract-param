@@ -160,13 +160,16 @@ test-suite morley-test
   type:                exitcode-stdio-1.0
   other-modules:       Test.Parser
                      , Test.Macro
+                     , Test.Typecheck
+                     , Test.Util.Contracts
   build-depends:
                        hspec
                      , base-noprelude >= 4.7 && < 5
+                     , directory
+                     , filepath
+                     , megaparsec >= 7.0.0
                      , morley
                      , text
-                     , directory
-                     , megaparsec >= 7.0.0
                      , universum
   ghc-options:        -Weverything
                       -Wno-missing-exported-signatures

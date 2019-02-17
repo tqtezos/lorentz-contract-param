@@ -2,12 +2,12 @@ module Test.Parser
   ( spec
   ) where
 
-import Data.List (isSuffixOf)
 import Morley.Parser as P
 import Morley.Types as M
-import System.Directory (listDirectory)
 import Test.Hspec (Expectation, Spec, describe, it, shouldBe, shouldSatisfy)
 import Text.Megaparsec (parse)
+
+import Test.Util.Contracts (getIllTypedContracts, getWellTypedContracts)
 
 spec :: Spec
 spec = describe "Parser tests" $ do
@@ -26,10 +26,8 @@ spec = describe "Parser tests" $ do
 
 parseContractsTest :: Expectation
 parseContractsTest = do
-  let dir = "contracts"
-  files <- (fmap . fmap) (\s -> dir ++ "/" ++ s) $
-    fmap (filter (\ x -> (isSuffixOf ".tz" x) || (isSuffixOf ".mtz" x))) $ listDirectory dir
-  void $ mapM checkFile files
+  files <- mappend <$> getWellTypedContracts <*> getIllTypedContracts
+  mapM_ checkFile files
 
 checkFile :: FilePath -> Expectation
 checkFile file = do
