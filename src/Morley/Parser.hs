@@ -277,7 +277,7 @@ prim = choice
   , sizeOp, emptySetOp, emptyMapOp, iterOp, memOp, getOp, updateOp
   , loopLOp, loopOp, lambdaOp, execOp, dipOp, failWithOp, castOp, renameOp
   , concatOp, packOp, unpackOp, sliceOp, isNatOp, addressOp, addOp, subOp
-  , mulOp, edivOp, absOp, negOp, modOp, lslOp, lsrOp, orOp, andOp, xorOp, notOp
+  , mulOp, edivOp, absOp, negOp, lslOp, lsrOp, orOp, andOp, xorOp, notOp
   , compareOp, eqOp, neqOp, ltOp, leOp, gtOp, geOp, intOp, selfOp, contractOp
   , transferTokensOp, setDelegateOp, createAccountOp, createContract2Op
   , createContractOp, implicitAccountOp, nowOp, amountOp, balanceOp, checkSigOp
@@ -328,7 +328,6 @@ mulOp  = do symbol' "MUL"; M.MUL <$> noteVDef
 edivOp = do symbol' "EDIV";M.EDIV <$> noteVDef
 absOp  = do symbol' "ABS"; M.ABS <$> noteVDef
 negOp  = do symbol' "NEG"; return M.NEG;
-modOp  = do symbol' "MOD"; return M.MOD;
 
 -- Bitwise logical operators
 lslOp = do symbol' "LSL"; M.LSL <$> noteVDef
@@ -350,7 +349,7 @@ emptyMapOp = do symbol' "EMPTY_MAP"; (t, v) <- notesTV; a <- comparable;
                 M.EMPTY_MAP t v a <$> type_
 memOp      = do symbol' "MEM"; M.MEM <$> noteVDef
 updateOp   = do symbol' "UPDATE"; return M.UPDATE
-iterOp     = do symbol' "ITER"; v <- noteVDef; M.ITER v <$> ops
+iterOp     = do symbol' "ITER"; M.ITER <$> ops
 sizeOp     = do symbol' "SIZE"; M.SIZE <$> noteVDef
 mapOp      = do symbol' "MAP"; v <- noteVDef; M.MAP v <$> ops
 getOp      = do symbol' "GET"; M.GET <$> noteVDef
@@ -405,7 +404,7 @@ sha512Op   = do symbol' "SHA512"; M.SHA512 <$> noteVDef
 hashKeyOp  = do symbol' "HASH_KEY"; M.HASH_KEY <$> noteVDef
 
 {- Type operations -}
-castOp = do symbol' "CAST"; t <- type_; M.CAST t <$> noteVDef
+castOp = do symbol' "CAST"; M.CAST <$> noteVDef <*> type_;
 renameOp = do symbol' "RENAME"; M.RENAME <$> noteVDef
 isNatOp = do symbol' "ISNAT"; return M.ISNAT
 intOp = do symbol' "INT"; M.INT <$> noteVDef

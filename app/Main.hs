@@ -10,6 +10,7 @@ import System.Console.ArgParser.Params (FlagParam, StdArgParam)
 import Text.Megaparsec (parse)
 import Text.Pretty.Simple (pPrint)
 
+import Michelson.Typecheck (typecheckContract)
 import Michelson.Types
 import Morley.Macro (expandContractMacros, expandFlattenContract, expandValue)
 import qualified Morley.Parser as P
@@ -124,7 +125,9 @@ main = do
         if hasExpandMacros
           then pPrint $ expandContractMacros contract
           else pPrint contract
-      TypeCheck _filename _hasVerboseFlag -> error "Not implemented yet:("
+      TypeCheck mFilename _hasVerboseFlag -> do
+        void $ prepareContract mFilename
+        putTextLn "Contract is well-typed"
       Run RunOptions {..} -> do
         michelsonContract <- prepareContract roContractFile
         -- TODO: [TM-18] Pass timestamp from CLI if it's provided.
@@ -157,5 +160,5 @@ main = do
         michelsonContract :: Contract Op
         michelsonContract = expandFlattenContract contract
 
-      -- TODO: call type checker here!
-      return michelsonContract
+      either throwM pure $ typecheckContract michelsonContract
+      pure michelsonContract
