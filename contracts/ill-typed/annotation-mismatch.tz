@@ -1,0 +1,6 @@
+# This contract is ill-typed, it replaces storage with parameter,
+# but they have incompatible types (due to annotations).
+
+parameter (int :p) ;
+storage (int :s) ;
+code { CAR; NIL operation; PAIR }
