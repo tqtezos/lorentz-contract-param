@@ -6,7 +6,6 @@ module Advanced.Value.Value
   , Instr (..)
   , (#)
   , EDivOp (..)
-  , ModOp (..)
   , MemOp (..)
   , MapOp (..)
   , IterOp (..)
@@ -73,94 +72,6 @@ deriving instance Show op => Show (Val op cp t)
 (#) = Seq
 
 infixl 0 #
-
-class EDivOp op cp (n :: CT) (m :: CT) where
-  type EDivOpRes n m :: CT
-  type EModOpRes n m :: CT
-  evalEDivOp :: CVal n
-             -> CVal m
-             -> Val op cp ('T_option ('T_pair ('T_c (EDivOpRes n m)) ('T_c (EModOpRes n m))))
-
-instance EDivOp op cp 'T_int 'T_int where
-  type EDivOpRes 'T_int 'T_int = 'T_int
-  type EModOpRes 'T_int 'T_int = 'T_nat
-  evalEDivOp (CvInt i) (CvInt j) =
-    if j == 0
-      then VOption $ Nothing
-      else VOption $ Just $
-        VPair (VC $ CvInt (div i j), VC $ CvNat $ fromInteger (mod i j))
-instance EDivOp op cp 'T_int 'T_nat where
-  type EDivOpRes 'T_int 'T_nat = 'T_int
-  type EModOpRes 'T_int 'T_nat = 'T_nat
-  evalEDivOp (CvInt i) (CvNat j) =
-    if j == 0
-      then VOption $ Nothing
-      else VOption $ Just $
-        VPair (VC $ CvInt (div i (toInteger j)), VC $ CvNat $ (mod (fromInteger i) j))
-instance EDivOp op cp 'T_nat 'T_int where
-  type EDivOpRes 'T_nat 'T_int = 'T_int
-  type EModOpRes 'T_nat 'T_int = 'T_nat
-  evalEDivOp (CvNat i) (CvInt j) =
-    if j == 0
-      then VOption $ Nothing
-      else VOption $ Just $
-        VPair (VC $ CvInt (div (toInteger i) j), VC $ CvNat $ (mod i (fromInteger j)))
-instance EDivOp op cp 'T_nat 'T_nat where
-  type EDivOpRes 'T_nat 'T_nat = 'T_nat
-  type EModOpRes 'T_nat 'T_nat = 'T_nat
-  evalEDivOp (CvNat i) (CvNat j) =
-    if j == 0
-      then VOption $ Nothing
-      else VOption $ Just $
-        VPair (VC $ CvNat (div i j), VC $ CvNat $ (mod i j))
-instance EDivOp op cp 'T_mutez 'T_mutez where
-  type EDivOpRes 'T_mutez 'T_mutez = 'T_mutez
-  type EModOpRes 'T_mutez 'T_mutez = 'T_mutez
-  evalEDivOp (CvMutez i) (CvMutez j) =
-    if j == 0
-      then VOption $ Nothing
-      else VOption $ Just $
-        VPair (VC $ CvMutez (div i j), VC $ CvMutez $ (mod i j))
-instance EDivOp op cp 'T_mutez 'T_nat where
-  type EDivOpRes 'T_mutez 'T_nat = 'T_nat
-  type EModOpRes 'T_mutez 'T_nat = 'T_mutez
-  evalEDivOp (CvMutez i) (CvNat j) =
-    if j == 0
-      then VOption $ Nothing
-      else VOption $ Just $
-        VPair (VC $ CvNat (div (fromIntegral i) j), VC $ CvMutez $ (mod i (fromIntegral j)))
-
-class ModOp op cp (n :: CT) (m :: CT) where
-  type ModOpRes n m :: CT
-  evalModOp :: CVal n
-             -> CVal m
-             -> Val op cp ('T_option ('T_c (ModOpRes n m)))
-
-instance ModOp op cp 'T_int 'T_int where
-  type ModOpRes 'T_int 'T_int = 'T_nat
-  evalModOp (CvInt i) (CvInt j) =
-    if j == 0
-      then VOption $ Nothing
-      else VOption $ (Just . VC . CvNat . fromInteger) (mod i j)
-instance ModOp op cp 'T_int 'T_nat where
-  type ModOpRes 'T_int 'T_nat = 'T_nat
-  evalModOp (CvInt i) (CvNat j) =
-    if j == 0
-      then VOption $ Nothing
-      else VOption $ Just $ VC $ CvNat (mod (fromInteger i) j)
-instance ModOp op cp 'T_nat 'T_int where
-  type ModOpRes 'T_nat 'T_int = 'T_nat
-  evalModOp (CvNat i) (CvInt j) =
-    if j == 0
-      then VOption $ Nothing
-      else VOption $ Just $ VC $ CvNat (mod i (fromInteger j))
-instance ModOp op cp 'T_nat 'T_nat where
-  type ModOpRes 'T_nat 'T_nat = 'T_nat
-  evalModOp (CvNat i) (CvNat j) =
-    if j == 0
-      then VOption $ Nothing
-      else VOption $ Just $ VC $ CvNat (mod i j)
-
 
 -- TODO support add operation for mutez
 -- don't forget to throw arith exception (async exception)
@@ -241,6 +152,7 @@ data Instr op cp (inp :: [T]) (out :: [T]) where
   PACK :: Instr op cp (a ': s) ('T_c 'T_bytes ': s)
   UNPACK :: Instr op cp ('T_c 'T_bytes ': s) ('T_option a ': s)
   CONCAT :: ConcatOp c => Instr op cp (c ': c ': s) (c ': s)
+  CONCAT' :: ConcatOp c => Instr op cp ('T_list c ': s) (c ': s)
   SLICE :: SliceOp c => Instr op cp ('T_c 'T_nat ': 'T_c 'T_nat ': c ': s) ('T_option c ': s)
   ISNAT :: Instr op cp ('T_c 'T_int ': s) ('T_option ('T_c 'T_nat) ': s)
   ADD :: ArithOp Add n m => Instr op cp ('T_c n ': 'T_c m ': s) ('T_c (ArithResT Add n m) ': s)
@@ -250,7 +162,6 @@ data Instr op cp (inp :: [T]) (out :: [T]) where
     (('T_option ('T_pair ('T_c (EDivOpRes n m)) ('T_c (EModOpRes n m)))) ': s)
   ABS :: UnaryArithOp Abs n => Instr op cp ('T_c n ': s) ('T_c (UnaryArithResT Abs n) ': s)
   NEG :: UnaryArithOp Neg n => Instr op cp ('T_c n ': s) ('T_c (UnaryArithResT Neg n) ': s)
-  MOD :: ModOp op cp n m => Instr op cp ('T_c n ': 'T_c m ': s) ('T_option ('T_c (ModOpRes n m)) ': s)
   LSL :: ArithOp Lsl n m => Instr op cp ('T_c n ': 'T_c m ': s) ('T_c (ArithResT Lsl n m) ': s)
   LSR :: ArithOp Lsr n m => Instr op cp ('T_c n ': 'T_c m ': s) ('T_c (ArithResT Lsr n m) ': s)
   OR :: ArithOp Or n m => Instr op cp ('T_c n ': 'T_c m ': s) ('T_c (ArithResT Or n m) ': s)
@@ -388,3 +299,59 @@ instance ConcatOp ('T_list t)
 class SliceOp (c :: T)
 instance SliceOp ('T_c 'T_string)
 instance SliceOp ('T_c 'T_bytes)
+
+class EDivOp op cp (n :: CT) (m :: CT) where
+  type EDivOpRes n m :: CT
+  type EModOpRes n m :: CT
+  evalEDivOp :: CVal n
+             -> CVal m
+             -> Val op cp ('T_option ('T_pair ('T_c (EDivOpRes n m)) ('T_c (EModOpRes n m))))
+
+instance EDivOp op cp 'T_int 'T_int where
+  type EDivOpRes 'T_int 'T_int = 'T_int
+  type EModOpRes 'T_int 'T_int = 'T_nat
+  evalEDivOp (CvInt i) (CvInt j) =
+    if j == 0
+      then VOption $ Nothing
+      else VOption $ Just $
+        VPair (VC $ CvInt (div i j), VC $ CvNat $ fromInteger (mod i j))
+instance EDivOp op cp 'T_int 'T_nat where
+  type EDivOpRes 'T_int 'T_nat = 'T_int
+  type EModOpRes 'T_int 'T_nat = 'T_nat
+  evalEDivOp (CvInt i) (CvNat j) =
+    if j == 0
+      then VOption $ Nothing
+      else VOption $ Just $
+        VPair (VC $ CvInt (div i (toInteger j)), VC $ CvNat $ (mod (fromInteger i) j))
+instance EDivOp op cp 'T_nat 'T_int where
+  type EDivOpRes 'T_nat 'T_int = 'T_int
+  type EModOpRes 'T_nat 'T_int = 'T_nat
+  evalEDivOp (CvNat i) (CvInt j) =
+    if j == 0
+      then VOption $ Nothing
+      else VOption $ Just $
+        VPair (VC $ CvInt (div (toInteger i) j), VC $ CvNat $ (mod i (fromInteger j)))
+instance EDivOp op cp 'T_nat 'T_nat where
+  type EDivOpRes 'T_nat 'T_nat = 'T_nat
+  type EModOpRes 'T_nat 'T_nat = 'T_nat
+  evalEDivOp (CvNat i) (CvNat j) =
+    if j == 0
+      then VOption $ Nothing
+      else VOption $ Just $
+        VPair (VC $ CvNat (div i j), VC $ CvNat $ (mod i j))
+instance EDivOp op cp 'T_mutez 'T_mutez where
+  type EDivOpRes 'T_mutez 'T_mutez = 'T_mutez
+  type EModOpRes 'T_mutez 'T_mutez = 'T_mutez
+  evalEDivOp (CvMutez i) (CvMutez j) =
+    if j == 0
+      then VOption $ Nothing
+      else VOption $ Just $
+        VPair (VC $ CvMutez (div i j), VC $ CvMutez $ (mod i j))
+instance EDivOp op cp 'T_mutez 'T_nat where
+  type EDivOpRes 'T_mutez 'T_nat = 'T_nat
+  type EModOpRes 'T_mutez 'T_nat = 'T_mutez
+  evalEDivOp (CvMutez i) (CvNat j) =
+    if j == 0
+      then VOption $ Nothing
+      else VOption $ Just $
+        VPair (VC $ CvNat (div (fromIntegral i) j), VC $ CvMutez $ (mod i (fromIntegral j)))

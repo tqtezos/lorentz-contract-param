@@ -138,26 +138,37 @@ typeCheckI (M.IF_NONE mp mq) (SomeIT i@((ST_option a, ons, ovn) ::& rs) ) = do
   let (an, avn) = deriveNsOption ons ovn
   genericIf IF_NONE M.IF_NONE mp mq rs ((a, an, avn) ::& rs) i
 
-typeCheckI (M.PAIR tn vn pfn qfn) (SomeIT i@((a, an, _) ::&
-                                             (b, bn, _) ::& rs)) = do
-  let ns = mkNotes $ NT_pair tn pfn qfn an bn
-  pure (PAIR ::: (i, (ST_pair a b, ns, vn) ::& rs))
+typeCheckI (M.PAIR tn vn pfn qfn) (SomeIT i@((a, an, avn) ::&
+                                             (b, bn, bvn) ::& rs)) = do
+  let (vn', pfn', qfn') = deriveSpecialFNs pfn qfn avn bvn
+      ns = mkNotes $ NT_pair tn pfn' qfn' an bn
+  pure (PAIR ::: (i, (ST_pair a b, ns, vn `orAnn` vn') ::& rs))
 
 typeCheckI (M.CAR vn _) (SomeIT i@((ST_pair a _, NStar, _) ::& rs)) =
   pure (CAR ::: (i, (a, NStar, vn) ::& rs))
-typeCheckI (M.CAR vn fn) (SomeIT i@(( ST_pair a _
-                                     , N (NT_pair _ pfn _ elNote _)
-                                     , _
-                                     ) ::& rs)) =
-  convergeAnns fn pfn $> CAR ::: (i, (a, elNote, vn) ::& rs)
+typeCheckI (M.CAR vn fn) (SomeIT (( ST_pair a b
+                                     , N (NT_pair pairTN pfn qfn pns qns)
+                                     , pairVN
+                                     ) ::& rs)) = do
+  pfn' <- convergeAnns fn pfn
+  let vn' = deriveSpecialVN vn pfn' pairVN
+      i' = ( ST_pair a b
+            , N (NT_pair pairTN pfn' qfn pns qns)
+            , pairVN ) ::& rs
+  pure $ CAR ::: (i', (a, pns, vn') ::& rs)
 
 typeCheckI (M.CDR vn _) (SomeIT i@((ST_pair _ b, NStar, _) ::& rs)) =
   pure (CDR ::: (i, (b, NStar, vn) ::& rs))
-typeCheckI (M.CDR vn fn) (SomeIT i@(( ST_pair _ b
-                                     , N (NT_pair _ _ qfn _ elNote)
-                                     , _
-                                     ) ::& rs)) =
-  convergeAnns fn qfn $> CDR ::: (i, (b, elNote, vn) ::& rs)
+typeCheckI (M.CDR vn fn) (SomeIT (( ST_pair a b
+                                     , N (NT_pair pairTN pfn qfn pns qns)
+                                     , pairVN
+                                     ) ::& rs)) = do
+  qfn' <- convergeAnns fn qfn
+  let vn' = deriveSpecialVN vn qfn' pairVN
+      i' = ( ST_pair a b
+            , N (NT_pair pairTN pfn qfn' pns qns)
+            , pairVN ) ::& rs
+  pure $ CDR ::: (i', (b, qns, vn') ::& rs)
 
 typeCheckI (M.LEFT tn vn pfn qfn bMt) (SomeIT i@((a, an, _) ::& rs)) =
   withSomeSingT (fromMType bMt) $ \b -> do
@@ -362,12 +373,10 @@ typeCheckI (M.CONCAT vn) (SomeIT i@((ST_c ST_bytes, _, _) ::&
 typeCheckI (M.CONCAT vn) (SomeIT i@((ST_c ST_string, _, _) ::&
                                     (ST_c ST_string, _, _) ::& _)) =
   concatImpl i vn
-typeCheckI instr@(M.CONCAT vn) (SomeIT i@((ST_list (_ :: Sing t1), _, _) ::&
-                                    (ST_list (_ :: Sing t2), _, _) ::& _)) = do
-  Refl <- either (\m -> typeCheckIErr instr (SomeIT i) $
-                    "mismatch of contract list element types: " <> m)
-            pure (eqT' @t1 @t2)
-  concatImpl i vn
+typeCheckI (M.CONCAT vn) (SomeIT i@((ST_list (ST_c ST_bytes), _, _) ::& _)) =
+  concatImpl' i vn
+typeCheckI (M.CONCAT vn) (SomeIT i@((ST_list (ST_c ST_string), _, _) ::& _)) =
+  concatImpl' i vn
 
 
 typeCheckI (M.SLICE vn) (SomeIT i@((ST_c ST_nat, _, _) ::&
@@ -392,15 +401,14 @@ typeCheckI (M.SUB vn) (SomeIT i@((ST_c a, _, _) ::&
 typeCheckI (M.MUL vn) (SomeIT i@((ST_c a, _, _) ::&
                                  (ST_c b, _, _) ::& _)) = mulImpl a b i vn
 
--- TODO add EDIV
+typeCheckI (M.EDIV vn) (SomeIT i@((ST_c a, _, _) ::&
+                                  (ST_c b, _, _) ::& _)) = edivImpl a b i vn
 
 typeCheckI (M.ABS vn) (SomeIT i@((ST_c ST_int, _, _) ::& _)) =
   unaryArithImpl @Abs ABS i vn
 
 typeCheckI M.NEG (SomeIT i@((ST_c ST_int, _, _) ::& _)) =
   unaryArithImpl @Neg NEG i def
-
--- TODO add MOD
 
 typeCheckI (M.LSL vn) (SomeIT i@((ST_c ST_nat, _, _) ::&
                          (ST_c ST_nat, _, _) ::& _)) = arithImpl @Lsl LSL i vn
