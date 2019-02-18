@@ -1,9 +1,8 @@
 -- | Module, containing CVal data type
 -- which represents Michelson comparable values.
 
-module Advanced.CValue
-  (
-    CVal (..)
+module Advanced.Value.CValue
+  ( CVal (..)
   , Address
   ) where
 
@@ -42,3 +41,5 @@ data CVal t where
   CvAddress   :: Address -> CVal 'T_address
 
 deriving instance Show (CVal t)
+deriving instance Eq (CVal t)
+deriving instance Ord (CVal t)

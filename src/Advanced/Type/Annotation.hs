@@ -24,12 +24,13 @@ module Advanced.Type.Annotation
   , isStar
   , mkNotes
   , mkNotes0
+  , orAnn
   ) where
 
 import Data.Default (Default(..))
 
 import Advanced.Type.T (T(..))
-import Michelson.Types (TypeAnn, FieldAnn, Annotation, unifyAnn)
+import Michelson.Types (Annotation, FieldAnn, TypeAnn, unifyAnn)
 
 
 -- Data type, holding annotation data for a given Michelson type @t@
@@ -107,6 +108,9 @@ mkNotes (NT_lambda tn ns1 ns2)
 mkNotes (NT_map tn kn vns)
   | isStar vns && isDef tn && isDef kn                             = NStar
 mkNotes n = N n
+
+orAnn :: Annotation t -> Annotation t -> Annotation t
+orAnn a b = bool a b (a == def)
 
 mkNotes0
   :: (TypeAnn -> Notes' t)

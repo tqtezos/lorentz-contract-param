@@ -10,13 +10,12 @@
 module Advanced.Type.Extract
   (
     extractNotes
-  , isStar
   , fromMType
   ) where
 
 import qualified Michelson.Types as M
 
-import Advanced.Type.Annotation (Notes(..), Notes'(..), mkNotes, isStar, mkNotes0)
+import Advanced.Type.Annotation (Notes(..), Notes'(..), mkNotes, mkNotes0)
 import Advanced.Type.Sing (Sing(..), fromSingT)
 import Advanced.Type.T (T(..))
 

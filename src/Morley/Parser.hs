@@ -540,13 +540,13 @@ transferTokensOp :: Parser (M.InstrAbstract ParsedOp)
 transferTokensOp = do void $ symbol' "TRANSFER_TOKENS"; M.TRANSFER_TOKENS <$> noteVDef
 
 setDelegateOp :: Parser (M.InstrAbstract ParsedOp)
-setDelegateOp = do symbol' "SET_DELEGATE"; return M.SET_DELEGATE
+setDelegateOp = do void $ symbol' "SET_DELEGATE"; M.SET_DELEGATE <$> noteVDef
 
 balanceOp :: Parser (M.InstrAbstract ParsedOp)
 balanceOp = do void $ symbol' "BALANCE"; M.BALANCE <$> noteVDef
 
 contractOp :: Parser (M.InstrAbstract ParsedOp)
-contractOp = do void $ symbol' "CONTRACT"; M.CONTRACT <$> type_
+contractOp = do void $ symbol' "CONTRACT"; M.CONTRACT <$> noteVDef <*> type_
 
 sourceOp :: Parser (M.InstrAbstract ParsedOp)
 sourceOp = do void $ symbol' "SOURCE"; M.SOURCE <$> noteVDef
@@ -605,7 +605,7 @@ renameOp :: Parser (M.InstrAbstract ParsedOp)
 renameOp = do void $ symbol' "RENAME"; M.RENAME <$> noteVDef
 
 isNatOp :: Parser (M.InstrAbstract ParsedOp)
-isNatOp = do symbol' "ISNAT"; return M.ISNAT
+isNatOp = do void $ symbol' "ISNAT"; M.ISNAT <$> noteVDef
 
 intOp :: Parser (M.InstrAbstract ParsedOp)
 intOp = do void $ symbol' "INT"; M.INT <$> noteVDef
