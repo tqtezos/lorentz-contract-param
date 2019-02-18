@@ -32,7 +32,6 @@ import Advanced.Value.CValue (CVal(..))
 
 import Data.Bits (complement, shift, xor, (.&.), (.|.))
 import Data.Time.Clock (addUTCTime, diffUTCTime)
-import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 
 -- | Class for binary arithmetic operation.
 --
@@ -121,8 +120,8 @@ instance ArithOp Sub 'T_timestamp 'T_int where
   type ArithResT Sub 'T_timestamp 'T_int = 'T_timestamp
   evalOp _ (CvTimestamp i) (CvInt j) = CvTimestamp (addUTCTime (fromInteger $ -j) i)
 instance ArithOp Sub 'T_timestamp 'T_timestamp where
-  type ArithResT Sub 'T_timestamp 'T_timestamp = 'T_timestamp
-  evalOp _ (CvTimestamp i) (CvTimestamp j) = CvTimestamp (posixSecondsToUTCTime $ diffUTCTime i j)
+  type ArithResT Sub 'T_timestamp 'T_timestamp = 'T_int
+  evalOp _ (CvTimestamp i) (CvTimestamp j) = CvInt (floor $ toRational $ diffUTCTime i j * 1e-12)
 -- Todo add condition when x - y < 0
 instance ArithOp Sub 'T_mutez 'T_mutez where
   type ArithResT Sub 'T_mutez 'T_mutez = 'T_mutez
@@ -217,6 +216,14 @@ instance UnaryArithOp Not 'T_bool where
   type UnaryArithResT Not 'T_bool = 'T_bool
   evalUnaryArithOp _ (CvBool i) = CvBool (not i)
 
+instance ArithOp Compare 'T_bool 'T_bool where
+  type ArithResT Compare 'T_bool 'T_bool = 'T_int
+  evalOp _ (CvBool i) (CvBool j) = CvInt
+    (toInteger $ fromEnum (compare i j) - 1)
+instance ArithOp Compare 'T_address 'T_address where
+  type ArithResT Compare 'T_address 'T_address = 'T_int
+  evalOp _ (CvAddress i) (CvAddress j) = CvInt
+    (toInteger $ fromEnum (compare i j) - 1)
 instance ArithOp Compare 'T_nat 'T_nat where
   type ArithResT Compare 'T_nat 'T_nat = 'T_int
   evalOp _ (CvNat i) (CvNat j) = CvInt

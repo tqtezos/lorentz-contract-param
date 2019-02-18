@@ -251,11 +251,17 @@ typeCheckI instr@(M.MEM vn)
    (SomeIT i@((ST_c _, _, _) ::& (ST_set _, _, _) ::& _)) = memImpl instr i vn
 typeCheckI instr@(M.MEM vn)
    (SomeIT i@((ST_c _, _, _) ::& (ST_map _ _, _, _) ::& _)) = memImpl instr i vn
+typeCheckI instr@(M.MEM vn)
+   (SomeIT i@((ST_c _, _, _) ::& (ST_big_map _ _, _, _) ::& _)) = memImpl instr i vn
 
 typeCheckI instr@(M.GET vn) (SomeIT i@(_ ::& (ST_map _ vt, cn, _) ::& _)) =
   getImpl instr i vt (notesCase NStar (\(NT_map _ _ v) -> v) cn) vn
+typeCheckI instr@(M.GET vn) (SomeIT i@(_ ::& (ST_big_map _ vt, cn, _) ::& _)) =
+  getImpl instr i vt (notesCase NStar (\(NT_big_map _ _ v) -> v) cn) vn
 
 typeCheckI instr@M.UPDATE (SomeIT i@(_ ::& _ ::& (ST_map _ _, _, _) ::& _)) =
+  updImpl instr i
+typeCheckI instr@M.UPDATE (SomeIT i@(_ ::& _ ::& (ST_big_map _ _, _, _) ::& _)) =
   updImpl instr i
 typeCheckI instr@M.UPDATE (SomeIT i@(_ ::& _ ::& (ST_set _, _, _) ::& _)) =
   updImpl instr i
@@ -355,6 +361,12 @@ typeCheckI (M.CONCAT vn) (SomeIT i@((ST_c ST_bytes, _, _) ::&
   concatImpl i vn
 typeCheckI (M.CONCAT vn) (SomeIT i@((ST_c ST_string, _, _) ::&
                                     (ST_c ST_string, _, _) ::& _)) =
+  concatImpl i vn
+typeCheckI instr@(M.CONCAT vn) (SomeIT i@((ST_list (_ :: Sing t1), _, _) ::&
+                                    (ST_list (_ :: Sing t2), _, _) ::& _)) = do
+  Refl <- either (\m -> typeCheckIErr instr (SomeIT i) $
+                    "mismatch of contract list element types: " <> m)
+            pure (eqT' @t1 @t2)
   concatImpl i vn
 
 
