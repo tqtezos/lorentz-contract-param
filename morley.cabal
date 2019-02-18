@@ -32,8 +32,6 @@ library
                      , Morley.Types
                      , Prelude
                      , Tezos.Crypto
-                     , Advanced.Arith
-                     , Advanced.CValue
                      , Advanced.Interpreter
                      , Advanced.Parser
                      , Advanced.Type
@@ -42,7 +40,13 @@ library
                      , Advanced.Type.Sing
                      , Advanced.Type.T
                      , Advanced.TypeCheck
+                     , Advanced.TypeCheck.Helpers
+                     , Advanced.TypeCheck.Types
+                     , Advanced.TypeCheck.TypeCheck
                      , Advanced.Value
+                     , Advanced.Value.Arith
+                     , Advanced.Value.CValue
+                     , Advanced.Value.Value
 
   build-depends:       aeson
                      , aeson-options
@@ -62,6 +66,7 @@ library
                      , QuickCheck
                      , text
                      , time
+                     , timerep
                      , parser-combinators >= 1.0.0
                      , directory
                      , singletons

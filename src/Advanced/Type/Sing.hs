@@ -32,7 +32,7 @@ $(genSingletons [ ''CT ])
 -- | Version of 'SomeSing' with 'Typeable' and 'Converge' constraints,
 -- specialized for use with 'T' kind.
 data SomeSingT where
-  SomeSingT :: forall (a :: T). (Converge a, Typeable a)
+  SomeSingT :: forall (a :: T). (Converge a, Typeable a, SingI a)
             => Sing a -> SomeSingT
 
 -- | Version of 'withSomeSing' with 'Typeable' and 'Converge' constraints
@@ -42,21 +42,21 @@ data SomeSingT where
 -- conversion from value of type 'T' to its singleton representation.
 withSomeSingT
   :: T
-  -> (forall (a :: T). (Converge a, Typeable a) => Sing a -> r)
+  -> (forall (a :: T). (Converge a, Typeable a, SingI a) => Sing a -> r)
   -> r
 withSomeSingT t f = (\(SomeSingT s) -> f s) (toSingT t)
 
 -- | Version of 'SomeSing' with 'Typeable' constraint,
 -- specialized for use with 'CT' kind.
 data SomeSingCT where
-  SomeSingCT :: forall (a :: CT). Typeable a => Sing a -> SomeSingCT
+  SomeSingCT :: forall (a :: CT). (SingI a, Typeable a) => Sing a -> SomeSingCT
 
 -- | Version of 'withSomeSing' with 'Typeable' constraint
 -- provided to processing function.
 --
 -- Required for not to erase this useful constraint when doing
 -- conversion from value of type 'CT' to its singleton representation.
-withSomeSingCT :: CT -> (forall (a :: CT). Typeable a => Sing a -> r) -> r
+withSomeSingCT :: CT -> (forall (a :: CT). (SingI a, Typeable a) => Sing a -> r) -> r
 withSomeSingCT ct f = (\(SomeSingCT s) -> f s) (toSingCT ct)
 
 -- | Version of 'toSing' which creates 'SomeSingT'.
@@ -104,7 +104,7 @@ toSingCT T_key_hash = SomeSingCT ST_key_hash
 toSingCT T_timestamp = SomeSingCT ST_timestamp
 toSingCT T_address = SomeSingCT ST_address
 
-instance SingI t => SingI ( 'T_c (t :: CT)) where
+instance (SingI t, Typeable t) => SingI ( 'T_c (t :: CT)) where
   sing = ST_c sing
 instance SingI  'T_key where
   sing = ST_key
@@ -156,7 +156,7 @@ fromSingT (ST_big_map a b) = T_big_map (fromSing a) (fromSingT b)
 -- Custom instance is implemented in order to inject 'Typeable' and 'Converge'
 -- constraints for some of constructors.
 data instance Sing :: T -> Type where
-    ST_c :: Sing a -> Sing ( 'T_c a)
+    ST_c :: Typeable a => Sing a -> Sing ( 'T_c a)
     ST_key :: Sing  'T_key
     ST_unit :: Sing  'T_unit
     ST_signature :: Sing  'T_signature

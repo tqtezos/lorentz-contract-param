@@ -5,24 +5,20 @@ module Advanced.Parser
   ( contractParser
   ) where
 
-import Data.Default (Default(..))
 import qualified Data.Set as S
 import Data.Typeable ((:~:)(..), eqT)
 import Data.Vinyl (Rec(..))
 import Text.Megaparsec
 
-import Advanced.CValue (CVal(..))
-import Advanced.Interpreter (Operation, run)
-import Advanced.Type
-  (CT(..), Notes(..), Notes'(..), Sing(..), T(..), converge, extractNotes, fromMType, isStar,
-  withSomeSingT)
-import Advanced.TypeCheck (IT(..), SomeIT(..), SomeInstr(..), typeCheck)
-import Advanced.Value (Instr, Val(..))
+import Advanced.Interpreter (ContractEnv(..), Operation, doInstr, run)
+import Advanced.Type (CT(..), T(..))
+import Advanced.TypeCheck (ContractInp, ContractOut, SomeContract(..), typeCheckC)
+import Advanced.Value (CVal(..), Instr, Val(..))
 
 import qualified Michelson.Types as M
+import qualified Morley.Macro as Mo
 import qualified Morley.Parser as Mo
 import qualified Morley.Types as Mo
-import qualified Morley.Macro as Mo
 
 -- | Parser for Michelson contract (from text to advanced type representation).
 --
@@ -33,44 +29,18 @@ import qualified Morley.Macro as Mo
 -- Parameter and storage singletons are used to convert instructions from
 -- to advanced instruction representation with @Advanced.TypeCheck.typeCheck@
 -- function.
-contractParser :: Mo.Parser (SomeInstr Operation)
+contractParser :: Mo.Parser (SomeContract Operation)
 contractParser = do
     (M.Contract mParam mStorage pCode) <- Mo.contract
-    code <- maybe (throwErr "no instructions in code") pure $
-              nonEmpty $ Mo.expandFlat pCode
-    withSomeSingT (fromMType mParam) $ \paramS ->
-      withSomeSingT (fromMType mStorage) $ \(storageS :: Sing st) ->
-        either throwErr pure $ do
-          storageNote <- extractNotes mStorage storageS
-          paramNote <- extractNotes mParam paramS
-          let inpNote =
-                bool (N $ NT_pair def def def paramNote storageNote)
-                     NStar (isStar storageNote && isStar paramNote)
-          let inp = (ST_pair paramS storageS, inpNote) ::& INil
-          r@(_ ::: (_, (out :: IT out)))
-              <- typeCheck @Operation (M.unOp <$> code) (SomeIT inp)
-          Refl <- eqT' @out @(ContractOut st)
-          let outN = outNotes out
-          _ <- converge outN
-                        (N $ NT_pair def def def NStar storageNote)
-          pure r
+    either throwErr pure $ typeCheckC $
+      M.Contract mParam mStorage (Mo.unOp <$> Mo.expandFlat pCode)
   where
-    outNotes :: IT '[o] -> Notes o
-    outNotes ((_, n) ::& INil) = n
-
     throwErr = fancyFailure . S.singleton . ErrorCustom . Mo.OtherError
 
-    eqT' :: forall (a :: [T]) (b :: [T]) .
-            (Typeable a, Typeable b) => Either Text (a :~: b)
-    eqT' = maybe (Left "Contract output type violates convention") pure eqT
-
-type ContractInp param st = '[ 'T_pair param st ]
-type ContractOut st = '[ 'T_pair ('T_list 'T_operation) st ]
-
-testParserDo :: Text -> Either Text (SomeInstr Operation)
+testParserDo :: Text -> Either Text (SomeContract Operation)
 testParserDo = either (Left . show) pure . parse contractParser ""
 
-contractRes :: Rec (Val op) (ContractOut st) -> Val op st
+contractRes :: Rec (Val op cp) (ContractOut st) -> Val op cp st
 contractRes (VPair (_, r) :& RNil) = r
 
 _testParser :: Either Text [Integer]
@@ -81,32 +51,38 @@ _testParser = do
       <> "PUSH int 12; DIP { SWAP; }; ADD; PUSH (int :t) 100;"
       <> "NIL int; SWAP; CONS; SWAP; CONS; SWAP; PAIR; };"
       )
-      >>= \((instr :: Instr Operation inp out) ::: _) -> do
-            Refl <- maybe (Left "Unexpected input type") pure $
-              eqT @inp @(ContractInp 'T_unit ('T_list ('T_c 'T_int)))
-            Refl <- maybe (Left "Unexpected output type") pure $
-              eqT @out @(ContractOut ('T_list ('T_c 'T_int)))
-            pure $ toList_ $ contractRes $
-              run instr (VPair (VUnit, (VList ((VC . CvInt) <$> [100, 10, 1]))) :& RNil)
+      >>= \(SomeContract (instr
+            :: Instr Operation cp (ContractInp cp st) (ContractOut st)) _ _) -> do
+            Refl <- maybe (Left "Unexpected param type") pure $
+                      eqT @cp @'T_unit
+            Refl <- maybe (Left "Unexpected storage type") pure $
+                      eqT @st @('T_list ('T_c 'T_int))
+            let x = run instr (VPair (VUnit, (VList ((VC . CvInt) <$> [100, 10, 1]))) :& RNil)
+            case doInstr x ContractEnv of
+              Left _ -> Left "run error"
+              Right r -> pure $ toList_ $ contractRes r
+            -- pure $ toList_ $ contractRes $
+              -- run instr (VPair (VUnit, (VList ((VC . CvInt) <$> [100, 10, 1]))) :& RNil)
+
   where
-    toList_ :: Val Operation ('T_list ('T_c 'T_int)) -> [Integer]
+    toList_ :: Val Operation 'T_unit ('T_list ('T_c 'T_int)) -> [Integer]
     toList_ (VList l) = map (\(VC (CvInt i)) -> i) l
 
-_testParser2 :: Either Text (SomeInstr Operation)
+_testParser2 :: Either Text (SomeContract Operation)
 _testParser2 = do
   testParserDo $
     "parameter (pair (int %x) (int :x));"
     <> "storage (list (pair int (int %y)));"
     <> "code { DUP; CAR; DIP { CDR; }; CONS; NIL operation; PAIR; };"
 
-_testParser3 :: Either Text (SomeInstr Operation)
+_testParser3 :: Either Text (SomeContract Operation)
 _testParser3 = do
   testParserDo $
     "parameter (pair (int %x) int);"
     <> "storage (list (pair (int %z) int));"
     <> "code { DUP; CAR; DIP { CDR; }; CONS; NIL operation; PAIR; };"
 
-_testParser4 :: Either Text (SomeInstr Operation)
+_testParser4 :: Either Text (SomeContract Operation)
 _testParser4 = do
   testParserDo $
     "parameter (pair (int %x) (int :x));"

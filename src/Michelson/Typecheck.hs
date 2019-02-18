@@ -198,9 +198,9 @@ applyInstr param i stk = case (i, stk) of
       (isString (toType s) || isBytes (toType s)) &&
       toType off `isEqTypes` toType len ->
         pushStk ts (vn `orv` "slice") (T_option noAnn (toType s))
-  (ISNAT, s : ts)
+  (ISNAT vn, s : ts)
     | isInt (toType s) ->
-      pushStk ts (ann "isnat") (T_option noAnn (Type tnat noAnn))
+      pushStk ts vn (T_option noAnn (Type tnat noAnn))
   (ADD vn, (toType -> a@(Type t _)) : (toType -> b) : ts)
     | isInt a && isNat b ||
       isInt b && isNat a ||
@@ -253,13 +253,13 @@ applyInstr param i stk = case (i, stk) of
   (LE vn, _)  -> cmpOp (vn `orv` "le")
   (GE vn, _)  -> cmpOp (vn `orv` "ge")
   (SELF vn, ts) -> pushStk ts (vn `orv` "self") (T_contract param)
-  (CONTRACT t, SType _ Taddress _ : ts) ->
-    pushStk ts (ann "contract") $ T_option noAnn (Type (T_contract t) noAnn)
+  (CONTRACT vn t, SType _ Taddress _ : ts) ->
+    pushStk ts vn $ T_option noAnn (Type (T_contract t) noAnn)
   (TRANSFER_TOKENS vn, (toType -> p') : (toType -> mt) : (SType _ (T_contract p) _) : ts)
     | isMutez mt && p' `isEqTypes` p ->
         pushStk ts (vn `orv` "transfer_tokens") T_operation
-  (SET_DELEGATE, SType _ (T_option _ (Type Tkey_hash _)) _ : ts) ->
-      pushStk ts (ann "set_delegate") T_operation
+  (SET_DELEGATE vn, SType _ (T_option _ (Type Tkey_hash _)) _ : ts) ->
+      pushStk ts vn T_operation
   (CREATE_ACCOUNT vn1 vn2, kh :
                             SType _ (T_option _ (Type Tkey_hash _)) _ :
                             bl : mt : ts)

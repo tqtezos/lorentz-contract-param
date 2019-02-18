@@ -174,7 +174,7 @@ data InstrAbstract op =
   | IF_LEFT           [op] [op]
   | IF_RIGHT          [op] [op]
   | NIL               TypeAnn VarAnn Type
-  | CONS              VarAnn
+  | CONS              VarAnn -- TODO add TypeNote param
   | IF_CONS           [op] [op]
   | SIZE              VarAnn
   | EMPTY_SET         TypeAnn VarAnn Comparable
@@ -188,6 +188,7 @@ data InstrAbstract op =
   | LOOP              [op]
   | LOOP_LEFT         [op]
   | LAMBDA            VarAnn Type Type [op]
+  -- TODO check on alphanet whether we can pass TypeNote
   | EXEC              VarAnn
   | DIP               [op]
   | FAILWITH
@@ -197,12 +198,13 @@ data InstrAbstract op =
   | UNPACK            VarAnn Type
   | CONCAT            VarAnn
   | SLICE             VarAnn
-  | ISNAT
+  | ISNAT             VarAnn
   | ADD               VarAnn
   | SUB               VarAnn
   | MUL               VarAnn
   | EDIV              VarAnn
   | ABS               VarAnn
+  -- TODO why no varnote for NEG
   | NEG
   | LSL               VarAnn
   | LSR               VarAnn
@@ -219,9 +221,9 @@ data InstrAbstract op =
   | GE                VarAnn
   | INT               VarAnn
   | SELF              VarAnn
-  | CONTRACT          Type
+  | CONTRACT          VarAnn Type
   | TRANSFER_TOKENS   VarAnn
-  | SET_DELEGATE
+  | SET_DELEGATE      VarAnn
   | CREATE_ACCOUNT    VarAnn VarAnn
   | CREATE_CONTRACT   VarAnn VarAnn
   | CREATE_CONTRACT2  VarAnn VarAnn (Contract op)
@@ -263,6 +265,9 @@ noAnn = Annotation ""
 
 ann :: T.Text -> Annotation a
 ann = Annotation
+
+instance IsString (Annotation tag) where
+  fromString = Annotation . toText
 
 instance Semigroup VarAnn where
   Annotation a <> Annotation b
@@ -338,7 +343,7 @@ data CT =
   | T_key_hash
   | T_timestamp
   | T_address
-  deriving (Eq, Show, Data)
+  deriving (Eq, Ord, Show, Data)
 
 pattern Tint :: T
 pattern Tint <- T_comparable T_int
