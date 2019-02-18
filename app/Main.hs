@@ -14,7 +14,7 @@ import Text.Pretty.Simple (pPrint)
 
 import Michelson.Typecheck (typecheckContract)
 import Michelson.Types
-import Morley.Macro (expandContractMacros, expandFlattenContract, expandValue)
+import Morley.Macro (expandFlattenContract, expandValue)
 import qualified Morley.Parser as P
 import Morley.Runtime (Account(..), TxData(..), originateContract, runContract)
 import Morley.Types
@@ -160,7 +160,7 @@ main = do
       Parse mFilename hasExpandMacros -> do
         contract <- readAndParseContract mFilename
         if hasExpandMacros
-          then pPrint $ expandContractMacros contract
+          then pPrint $ expandFlattenContract contract
           else pPrint contract
       TypeCheck mFilename _hasVerboseFlag -> do
         void $ prepareContract mFilename

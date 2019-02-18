@@ -2,7 +2,6 @@ module Morley.Macro
   (
     -- * For utilities
     expandFlattenContract
-  , expandContractMacros
   , expandValue
 
     -- * For parsing
@@ -176,9 +175,6 @@ expandMapCadr cs v f ops = case cs of
     carN = CAR noAnn noAnn
     cdrN = CDR noAnn noAnn
     pairN = PAIR noAnn v noAnn noAnn
-
-expandContractMacros :: Contract ParsedOp -> Contract ExpandedOp
-expandContractMacros Contract{..} = Contract para stor (map expand code)
 
 mapLeaves :: [(VarAnn, FieldAnn)] -> PairStruct -> PairStruct
 mapLeaves fs p = evalState (leavesST p) fs
