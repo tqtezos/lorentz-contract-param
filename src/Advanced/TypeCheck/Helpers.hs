@@ -1,5 +1,7 @@
 module Advanced.TypeCheck.Helpers
     ( fromBase58Text
+    , deriveSpecialVN
+    , deriveSpecialFNs
     , eqT'
     , typeCheckCv
     , typeCheckIErr
@@ -9,6 +11,7 @@ module Advanced.TypeCheck.Helpers
     , updImpl
     , sliceImpl
     , concatImpl
+    , concatImpl'
     , sizeImpl
     , deriveVN
     , deriveNsOr
@@ -19,6 +22,7 @@ module Advanced.TypeCheck.Helpers
     , addImpl
     , subImpl
     , mulImpl
+    , edivImpl
     , compareImpl
     , unaryArithImpl
     ) where
@@ -28,6 +32,7 @@ import Data.Default (def)
 import Data.Singletons (SingI(sing))
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Data.Time.LocalTime (zonedTimeToUTC)
+import qualified Data.Text as T
 import Data.Time.RFC3339 (parseTimeRFC3339)
 import Data.Typeable ((:~:)(..), eqT, typeRep)
 import Prelude hiding (EQ, GT, LT)
@@ -36,15 +41,37 @@ import Advanced.Type
   (CT(..), Converge(converge), Notes(..), Notes'(..), Sing(..), T(..), mkNotes, notesCase, orAnn)
 import Advanced.TypeCheck.Types
 import Advanced.Value
-  (Add, ArithOp(..), CVal(..), Compare, ConcatOp, GetOp(..), Instr(..), MemOp(..), Mul, SizeOp,
+  (Add, ArithOp(..), CVal(..), Compare, ConcatOp, EDivOp(..), GetOp(..), Instr(..), MemOp(..), Mul, SizeOp,
   SliceOp, Sub, UnaryArithOp(..), UpdOp(..))
 
-import Michelson.Types (VarAnn)
+import Michelson.Types (VarAnn, FieldAnn)
 import qualified Michelson.Types as M
 import Tezos.Crypto (parseKeyHash)
 
 fromBase58Text :: Text -> Maybe ByteString
 fromBase58Text = decodeBase58 bitcoinAlphabet . encodeUtf8
+
+deriveSpecialFNs
+  :: FieldAnn -> FieldAnn
+  -> VarAnn -> VarAnn
+  -> (VarAnn, FieldAnn, FieldAnn)
+deriveSpecialFNs "@" "@" (M.Annotation pvn) (M.Annotation qvn) = (vn, pfn, qfn)
+  where
+    ps = T.splitOn "." pvn
+    qs = T.splitOn "." qvn
+    fns = fst <$> takeWhile (\(a, b) -> a == b) (zip ps qs)
+    vn = M.Annotation $ T.intercalate "." fns
+    pfn = M.Annotation $ T.intercalate "." $ drop (length fns) ps
+    qfn = M.Annotation $ T.intercalate "." $ drop (length fns) qs
+deriveSpecialFNs "@" qfn pvn _   = (def, M.convAnn pvn, qfn)
+deriveSpecialFNs pfn "@" _ qvn   = (def, pfn, M.convAnn qvn)
+deriveSpecialFNs pfn qfn _ _     = (def, pfn, qfn)
+
+deriveSpecialVN :: VarAnn -> FieldAnn -> VarAnn -> VarAnn
+deriveSpecialVN vn elFn pairVN
+  | vn == "%" = M.convAnn elFn
+  | vn == "%%" && elFn /= def = pairVN <> M.convAnn elFn
+  | otherwise = vn
 
 typeCheckCv :: M.Value M.Op -> CT -> Either Text SomeValC
 typeCheckCv (M.ValueInt i) T_int = pure $ CvInt i :--: ST_int
@@ -162,6 +189,14 @@ sliceImpl i@(_ ::& _ ::& (c, cn, cvn) ::& rs) vn = do
       rn = mkNotes $ NT_option def def cn
   pure $ SLICE ::: (i, (ST_option c, rn, vn') ::& rs)
 
+concatImpl'
+  :: (ConcatOp c, Typeable c, Converge c)
+  => IT ('T_list c : rs)
+  -> M.VarAnn -> Either Text (SomeInstr op cp)
+concatImpl' i@((ST_list c, ln, _) ::& rs) vn = do
+  let cn = notesCase NStar (\(NT_list _ n) -> n) ln
+  pure $ CONCAT' ::: (i, (c, cn, vn) ::& rs)
+
 concatImpl
   :: (ConcatOp c, Typeable c, Converge c)
   => IT (c : c : rs)
@@ -231,6 +266,33 @@ addImpl ST_int ST_timestamp = arithImpl @Add ADD
 addImpl ST_timestamp ST_int = arithImpl @Add ADD
 addImpl ST_mutez ST_mutez = arithImpl @Add ADD
 addImpl _ _ = \i vn -> typeCheckIErr (M.ADD vn) (SomeIT i) ""
+
+edivImpl
+  :: (Typeable rs, Typeable a, Typeable b)
+  => Sing a -> Sing b
+  -> IT ('T_c a ': 'T_c b ': rs) -> VarAnn -> Either Text (SomeInstr op cp)
+edivImpl ST_int ST_int = edivImplDo
+edivImpl ST_int ST_nat = edivImplDo
+edivImpl ST_nat ST_int = edivImplDo
+edivImpl ST_nat ST_nat = edivImplDo
+edivImpl ST_mutez ST_mutez = edivImplDo
+edivImpl ST_mutez ST_nat = edivImplDo
+edivImpl _ _ = \i vn -> typeCheckIErr (M.EDIV vn) (SomeIT i) ""
+
+edivImplDo
+  :: ( EDivOp op cp n m
+     , SingI (EModOpRes n m)
+     , Converge ('T_c (EModOpRes n m))
+     , Typeable (EModOpRes n m)
+     , SingI (EDivOpRes n m)
+     , Converge ('T_c (EDivOpRes n m))
+     , Typeable (EDivOpRes n m)
+     )
+  => IT ('T_c n ': 'T_c m ': s)
+  -> VarAnn
+  -> Either Text (SomeInstr op cp)
+edivImplDo i@(_ ::& _ ::& rs) vn =
+  pure $ EDIV ::: (i, (sing, NStar, vn) ::& rs)
 
 subImpl
   :: (Typeable rs, Typeable a, Typeable b)

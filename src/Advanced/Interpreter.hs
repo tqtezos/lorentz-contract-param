@@ -121,7 +121,6 @@ run MUL (VC l :& VC r :& rest) = pure $ VC (evalOp (Proxy @Mul) l r) :& rest
 run EDIV (VC l :& VC r :& rest) = pure $ evalEDivOp l r :& rest
 run ABS (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Abs) a) :& rest
 run NEG (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Neg) a) :& rest
-run MOD (VC l :& VC r :& rest) = pure $ evalModOp l r :& rest
 run LSL (VC x :& VC s :& rest) = pure $ VC (evalOp (Proxy @Lsl) x s) :& rest
 run LSR (VC x :& VC s :& rest) = pure $ VC (evalOp (Proxy @Lsr) x s) :& rest
 run OR (VC l :& VC r :& rest) = pure $ VC (evalOp (Proxy @Or) l r) :& rest
