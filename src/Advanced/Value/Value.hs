@@ -383,6 +383,7 @@ instance GetOp ('T_map k v) where
 class ConcatOp (c :: T)
 instance ConcatOp ('T_c 'T_string)
 instance ConcatOp ('T_c 'T_bytes)
+instance ConcatOp ('T_list t)
 
 class SliceOp (c :: T)
 instance SliceOp ('T_c 'T_string)

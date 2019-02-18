@@ -261,7 +261,9 @@ compareImpl
   :: (Typeable rs, Typeable a, Typeable b)
   => Sing a -> Sing b
   -> IT ('T_c a ': 'T_c b ': rs) -> VarAnn -> Either Text (SomeInstr op cp)
+compareImpl ST_bool ST_bool = arithImpl @Compare COMPARE
 compareImpl ST_nat ST_nat = arithImpl @Compare COMPARE
+compareImpl ST_address ST_address = arithImpl @Compare COMPARE
 compareImpl ST_int ST_int = arithImpl @Compare COMPARE
 compareImpl ST_string ST_string = arithImpl @Compare COMPARE
 compareImpl ST_bytes ST_bytes = arithImpl @Compare COMPARE
