@@ -9,7 +9,7 @@ module Advanced.Interpreter
   , run
   ) where
 
-import Control.Monad.Except (Except, MonadError, throwError)
+import Control.Monad.Except (MonadError, throwError)
 
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -136,6 +136,8 @@ run LE (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Le) a) :& rest
 run GE (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Ge) a) :& rest
 -- More herec
 run TRANSFER_TOKENS (p :& VC (CvMutez mutez) :& VContract addr :& r) = pure $ VOp (TransferTokens p mutez addr) :& r
+run _ _ = error "Unsupported instruction"
+
 --------------------
 -- Examples
 --------------------
@@ -148,8 +150,8 @@ run TRANSFER_TOKENS (p :& VC (CvMutez mutez) :& VContract addr :& r) = pure $ VO
 --    ADD;
 --    PUSH nat 12
 --    ADD;
-myInstr :: Instr op cp ('T_c 'T_int : s) ('T_c 'T_int : s)
-myInstr =
+_myInstr :: Instr op cp ('T_c 'T_int : s) ('T_c 'T_int : s)
+_myInstr =
   PUSH (VC $ CvInt 223) #
   SOME #
   IF_NONE DUP SWAP #

@@ -7,7 +7,7 @@ import Data.Text.IO (getContents)
 import Fmt (pretty)
 import Options.Applicative
   (auto, command, eitherReader, execParser, help, info, long, metavar, option, progDesc,
-  strOption, subparser, switch, value)
+  short, strOption, subparser, switch, value)
 import qualified Options.Applicative as Opt
 import Text.Megaparsec (parse)
 import Text.Pretty.Simple (pPrint)
@@ -18,10 +18,13 @@ import Morley.Macro (expandFlattenContract, expandValue)
 import qualified Morley.Parser as P
 import Morley.Runtime (Account(..), TxData(..), originateContract, runContract)
 import Morley.Types
+import Advanced.Parser (parseAndTypeCheck)
+
+data TypeCheckAlgo = TCSimpleTyped | TCAdvancedTyped
 
 data CmdLnArgs
   = Parse (Maybe FilePath) Bool
-  | TypeCheck (Maybe FilePath) Bool
+  | TypeCheck (Maybe FilePath) Bool TypeCheckAlgo
   | Run !RunOptions
   | Originate !OriginateOptions
 
@@ -50,12 +53,15 @@ argParser = subparser $
   runSubCmd <>
   originateSubCmd
   where
+    uncurry3 :: (a -> b -> c -> d) -> (a, b, c) -> d
+    uncurry3 cons (a, b, c) = cons a b c
+
     parseSubCmd = command "parse" $
       info (uncurry Parse <$> parseOptions) $
         progDesc "Parse passed contract"
 
     typecheckSubCmd = command "typecheck" $
-      info (uncurry TypeCheck <$> typecheckOptions) $
+      info (uncurry3 TypeCheck <$> typecheckOptions) $
         progDesc "Typecheck passed contract"
 
     runSubCmd = command "run" $
@@ -71,10 +77,14 @@ argParser = subparser $
       long "verbose" <>
       help "Whether output should be verbose"
 
-    typecheckOptions :: Opt.Parser (Maybe FilePath, Bool)
-    typecheckOptions = (,)
+    typecheckOptions :: Opt.Parser (Maybe FilePath, Bool, TypeCheckAlgo)
+    typecheckOptions = (,,)
       <$> contractFileOption
       <*> verboseFlag
+      <*> (bool TCAdvancedTyped TCSimpleTyped <$>
+            switch (long "simple" <> short 's'
+                      <> help "Use simple type typechecker")
+          )
 
     parseOptions :: Opt.Parser (Maybe FilePath, Bool)
     parseOptions = (,)
@@ -179,9 +189,16 @@ main = do
         if hasExpandMacros
           then pPrint $ expandFlattenContract contract
           else pPrint contract
-      TypeCheck mFilename _hasVerboseFlag -> do
-        void $ prepareContract mFilename
-        putTextLn "Contract is well-typed"
+      TypeCheck mFilename _hasVerboseFlag tAlgo -> do
+        case tAlgo of
+          TCSimpleTyped -> do
+            void $ prepareContract mFilename
+            putTextLn "Contract is well-typed"
+          TCAdvancedTyped ->
+            whenJust mFilename $ \fname ->
+              either (\m -> putTextLn $ "Contract is ill-typed: " <> m)
+                (const $ putTextLn "Contract is well-typed") .
+                parseAndTypeCheck =<< readFile fname
       Run RunOptions {..} -> do
         michelsonContract <- prepareContract roContractFile
         runContract roNow roMaxSteps roVerbose roDBPath roStorageValue michelsonContract roTxData

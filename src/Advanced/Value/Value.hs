@@ -73,9 +73,6 @@ deriving instance Show op => Show (Val op cp t)
 
 infixl 0 #
 
--- TODO support add operation for mutez
--- don't forget to throw arith exception (async exception)
-
 -- | Representation of Michelson instruction or sequence
 -- of instructions.
 --
@@ -177,7 +174,6 @@ data Instr op cp (inp :: [T]) (out :: [T]) where
   GE :: UnaryArithOp Ge n => Instr op cp ('T_c n ': s) ('T_c (UnaryArithResT Ge n) ': s)
   -- INT               VarNote
   SELF :: Instr op cp s ('T_contract cp ': s)
-  -- TODO this 'g' shall not be a free variable, but instead shall be bound by Instr type signature
   CONTRACT
     :: Instr op cp ('T_c 'T_address ': s) ('T_option ('T_contract p) ': s)
   TRANSFER_TOKENS
@@ -186,9 +182,6 @@ data Instr op cp (inp :: [T]) (out :: [T]) where
   SET_DELEGATE
     :: Instr op cp ('T_option ('T_c 'T_key_hash) ': s) ('T_operation ': s)
 
--- :: key_hash : option key_hash : bool : mutez : 'S
---    ->   operation : address : 'S
---
   CREATE_ACCOUNT
     :: Instr op cp
         ('T_c 'T_key_hash ': 'T_option ('T_c 'T_key_hash) ': 'T_c 'T_bool
