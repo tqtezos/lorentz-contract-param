@@ -76,6 +76,7 @@ module Michelson.Types
   , isBytes
   ) where
 
+import qualified Text.Show
 import Data.Aeson
   (FromJSON(..), FromJSONKey, ToJSON(..), ToJSONKey, genericParseJSON, genericToJSON)
 import Data.Aeson.TH (defaultOptions, deriveJSON)
@@ -246,11 +247,20 @@ data InstrAbstract op =
 -- Basic types for Michelson types --
 -------------------------------------
 newtype Annotation tag = Annotation T.Text
-  deriving (Eq, Show, Data, Functor)
+  deriving (Eq, Data, Functor)
   deriving newtype (ToJSON, FromJSON)
 
 instance Default (Annotation tag) where
   def = Annotation ""
+
+instance Show (Annotation FieldTag) where
+  show (Annotation x) = "%" <> toString x
+
+instance Show (Annotation VarTag) where
+  show (Annotation x) = "@" <> toString x
+
+instance Show (Annotation TypeTag) where
+  show (Annotation x) = ":" <> toString x
 
 data TypeTag
 data FieldTag

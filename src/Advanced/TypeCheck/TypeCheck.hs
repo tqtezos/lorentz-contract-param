@@ -220,8 +220,10 @@ typeCheckI (M.IF_CONS mp mq) (SomeIT i@((ST_list a, ns, vn) ::& rs) ) = do
 typeCheckI (M.SIZE vn) (SomeIT i@((ST_list _, _, _) ::& _) ) = sizeImpl i vn
 typeCheckI (M.SIZE vn) (SomeIT i@((ST_set _, _, _) ::& _) ) = sizeImpl i vn
 typeCheckI (M.SIZE vn) (SomeIT i@((ST_map _ _, _, _) ::& _) ) = sizeImpl i vn
-typeCheckI (M.SIZE vn) (SomeIT i@((ST_c ST_string, _, _) ::& _) ) = sizeImpl i vn
-typeCheckI (M.SIZE vn) (SomeIT i@((ST_c ST_bytes, _, _) ::& _) ) = sizeImpl i vn
+typeCheckI (M.SIZE vn) (SomeIT i@((ST_c ST_string, _, _) ::& _) ) =
+  sizeImpl i vn
+typeCheckI (M.SIZE vn) (SomeIT i@((ST_c ST_bytes, _, _) ::& _) ) =
+  sizeImpl i vn
 
 typeCheckI (M.EMPTY_SET tn vn (M.Comparable mk ktn)) (SomeIT i) =
   withSomeSingCT mk $ \k ->
@@ -259,11 +261,14 @@ typeCheckI instr@(M.ITER (i1 : ir)) (SomeIT i@((ST_map k v, n, _) ::& _)) = do
   iterImpl (ST_pair (ST_c k) v) en instr (i1 :| ir) i
 
 typeCheckI instr@(M.MEM vn)
-   (SomeIT i@((ST_c _, _, _) ::& (ST_set _, _, _) ::& _)) = memImpl instr i vn
+           (SomeIT i@((ST_c _, _, _) ::& (ST_set _, _, _) ::& _)) =
+  memImpl instr i vn
 typeCheckI instr@(M.MEM vn)
-   (SomeIT i@((ST_c _, _, _) ::& (ST_map _ _, _, _) ::& _)) = memImpl instr i vn
+           (SomeIT i@((ST_c _, _, _) ::& (ST_map _ _, _, _) ::& _)) =
+  memImpl instr i vn
 typeCheckI instr@(M.MEM vn)
-   (SomeIT i@((ST_c _, _, _) ::& (ST_big_map _ _, _, _) ::& _)) = memImpl instr i vn
+           (SomeIT i@((ST_c _, _, _) ::& (ST_big_map _ _, _, _) ::& _)) =
+  memImpl instr i vn
 
 typeCheckI instr@(M.GET vn) (SomeIT i@(_ ::& (ST_map _ vt, cn, _) ::& _)) =
   getImpl instr i vt (notesCase NStar (\(NT_map _ _ v) -> v) cn) vn
@@ -272,7 +277,8 @@ typeCheckI instr@(M.GET vn) (SomeIT i@(_ ::& (ST_big_map _ vt, cn, _) ::& _)) =
 
 typeCheckI instr@M.UPDATE (SomeIT i@(_ ::& _ ::& (ST_map _ _, _, _) ::& _)) =
   updImpl instr i
-typeCheckI instr@M.UPDATE (SomeIT i@(_ ::& _ ::& (ST_big_map _ _, _, _) ::& _)) =
+typeCheckI instr@M.UPDATE (SomeIT i@(_ ::& _ ::& (ST_big_map _ _, _, _)
+                                             ::& _)) =
   updImpl instr i
 typeCheckI instr@M.UPDATE (SomeIT i@(_ ::& _ ::& (ST_set _, _, _) ::& _)) =
   updImpl instr i
@@ -327,7 +333,8 @@ typeCheckI instr@(M.LAMBDA vn imt omt is) (SomeIT i) = do
       lamImpl instr is vn it ins ot ons i
 
 typeCheckI instr@(M.EXEC vn) (SomeIT i@(((_ :: Sing t1), _, _)
-                              ::& (ST_lambda (_ :: Sing t1') t2, ln, _) ::& rs)) = do
+                              ::& (ST_lambda (_ :: Sing t1') t2, ln, _)
+                              ::& rs)) = do
   let t2n = notesCase NStar (\(NT_lambda _ _ n) -> n) ln
   case eqT' @t1 @t1' of
     Right Refl -> pure $ EXEC ::: (i, (t2, t2n, vn) ::& rs)
@@ -776,8 +783,9 @@ mapImpl pt pns instr mp i@(_ ::& rs) mkRes =
           case eqT' @rs @rs' of
             Right Refl ->
               pure $ MAP sub ::: (i, mkRes b bn rs')
-            Left m -> typeCheckIErr instr (SomeIT i) $
-                        "iteration expression has wrong output stack type: " <> m
+            Left m ->
+              typeCheckIErr instr (SomeIT i) $
+                      "iteration expression has wrong output stack type: " <> m
         _ -> typeCheckIErr instr (SomeIT i) $
                 "iteration expression has wrong output stack type (empty stack)"
 
@@ -800,7 +808,7 @@ iterImpl et en instr mp i@((_, _, lvn) ::& rs) = do
       case eqT' @o @rs of
         Right Refl -> pure $ ITER subI ::: (i, o)
         Left m -> typeCheckIErr instr (SomeIT i) $
-                        "iteration expression has wrong output stack type: " <> m
+                      "iteration expression has wrong output stack type: " <> m
 
 lamImpl
   :: forall it ot op cp ts.

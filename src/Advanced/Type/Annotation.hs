@@ -133,7 +133,8 @@ class Converge t where
 
 -- | Converge two type or field notes (which may be wildcards).
 convergeAnns
-  :: Annotation tag -> Annotation tag -> Either Text (Annotation tag)
+  :: Show (Annotation tag)
+  => Annotation tag -> Annotation tag -> Either Text (Annotation tag)
 convergeAnns a b = maybe (Left $ "Annotations do not converge: "
                             <> show a <> " /= " <> show b)
                           pure $ unifyAnn a b
