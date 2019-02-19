@@ -5,14 +5,16 @@ module Main
 
 import Data.Text.IO (getContents)
 import Fmt (pretty)
-import System.Console.ArgParser
-import System.Console.ArgParser.Params (FlagParam, StdArgParam)
+import Options.Applicative
+  (auto, command, eitherReader, execParser, help, info, long, metavar, option, progDesc,
+  strOption, subparser, switch, value)
+import qualified Options.Applicative as Opt
 import Text.Megaparsec (parse)
 import Text.Pretty.Simple (pPrint)
 
 import Michelson.Typecheck (typecheckContract)
 import Michelson.Types
-import Morley.Macro (expandContractMacros, expandFlattenContract, expandValue)
+import Morley.Macro (expandFlattenContract, expandValue)
 import qualified Morley.Parser as P
 import Morley.Runtime (Account(..), TxData(..), originateContract, runContract)
 import Morley.Types
@@ -39,91 +41,126 @@ data OriginateOptions = OriginateOptions
   , ooVerbose :: !Bool
   }
 
-argParser :: IO (CmdLnInterface CmdLnArgs)
-argParser = mkSubParser
-  [ ("parse", mkDefaultApp
-      (Parse `parsedBy` contractFileOption `andBy` boolFlag "expand-macros") "parse")
-  , ("typecheck", mkDefaultApp
-      (TypeCheck `parsedBy` contractFileOption `andBy` verboseFlag) "typecheck")
-  , ("run", mkDefaultApp
-      (Run `parsedBy` runOptionsSpec) "run")
-  , ("originate", mkDefaultApp
-      (Originate `parsedBy` originateOptionsSpec) "originate")
-  ]
-
--- FIXME: stupid `argparser`!!!
--- `StdArgParam` is not a `Functor`!
--- Is it even possible to parse an optional value without supplying a default?!
--- Most likely should stop using it.
-contractFileOption :: ParserSpec (Maybe FilePath)
-contractFileOption = Just `parsedBy` reqPos "contract"
-
-dbPathOption :: StdArgParam FilePath
-dbPathOption = optFlag "db.json" "db"
-
-valueOption :: String -> ParserSpec (Value Op)
-valueOption name = mkValue `parsedBy` reqFlag name
+argParser :: Opt.Parser CmdLnArgs
+argParser = subparser $
+  parseSubCmd <>
+  typecheckSubCmd <>
+  runSubCmd <>
+  originateSubCmd
   where
-    mkValue :: String -> Value Op
-    mkValue =
-      either (error . mappend "Failed to parse value: ") id .
-      parseValue . toText
+    parseSubCmd = command "parse" $
+      info (uncurry Parse <$> parseOptions) $
+        progDesc "Parse passed contract"
 
-    parseValue :: Text -> Either Text (Value Op)
-    parseValue text =
-      either (Left . show) (Right . expandValue) $ parse P.value "" text
+    typecheckSubCmd = command "typecheck" $
+      info (uncurry TypeCheck <$> typecheckOptions) $
+        progDesc "Typecheck passed contract"
 
-mutezOption :: String -> ParserSpec Mutez
-mutezOption name = Mutez . fromIntegral `parsedBy` reqFlag @Int name
+    runSubCmd = command "run" $
+      info (Run <$> runOptions) $
+        progDesc "Run passed contract on "
 
-verboseFlag :: FlagParam Bool
-verboseFlag = boolFlag "verbose"
+    originateSubCmd = command "run" $
+      info (Originate <$> originateOptions) $
+        progDesc "Originate passed contract. Add it to passed DB"
 
-runOptionsSpec :: ParserSpec RunOptions
-runOptionsSpec =
-  RunOptions `parsedBy`
-    contractFileOption `andBy`
-    dbPathOption `andBy`
-    valueOption "storage" `andBy`
-    txDataSpec `andBy`
-    verboseFlag
+    verboseFlag :: Opt.Parser Bool
+    verboseFlag = switch $
+      long "verbose" <>
+      help "Whether output should be verbose"
 
-txDataSpec :: ParserSpec TxData
-txDataSpec =
-  mkTxData `parsedBy`
-    reqFlag "sender" `andBy`
-    valueOption "parameter" `andBy`
-    mutezOption "amount"
+    typecheckOptions :: Opt.Parser (Maybe FilePath, Bool)
+    typecheckOptions = (,)
+      <$> contractFileOption
+      <*> verboseFlag
+
+    parseOptions :: Opt.Parser (Maybe FilePath, Bool)
+    parseOptions = (,)
+      <$> contractFileOption
+      <*> switch (
+        long "expand-macros" <>
+        help "Whether expand macros after parsing or not")
+
+    runOptions :: Opt.Parser RunOptions
+    runOptions =
+      RunOptions
+        <$> contractFileOption
+        <*> dbPathOption
+        <*> valueOption "storage" "Initial storage of a running contract"
+        <*> txData
+        <*> verboseFlag
+
+    originateOptions :: Opt.Parser OriginateOptions
+    originateOptions =
+      OriginateOptions
+        <$> contractFileOption
+        <*> dbPathOption
+        <*> valueOption "storage" "Initial storage of an originating contract"
+        <*> mutezOption "balance" "Initial balance of an originating contract"
+        <*> verboseFlag
+
+contractFileOption :: Opt.Parser (Maybe FilePath)
+contractFileOption = optional $ strOption $
+  long "contract" <>
+  metavar "FILEPATH" <>
+  help "Path to contract file"
+
+dbPathOption :: Opt.Parser FilePath
+dbPathOption = strOption $
+  long "db" <>
+  metavar "FILEPATH" <>
+  value "db.json" <>
+  help "Path to DB with data which is used instead of real blockchain data"
+
+valueOption :: String -> String -> Opt.Parser (Value Op)
+valueOption name hInfo = option (eitherReader parseValue) $
+  long name <>
+  help hInfo
   where
+    parseValue :: String -> Either String (Value Op)
+    parseValue s =
+      either (Left . mappend "Failed to parse value: " . show)
+             (Right . expandValue)
+      $ parse P.value "" (toText s)
+
+mutezOption :: String -> String -> Opt.Parser Mutez
+mutezOption name hInfo = fmap Mutez $ option auto $
+  long name <>
+  metavar "INT" <>
+  help hInfo
+
+txData :: Opt.Parser TxData
+txData =
+  mkTxData
+    <$> sender
+    <*> valueOption "parameter" "Parameter of passed contract"
+    <*> mutezOption "amount" "Amout sent by a transaction"
+  where
+    sender = strOption $
+      long "sender" <>
+      metavar "ADDRESS" <>
+      help "Sender address"
     mkTxData :: String -> Value Op -> Mutez -> TxData
     mkTxData addr param amount =
       TxData
         { tdSenderAddress = Address (toText addr)
-        -- FIXME: how to properly report error using `argparser`?
         , tdParameter = param
         , tdAmount = amount
         }
 
-originateOptionsSpec :: ParserSpec OriginateOptions
-originateOptionsSpec =
-  OriginateOptions `parsedBy`
-    contractFileOption `andBy`
-    dbPathOption `andBy`
-    valueOption "storage" `andBy`
-    mutezOption "balance" `andBy`
-    verboseFlag
 
 main :: IO ()
 main = do
-  interface <- argParser
-  runApp interface run
+  cmdLnArgs <- execParser (info argParser progInfo)
+  run cmdLnArgs
   where
+    progInfo = progDesc "Haskell implementation of Michelson typechecker and interpreter"
     run :: CmdLnArgs -> IO ()
     run args = case args of
       Parse mFilename hasExpandMacros -> do
         contract <- readAndParseContract mFilename
         if hasExpandMacros
-          then pPrint $ expandContractMacros contract
+          then pPrint $ expandFlattenContract contract
           else pPrint contract
       TypeCheck mFilename _hasVerboseFlag -> do
         void $ prepareContract mFilename
