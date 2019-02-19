@@ -172,7 +172,7 @@ data Instr op cp (inp :: [T]) (out :: [T]) where
   GT :: UnaryArithOp Gt n => Instr op cp ('T_c n ': s) ('T_c (UnaryArithResT Gt n) ': s)
   LE :: UnaryArithOp Le n => Instr op cp ('T_c n ': s) ('T_c (UnaryArithResT Le n) ': s)
   GE :: UnaryArithOp Ge n => Instr op cp ('T_c n ': s) ('T_c (UnaryArithResT Ge n) ': s)
-  -- INT               VarNote
+  INT :: Instr op cp ('T_c 'T_nat ': s) ('T_c 'T_int ': s)
   SELF :: Instr op cp s ('T_contract cp ': s)
   CONTRACT
     :: Instr op cp ('T_c 'T_address ': s) ('T_option ('T_contract p) ': s)
