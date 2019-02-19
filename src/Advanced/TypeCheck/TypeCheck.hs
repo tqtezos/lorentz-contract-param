@@ -468,6 +468,9 @@ typeCheckI (M.LE vn) (SomeIT i@((ST_c ST_int, _, _) ::& _)) =
 typeCheckI (M.GE vn) (SomeIT i@((ST_c ST_int, _, _) ::& _)) =
   unaryArithImpl @Ge GE i vn
 
+typeCheckI (M.INT vn) (SomeIT i@((ST_c ST_nat, _, _) ::& rs)) =
+  pure $ INT ::: (i, (ST_c ST_int, NStar, vn) ::& rs)
+
 typeCheckI (M.SELF vn) (SomeIT i) =
   pure $ SELF ::: (i, (sing, NStar, vn) ::& i)
 
