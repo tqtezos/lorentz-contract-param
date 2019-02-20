@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 module Morley.Types
   (
@@ -20,6 +19,9 @@ module Morley.Types
   , Comparable (..)
   , T (..)
   , CT (..)
+  , Annotation (..)
+  , InternalByteString(..)
+  , unInternalByteString
 
   -- Parser types
   , CustomParserException (..)
@@ -42,7 +44,8 @@ import Data.Data (Data(..))
 import qualified Data.Text as T
 import Michelson.Types
   (CT(..), Comparable(..), Contract(..), Elt(..), FieldAnn, Instr, InstrAbstract(..), Op(..),
-  Parameter, Storage, T(..), Type(..), TypeAnn, Value(..), VarAnn, ann, noAnn)
+  Parameter, Storage, T(..), Type(..), TypeAnn, Value(..), VarAnn, ann, noAnn,
+  InternalByteString(..), unInternalByteString, Annotation(..))
 import Morley.Default (Default(..))
 import Text.Megaparsec
 import qualified Text.Show
