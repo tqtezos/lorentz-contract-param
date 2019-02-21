@@ -8,14 +8,16 @@ module Advanced.TypeCheck.Types
     , ContractInp
     , ContractOut
     , SomeValC (..)
+    , TCError (..)
     ) where
 
 import Prelude hiding (EQ, GT, LT)
 import qualified Text.Show
 
-import Advanced.Type (Converge, Notes(..), Sing(..), T(..), fromSingT)
+import Advanced.Type (Notes(..), Sing(..), T(..), fromSingT)
 import Advanced.Value
 
+import qualified Michelson.Types as M
 import Michelson.Types (VarAnn)
 
 -- | Data type holding type information for stack.
@@ -45,7 +47,7 @@ import Michelson.Types (VarAnn)
 -- element.
 data IT (ts :: [T])  where
   INil :: IT '[]
-  (::&) :: (Typeable xs, Typeable x, Converge x)
+  (::&) :: (Typeable xs, Typeable x)
         => (Sing x, Notes x, VarAnn) -> IT xs -> IT (x ': xs)
 
 instance Show (IT ts) where
@@ -83,7 +85,7 @@ instance Show op => Show (SomeInstr op cp) where
 -- | Data type, holding strictly-typed Michelson value along with its
 -- type singleton.
 data SomeVal op cp where
-    (::::) :: (Typeable t, Converge t)
+    (::::) :: Typeable t
            => Val op cp t -> (Sing t, Notes t) -> SomeVal op cp
 
 -- | Data type, holding strictly-typed Michelson value along with its
@@ -104,3 +106,21 @@ deriving instance Show op => Show (SomeContract op)
 type ContractInp param st = '[ 'T_pair param st ]
 type ContractOut st = '[ 'T_pair ('T_list 'T_operation) st ]
 
+-- | Type check error
+data TCError =
+    TCFailedOnInstr M.Instr SomeIT Text
+  | TCFailedOnValue (M.Value M.Op) T Text
+  | TCOtherError Text
+
+instance Show TCError where
+  show (TCFailedOnInstr instr (SomeIT t) custom) =
+    "Error checking expression " <> show instr
+          <> " against input stack type " <> show t
+          <> bool (": " <> toString custom) "" (null custom)
+  show (TCFailedOnValue v t custom) =
+    "Error checking value " <> show v
+          <> " against type " <> show t
+          <> bool (": " <> toString custom) "" (null custom)
+  show (TCOtherError e) = "Error occurred during type check: " <> toString e
+
+instance Exception TCError

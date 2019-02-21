@@ -15,8 +15,8 @@ module Advanced.Type.Extract
 
 import qualified Michelson.Types as M
 
-import Advanced.Type.Annotation (Notes(..), Notes'(..), mkNotes, mkNotes0)
-import Advanced.Type.Sing (Sing(..), fromSingT)
+import Advanced.Type.Annotation (Notes(..), Notes'(..), mkNotes)
+import Advanced.Type.Sing (Sing(..), fromSingT, fromSingCT)
 import Advanced.Type.T (T(..))
 
 -- | Extracts 'T' type from 'Michelson.Type.Type'.
@@ -44,17 +44,18 @@ extractNotes :: M.Type -> Sing t -> Either Text (Notes t)
 extractNotes (M.Type wholeT tn) s = conv wholeT s
   where
     conv :: M.T -> Sing t -> Either Text (Notes t)
-    conv (M.T_comparable _) (ST_c _) = pure $ mkNotes0 NT_c tn
-    conv M.T_key ST_key = pure $ mkNotes0 NT_key tn
-    conv M.T_unit ST_unit = pure $ mkNotes0 NT_unit tn
-    conv M.T_signature ST_signature = pure $ mkNotes0 NT_signature tn
+    conv (M.T_comparable ct) (ST_c cst)
+      | fromSingCT cst == ct = pure $ mkNotes $ NT_c tn
+    conv M.T_key ST_key = pure $ mkNotes $ NT_key tn
+    conv M.T_unit ST_unit = pure $ mkNotes $ NT_unit tn
+    conv M.T_signature ST_signature = pure $ mkNotes $ NT_signature tn
     conv (M.T_option fn t) (ST_option st) =
       mkNotes . NT_option tn fn <$> extractNotes t st
     conv (M.T_list t) (ST_list st) = do
       mkNotes . NT_list tn <$> extractNotes t st
-    conv (M.T_set (M.Comparable _ sn)) (ST_set _) =
-      pure $ mkNotes $ NT_set tn sn
-    conv M.T_operation ST_operation = pure $ mkNotes0 NT_operation tn
+    conv (M.T_set (M.Comparable et sn)) (ST_set est)
+      | fromSingCT est == et = pure $ mkNotes $ NT_set tn sn
+    conv M.T_operation ST_operation = pure $ mkNotes $ NT_operation tn
     conv (M.T_contract t) (ST_contract st) =
       mkNotes . NT_contract tn <$> extractNotes t st
     conv (M.T_pair pf qf pt qt) (ST_pair spt sqt) =
@@ -69,10 +70,11 @@ extractNotes (M.Type wholeT tn) s = conv wholeT s
       liftA2 (mkNotes ... NT_lambda tn)
              (extractNotes pt spt)
              (extractNotes qt sqt)
-    conv (M.T_map (M.Comparable _ kn) vt) (ST_map _ svt) = do
-      mkNotes . NT_map tn kn  <$> extractNotes vt svt
-    conv (M.T_big_map (M.Comparable _ kn) vt) (ST_big_map _ svt) = do
-      mkNotes . NT_big_map tn kn  <$> extractNotes vt svt
+    conv (M.T_map (M.Comparable kt kn) vt) (ST_map kst svt)
+       | fromSingCT kst == kt = mkNotes . NT_map tn kn  <$> extractNotes vt svt
+    conv (M.T_big_map (M.Comparable kt kn) vt) (ST_big_map kst svt)
+      | fromSingCT kst == kt =
+        mkNotes . NT_big_map tn kn  <$> extractNotes vt svt
     conv a (fromSingT -> b) =
-      Left $ "Error pure . mkNotes0truction annotations, provided types not match: "
+      Left $ "failed to construct annotation, provided types do not match: "
                 <> show a <> " /= " <> show b

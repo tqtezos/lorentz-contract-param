@@ -30,6 +30,7 @@ deriving instance Show Operation
 
 data ContractEnv = ContractEnv
 data MichelsonFailed = MichelsonFailed
+  deriving Show
 
 -- newtype MichelsonFailed op t = MichelsonFailed
   -- { unMichelsonFailed :: Val op t
