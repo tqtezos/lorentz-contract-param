@@ -36,10 +36,14 @@ import Crypto.Hash (Blake2b_160, Blake2b_256, Digest, SHA256, SHA512, hash)
 import Crypto.Number.Serialize (os2ip)
 import qualified Crypto.PubKey.Ed25519 as Ed25519
 import Crypto.Random (drgNewSeed, seedFromInteger, withDRG)
+import Data.Aeson (FromJSON(..), ToJSON(..))
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Encoding as Aeson
 import qualified Data.ByteArray as ByteArray
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base58 as Base58
 import Data.Coerce (coerce)
+import Fmt (pretty)
 import qualified Formatting.Buildable as Buildable
 import Test.QuickCheck (Arbitrary(..), vector)
 
@@ -181,6 +185,37 @@ parseImpl expectedTag constructor text = do
   unless (tag == expectedTag) $ Left CryptoParseWrongTag
   bimap CryptoParseCryptoError coerce $
     eitherCryptoError $ constructor payload
+
+----------------------------------------------------------------------------
+-- JSON encoding/decoding
+----------------------------------------------------------------------------
+
+instance ToJSON PublicKey where
+  toJSON = Aeson.String . formatPublicKey
+  toEncoding = Aeson.text . formatPublicKey
+
+instance FromJSON PublicKey where
+  parseJSON =
+    Aeson.withText "PublicKey" $
+    either (fail . pretty) pure . parsePublicKey
+
+instance ToJSON Signature where
+  toJSON = Aeson.String . formatSignature
+  toEncoding = Aeson.text . formatSignature
+
+instance FromJSON Signature where
+  parseJSON =
+    Aeson.withText "Signature" $
+    either (fail . pretty) pure . parseSignature
+
+instance ToJSON KeyHash where
+  toJSON = Aeson.String . formatKeyHash
+  toEncoding = Aeson.text . formatKeyHash
+
+instance FromJSON KeyHash where
+  parseJSON =
+    Aeson.withText "KeyHash" $
+    either (fail . pretty) pure . parseKeyHash
 
 ----------------------------------------------------------------------------
 -- Signing
