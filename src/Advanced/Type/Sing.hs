@@ -1,6 +1,4 @@
-{-# LANGUAGE DataKinds, GADTs, TemplateHaskell #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-{-# OPTIONS_GHC -fno-warn-unused-top-binds #-}
 
 -- | Module, providing singleton boilerplate for
 -- 'T' and 'CT' data types.
@@ -16,35 +14,54 @@ module Advanced.Type.Sing
   , withSomeSingT
   , withSomeSingCT
   , fromSingT
-
+  , fromSingCT
   ) where
 
 import Data.Kind (Type)
-import Data.Singletons (Sing(..), SingI(..), fromSing)
-import Data.Singletons.TH (genSingletons)
+import Data.Singletons (Sing(..), SingI(..))
 
-import Advanced.Type.Annotation (Converge)
 import Advanced.Type.T (CT(..), T(..))
 
--- TODO replace with manually written instances and remove usage of TH
-$(genSingletons [ ''CT ])
+-- | Instance of data family 'Sing' for 'CT'.
+data instance Sing :: CT -> Type where
+  ST_int :: Sing  'T_int
+  ST_nat :: Sing  'T_nat
+  ST_string :: Sing  'T_string
+  ST_bytes :: Sing  'T_bytes
+  ST_mutez :: Sing  'T_mutez
+  ST_bool :: Sing  'T_bool
+  ST_key_hash :: Sing  'T_key_hash
+  ST_timestamp :: Sing  'T_timestamp
+  ST_address :: Sing  'T_address
 
--- | Version of 'SomeSing' with 'Typeable' and 'Converge' constraints,
--- specialized for use with 'T' kind.
-data SomeSingT where
-  SomeSingT :: forall (a :: T). (Converge a, Typeable a, SingI a)
-            => Sing a -> SomeSingT
+-- | Instance of data family 'Sing' for 'T'.
+-- Custom instance is implemented in order to inject 'Typeable'
+-- constraint for some of constructors.
+data instance Sing :: T -> Type where
+  ST_c :: Typeable a => Sing a -> Sing ( 'T_c a)
+  ST_key :: Sing  'T_key
+  ST_unit :: Sing  'T_unit
+  ST_signature :: Sing  'T_signature
+  ST_option :: (Typeable a) => Sing a -> Sing ( 'T_option a)
+  ST_list :: (Typeable a) => Sing a -> Sing ( 'T_list a )
+  ST_set :: Typeable a => Sing a -> Sing ( 'T_set a )
+  ST_operation  :: Sing 'T_operation
+  ST_contract   :: (Typeable a)
+                => Sing a -> Sing ( 'T_contract a )
+  ST_pair       :: (Typeable a, Typeable b)
+                => Sing a -> Sing b -> Sing ('T_pair a b)
+  ST_or         :: (Typeable a, Typeable b)
+                => Sing a -> Sing b -> Sing ('T_or a b)
+  ST_lambda     :: (Typeable a, Typeable b)
+                => Sing a -> Sing b -> Sing ('T_lambda a b)
+  ST_map        :: (Typeable a, Typeable b)
+                => Sing a -> Sing b -> Sing ('T_map a b)
+  ST_big_map    :: (Typeable a, Typeable b)
+                => Sing a -> Sing b -> Sing ('T_big_map a b)
 
--- | Version of 'withSomeSing' with 'Typeable' and 'Converge' constraints
--- provided to processing function.
---
--- Required for not to erase these useful constraints when doing
--- conversion from value of type 'T' to its singleton representation.
-withSomeSingT
-  :: T
-  -> (forall (a :: T). (Converge a, Typeable a, SingI a) => Sing a -> r)
-  -> r
-withSomeSingT t f = (\(SomeSingT s) -> f s) (toSingT t)
+---------------------------------------------
+-- Singleton-related instances for CT
+---------------------------------------------
 
 -- | Version of 'SomeSing' with 'Typeable' constraint,
 -- specialized for use with 'CT' kind.
@@ -56,8 +73,92 @@ data SomeSingCT where
 --
 -- Required for not to erase this useful constraint when doing
 -- conversion from value of type 'CT' to its singleton representation.
-withSomeSingCT :: CT -> (forall (a :: CT). (SingI a, Typeable a) => Sing a -> r) -> r
+withSomeSingCT
+  :: CT -> (forall (a :: CT). (SingI a, Typeable a) => Sing a -> r) -> r
 withSomeSingCT ct f = (\(SomeSingCT s) -> f s) (toSingCT ct)
+
+fromSingCT :: Sing (a :: CT) -> CT
+fromSingCT ST_int = T_int
+fromSingCT ST_nat = T_nat
+fromSingCT ST_string = T_string
+fromSingCT ST_bytes = T_bytes
+fromSingCT ST_mutez = T_mutez
+fromSingCT ST_bool = T_bool
+fromSingCT ST_key_hash = T_key_hash
+fromSingCT ST_timestamp = T_timestamp
+fromSingCT ST_address = T_address
+
+-- | Version of 'toSing' which creates 'SomeSingCT'.
+toSingCT :: CT -> SomeSingCT
+toSingCT T_int = SomeSingCT ST_int
+toSingCT T_nat = SomeSingCT ST_nat
+toSingCT T_string = SomeSingCT ST_string
+toSingCT T_bytes = SomeSingCT ST_bytes
+toSingCT T_mutez = SomeSingCT ST_mutez
+toSingCT T_bool = SomeSingCT ST_bool
+toSingCT T_key_hash = SomeSingCT ST_key_hash
+toSingCT T_timestamp = SomeSingCT ST_timestamp
+toSingCT T_address = SomeSingCT ST_address
+
+instance SingI  'T_int where
+  sing = ST_int
+instance SingI  'T_nat where
+  sing = ST_nat
+instance SingI  'T_string where
+  sing = ST_string
+instance SingI  'T_bytes where
+  sing = ST_bytes
+instance SingI  'T_mutez where
+  sing = ST_mutez
+instance SingI  'T_bool where
+  sing = ST_bool
+instance SingI  'T_key_hash where
+  sing = ST_key_hash
+instance SingI  'T_timestamp where
+  sing = ST_timestamp
+instance SingI  'T_address where
+  sing = ST_address
+
+---------------------------------------------
+-- Singleton-related helpers for T
+--------------------------------------------
+
+
+-- | Version of 'SomeSing' with 'Typeable' constraint,
+-- specialized for use with 'T' kind.
+data SomeSingT where
+  SomeSingT :: forall (a :: T). (Typeable a, SingI a)
+            => Sing a -> SomeSingT
+
+-- | Version of 'withSomeSing' with 'Typeable' constraint
+-- provided to processing function.
+--
+-- Required for not to erase these useful constraints when doing
+-- conversion from value of type 'T' to its singleton representation.
+withSomeSingT
+  :: T
+  -> (forall (a :: T). (Typeable a, SingI a) => Sing a -> r)
+  -> r
+withSomeSingT t f = (\(SomeSingT s) -> f s) (toSingT t)
+
+-- | Version of 'fromSing' specialized for use with
+-- @data instance Sing :: T -> Type@ which requires 'Typeable'
+-- constraint for some of its constructors
+fromSingT :: Sing (a :: T) -> T
+fromSingT (ST_c t) = T_c (fromSingCT t)
+fromSingT ST_key = T_key
+fromSingT ST_unit = T_unit
+fromSingT ST_signature = T_signature
+fromSingT (ST_option t) = T_option (fromSingT t)
+fromSingT (ST_list t) = T_list (fromSingT t)
+fromSingT (ST_set t) = T_set (fromSingCT t)
+fromSingT ST_operation = T_operation
+fromSingT (ST_contract t) = T_contract (fromSingT t)
+fromSingT (ST_pair a b) = T_pair (fromSingT a) (fromSingT b)
+fromSingT (ST_or a b) = T_or (fromSingT a) (fromSingT b)
+fromSingT (ST_lambda a b) = T_lambda (fromSingT a) (fromSingT b)
+fromSingT (ST_map a b) = T_map (fromSingCT a) (fromSingT b)
+fromSingT (ST_big_map a b) = T_big_map (fromSingCT a) (fromSingT b)
 
 -- | Version of 'toSing' which creates 'SomeSingT'.
 toSingT :: T -> SomeSingT
@@ -92,18 +193,6 @@ toSingT (T_big_map l r) =
   withSomeSingT r $ \rSing ->
     SomeSingT $ ST_big_map lSing rSing
 
--- | Version of 'toSing' which creates 'SomeSingCT'.
-toSingCT :: CT -> SomeSingCT
-toSingCT T_int = SomeSingCT ST_int
-toSingCT T_nat = SomeSingCT ST_nat
-toSingCT T_string = SomeSingCT ST_string
-toSingCT T_bytes = SomeSingCT ST_bytes
-toSingCT T_mutez = SomeSingCT ST_mutez
-toSingCT T_bool = SomeSingCT ST_bool
-toSingCT T_key_hash = SomeSingCT ST_key_hash
-toSingCT T_timestamp = SomeSingCT ST_timestamp
-toSingCT T_address = SomeSingCT ST_address
-
 instance (SingI t, Typeable t) => SingI ( 'T_c (t :: CT)) where
   sing = ST_c sing
 instance SingI  'T_key where
@@ -112,61 +201,29 @@ instance SingI  'T_unit where
   sing = ST_unit
 instance SingI  'T_signature where
   sing = ST_signature
-instance (SingI a, Typeable a, Converge a) => SingI ( 'T_option (a :: T)) where
+instance (SingI a, Typeable a) => SingI ( 'T_option (a :: T)) where
   sing = ST_option sing
-instance (SingI a, Typeable a, Converge a) => SingI ( 'T_list (a :: T)) where
+instance (SingI a, Typeable a) => SingI ( 'T_list (a :: T)) where
   sing = ST_list sing
 instance (SingI a, Typeable a) => SingI ( 'T_set (a :: CT)) where
   sing = ST_set sing
 instance SingI 'T_operation where
   sing = ST_operation
-instance (SingI a, Typeable a, Converge a) => SingI ( 'T_contract (a :: T)) where
+instance (SingI a, Typeable a) =>
+          SingI ( 'T_contract (a :: T)) where
   sing = ST_contract sing
-instance (SingI a, Typeable a, Typeable b, SingI b, Converge a, Converge b) => SingI ( 'T_pair a b) where
+instance (SingI a, Typeable a, Typeable b, SingI b) =>
+          SingI ( 'T_pair a b) where
   sing = ST_pair sing sing
-instance (SingI a, Typeable a, Typeable b, SingI b, Converge a, Converge b) => SingI ( 'T_or a b) where
+instance (SingI a, Typeable a, Typeable b, SingI b) =>
+          SingI ( 'T_or a b) where
   sing = ST_or sing sing
-instance (SingI a, Typeable a, Typeable b, SingI b, Converge a, Converge b) => SingI ( 'T_lambda a b) where
+instance (SingI a, Typeable a, Typeable b, SingI b) =>
+          SingI ( 'T_lambda a b) where
   sing = ST_lambda sing sing
-instance (SingI a, Typeable a, Typeable b, SingI b, Converge b) => SingI ( 'T_map a b) where
+instance (SingI a, Typeable a, Typeable b, SingI b) =>
+          SingI ( 'T_map a b) where
   sing = ST_map sing sing
-instance (SingI a, Typeable a, Typeable b, SingI b, Converge b) => SingI ( 'T_big_map a b) where
+instance (SingI a, Typeable a, Typeable b, SingI b) =>
+          SingI ( 'T_big_map a b) where
   sing = ST_big_map sing sing
-
--- | Version of 'fromSing' specialized for use with
--- @data instance Sing :: T -> Type@ which requires 'Typeable' and 'Converge'
--- constraints for some of its constructors
-fromSingT :: Sing (a :: T) -> T
-fromSingT (ST_c t) = T_c (fromSing t)
-fromSingT ST_key = T_key
-fromSingT ST_unit = T_unit
-fromSingT ST_signature = T_signature
-fromSingT (ST_option t) = T_option (fromSingT t)
-fromSingT (ST_list t) = T_list (fromSingT t)
-fromSingT (ST_set t) = T_set (fromSing t)
-fromSingT ST_operation = T_operation
-fromSingT (ST_contract t) = T_contract (fromSingT t)
-fromSingT (ST_pair a b) = T_pair (fromSingT a) (fromSingT b)
-fromSingT (ST_or a b) = T_or (fromSingT a) (fromSingT b)
-fromSingT (ST_lambda a b) = T_lambda (fromSingT a) (fromSingT b)
-fromSingT (ST_map a b) = T_map (fromSing a) (fromSingT b)
-fromSingT (ST_big_map a b) = T_big_map (fromSing a) (fromSingT b)
-
--- | Instance of data family 'Sing' for 'T'.
--- Custom instance is implemented in order to inject 'Typeable' and 'Converge'
--- constraints for some of constructors.
-data instance Sing :: T -> Type where
-    ST_c :: Typeable a => Sing a -> Sing ( 'T_c a)
-    ST_key :: Sing  'T_key
-    ST_unit :: Sing  'T_unit
-    ST_signature :: Sing  'T_signature
-    ST_option :: (Typeable a, Converge a) => Sing a -> Sing ( 'T_option a)
-    ST_list :: (Typeable a, Converge a) => Sing a -> Sing ( 'T_list a )
-    ST_set :: Typeable a => Sing a -> Sing ( 'T_set a )
-    ST_operation :: Sing 'T_operation
-    ST_contract :: (Typeable a, Converge a) => Sing a -> Sing ( 'T_contract a )
-    ST_pair :: (Typeable a, Typeable b, Converge a, Converge b) => Sing a -> Sing b -> Sing ('T_pair a b)
-    ST_or :: (Typeable a, Typeable b, Converge a, Converge b) => Sing a -> Sing b -> Sing ('T_or a b)
-    ST_lambda :: (Typeable a, Typeable b, Converge a, Converge b) => Sing a -> Sing b -> Sing ('T_lambda a b)
-    ST_map :: (Typeable a, Typeable b, Converge b) => Sing a -> Sing b -> Sing ('T_map a b)
-    ST_big_map :: (Typeable a, Typeable b, Converge b) => Sing a -> Sing b -> Sing ('T_big_map a b)

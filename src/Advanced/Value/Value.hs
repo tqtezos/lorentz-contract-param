@@ -30,8 +30,9 @@ import Tezos.Crypto (PublicKey, Signature)
 -- (list of which is returned by the contract to be executed
 -- afterwards).
 --
--- Type parameter @ref@ states for big map reference (as big map is
--- normally not fully loaded into memory).
+-- Type parameter @cp@ states for SELF contract parameter.
+-- If value contains lambda inside and that lambda uses SELF instruction,
+-- result of this SELF call will be of type @contract cp@.
 data Val op cp t where
   VC :: CVal t -> Val op cp ('T_c t)
   VKey :: PublicKey -> Val op cp 'T_key
@@ -48,13 +49,13 @@ data Val op cp t where
   VMap :: Map (CVal k) (Val op cp v) -> Val op cp ('T_map k v)
   VBigMap :: Map (CVal k) (Val op cp v) -> Val op cp ('T_big_map k v)
 
+deriving instance Show op => Show (Val op cp t)
+
 -- TODO: actually we should handle big maps with something close
 -- to following:
 --
 --  VBigMap :: BigMap op ref k v -> Val op cp ('T_big_map k v)
-
-deriving instance Show op => Show (Val op cp t)
-
+--
 -- data ValueOp v
 --     = New v
 --     | Upd v
@@ -63,6 +64,8 @@ deriving instance Show op => Show (Val op cp t)
 --
 -- data BigMap op ref k v = BigMap
 --  { bmRef :: ref k v, bmChanges :: Map (CVal k) (ValueOp (Val op cp v)) }
+
+
 
 -- | Infix version of @Seq@ constructor.
 --

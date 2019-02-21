@@ -34,7 +34,6 @@ library
                      , Tezos.Crypto
                      , Advanced
   other-modules:       Advanced.Interpreter
-                     , Advanced.Parser
                      , Advanced.Type
                      , Advanced.Type.Annotation
                      , Advanced.Type.Extract
@@ -201,12 +200,14 @@ test-suite morley-test
                      , fmt
                      , formatting
                      , hspec
+                     , HUnit
                      , lens
                      , megaparsec >= 7.0.0
                      , morley
                      , QuickCheck
                      , text
                      , universum
+                     , vinyl
   ghc-options:        -Weverything
                       -Wno-missing-exported-signatures
                       -Wno-missing-import-lists

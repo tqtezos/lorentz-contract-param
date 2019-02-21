@@ -18,12 +18,11 @@ module Advanced.Type.Annotation
   (
     Notes (..)
   , Notes' (..)
-  , Converge (..)
+  , converge
   , convergeAnns
   , notesCase
   , isStar
   , mkNotes
-  , mkNotes0
   , orAnn
   ) where
 
@@ -65,24 +64,18 @@ data Notes' t where
   NT_key       :: TypeAnn -> Notes' 'T_key
   NT_unit      :: TypeAnn -> Notes' 'T_unit
   NT_signature :: TypeAnn -> Notes' 'T_signature
-  NT_option    :: Converge t
-               => TypeAnn -> FieldAnn -> Notes t -> Notes' ('T_option t)
-  NT_list      :: Converge t => TypeAnn -> Notes t -> Notes' ('T_list t)
+  NT_option    :: TypeAnn -> FieldAnn -> Notes t -> Notes' ('T_option t)
+  NT_list      :: TypeAnn -> Notes t -> Notes' ('T_list t)
   NT_set       :: TypeAnn -> TypeAnn -> Notes' ('T_set ct)
   NT_operation :: TypeAnn -> Notes' 'T_operation
-  NT_contract  :: Converge t => TypeAnn -> Notes t -> Notes' ('T_contract t)
-  NT_pair      :: (Converge p, Converge q)
-               => TypeAnn -> FieldAnn -> FieldAnn
+  NT_contract  :: TypeAnn -> Notes t -> Notes' ('T_contract t)
+  NT_pair      :: TypeAnn -> FieldAnn -> FieldAnn
                -> Notes p -> Notes q -> Notes' ('T_pair p q)
-  NT_or        :: (Converge p, Converge q)
-               => TypeAnn -> FieldAnn -> FieldAnn
+  NT_or        :: TypeAnn -> FieldAnn -> FieldAnn
                -> Notes p -> Notes q -> Notes' ('T_or p q)
-  NT_lambda    :: (Converge p, Converge q)
-               => TypeAnn -> Notes p -> Notes q -> Notes' ('T_lambda p q)
-  NT_map       :: Converge v
-               => TypeAnn -> TypeAnn -> Notes v -> Notes' ('T_map k v)
-  NT_big_map   :: Converge v
-               => TypeAnn -> TypeAnn -> Notes v -> Notes' ('T_big_map k v)
+  NT_lambda    :: TypeAnn -> Notes p -> Notes q -> Notes' ('T_lambda p q)
+  NT_map       :: TypeAnn -> TypeAnn -> Notes v -> Notes' ('T_map k v)
+  NT_big_map   :: TypeAnn -> TypeAnn -> Notes v -> Notes' ('T_big_map k v)
 
 -- | Check whether given annotations object is @*@.
 isStar :: Notes t -> Bool
@@ -107,29 +100,52 @@ mkNotes (NT_lambda tn ns1 ns2)
   | isStar ns1 && isStar ns2 && isDef tn                           = NStar
 mkNotes (NT_map tn kn vns)
   | isStar vns && isDef tn && isDef kn                             = NStar
+mkNotes (NT_c t) | isDef t                                         = NStar
+mkNotes (NT_key t) | isDef t                                       = NStar
+mkNotes (NT_unit t) | isDef t                                      = NStar
+mkNotes (NT_signature t) | isDef t                                 = NStar
+mkNotes (NT_operation t) | isDef t                                 = NStar
 mkNotes n = N n
 
 orAnn :: Annotation t -> Annotation t -> Annotation t
 orAnn a b = bool a b (a == def)
 
-mkNotes0
-  :: (TypeAnn -> Notes' t)
-  -> TypeAnn -> Notes t
-mkNotes0 f n = bool (N $ f n) NStar (isDef n)
-
--- | Class, which defines methods for combining values of 'Notes' and 'Notes''
--- data types.
-class Converge t where
-  -- | Combines two annotations trees `a` and `b` into a new one `c`
-  -- in such a way that `c` can be obtained from both `a` and `b` by replacing
-  -- some @*@ leafs with type or/and field annotations.
-  converge' :: Notes' t -> Notes' t -> Either Text (Notes' t)
-
-  -- | Same as 'converge'' but works with 'Notes' data type.
-  converge :: Notes t -> Notes t -> Either Text (Notes t)
-  converge NStar a = pure a
-  converge a NStar = pure a
-  converge (N a) (N b) = N <$> converge' a b
+-- | Combines two annotations trees `a` and `b` into a new one `c`
+-- in such a way that `c` can be obtained from both `a` and `b` by replacing
+-- some @*@ leafs with type or/and field annotations.
+converge' :: Notes' t -> Notes' t -> Either Text (Notes' t)
+converge' (NT_c a) (NT_c b) = NT_c <$> convergeAnns a b
+converge' (NT_key a) (NT_key b) = NT_key <$> convergeAnns a b
+converge' (NT_unit a) (NT_unit b) = NT_unit <$> convergeAnns a b
+converge' (NT_signature a) (NT_signature b) =
+    NT_signature <$> convergeAnns a b
+converge' (NT_option a f n) (NT_option b g m) =
+  NT_option <$> convergeAnns a b <*> convergeAnns f g <*> converge n m
+converge' (NT_list a n) (NT_list b m) =
+  NT_list <$> convergeAnns a b <*> converge n m
+converge' (NT_set a n) (NT_set b m) =
+  NT_set <$> convergeAnns a b <*> convergeAnns n m
+converge' (NT_operation a) (NT_operation b) =
+  NT_operation <$> convergeAnns a b
+converge' (NT_contract a n) (NT_contract b m) =
+  NT_contract <$> convergeAnns a b <*> converge n m
+converge' (NT_pair a pF qF pN qN) (NT_pair b pG qG pM qM) =
+  NT_pair <$> convergeAnns a b <*> convergeAnns pF pG
+          <*> convergeAnns qF qG <*> converge pN pM <*> converge qN qM
+converge' (NT_or a pF qF pN qN) (NT_or b pG qG pM qM) =
+  NT_or <$> convergeAnns a b <*> convergeAnns pF pG <*> convergeAnns qF qG
+          <*> converge pN pM <*> converge qN qM
+converge' (NT_lambda a pN qN) (NT_lambda b pM qM) =
+  NT_lambda <$> convergeAnns a b <*> converge pN pM <*> converge qN qM
+converge' (NT_map a kN vN) (NT_map b kM vM) =
+  NT_map <$> convergeAnns a b <*> convergeAnns kN kM <*> converge vN vM
+converge' (NT_big_map a kN vN) (NT_big_map b kM vM) =
+  NT_big_map <$> convergeAnns a b <*> convergeAnns kN kM <*> converge vN vM
+-- | Same as 'converge'' but works with 'Notes' data type.
+converge :: Notes t -> Notes t -> Either Text (Notes t)
+converge NStar a = pure a
+converge a NStar = pure a
+converge (N a) (N b) = N <$> converge' a b
 
 -- | Converge two type or field notes (which may be wildcards).
 convergeAnns
@@ -139,44 +155,3 @@ convergeAnns a b = maybe (Left $ "Annotations do not converge: "
                             <> show a <> " /= " <> show b)
                           pure $ unifyAnn a b
 
-instance Converge ('T_c ct) where
-  converge' (NT_c a) (NT_c b) = NT_c <$> convergeAnns a b
-instance Converge 'T_key where
-  converge' (NT_key a) (NT_key b) = NT_key <$> convergeAnns a b
-instance Converge 'T_unit where
-  converge' (NT_unit a) (NT_unit b) = NT_unit <$> convergeAnns a b
-instance Converge 'T_signature where
-  converge' (NT_signature a) (NT_signature b) =
-      NT_signature <$> convergeAnns a b
-instance Converge t => Converge ('T_option t) where
-  converge' (NT_option a f n) (NT_option b g m) =
-    NT_option <$> convergeAnns a b <*> convergeAnns f g <*> converge n m
-instance Converge t => Converge ('T_list t) where
-  converge' (NT_list a n) (NT_list b m) =
-    NT_list <$> convergeAnns a b <*> converge n m
-instance Converge ('T_set t) where
-  converge' (NT_set a n) (NT_set b m) =
-    NT_set <$> convergeAnns a b <*> convergeAnns n m
-instance Converge 'T_operation where
-  converge' (NT_operation a) (NT_operation b) =
-    NT_operation <$> convergeAnns a b
-instance Converge t => Converge ('T_contract t) where
-  converge' (NT_contract a n) (NT_contract b m) =
-    NT_contract <$> convergeAnns a b <*> converge n m
-instance (Converge p, Converge q) => Converge ('T_pair p q) where
-  converge' (NT_pair a pF qF pN qN) (NT_pair b pG qG pM qM) =
-    NT_pair <$> convergeAnns a b <*> convergeAnns pF pG
-            <*> convergeAnns qF qG <*> converge pN pM <*> converge qN qM
-instance (Converge p, Converge q) => Converge ('T_or p q) where
-  converge' (NT_or a pF qF pN qN) (NT_or b pG qG pM qM) =
-    NT_or <$> convergeAnns a b <*> convergeAnns pF pG <*> convergeAnns qF qG
-            <*> converge pN pM <*> converge qN qM
-instance (Converge p, Converge q) => Converge ('T_lambda p q) where
-  converge' (NT_lambda a pN qN) (NT_lambda b pM qM) =
-    NT_lambda <$> convergeAnns a b <*> converge pN pM <*> converge qN qM
-instance Converge v => Converge ('T_map k v) where
-  converge' (NT_map a kN vN) (NT_map b kM vM) =
-    NT_map <$> convergeAnns a b <*> convergeAnns kN kM <*> converge vN vM
-instance Converge v => Converge ('T_big_map k v) where
-  converge' (NT_big_map a kN vN) (NT_big_map b kM vM) =
-    NT_big_map <$> convergeAnns a b <*> convergeAnns kN kM <*> converge vN vM
