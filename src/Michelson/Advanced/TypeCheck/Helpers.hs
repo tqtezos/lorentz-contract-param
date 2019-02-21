@@ -1,14 +1,11 @@
-module Advanced.TypeCheck.Helpers
+module Michelson.Advanced.TypeCheck.Helpers
     ( onLeft
-    , fromBase58Text
     , deriveSpecialVN
     , deriveSpecialFNs
     , eqT'
     , assertEqT
     , checkEqT
-    , typeCheckCVal
     , typeCheckIErr
-    , typeCheckCVals
     , memImpl
     , getImpl
     , updImpl
@@ -30,33 +27,37 @@ module Advanced.TypeCheck.Helpers
     , unaryArithImpl
     ) where
 
-import Data.ByteString.Base58 (bitcoinAlphabet, decodeBase58)
 import Data.Default (def)
 import Data.Singletons (SingI(sing))
 import qualified Data.Text as T
-import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
-import Data.Time.LocalTime (zonedTimeToUTC)
-import Data.Time.RFC3339 (parseTimeRFC3339)
 import Data.Typeable ((:~:)(..), eqT, typeRep)
 import Prelude hiding (EQ, GT, LT)
 
-import Advanced.Type
+import Michelson.Advanced.Type
   (CT(..), Notes(..), Notes'(..), Sing(..), T(..), converge, mkNotes, notesCase, orAnn)
-import Advanced.TypeCheck.Types
-import Advanced.Value
-  (Add, ArithOp(..), CVal(..), Compare, ConcatOp, EDivOp(..), GetOp(..), Instr(..), MemOp(..), Mul,
+import Michelson.Advanced.TypeCheck.Types
+import Michelson.Advanced.Value
+  (Add, ArithOp(..), Compare, ConcatOp, EDivOp(..), GetOp(..), Instr(..), MemOp(..), Mul,
   SizeOp, SliceOp, Sub, UnaryArithOp(..), UpdOp(..))
 
 import Michelson.Types (FieldAnn, VarAnn)
 import qualified Michelson.Types as M
-import Tezos.Crypto (parseKeyHash)
 
 onLeft :: Either a c -> (a -> b) -> Either b c
 onLeft e f = either (Left . f) pure e
 
-fromBase58Text :: Text -> Maybe ByteString
-fromBase58Text = decodeBase58 bitcoinAlphabet . encodeUtf8
-
+-- | Function which derives special annotations
+-- for PAIR instruction.
+--
+-- Namely, it does following transformation:
+-- @
+--  PAIR %@@ %@@ [ @@p.a int : @@p.b int : .. ]
+--  ~
+--  [ @@p (pair (int %a) (int %b) : .. ]
+-- @
+--
+-- All relevant cases (e.g. @PAIR %myf %@@ @)
+-- are handled as they should be according to spec.
 deriveSpecialFNs
   :: FieldAnn -> FieldAnn
   -> VarAnn -> VarAnn
@@ -73,40 +74,13 @@ deriveSpecialFNs "@" qfn pvn _   = (def, M.convAnn pvn, qfn)
 deriveSpecialFNs pfn "@" _ qvn   = (def, pfn, M.convAnn qvn)
 deriveSpecialFNs pfn qfn _ _     = (def, pfn, qfn)
 
+-- | Function which derives special annotations
+-- for CDR / CAR instructions.
 deriveSpecialVN :: VarAnn -> FieldAnn -> VarAnn -> VarAnn
 deriveSpecialVN vn elFn pairVN
   | vn == "%" = M.convAnn elFn
   | vn == "%%" && elFn /= def = pairVN <> M.convAnn elFn
   | otherwise = vn
-
-typeCheckCVal :: M.Value M.Op -> CT -> Maybe SomeValC
-typeCheckCVal (M.ValueInt i) T_int = pure $ CvInt i :--: ST_int
-typeCheckCVal (M.ValueInt i) T_nat
-  | i >= 0 = pure $ CvNat (fromInteger i) :--: ST_nat
-typeCheckCVal (M.ValueInt (fromInteger -> i)) T_mutez
-  | i <= maxBound && i >= minBound = pure $ CvMutez i :--: ST_mutez
-typeCheckCVal (M.ValueString s) T_string =
-  pure $ CvString s :--: ST_string
-
-typeCheckCVal (M.ValueString (fromBase58Text -> Just s)) T_address =
-  pure $ CvAddress s :--: ST_address
-typeCheckCVal (M.ValueBytes (M.InternalByteString s)) T_address =
-  pure $ CvAddress s :--: ST_address
-
-typeCheckCVal (M.ValueString (parseKeyHash -> Right s)) T_key_hash =
-  pure $ CvKeyHash s :--: ST_key_hash
-
-typeCheckCVal (M.ValueString (parseTimeRFC3339 -> Just zt)) T_timestamp =
-  pure $ CvTimestamp (zonedTimeToUTC zt) :--: ST_timestamp
-typeCheckCVal (M.ValueInt i) T_timestamp = do
-  let t = posixSecondsToUTCTime (fromInteger i)
-  pure $ CvTimestamp t :--: ST_timestamp
-
-typeCheckCVal (M.ValueBytes (M.InternalByteString s)) T_bytes =
-  pure $ CvBytes s :--: ST_bytes
-typeCheckCVal M.ValueTrue T_bool = pure $ CvBool True :--: ST_bool
-typeCheckCVal M.ValueFalse T_bool = pure $ CvBool False :--: ST_bool
-typeCheckCVal _ _ = Nothing
 
 checkEqT
  :: forall a b ts . (Typeable a, Typeable b, Typeable ts)
@@ -129,26 +103,15 @@ eqT' = maybe (Left $
                   <> show (typeRep (Proxy @b))
                   ) pure eqT
 
-typeCheckCVals
-  :: forall t . Typeable t
-  => [M.Value M.Op] -> CT -> Either (M.Value M.Op, Text) [CVal t]
-typeCheckCVals mvs t = traverse check mvs
-  where
-    check mv = do
-      v :--: (_ :: Sing t') <-
-        maybe (Left (mv, "failed to typecheck cval")) pure $ typeCheckCVal mv t
-      Refl <- eqT' @t @t' `onLeft` (,) mv
-      pure v
-
 typeCheckIErr :: M.Instr -> SomeIT -> Text -> Either TCError a
 typeCheckIErr = Left ... TCFailedOnInstr
 
--- | Generic implementation for MEM operation
+-- | Generic implementation for MEMeration
 memImpl
-  :: forall (q :: CT) (c :: T) ts op cp.
+  :: forall (q :: CT) (c :: T) ts cp.
     (Typeable ts, Typeable q, Typeable (MemOpKey c), MemOp c)
   => M.Instr -> IT ('T_c q ': c ': ts) -> VarAnn
-  -> Either TCError (SomeInstr op cp)
+  -> Either TCError (SomeInstr cp)
 memImpl instr i@(_ ::& _ ::& rs) vn =
   case eqT' @q @(MemOpKey c) of
     Right Refl -> pure (MEM ::: (i, (ST_c ST_bool, NStar, vn) ::& rs))
@@ -156,7 +119,7 @@ memImpl instr i@(_ ::& _ ::& rs) vn =
                 "query element type is not equal to set's element type: " <> m
 
 getImpl
-  :: forall c op cp getKey rs .
+  :: forall c cp getKey rs .
     ( GetOp c, Typeable (GetOpKey c)
     , Typeable (GetOpVal c)
     )
@@ -165,7 +128,7 @@ getImpl
   -> Sing (GetOpVal c)
   -> Notes (GetOpVal c)
   -> VarAnn
-  -> Either TCError (SomeInstr op cp)
+  -> Either TCError (SomeInstr cp)
 getImpl instr i@(_ ::& _ ::& rs) rt vns vn = do
   case eqT' @getKey @('T_c (GetOpKey c)) of
     Right Refl -> do
@@ -175,11 +138,11 @@ getImpl instr i@(_ ::& _ ::& rs) rt vns vn = do
                     "wrong key stack type" <> m
 
 updImpl
-  :: forall c op cp updKey updParams rs .
+  :: forall c cp updKey updParams rs .
     (UpdOp c, Typeable (UpdOpKey c), Typeable (UpdOpParams c))
   => M.Instr
   -> IT (updKey ': updParams ': c ': rs)
-  -> Either TCError (SomeInstr op cp)
+  -> Either TCError (SomeInstr cp)
 updImpl instr i@(_ ::& _ ::& crs) = do
   case (eqT' @updKey @('T_c (UpdOpKey c)), eqT' @updParams @(UpdOpParams c)) of
     (Right Refl, Right Refl) -> pure $ UPDATE ::: (i, crs)
@@ -190,14 +153,14 @@ updImpl instr i@(_ ::& _ ::& crs) = do
 
 sizeImpl
   :: SizeOp c
-  => IT (c ': rs) -> VarAnn -> Either TCError (SomeInstr op cp)
+  => IT (c ': rs) -> VarAnn -> Either TCError (SomeInstr cp)
 sizeImpl i@(_ ::& rs) vn =
   pure $ SIZE ::: (i, (ST_c ST_nat, NStar, vn) ::& rs)
 
 sliceImpl
   :: (SliceOp c, Typeable c)
   => IT ('T_c 'T_nat : 'T_c 'T_nat : c : rs)
-  -> M.VarAnn -> Either TCError (SomeInstr op cp)
+  -> M.VarAnn -> Either TCError (SomeInstr cp)
 sliceImpl i@(_ ::& _ ::& (c, cn, cvn) ::& rs) vn = do
   let vn' = vn `orAnn` deriveVN "slice" cvn
       rn = mkNotes $ NT_option def def cn
@@ -206,7 +169,7 @@ sliceImpl i@(_ ::& _ ::& (c, cn, cvn) ::& rs) vn = do
 concatImpl'
   :: (ConcatOp c, Typeable c)
   => IT ('T_list c : rs)
-  -> M.VarAnn -> Either TCError (SomeInstr op cp)
+  -> M.VarAnn -> Either TCError (SomeInstr cp)
 concatImpl' i@((ST_list c, ln, _) ::& rs) vn = do
   let cn = notesCase NStar (\(NT_list _ n) -> n) ln
   pure $ CONCAT' ::: (i, (c, cn, vn) ::& rs)
@@ -214,7 +177,7 @@ concatImpl' i@((ST_list c, ln, _) ::& rs) vn = do
 concatImpl
   :: (ConcatOp c, Typeable c)
   => IT (c : c : rs)
-  -> M.VarAnn -> Either TCError (SomeInstr op cp)
+  -> M.VarAnn -> Either TCError (SomeInstr cp)
 concatImpl i@((c, cn1, _) ::& (_, cn2, _) ::& rs) vn = do
   cn <- converge cn1 cn2 `onLeft` TCFailedOnInstr (M.CONCAT vn) (SomeIT i)
   pure $ CONCAT ::: (i, (c, cn, vn) ::& rs)
@@ -223,6 +186,11 @@ concatImpl i@((c, cn1, _) ::& (_, cn2, _) ::& rs) vn = do
 deriveVN :: VarAnn -> VarAnn -> VarAnn
 deriveVN suffix vn = bool (suffix <> vn) def (vn == def)
 
+-- | Function which extracts annotations for @or@ type
+-- (for left and right parts).
+--
+-- It extracts field/type annotations and also auto-generates variable
+-- annotations if variable annotation is not provided as second argument.
 deriveNsOr :: Notes ('T_or a b) -> VarAnn -> (Notes a, Notes b, VarAnn, VarAnn)
 deriveNsOr ons ovn =
   let (an, bn, afn, bfn) =
@@ -232,6 +200,10 @@ deriveNsOr ons ovn =
       bvn = deriveVN (M.convAnn bfn `orAnn` "right") ovn
    in (an, bn, avn, bvn)
 
+-- | Function which extracts annotations for @option t@ type.
+--
+-- It extracts field/type annotations and also auto-generates variable
+-- annotation for @Some@ case if it is not provided as second argument.
 deriveNsOption :: Notes ('T_option a) -> VarAnn -> (Notes a, VarAnn)
 deriveNsOption ons ovn =
   let (an, fn) = notesCase (NStar, def)
@@ -254,23 +226,23 @@ convergeIT (a ::& as) (b ::& bs) =
     liftA2 (::&) (convergeITEl a b) (convergeIT as bs)
 
 -- | Helper function to construct instructions for binary arithmetic
--- operations.
+--erations.
 arithImpl
-  :: ( Typeable (ArithResT aop n m)
-     , SingI (ArithResT aop n m)
-     , Typeable ('T_c (ArithResT aop n m) ': s)
+  :: ( Typeable (ArithRes aop n m)
+     , SingI (ArithRes aop n m)
+     , Typeable ('T_c (ArithRes aop n m) ': s)
      )
-  => Instr op cp ('T_c n ': 'T_c m ': s) ('T_c (ArithResT aop n m) ': s)
+  => Instr cp ('T_c n ': 'T_c m ': s) ('T_c (ArithRes aop n m) ': s)
   -> IT ('T_c n ': 'T_c m ': s)
   -> VarAnn
-  -> Either TCError (SomeInstr op cp)
-arithImpl op i@(_ ::& _ ::& rs) vn =
-  pure $ op ::: (i, (sing, NStar, vn) ::& rs)
+  -> Either TCError (SomeInstr cp)
+arithImpl mkInstr i@(_ ::& _ ::& rs) vn =
+  pure $ mkInstr ::: (i, (sing, NStar, vn) ::& rs)
 
 addImpl
   :: (Typeable rs, Typeable a, Typeable b)
   => Sing a -> Sing b
-  -> IT ('T_c a ': 'T_c b ': rs) -> VarAnn -> Either TCError (SomeInstr op cp)
+  -> IT ('T_c a ': 'T_c b ': rs) -> VarAnn -> Either TCError (SomeInstr cp)
 addImpl ST_int ST_int = arithImpl @Add ADD
 addImpl ST_int ST_nat = arithImpl @Add ADD
 addImpl ST_nat ST_int = arithImpl @Add ADD
@@ -283,7 +255,7 @@ addImpl _ _ = \i vn -> typeCheckIErr (M.ADD vn) (SomeIT i) ""
 edivImpl
   :: (Typeable rs, Typeable a, Typeable b)
   => Sing a -> Sing b
-  -> IT ('T_c a ': 'T_c b ': rs) -> VarAnn -> Either TCError (SomeInstr op cp)
+  -> IT ('T_c a ': 'T_c b ': rs) -> VarAnn -> Either TCError (SomeInstr cp)
 edivImpl ST_int ST_int = edivImplDo
 edivImpl ST_int ST_nat = edivImplDo
 edivImpl ST_nat ST_int = edivImplDo
@@ -293,7 +265,7 @@ edivImpl ST_mutez ST_nat = edivImplDo
 edivImpl _ _ = \i vn -> typeCheckIErr (M.EDIV vn) (SomeIT i) ""
 
 edivImplDo
-  :: ( EDivOp op cp n m
+  :: ( EDivOp n m
      , SingI (EModOpRes n m)
      , Typeable (EModOpRes n m)
      , SingI (EDivOpRes n m)
@@ -301,14 +273,14 @@ edivImplDo
      )
   => IT ('T_c n ': 'T_c m ': s)
   -> VarAnn
-  -> Either TCError (SomeInstr op cp)
+  -> Either TCError (SomeInstr cp)
 edivImplDo i@(_ ::& _ ::& rs) vn =
   pure $ EDIV ::: (i, (sing, NStar, vn) ::& rs)
 
 subImpl
   :: (Typeable rs, Typeable a, Typeable b)
   => Sing a -> Sing b
-  -> IT ('T_c a ': 'T_c b ': rs) -> VarAnn -> Either TCError (SomeInstr op cp)
+  -> IT ('T_c a ': 'T_c b ': rs) -> VarAnn -> Either TCError (SomeInstr cp)
 subImpl ST_int ST_int = arithImpl @Sub SUB
 subImpl ST_int ST_nat = arithImpl @Sub SUB
 subImpl ST_nat ST_int = arithImpl @Sub SUB
@@ -321,7 +293,7 @@ subImpl _ _ = \i vn -> typeCheckIErr (M.SUB vn) (SomeIT i) ""
 mulImpl
   :: (Typeable rs, Typeable a, Typeable b)
   => Sing a -> Sing b
-  -> IT ('T_c a ': 'T_c b ': rs) -> VarAnn -> Either TCError (SomeInstr op cp)
+  -> IT ('T_c a ': 'T_c b ': rs) -> VarAnn -> Either TCError (SomeInstr cp)
 mulImpl ST_int ST_int = arithImpl @Mul MUL
 mulImpl ST_int ST_nat = arithImpl @Mul MUL
 mulImpl ST_nat ST_int = arithImpl @Mul MUL
@@ -333,7 +305,7 @@ mulImpl _ _ = \i vn -> typeCheckIErr (M.MUL vn) (SomeIT i) ""
 compareImpl
   :: (Typeable rs, Typeable a, Typeable b)
   => Sing a -> Sing b
-  -> IT ('T_c a ': 'T_c b ': rs) -> VarAnn -> Either TCError (SomeInstr op cp)
+  -> IT ('T_c a ': 'T_c b ': rs) -> VarAnn -> Either TCError (SomeInstr cp)
 compareImpl ST_bool ST_bool = arithImpl @Compare COMPARE
 compareImpl ST_nat ST_nat = arithImpl @Compare COMPARE
 compareImpl ST_address ST_address = arithImpl @Compare COMPARE
@@ -346,14 +318,15 @@ compareImpl ST_mutez ST_mutez = arithImpl @Compare COMPARE
 compareImpl _ _ = \i vn -> typeCheckIErr (M.COMPARE vn) (SomeIT i) ""
 
 -- | Helper function to construct instructions for binary arithmetic
--- operations.
+--erations.
 unaryArithImpl
-  :: ( Typeable (UnaryArithResT aop n)
-     , SingI (UnaryArithResT aop n)
-     , Typeable ('T_c (UnaryArithResT aop n) ': s)
+  :: ( Typeable (UnaryArithRes aop n)
+     , SingI (UnaryArithRes aop n)
+     , Typeable ('T_c (UnaryArithRes aop n) ': s)
      )
-  => Instr op cp ('T_c n ': s) ('T_c (UnaryArithResT aop n) ': s)
+  => Instr cp ('T_c n ': s) ('T_c (UnaryArithRes aop n) ': s)
   -> IT ('T_c n ': s)
   -> VarAnn
-  -> Either TCError (SomeInstr op cp)
-unaryArithImpl op i@(_ ::& rs) vn = pure $ op ::: (i, (sing, NStar, vn) ::& rs)
+  -> Either TCError (SomeInstr cp)
+unaryArithImpl mkInstr i@(_ ::& rs) vn =
+  pure $ mkInstr ::: (i, (sing, NStar, vn) ::& rs)

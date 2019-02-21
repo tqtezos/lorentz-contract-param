@@ -3,6 +3,7 @@
 module Morley.Runtime
        ( originateContract
        , runContract
+       , contractAddress
 
        -- * Re-exports
        , Account (..)
@@ -19,6 +20,8 @@ import Control.Lens (at, makeLenses, (%=), (.=), (<>=))
 import Control.Monad.Except (Except, runExcept, throwError)
 import qualified Data.Time.Clock.POSIX as Time
 import Michelson.Interpret (ContractEnv(..), MichelsonFailed, michelsonInterpreter)
+import Michelson.Advanced (Operation)
+import Tezos.Crypto (Address(..))
 import Michelson.Types
 import Morley.Runtime.GState
 import Morley.Runtime.TxData
@@ -76,6 +79,13 @@ instance Exception InterpreterError
 ----------------------------------------------------------------------------
 -- Interface
 ----------------------------------------------------------------------------
+
+-- TODO [TM-17] I guess it's possible to compute address of a contract, but I
+-- don't know how do it (yet). Maybe it requires more data. In the
+-- worst case we can store such map in GState. Maybe we'll have to
+-- move this function to Morley.
+contractAddress :: Contract Op -> Address
+contractAddress _ = Address "dummy-address"
 
 -- | Originate a contract. Returns the address of the originated
 -- contract.
@@ -216,7 +226,7 @@ interpretOneOp now maxSteps mSourceAddr gs (TransferOp addr txData) = do
 -- Simple helpers
 ----------------------------------------------------------------------------
 
-convertOp :: NetworkOp -> [InterpreterOp]
+convertOp :: Operation instr -> [InterpreterOp]
 convertOp = const []
 
 -- Return current time as 'Timestamp'.

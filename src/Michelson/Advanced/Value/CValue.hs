@@ -1,24 +1,15 @@
 -- | Module, containing CVal data type
 -- which represents Michelson comparable values.
 
-module Advanced.Value.CValue
+module Michelson.Advanced.Value.CValue
   ( CVal (..)
-  , Address
   ) where
 
 import Data.Time.Clock (UTCTime)
 
-import Advanced.Type (CT(..))
-import Tezos.Crypto (KeyHash)
-
--- TODO use proper type
--- ByteString is not precisely catching "Hash of key" (which an address is)
--- We have 'KeyHash' in 'Tezos.Crypto'.
--- We have 'Address' in 'Michelson.Types'.
--- Probably the latter should be a wrapper over the former and be used here.
-
--- | Address type
-type Address = ByteString
+import Michelson.Types (Mutez)
+import Michelson.Advanced.Type (CT(..))
+import Tezos.Crypto (KeyHash, Address)
 
 -- | Representation of comparable value
 -- in Michelson language.
@@ -34,7 +25,7 @@ data CVal t where
   CvNat       :: Natural -> CVal 'T_nat
   CvString    :: Text -> CVal 'T_string
   CvBytes     :: ByteString -> CVal 'T_bytes
-  CvMutez     :: Int64 -> CVal 'T_mutez
+  CvMutez     :: Mutez -> CVal 'T_mutez
   CvBool      :: Bool -> CVal 'T_bool
   CvKeyHash   :: KeyHash -> CVal 'T_key_hash
   CvTimestamp :: UTCTime -> CVal 'T_timestamp

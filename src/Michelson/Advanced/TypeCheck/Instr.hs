@@ -1,6 +1,6 @@
 -- | Module, providing functions for conversion from
 -- instruction and value representation from @Michelson.Type@ module
--- to strictly-typed GADT-based representation from @Advanced.Value@ module.
+-- to strictly-typed GADT-based representation from @Michelson.Advanced.Value@ module.
 --
 -- This conversion is labeled as type check because that's what we are obliged
 -- to do on our way.
@@ -14,8 +14,8 @@
 -- application.
 --
 -- Function @typeCheck@ takes list of instructions and returns value of type
--- @Instr op cp inp out@ along with @IT inp@ and @IT out@ all wrapped into
--- @SomeInstr op cp@ data type. This wrapping is done to satsify Haskell type
+-- @Instr cp inp out@ along with @IT inp@ and @IT out@ all wrapped into
+-- @SomeInstr cp@ data type. This wrapping is done to satsify Haskell type
 -- system (which has no support for dependent types).
 -- Functions @typeCheckI@, @typeCheckVal@ behave similarly.
 --
@@ -25,45 +25,42 @@
 -- recursive call returned instruction of expected type
 -- (error is thrown otherwise).
 
-module Advanced.TypeCheck.TypeCheck
+module Michelson.Advanced.TypeCheck.Instr
     ( typeCheck
-    , typeCheckVal
-    , typeCheckCVal
     , typeCheckContract
+    , typeCheckVal
     ) where
 
 import Data.Default (def)
-import qualified Data.Map as M
-import qualified Data.Set as S
-import Data.Singletons (SingI(sing))
+import Data.Singletons (SingI (sing))
 import Data.Typeable ((:~:)(..))
 import Prelude hiding (EQ, GT, LT)
 
-import Advanced.Type
+import Michelson.Advanced.Type
   (CT(..), Notes(..), Notes'(..), Sing(..), T(..), converge, convergeAnns, extractNotes, fromMType,
   mkNotes, notesCase, orAnn, withSomeSingCT, withSomeSingT)
-import Advanced.TypeCheck.Helpers
-import Advanced.TypeCheck.Types
-import Advanced.Value
+import Michelson.Advanced.TypeCheck.Helpers
+import Michelson.Advanced.TypeCheck.Types
+import Michelson.Advanced.TypeCheck.Value
+import Michelson.Advanced.Value
   (Abs, And, Eq', Ge, Gt, Instr(..), IterOp(..), Le, Lsl, Lsr, Lt, MapOp(..), Neg, Neq, Not, Or,
   Val(..), Xor)
 
 import Michelson.Types (VarAnn)
 import qualified Michelson.Types as M
-import Tezos.Crypto (parsePublicKey, parseSignature)
 
 -- | Like 'typeCheck', but for non-empty lists.
 typeCheckNE
-  :: forall op cp.
+  :: forall cp.
     (Typeable cp, SingI cp)
   => NonEmpty M.Instr
   -> SomeIT
-  -> Either TCError (SomeInstr op cp)
+  -> Either TCError (SomeInstr cp)
 typeCheckNE (a :| []) t = typeCheckI a t
 typeCheckNE (p_ :| (r : rs)) (SomeIT (a :: IT a)) = do
-  typeCheckI @op @cp p_ (SomeIT a) >>= \case
+  typeCheckI @cp p_ (SomeIT a) >>= \case
     p ::: ((_ :: IT a'), (b :: IT b)) ->
-      typeCheckNE @op @cp (r :| rs) (SomeIT b) >>= \case
+      typeCheckNE @cp (r :| rs) (SomeIT b) >>= \case
         q ::: ((_ :: IT b'), c) -> do
           Refl <- eqT' @a @a' `onLeft` TCOtherError
           Refl <- eqT' @b @b' `onLeft` TCOtherError
@@ -80,13 +77,31 @@ typeCheckNE (p_ :| (r : rs)) (SomeIT (a :: IT a)) = do
 --
 -- As a second argument, @typeCheck@ accepts input stack type representation.
 typeCheck
-  :: forall op cp.
+  :: forall cp.
     (Typeable cp, SingI cp)
   => [M.Instr]
   -> SomeIT
-  -> Either TCError (SomeInstr op cp)
+  -> Either TCError (SomeInstr cp)
 typeCheck [] (SomeIT s) = pure $ Nop ::: (s, s)
 typeCheck (a : as) sit = typeCheckNE (a :| as) sit
+
+-- | Function @typeCheckVal@ converts a single Michelson value
+-- given in representation from @Michelson.Type@ module to representation
+-- in strictly typed GADT.
+--
+-- As a second argument, @typeCheckVal@ accepts expected type of value.
+--
+-- Type checking algorithm pattern-matches on parse value representation,
+-- expected type @t@ and constructs @Val cp t@ value.
+--
+-- If there was no match on a given pair of value and expected type,
+-- that is interpreted as input of wrong type and type check finishes with
+-- error.
+typeCheckVal
+  :: forall cp.
+    (Typeable cp, SingI cp)
+  => M.Value M.Op -> T -> Either TCError (SomeVal cp)
+typeCheckVal = typeCheckValImpl typeCheck
 
 -- | Function @typeCheckI@ converts a single Michelson instruction
 -- given in representation from @Michelson.Type@ module to representation
@@ -102,9 +117,9 @@ typeCheck (a : as) sit = typeCheckNE (a :| as) sit
 -- that is interpreted as input of wrong type and type check finishes with
 -- error.
 typeCheckI
-  :: forall op cp.
+  :: forall cp.
     (Typeable cp, SingI cp)
-  => M.Instr -> SomeIT -> Either TCError (SomeInstr op cp)
+  => M.Instr -> SomeIT -> Either TCError (SomeInstr cp)
 
 typeCheckI M.DROP (SomeIT i@(_ ::& rs)) = pure (DROP ::: (i, rs))
 
@@ -296,7 +311,7 @@ typeCheckI (M.IF mp mq) (SomeIT i@((ST_c ST_bool, _, _) ::& rs) ) =
 
 typeCheckI instr@(M.LOOP is)
            (SomeIT i@((ST_c ST_bool, _, _) ::& (rs :: IT rs)) ) = do
-  typeCheck @op @cp (fmap M.unOp is) (SomeIT rs) >>= \case
+  typeCheck @cp (fmap M.unOp is) (SomeIT rs) >>= \case
     SiFail -> pure SiFail
     subI ::: ((_ :: IT rs'), (o :: IT o)) -> do
       Refl <- assertEqT @rs @rs' instr i
@@ -315,7 +330,7 @@ typeCheckI instr@(M.LOOP_LEFT is)
                       ::& (rs :: IT rs)) ) = do
   let (an, bn, avn, bvn) = deriveNsOr ons ovn
       ait = (at, an, avn) ::& rs
-  typeCheck @op @cp (fmap M.unOp is) (SomeIT ait) >>= \case
+  typeCheck @cp (fmap M.unOp is) (SomeIT ait) >>= \case
     SiFail -> pure SiFail
     subI ::: ((_ :: IT rs'), (o :: IT o)) -> do
       Refl <- assertEqT @(a ': rs) @rs' instr i
@@ -353,7 +368,7 @@ typeCheckI instr@(M.EXEC vn) (SomeIT i@(((_ :: Sing t1), _, _)
                 "lambda is given argument with wrong type: " <> m
 
 typeCheckI instr@(M.DIP is) (SomeIT i@(a ::& (s :: IT s))) =
-  typeCheck @op @cp (fmap M.unOp is) (SomeIT s) >>= \case
+  typeCheck @cp (fmap M.unOp is) (SomeIT s) >>= \case
     SiFail -> pure SiFail
     subI ::: ((_ :: IT s'), t) -> do
       Refl <- assertEqT @s @s' instr i
@@ -541,7 +556,7 @@ typeCheckI instr@(M.CREATE_CONTRACT2 ovn avn contract)
              ::& (ST_c ST_bool, _, _) ::& (ST_c ST_mutez, _, _)
              ::& ((_ :: Sing g), gn, _) ::& rs)) = do
   (SomeContract contr _ (out :: IT (ContractOut g'))) <-
-      typeCheckContract @op (fmap M.unOp contract)
+      typeCheckContract (fmap M.unOp contract)
         `onLeft` \err -> TCFailedOnInstr instr (SomeIT i)
                           ("failed to type check contract: " <> show err)
   Refl <- checkEqT @g @g' instr i "contract storage type mismatch"
@@ -603,7 +618,7 @@ typeCheckI (M.ADDRESS vn) (SomeIT i@((ST_contract _, _, _) ::& rs)) =
 typeCheckI instr sit = typeCheckIErr instr sit ""
 
 typeCheckContract
-  :: forall op. M.Contract M.Instr -> Either TCError (SomeContract op)
+  :: forall. M.Contract M.Instr -> Either TCError (SomeContract)
 typeCheckContract (M.Contract mParam mStorage pCode) = do
     code <- maybe (Left $ TCOtherError "no instructions in contract code")
                   pure (nonEmpty pCode)
@@ -618,160 +633,41 @@ typeCheckContract (M.Contract mParam mStorage pCode) = do
         let inpNote =
               mkNotes (NT_pair def def def paramNote storageNote)
         let inp = (ST_pair paramS storageS, inpNote, def) ::& INil
-        typeCheckNE @op @param code (SomeIT inp) >>= \case
+        typeCheckNE @param code (SomeIT inp) >>= \case
           SiFail -> do
             let outNote = mkNotes (NT_pair def def def NStar storageNote)
                 out = (ST_pair (ST_list ST_operation) storageS, outNote, def)
                         ::& INil
             pure $ SomeContract FAILWITH inp out
           instr ::: ((inp' :: IT inp), (out :: IT out)) -> do
-            let mkErr m = TCOtherError $
+            let mkIErr m = TCOtherError $
+                            "contract input type violates convention: " <> m
+            let mkOErr m = TCOtherError $
                             "contract output type violates convention: " <> m
-            Refl <- eqT' @out @(ContractOut st) `onLeft` mkErr
-            Refl <- eqT' @inp @(ContractInp param st) `onLeft` mkErr
+            Refl <- eqT' @out @(ContractOut st) `onLeft` mkOErr
+            Refl <- eqT' @inp @(ContractInp param st) `onLeft` mkIErr
             let outN = outNotes out
             _ <- converge outN (N $ NT_pair def def def NStar storageNote)
-                   `onLeft` mkErr
+                   `onLeft` mkOErr
             pure $ SomeContract instr inp' out
   where
     outNotes :: IT '[o] -> Notes o
     outNotes ((_, n, _) ::& INil) = n
 
--- | Function @typeCheckVal@ converts a single Michelson value
--- given in representation from @Michelson.Type@ module to representation
--- in strictly typed GADT.
---
--- As a second argument, @typeCheckVal@ accepts expected type of value.
---
--- Type checking algorithm pattern-matches on parse value representation,
--- expected type @t@ and constructs @Val op cp t@ value.
---
--- If there was no match on a given pair of value and expected type,
--- that is interpreted as input of wrong type and type check finishes with
--- error.
-typeCheckVal
-  :: forall op cp.
-    (Typeable cp, SingI cp)
-  => M.Value M.Op -> T -> Either TCError (SomeVal op cp)
-typeCheckVal mv t@(T_c ct) =
-  maybe (Left $ TCFailedOnValue mv t "")
-        (\(v :--: cst) -> pure $ VC v :::: (ST_c cst, NStar))
-        (typeCheckCVal mv ct)
-typeCheckVal (M.ValueString (parsePublicKey -> Right s)) T_key =
-  pure $ VKey s :::: (ST_key, NStar)
-
-typeCheckVal (M.ValueString (parseSignature -> Right s)) T_signature =
-  pure $ VSignature s :::: (ST_signature, NStar)
-
-typeCheckVal (M.ValueString (fromBase58Text -> Just s)) (T_contract pt) =
-  withSomeSingT pt $ \p ->
-    pure $ VContract s :::: (ST_contract p, NStar)
-typeCheckVal (M.ValueBytes (M.InternalByteString s)) (T_contract pt) = do
-  withSomeSingT pt $ \p ->
-    pure $ VContract s :::: (ST_contract p, NStar)
-typeCheckVal M.ValueUnit T_unit = pure $ VUnit :::: (ST_unit, NStar)
-typeCheckVal (M.ValuePair ml mr) (T_pair lt rt) = do
-  l :::: (lst, ln) <- typeCheckVal ml lt
-  r :::: (rst, rn) <- typeCheckVal mr rt
-  let ns = mkNotes $ NT_pair def def def ln rn
-  pure $ VPair (l, r) :::: (ST_pair lst rst, ns)
-typeCheckVal (M.ValueLeft ml) (T_or lt rt) = do
-  l :::: (lst, ln) <- typeCheckVal ml lt
-  withSomeSingT rt $ \rst ->
-    pure $ VOr (Left l) :::: ( ST_or lst rst
-                             , mkNotes $ NT_or def def def ln NStar )
-typeCheckVal (M.ValueRight mr) (T_or lt rt) = do
-  r :::: (rst, rn) <- typeCheckVal mr rt
-  withSomeSingT lt $ \lst ->
-    pure $ VOr (Right r) :::: ( ST_or lst rst
-                              , mkNotes $ NT_or def def def NStar rn )
-typeCheckVal (M.ValueSome mv) (T_option vt) = do
-  v :::: (vst, vns) <- typeCheckVal mv vt
-  let ns = mkNotes $ NT_option def def vns
-  pure $ VOption (Just v) :::: (ST_option vst, ns)
-typeCheckVal M.ValueNone (T_option vt) =
-  withSomeSingT vt $ \vst ->
-    pure $ VOption Nothing :::: (ST_option vst, NStar)
-
-typeCheckVal (M.ValueSeq mels) (T_list vt) =
-  withSomeSingT vt $ \vst -> do
-    (els, ns) <- typeCheckVals mels vt
-    pure $ VList els :::: (ST_list vst, mkNotes $ NT_list def ns)
-
-typeCheckVal (M.ValueSeq mels) (T_set vt) =
-  withSomeSingCT vt $ \vst -> do
-    els <- typeCheckCVals mels vt
-            `onLeft` \(cv, err) -> TCFailedOnValue cv (T_c vt) $
-                                      "wrong type of set element: " <> err
-    pure $ VSet (S.fromList els) :::: (ST_set vst, NStar)
-
-typeCheckVal (M.ValueMap mels) (T_map kt vt) =
-  withSomeSingT vt $ \vst ->
-  withSomeSingCT kt $ \kst -> do
-    ks <- typeCheckCVals (map (\(M.Elt k _) -> k) mels) kt
-            `onLeft` \(cv, err) -> TCFailedOnValue cv (T_c kt) $
-                                      "wrong type of map key: " <> err
-    (vals, vns) <- typeCheckVals (map (\(M.Elt _ v) -> v) mels) vt
-    let ns = mkNotes $ NT_map def def vns
-    pure $ VMap (M.fromList $ zip ks vals) :::: (ST_map kst vst, ns)
-
-typeCheckVal v@(M.ValueLambda (fmap M.unOp -> mp)) t@(T_lambda mi mo) =
-  withSomeSingT mi $ \(it :: Sing it) ->
-  withSomeSingT mo $ \(ot :: Sing ot) ->
-  typeCheck @op @cp mp (SomeIT $ (it, NStar, def) ::& INil) >>= \case
-    SiFail ->
-      pure $ VLam FAILWITH :::: (ST_lambda it ot, NStar)
-    lam ::: ((li :: IT li), (lo :: IT lo)) -> do
-      Refl <- eqT' @li @'[ it ] `onLeft` unexpectedErr
-      case (eqT' @'[ ot ] @lo, SomeIT lo, SomeIT li) of
-        ( Right Refl
-         , SomeIT ((_, ons, _) ::& INil :: IT lo')
-         , SomeIT ((_, ins, _) ::& INil :: IT li')
-         ) -> do
-            Refl <- eqT' @lo @lo' `onLeft` unexpectedErr
-            Refl <- eqT' @li @li' `onLeft` unexpectedErr
-            let ns = mkNotes $ NT_lambda def ins ons
-            pure $ VLam lam :::: (ST_lambda it ot, ns)
-        (Right _, _, _) ->
-          Left $ TCFailedOnValue v t
-                  "wrong output type of lambda's value (wrong stack size)"
-        (Left m, _, _) ->
-          Left $ TCFailedOnValue v t $
-                  "wrong output type of lambda's value: " <> m
-  where
-    unexpectedErr m = TCFailedOnValue v t ("unexpected " <> m)
-
-typeCheckVal v t = Left $ TCFailedOnValue v t ""
-
-typeCheckVals
-  :: forall t op cp.
-    ( Typeable t
-    , Typeable cp, SingI cp
-    )
-  => [M.Value M.Op] -> T -> Either TCError ([Val op cp t], Notes t)
-typeCheckVals mvs t = foldM check ([], NStar) mvs
-  where
-    check (res, ns) mv = do
-      v :::: ((_ :: Sing t'), vns) <- typeCheckVal @op @cp mv t
-      Refl <- eqT' @t @t'
-                `onLeft` (TCFailedOnValue mv t . ("wrong element type " <>))
-      ns' <- converge ns vns `onLeft` TCFailedOnValue mv t
-      pure (v : res, ns')
-
 -- | Helper function for two-branch if where each branch is given a single
 -- value.
 genericIf
-  :: forall op cp bti bfi cond rs.
+  :: forall cp bti bfi cond rs.
     (Typeable cp, SingI cp, Typeable bti, Typeable bfi)
-  => (forall s'. Instr op cp bti s'
-         -> Instr op cp bfi s' -> Instr op cp (cond ': rs) s')
+  => (forall s'. Instr cp bti s'
+         -> Instr cp bfi s' -> Instr cp (cond ': rs) s')
   -> ([M.Op] -> [M.Op] -> M.Instr) -> [M.Op] -> [M.Op]
   -> IT bti
   -> IT bfi
-  -> IT (cond ': rs) -> Either TCError (SomeInstr op cp)
+  -> IT (cond ': rs) -> Either TCError (SomeInstr cp)
 genericIf cons mCons mbt mbf bti bfi i@(_ ::& _) =
-  liftA2 (,) (typeCheck @op @cp (M.unOp <$> mbt) (SomeIT bti))
-             (typeCheck @op @cp (M.unOp <$> mbf) (SomeIT bfi)) >>= \case
+  liftA2 (,) (typeCheck @cp (M.unOp <$> mbt) (SomeIT bti))
+             (typeCheck @cp (M.unOp <$> mbf) (SomeIT bfi)) >>= \case
   (p ::: ((_ :: IT pi), (po :: IT po)), q ::: ((_ :: IT qi), (qo :: IT qo))) ->
     do
       Refl <- assertEqT @bti @pi instr i
@@ -792,7 +688,7 @@ genericIf cons mCons mbt mbf bti bfi i@(_ ::& _) =
     instr = mCons mbt mbf
 
 mapImpl
-  :: forall op cp c rs.
+  :: forall cp c rs.
     ( MapOp c
     , Typeable (MapOpInp c)
     , Typeable cp, SingI cp
@@ -802,9 +698,9 @@ mapImpl
   -> M.Instr -> [M.Op] -> IT (c ': rs)
   -> (forall v' . Typeable v' =>
         Sing v' -> Notes v' -> IT rs -> IT (MapOpRes c v' ': rs))
-  -> Either TCError (SomeInstr op cp)
+  -> Either TCError (SomeInstr cp)
 mapImpl pt pns instr mp i@(_ ::& rs) mkRes =
-  typeCheck @op @cp (M.unOp <$> mp)
+  typeCheck @cp (M.unOp <$> mp)
                       (SomeIT $ (pt, pns, def) ::& rs) >>= \case
     SiFail -> pure SiFail
     sub ::: ((_ :: IT subi), (subo :: IT subo)) -> do
@@ -819,17 +715,17 @@ mapImpl pt pns instr mp i@(_ ::& rs) mkRes =
               "iteration expression has wrong output stack type (empty stack)"
 
 iterImpl
-  :: forall op cp c rs.
+  :: forall cp c rs.
     ( IterOp c
     , Typeable (IterOpEl c)
     , Typeable cp, SingI cp
     )
   => Sing (IterOpEl c) -> Notes (IterOpEl c)
   -> M.Instr -> NonEmpty M.Op -> IT (c ': rs)
-  -> Either TCError (SomeInstr op cp)
+  -> Either TCError (SomeInstr cp)
 iterImpl et en instr mp i@((_, _, lvn) ::& rs) = do
   let evn = deriveVN "elt" lvn
-  typeCheckNE @op @cp (fmap M.unOp mp) (SomeIT ((et, en, evn) ::& rs)) >>= \case
+  typeCheckNE @cp (fmap M.unOp mp) (SomeIT ((et, en, evn) ::& rs)) >>= \case
     SiFail -> pure SiFail
     subI ::: ((_ :: IT i), (o :: IT o)) -> do
       Refl <- assertEqT @i @(IterOpEl c ': rs) instr i
@@ -838,7 +734,7 @@ iterImpl et en instr mp i@((_, _, lvn) ::& rs) = do
       pure $ ITER subI ::: (i, o)
 
 lamImpl
-  :: forall it ot op cp ts.
+  :: forall it ot cp ts.
     ( Typeable it, Typeable ts, Typeable ot
     , Typeable cp, SingI cp
     )
@@ -847,9 +743,9 @@ lamImpl
   -> Sing it -> Notes it
   -> Sing ot -> Notes ot
   -> IT ts
-  -> Either TCError (SomeInstr op cp)
+  -> Either TCError (SomeInstr cp)
 lamImpl instr is vn it ins ot ons i = do
-  typeCheck @op @cp (fmap M.unOp is) (SomeIT $ (it, ins, def) ::& INil) >>=
+  typeCheck @cp (fmap M.unOp is) (SomeIT $ (it, ins, def) ::& INil) >>=
     \case
       SiFail -> pure SiFail
       lam ::: ((_ :: IT li), (lo :: IT lo)) -> do

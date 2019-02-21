@@ -14,7 +14,7 @@
 -- both `a` and `b` by replacing some @*@ leafs with type or/and field
 -- annotations.
 
-module Advanced.Type.Annotation
+module Michelson.Advanced.Type.Annotation
   (
     Notes (..)
   , Notes' (..)
@@ -28,12 +28,21 @@ module Advanced.Type.Annotation
 
 import Data.Default (Default(..))
 
-import Advanced.Type.T (T(..))
+import Michelson.Advanced.Type.T (T(..))
 import Michelson.Types (Annotation, FieldAnn, TypeAnn, unifyAnn)
 
 
--- Data type, holding annotation data for a given Michelson type @t@
+-- | Data type, holding annotation data for a given Michelson type @t@
 -- or @*@ in case no data is provided for the tree.
+--
+-- There is a little semantical duplication between data type constructors.
+-- Semantics behind 'NStar' constructor are exactly same as semantics behind
+-- 'N' constructor with relevant 'Notes'' constructor be given all default
+-- values (which means all annotations are empty).
+--
+-- Constructor 'NStar' is given as a tiny optimization to allow handling
+-- no-annotation case completely for free (see 'converge' and 'mkNotes'
+-- functions).
 data Notes t = N (Notes' t) | NStar
 
 -- | Helper function for work with 'Notes' data type.
@@ -87,6 +96,9 @@ isDef = (== def)
 
 -- | Checks whether given notes @n@ can be immediately converted to star
 -- and returns either @NStar@ or @N n@.
+--
+-- Given @n :: Notes' t@ can be immediately converted to star iff all nested
+-- @(sn :: Notes t) == NStar@ and for each annotation @an@: @an == def@.
 mkNotes :: Notes' t -> Notes t
 mkNotes (NT_option tn fn ns) | isStar ns && isDef tn && isDef fn   = NStar
 mkNotes (NT_list tn ns)      | isStar ns && isDef tn               = NStar
@@ -141,6 +153,7 @@ converge' (NT_map a kN vN) (NT_map b kM vM) =
   NT_map <$> convergeAnns a b <*> convergeAnns kN kM <*> converge vN vM
 converge' (NT_big_map a kN vN) (NT_big_map b kM vM) =
   NT_big_map <$> convergeAnns a b <*> convergeAnns kN kM <*> converge vN vM
+
 -- | Same as 'converge'' but works with 'Notes' data type.
 converge :: Notes t -> Notes t -> Either Text (Notes t)
 converge NStar a = pure a

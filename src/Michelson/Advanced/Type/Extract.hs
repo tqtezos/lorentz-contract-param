@@ -1,13 +1,13 @@
 {-# LANGUAGE DataKinds, GADTs #-}
 
 -- Module, containing functions to convert @Michelson.Type.Type@ to
--- @Advanced.Type.T.T@ Michelson type representation (type stripped off all
--- annotations) and to @Advanced.Type.Annotation.Notes@ value (which contains
+-- @Michelson.Advanced.Type.T.T@ Michelson type representation (type stripped off all
+-- annotations) and to @Michelson.Advanced.Type.Annotation.Notes@ value (which contains
 -- field and type annotations for a given Michelson type).
 --
 -- I.e. @Michelson.Type.Type@ is split to value @t :: T@ and value of type
 -- @Notes t@ for which @t@ is a type representation of value @t@.
-module Advanced.Type.Extract
+module Michelson.Advanced.Type.Extract
   (
     extractNotes
   , fromMType
@@ -15,9 +15,9 @@ module Advanced.Type.Extract
 
 import qualified Michelson.Types as M
 
-import Advanced.Type.Annotation (Notes(..), Notes'(..), mkNotes)
-import Advanced.Type.Sing (Sing(..), fromSingT, fromSingCT)
-import Advanced.Type.T (T(..))
+import Michelson.Advanced.Type.Annotation (Notes(..), Notes'(..), mkNotes)
+import Michelson.Advanced.Type.Sing (Sing(..), fromSingT, fromSingCT)
+import Michelson.Advanced.Type.T (T(..))
 
 -- | Extracts 'T' type from 'Michelson.Type.Type'.
 fromMType :: M.Type -> T

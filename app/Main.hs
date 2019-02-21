@@ -12,13 +12,14 @@ import qualified Options.Applicative as Opt
 import Text.Megaparsec (parse)
 import Text.Pretty.Simple (pPrint)
 
-import qualified Advanced as A
+import qualified Michelson.Advanced as A
 import qualified Michelson.Typecheck as S
 import Michelson.Types
 import Morley.Macro (expandFlattenContract, expandValue)
 import qualified Morley.Parser as P
 import Morley.Runtime (Account(..), TxData(..), originateContract, runContract)
 import Morley.Types
+import Tezos.Crypto (parseAddress, Address)
 
 data TypeCheckAlgo = TCSimpleTyped | TCAdvancedTyped
 
@@ -163,14 +164,17 @@ txData =
     <*> valueOption "parameter" "Parameter of passed contract"
     <*> mutezOption "amount" "Amout sent by a transaction"
   where
-    sender = strOption $
+    sender = option (eitherReader parseAddrDo) $
       long "sender" <>
       metavar "ADDRESS" <>
       help "Sender address"
-    mkTxData :: String -> Value Op -> Mutez -> TxData
+    parseAddrDo addr =
+      either (Left . mappend "Failed to parse address: " . show) Right $
+        parseAddress $ toText addr
+    mkTxData :: Address -> Value Op -> Mutez -> TxData
     mkTxData addr param amount =
       TxData
-        { tdSenderAddress = Address (toText addr)
+        { tdSenderAddress = addr
         , tdParameter = param
         , tdAmount = amount
         }

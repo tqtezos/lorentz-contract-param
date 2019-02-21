@@ -6,6 +6,7 @@ module Tezos.Crypto
   , SecretKey
   , Signature
   , KeyHash (..)
+  , Address (..)
   , toPublic
 
   -- * Formatting
@@ -18,6 +19,8 @@ module Tezos.Crypto
   , parseSignature
   , formatKeyHash
   , parseKeyHash
+  , formatAddress
+  , parseAddress
 
   -- * Signing
   , sign
@@ -36,7 +39,7 @@ import Crypto.Hash (Blake2b_160, Blake2b_256, Digest, SHA256, SHA512, hash)
 import Crypto.Number.Serialize (os2ip)
 import qualified Crypto.PubKey.Ed25519 as Ed25519
 import Crypto.Random (drgNewSeed, seedFromInteger, withDRG)
-import Data.Aeson (FromJSON(..), ToJSON(..))
+import Data.Aeson (FromJSON(..), ToJSON(..), ToJSONKey, FromJSONKey)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Encoding as Aeson
 import qualified Data.ByteArray as ByteArray
@@ -91,6 +94,11 @@ newtype KeyHash = KeyHash
 instance Arbitrary KeyHash where
   arbitrary = hashKey <$> arbitrary
 
+-- | Address type
+newtype Address = Address
+  { unAddress :: ByteString
+  } deriving (Show, Eq, Ord)
+
 ----------------------------------------------------------------------------
 -- Magic bytes
 --
@@ -113,6 +121,9 @@ signatureTag = "\9\245\205\134\18"
 
 keyHashTag :: ByteString
 keyHashTag = "\6\161\159"
+
+addressTag :: ByteString
+addressTag = "" -- TODO fill in actual value
 
 ----------------------------------------------------------------------------
 -- Formatting
@@ -170,6 +181,15 @@ instance Buildable.Buildable KeyHash where
 parseKeyHash :: Text -> Either CryptoParseError KeyHash
 parseKeyHash = parseImpl keyHashTag pure
 
+formatAddress :: Address -> Text
+formatAddress = formatImpl addressTag . unAddress
+
+instance Buildable.Buildable Address where
+  build = Buildable.build . formatAddress
+
+parseAddress :: Text -> Either CryptoParseError Address
+parseAddress = parseImpl addressTag pure
+
 formatImpl :: ByteArray.ByteArrayAccess x => ByteString -> x -> Text
 formatImpl tag = encodeBase58Check . mappend tag . ByteArray.convert
 
@@ -216,6 +236,17 @@ instance FromJSON KeyHash where
   parseJSON =
     Aeson.withText "KeyHash" $
     either (fail . pretty) pure . parseKeyHash
+
+instance ToJSON Address where
+  toJSON = Aeson.String . formatAddress
+  toEncoding = Aeson.text . formatAddress
+instance ToJSONKey Address
+
+instance FromJSON Address where
+  parseJSON =
+    Aeson.withText "Address" $
+    either (fail . pretty) pure . parseAddress
+instance FromJSONKey Address
 
 ----------------------------------------------------------------------------
 -- Signing
