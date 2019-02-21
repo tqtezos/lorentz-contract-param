@@ -1,3 +1,7 @@
+module Spec
+  ( main
+  ) where
+
 import Test.Hspec (hspec)
 
 import qualified Test.Macro as Macro

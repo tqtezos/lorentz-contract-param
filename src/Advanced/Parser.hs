@@ -7,7 +7,7 @@ module Advanced.Parser
 
 import Data.Typeable ((:~:)(..), eqT)
 import Data.Vinyl (Rec(..))
-import Text.Megaparsec
+import Text.Megaparsec (parse)
 
 import Advanced.Interpreter (ContractEnv(..), Operation, doInstr, run)
 import Advanced.Type (CT(..), T(..))

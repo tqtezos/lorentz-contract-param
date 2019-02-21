@@ -32,7 +32,8 @@ library
                      , Morley.Types
                      , Prelude
                      , Tezos.Crypto
-                     , Advanced.Interpreter
+                     , Advanced
+  other-modules:       Advanced.Interpreter
                      , Advanced.Parser
                      , Advanced.Type
                      , Advanced.Type.Annotation

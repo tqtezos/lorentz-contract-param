@@ -9,7 +9,7 @@ import Morley.Macro (expandFlat)
 import Morley.Parser (contract)
 import Test.Hspec (Expectation, Spec, describe, expectationFailure, it)
 import Text.Megaparsec (parse)
-import Advanced.TypeCheck (typeCheckC)
+import Advanced (typeCheckC)
 
 import Test.Util.Contracts (getIllTypedContracts, getWellTypedContracts)
 

@@ -1,5 +1,3 @@
-{-# LANGUAGE GADTs, TypeApplications #-}
-
 -- | Module, containing function to interpret Michelson
 -- instructions against given context and input stack.
 module Advanced.Interpreter

@@ -18,7 +18,7 @@ import Morley.Macro (expandFlattenContract, expandValue)
 import qualified Morley.Parser as P
 import Morley.Runtime (Account(..), TxData(..), originateContract, runContract)
 import Morley.Types
-import Advanced.Parser (parseAndTypeCheck)
+import Advanced (parseAndTypeCheck)
 
 data TypeCheckAlgo = TCSimpleTyped | TCAdvancedTyped
 
