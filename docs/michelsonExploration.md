@@ -49,6 +49,37 @@ It's because this storage value is the result of `PACK` applied to the `KT1TDFxA
 One more operation that can put a contract on stack is `IMPLICIT_ACCOUNT`.
 Implicit account always exists, so it always puts an existing account on stack.
 
+## Checking string literal of a contract/address
+
+As was written above, contract's string literal is the same as address' string literal.
+It can even be a `tz1` address in which case it has type `contract unit`.
+However, as we know, `contract` type can represent only a contract that has been originated.
+Hence a question arises: when should we check whether a string literal corresponding to a contract is valid (i. e. the contract itself is originated).
+The following script has been used to test it:
+
+```
+parameter string;
+storage string;
+code { CDR;
+       PUSH (contract string) "KT1TDFxATmqqTcPWPJvrv7XC6EDS82ztRntf";
+       DROP;
+       NIL operation; PAIR;};
+```
+
+This script is well-typed and doesn't fail in runtime if we use alphanet.
+* If we modify an arbitrary letter in the pushed string literal, the script will be ill-typed, because the string will be invalid base58check string. In this case it doesn't matter whether we push `contract string` or `address`, it will be ill-typed in both cases.
+* If we change the pushed type to `contract key_hash`, the script will be ill-typed (such contract exists, but has a different parameter type).
+* If we change the pushed type and value to `PUSH (contract (or :_entries (unit %_Liq_entry_open) (unit %_Liq_entry_join))) "KT19iqoRhBwGdgNVQn6mnXLtoY3bige35CVq";`, the script will be ill-typed on alphanet and well-typed on zeronet (it's a valid script from zeronet).
+* And if we use alphanet version and try to push an `address` from zeronet, the script will be well-typed.
+
+Summary of how typechecker checks contract/address string literals:
+* Base58check format is always checked.
+* If the type is `address`, nothing else is checked (even if it's a `KT1`-address of a non-existing contract, it's fine).
+* If the type is `contract t`, type checker also checks that there is a contract with given parameter type and address that has been originated in the network.
+
+It means that such typechecker should have access to all originated contracts.
+It's not necessary to access their code, it's enough to know all addresses and corresponding parameter types.
+
 ## Computation of contract's address
 
 Specific format is not yet clear, but according to [this answer](https://tezos.stackexchange.com/a/361/342) it's a pure function which takes origination command as input.
