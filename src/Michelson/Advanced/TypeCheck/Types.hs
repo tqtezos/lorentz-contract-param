@@ -1,4 +1,4 @@
-module Advanced.TypeCheck.Types
+module Michelson.Advanced.TypeCheck.Types
     (
       IT (..)
     , SomeIT (..)
@@ -14,8 +14,8 @@ module Advanced.TypeCheck.Types
 import Prelude hiding (EQ, GT, LT)
 import qualified Text.Show
 
-import Advanced.Type (Notes(..), Sing(..), T(..), fromSingT)
-import Advanced.Value
+import Michelson.Advanced.Type (Notes(..), Sing(..), T(..), fromSingT)
+import Michelson.Advanced.Value
 
 import qualified Michelson.Types as M
 import Michelson.Types (VarAnn)
@@ -25,7 +25,7 @@ import Michelson.Types (VarAnn)
 -- This data type is used along with instruction data type @Instr@
 -- to carry information about its input and output stack types.
 --
--- That is, if there is value @instr :: Instr op cp inp out@, along with this
+-- That is, if there is value @instr :: Instr cp inp out@, along with this
 -- @instr@ one may carry @inpIT :: IT inp@ and @outIT :: IT out@ which will
 -- contain whole information about input and output stack types for @instr@.
 --
@@ -43,7 +43,7 @@ import Michelson.Types (VarAnn)
 -- data for pattern-matching.
 -- Second element of triple is a structure, holding field and type annotations
 -- for a given type.
--- Third element of triple is an option variable annotation for the stack
+-- Third element of triple is an optional variable annotation for the stack
 -- element.
 data IT (ts :: [T])  where
   INil :: IT '[]
@@ -70,38 +70,38 @@ data SomeIT where
 --
 -- Intput and output stack types are wrapped inside the type and @Typeable@
 -- constraints are provided to allow convenient unwrapping.
-data SomeInstr op cp where
+data SomeInstr cp where
   (:::) :: (Typeable inp, Typeable out)
-        => Instr op cp inp out -> (IT inp, IT out) -> SomeInstr op cp
-  SiFail :: SomeInstr op cp
+        => Instr cp inp out -> (IT inp, IT out) -> SomeInstr cp
+  SiFail :: SomeInstr cp
 
   -- TODO use this constructor (to have closer reflection of expression)
-  -- SiFail :: Typeable inp => Instr op cp inp out -> IT inp -> SomeInstr op cp
+  -- SiFail :: Typeable inp => Instr cp inp out -> IT inp -> SomeInstr cp
 
-instance Show op => Show (SomeInstr op cp) where
+instance Show (SomeInstr cp) where
   show (i ::: (inp, out)) = show i <> " :: " <> show inp <> " -> " <> show out
   show SiFail = "failed"
 
 -- | Data type, holding strictly-typed Michelson value along with its
 -- type singleton.
-data SomeVal op cp where
+data SomeVal cp where
     (::::) :: Typeable t
-           => Val op cp t -> (Sing t, Notes t) -> SomeVal op cp
+           => Val (Instr cp) t -> (Sing t, Notes t) -> SomeVal cp
 
 -- | Data type, holding strictly-typed Michelson value along with its
 -- type singleton.
 data SomeValC where
     (:--:) :: Typeable t => CVal t -> Sing t -> SomeValC
 
-data SomeContract op where
+data SomeContract where
   SomeContract
     :: (Typeable st, Typeable cp)
-    => Instr op cp (ContractInp cp st) (ContractOut st)
+    => Instr cp (ContractInp cp st) (ContractOut st)
     -> IT (ContractInp cp st)
     -> IT (ContractOut st)
-    -> SomeContract op
+    -> SomeContract
 
-deriving instance Show op => Show (SomeContract op)
+deriving instance Show (SomeContract)
 
 type ContractInp param st = '[ 'T_pair param st ]
 type ContractOut st = '[ 'T_pair ('T_list 'T_operation) st ]

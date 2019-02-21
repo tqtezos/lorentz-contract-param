@@ -7,6 +7,8 @@ module Michelson.Interpret
        ) where
 
 import Michelson.Types
+import qualified Michelson.Advanced as A
+import Tezos.Crypto (Address)
 
 -- | Environment for contract execution.
 data ContractEnv = ContractEnv
@@ -39,5 +41,5 @@ newtype MichelsonFailed = MichelsonFailed
 
 -- TODO [TM-16] Implement!
 -- | Interpret a contract without performing any side effects.
-michelsonInterpreter :: ContractEnv -> Contract Op -> Either MichelsonFailed ([NetworkOp], Value Op)
+michelsonInterpreter :: ContractEnv -> Contract Op -> Either MichelsonFailed ([A.Operation (A.Instr cp)], Value Op)
 michelsonInterpreter _ _ = pure ([], ValueFalse)

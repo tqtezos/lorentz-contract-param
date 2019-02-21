@@ -10,11 +10,8 @@ module Michelson.Types
     -- * Data types
   , Timestamp (..)
   , Mutez (..)
-  , Address (..)
   , Value (..)
   , Elt (..)
-  , NetworkOp (..)
-  , contractAddress
 
   -- Internal types to avoid orphan instances
   , InternalByteString(..)
@@ -78,12 +75,11 @@ module Michelson.Types
 
 import qualified Text.Show
 import Data.Aeson
-  (FromJSON(..), FromJSONKey, ToJSON(..), ToJSONKey, genericParseJSON, genericToJSON)
+  (FromJSON(..), ToJSON(..), genericParseJSON, genericToJSON)
 import Data.Aeson.TH (defaultOptions, deriveJSON)
 import Data.Data (Data(..))
 import Data.Default (Default(..))
 import qualified Data.Text as T
-import Formatting.Buildable (Buildable)
 
 type Parameter = Type
 type Storage = Type
@@ -113,19 +109,8 @@ newtype Timestamp = Timestamp
 newtype Mutez = Mutez
   { unMutez :: Word64
   } deriving stock (Show, Eq, Ord, Data)
-    deriving newtype (ToJSON, FromJSON)
-
-newtype Address = Address
-  { unAddress :: Text
-  } deriving stock (Show, Eq, Ord, Data)
-    deriving newtype (ToJSON, FromJSON, ToJSONKey, FromJSONKey, Buildable)
-
--- TODO [TM-17] I guess it's possible to compute address of a contract, but I
--- don't know how do it (yet). Maybe it requires more data. In the
--- worst case we can store such map in GState. Maybe we'll have to
--- move this function to Morley.
-contractAddress :: Contract Op -> Address
-contractAddress _ = Address "dummy-address"
+    deriving newtype ( ToJSON, FromJSON, Num
+                     , Integral, Real, Enum, Bounded)
 
 {- Data types -}
 data Value op =
@@ -149,14 +134,6 @@ data Value op =
 
 data Elt op = Elt (Value op) (Value op)
   deriving (Eq, Show, Functor, Data, Generic)
-
--- | Corresponds to the @operation@ type in Michelson.
--- TODO: add actual data.
-data NetworkOp
-  = CreateContract
-  | CreateAccount
-  | TransferTokens
-  | SetDelegate
 
 data InstrAbstract op =
     DROP

@@ -1,9 +1,8 @@
 -- | Module, containing function to interpret Michelson
 -- instructions against given context and input stack.
-module Advanced.Interpreter
+module Michelson.Advanced.Interpreter
   ( doInstr
   , ContractEnv (..)
-  , Operation (..)
   , run
   ) where
 
@@ -15,25 +14,15 @@ import qualified Data.Text as T
 import Data.Vinyl (Rec(..), (<+>))
 
 
-import Advanced.Type (CT(..), T(..))
-import Advanced.Value
-
--- | Data type, representing operation, list of which is returned
--- by Michelson contract (according to calling convention).
---
--- These operations are to be further executed against system state
--- after the contract execution.
-data Operation where
-  TransferTokens :: Show p => p -> Int64 -> Address -> Operation
-
-deriving instance Show Operation
+import Michelson.Advanced.Type (CT(..), T(..))
+import Michelson.Advanced.Value as A
 
 data ContractEnv = ContractEnv
 data MichelsonFailed = MichelsonFailed
   deriving Show
 
--- newtype MichelsonFailed op t = MichelsonFailed
-  -- { unMichelsonFailed :: Val op t
+-- newtype MichelsonFailed t = MichelsonFailed
+  -- { unMichelsonFailed :: Val t
   -- } deriving (Show)
 
 newtype EvalOp a = EvalOp
@@ -45,9 +34,9 @@ doInstr = runReader . runExceptT . runEvalOp
 
 -- | Function to interpret Michelson instruction(s) against given stack.
 run :: (MonadError MichelsonFailed m, MonadReader ContractEnv m)
-    => Instr Operation cp inp out
-    -> Rec (Val Operation cp) inp
-    -> m (Rec (Val Operation cp) out)
+    => Instr cp inp out
+    -> Rec (Val (Instr cp)) inp
+    -> m (Rec (Val (Instr cp)) out)
 run (Seq i1 i2) r = run i1 r >>= \r' -> run i2 r'
 run Nop r = pure $ r
 run DROP (_ :& r) = pure $ r
@@ -74,7 +63,7 @@ run CONS (a :& VList l :& r) = pure $ VList (a : l) :& r
 run (IF_CONS _ bNil) (VList [] :& r) = run bNil r
 run (IF_CONS bCons _) (VList (lh : lr) :& r) = run bCons (lh :& VList lr :& r)
 run SIZE (VList a :& r) = pure $ VC (CvNat $ fromIntegral $ length a) :& r
--- run (MAP ops) (VMap a :& r) =  :& r
+-- run (MAPs) (VMap a :& r) =  :& r
 run (ITER _) (VList [] :& r) = pure $ r
 run (ITER e) (VList (lh : lr) :& r) = do
   res <- run e (lh :& r)
@@ -126,15 +115,17 @@ run OR (VC l :& VC r :& rest) = pure $ VC (evalOp (Proxy @Or) l r) :& rest
 run AND (VC l :& VC r :& rest) = pure $ VC (evalOp (Proxy @And) l r) :& rest
 run XOR (VC l :& VC r :& rest) = pure $ VC (evalOp (Proxy @Xor) l r) :& rest
 run NOT (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Not) a) :& rest
-run COMPARE (VC l :& VC r :& rest) = pure $ VC (evalOp (Proxy @Compare) l r) :& rest
-run Advanced.Value.EQ (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Eq') a) :& rest
+run COMPARE (VC l :& VC r :& rest) =
+  pure $ VC (evalOp (Proxy @Compare) l r) :& rest
+run A.EQ (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Eq') a) :& rest
 run NEQ (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Neq) a) :& rest
-run Advanced.Value.LT (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Lt) a) :& rest
-run Advanced.Value.GT (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Gt) a) :& rest
+run A.LT (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Lt) a) :& rest
+run A.GT (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Gt) a) :& rest
 run LE (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Le) a) :& rest
 run GE (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Ge) a) :& rest
 -- More herec
-run TRANSFER_TOKENS (p :& VC (CvMutez mutez) :& VContract addr :& r) = pure $ VOp (TransferTokens p mutez addr) :& r
+run TRANSFER_TOKENS (p :& VC (CvMutez mutez) :& contract :& r) =
+  pure $ VOp (TransferTokens p mutez contract) :& r
 run _ _ = error "Unsupported instruction"
 
 --------------------
@@ -149,7 +140,7 @@ run _ _ = error "Unsupported instruction"
 --    ADD;
 --    PUSH nat 12
 --    ADD;
-_myInstr :: Instr op cp ('T_c 'T_int : s) ('T_c 'T_int : s)
+_myInstr :: Instr cp ('T_c 'T_int : s) ('T_c 'T_int : s)
 _myInstr =
   PUSH (VC $ CvInt 223) #
   SOME #
@@ -161,10 +152,10 @@ _myInstr =
 -- | @myInstr2@ can not be represented in Michelson
 -- syntax as Michelson has no way to directly push value
 -- of type "option int"
-_myInstr2 :: Instr op cp a ('T_option ('T_c 'T_int) : a)
+_myInstr2 :: Instr cp a ('T_option ('T_c 'T_int) : a)
 _myInstr2 =
   PUSH (VOption $ Just $ VC $ CvInt 223) #
   Nop
 
--- _myInstrEvaluated :: Rec (Val Operation) '[ 'T_c 'T_int ]
+-- _myInstrEvaluated :: Rec (Val) '[ 'T_c 'T_int ]
 -- _myInstrEvaluated = run myInstr (VC (CvInt 90) :& RNil)

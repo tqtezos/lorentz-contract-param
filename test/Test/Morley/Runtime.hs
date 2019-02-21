@@ -12,6 +12,7 @@ import Michelson.Interpret
 import Michelson.Types
 import Morley.Runtime
 import Morley.Runtime.GState (GState(..), initGState)
+import Tezos.Crypto (Address (..))
 
 spec :: Spec
 spec = describe "Morley.Runtime" $ do
