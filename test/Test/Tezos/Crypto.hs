@@ -4,6 +4,8 @@ module Test.Tezos.Crypto
   ( spec
   ) where
 
+import Data.Aeson (FromJSON(..), ToJSON(..))
+import qualified Data.Aeson as Aeson
 import Data.Typeable (typeRep)
 import Fmt (fmt, hexF, pretty)
 import Formatting.Buildable (Buildable)
@@ -42,6 +44,10 @@ spec = describe "Tezos.Crypto" $ do
         formattingRoundtrip formatSecretKey parseSecretKey
         formattingRoundtrip formatSignature parseSignature
         formattingRoundtrip formatKeyHash parseKeyHash
+      describe "Roundtrip (JSON encoding/deconding)" $ do
+        aesonRoundtrip @PublicKey
+        aesonRoundtrip @Signature
+        aesonRoundtrip @KeyHash
     describe "checkSignature" $ do
       it "Works on sample data" $ mapM_ checkSignatureSample sampleSignatures
   describe "Bytes hashing" $ do
@@ -122,6 +128,14 @@ formattingRoundtrip format parse = prop typeName check
     typeName = show $ typeRep (Proxy @x)
     check :: ShowThroughBuild x -> Property
     check (STB x) = bimap STB STB (parse (format x)) === Right (STB x)
+
+aesonRoundtrip ::
+     forall x. (Buildable x, ToJSON x, FromJSON x, Typeable x, Arbitrary x, Eq x)
+  => Spec
+aesonRoundtrip =
+  formattingRoundtrip
+    (decodeUtf8 . Aeson.encode @x)
+    (Aeson.eitherDecode . encodeUtf8)
 
 ----------------------------------------------------------------------------
 -- Hashing
