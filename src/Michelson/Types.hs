@@ -248,7 +248,7 @@ data InstrAbstract op =
 -------------------------------------
 newtype Annotation tag = Annotation T.Text
   deriving (Eq, Data, Functor)
-  deriving newtype (ToJSON, FromJSON)
+  deriving newtype (ToJSON, FromJSON, IsString)
 
 instance Default (Annotation tag) where
   def = Annotation ""
@@ -275,9 +275,6 @@ noAnn = Annotation ""
 
 ann :: T.Text -> Annotation a
 ann = Annotation
-
-instance IsString (Annotation tag) where
-  fromString = Annotation . toText
 
 instance Semigroup VarAnn where
   Annotation a <> Annotation b
