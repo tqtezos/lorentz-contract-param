@@ -95,3 +95,85 @@ Then I passed this address to a script whose storage has contract type.
 It was passed successfully, even though the contract hasn't been actually originated on alphanet (I checked it in block explorer).
 So apparently it was stored somewhere locally.
 I don't know how exactly it works.
+
+## On contract's parameter type
+
+Contract's parameter type can be easily tricked and implicitly casted when making a call (making unexpected annotation mismatch)
+
+Let's originate contract `test1.tz`:
+
+```
+parameter (pair (int :t) (int %s));
+storage int;
+
+code { DUP; DUP;
+       CAAR;
+       DIP { CADR; };
+       ADD;
+       DIP { CDR; };
+       ADD;
+       NIL operation;
+       PAIR;
+     }
+```
+
+```
+./alphanet.sh client originate contract test1 for alice transferring 1 from alice running container:test1.tz --init 0 --burn-cap 1
+```
+
+Say, it was originated with identifier `KT1WsLzQ61xtMNJHfwgCHh2RnALGgFAzeSx9`.
+Then let's originate another contract `test2.tz`:
+
+```
+parameter (pair (int :p) (int %q));
+storage unit;
+
+code {
+       PUSH (contract (pair int int)) "KT1WsLzQ61xtMNJHfwgCHh2RnALGgFAzeSx9";
+       SWAP;
+       PUSH mutez 10000;
+       SWAP;
+       CAR;
+       TRANSFER_TOKENS;
+       NIL operation;
+       SWAP; CONS;
+       UNIT;
+       SWAP;
+       PAIR;
+     }
+```
+
+```
+./alphanet.sh client originate contract test2 for alice transferring 1 from alice running container:test2.tz --init Unit --burn-cap 1
+```
+
+And finally call it:
+
+```
+./alphanet.sh client transfer 0 from alice to test2 --arg 'Pair 11 23'
+```
+
+Everything works like a charm.
+We effectively launched contract with parameter type `pair (int :t) (int %s)` passing `pair (int :p) (int %q)` as parameter to it.
+
+Just for the reference, slight modification to `test2.tz` leads to type check error:
+
+```diff
+parameter (pair (int :p) (int %q));
+storage unit;
+
+code {
+-       PUSH (contract (pair int int)) "KT1WsLzQ61xtMNJHfwgCHh2RnALGgFAzeSx9";
++       PUSH (contract (pair (int :p) (int %q))) "KT1WsLzQ61xtMNJHfwgCHh2RnALGgFAzeSx9";
+       SWAP;
+       PUSH mutez 10000;
+       SWAP;
+       CAR;
+       TRANSFER_TOKENS;
+       NIL operation;
+       SWAP; CONS;
+       UNIT;
+       SWAP;
+       PAIR;
+     }
+```
