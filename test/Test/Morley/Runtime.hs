@@ -43,7 +43,7 @@ updatesStorageValue ca = either throwM handleResult $ do
       , accContract = contract
       }
   gState' <- _irGState <$>
-    interpreterPure dummyNow initGState [OriginateOp account]
+    interpreterPure dummyNow dummyMaxSteps initGState [OriginateOp account]
   -- Note: `contractAddress` most likely should require the
   -- contract to be originated, even though now it doesn't.
   let
@@ -53,7 +53,7 @@ updatesStorageValue ca = either throwM handleResult $ do
       , tdParameter = ceParameter ce
       , tdAmount = Mutez 100
       }
-  (addr,) <$> interpreterPure dummyNow gState' [TransferOp addr txData]
+  (addr,) <$> interpreterPure dummyNow dummyMaxSteps gState' [TransferOp addr txData]
   where
     handleResult :: (Address, InterpreterRes) -> Expectation
     handleResult (addr, ir) = do
@@ -65,7 +65,7 @@ updatesStorageValue ca = either throwM handleResult $ do
 
 failsToOriginateTwice :: Expectation
 failsToOriginateTwice =
-  interpreterPure dummyNow initGState ops `shouldSatisfy`
+  interpreterPure dummyNow dummyMaxSteps initGState ops `shouldSatisfy`
   isAlreadyOriginated
   where
     contract = caContract contractAux1
@@ -86,10 +86,13 @@ failsToOriginateTwice =
 dummyNow :: Timestamp
 dummyNow = Timestamp 100
 
+dummyMaxSteps :: Word64
+dummyMaxSteps = 100500
+
 dummyContractEnv :: ContractEnv
 dummyContractEnv = ContractEnv
   { ceNow = dummyNow
-  , ceMaxSteps = 100500
+  , ceMaxSteps = dummyMaxSteps
   , ceBalance = Mutez 100
   , ceStorage = ValueUnit
   , ceContracts = mempty

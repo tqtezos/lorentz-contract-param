@@ -17,7 +17,7 @@ module Morley.Runtime
 
 import Control.Lens (at, makeLenses, (%=), (.=), (<>=))
 import Control.Monad.Except (Except, runExcept, throwError)
-
+import qualified Data.Time.Clock.POSIX as Time
 import Michelson.Interpret (ContractEnv(..), MichelsonFailed, michelsonInterpreter)
 import Michelson.Types
 import Morley.Runtime.GState
@@ -82,22 +82,23 @@ instance Exception InterpreterError
 originateContract :: Bool -> FilePath -> Account -> IO Address
 originateContract verbose dbPath account =
   contractAddress (accContract account) <$
-  interpreter Nothing verbose dbPath (OriginateOp account)
+  interpreter Nothing 100500 verbose dbPath (OriginateOp account)
 
 -- | Run a contract. The contract is originated first (if it's not
 -- already) and then we pretend that we send a transaction to it.
 runContract
     :: Maybe Timestamp
+    -> Word64
     -> Bool
     -> FilePath
     -> Value Op
     -> Contract Op
     -> TxData
     -> IO ()
-runContract maybeNow verbose dbPath storageValue contract txData = do
+runContract maybeNow maxSteps verbose dbPath storageValue contract txData = do
   addr <- originateContract verbose dbPath acc
     `catch` ignoreAlreadyOriginated
-  interpreter maybeNow verbose dbPath (TransferOp addr txData)
+  interpreter maybeNow maxSteps verbose dbPath (TransferOp addr txData)
   where
     defaultBalance = Mutez 4000000000
     acc = Account
@@ -116,12 +117,12 @@ runContract maybeNow verbose dbPath storageValue contract txData = do
 
 -- | Interpret a contract on some global state (read from file) and
 -- transaction data (passed explicitly).
-interpreter :: Maybe Timestamp -> Bool -> FilePath -> InterpreterOp -> IO ()
-interpreter maybeNow verbose dbPath operation = do
+interpreter :: Maybe Timestamp -> Word64 -> Bool -> FilePath -> InterpreterOp -> IO ()
+interpreter maybeNow maxSteps verbose dbPath operation = do
   now <- maybe getCurrentTime pure maybeNow
   gState <- readGState dbPath
   let
-    eitherRes = interpreterPure now gState [operation]
+    eitherRes = interpreterPure now maxSteps gState [operation]
   InterpreterRes {..} <- either throwM pure eitherRes
   -- TODO: pretty print
   when (verbose && not (null _irUpdatedValues)) $
@@ -131,9 +132,9 @@ interpreter maybeNow verbose dbPath operation = do
 -- | Implementation of interpreter outside 'IO'.  It reads operations,
 -- interprets them one by one and updates state accordingly.
 interpreterPure ::
-  Timestamp -> GState -> [InterpreterOp] -> Either InterpreterError InterpreterRes
-interpreterPure now gState ops =
-    runExcept (execStateT (statefulInterpreter now) initialState)
+  Timestamp -> Word64 -> GState -> [InterpreterOp] -> Either InterpreterError InterpreterRes
+interpreterPure now maxSteps gState ops =
+    runExcept (execStateT (statefulInterpreter now maxSteps) initialState)
   where
     initialState = InterpreterRes
       { _irGState = gState
@@ -143,9 +144,11 @@ interpreterPure now gState ops =
       }
 
 -- TODO: do we want to update anything in case of error?
-statefulInterpreter ::
-     Timestamp -> StateT InterpreterRes (Except InterpreterError) ()
-statefulInterpreter now = do
+statefulInterpreter
+  :: Timestamp
+  -> Word64
+  -> StateT InterpreterRes (Except InterpreterError) ()
+statefulInterpreter now maxSteps = do
   curGState <- use irGState
   mSourceAddr <- use irSourceAddress
   use irOperations >>= \case
@@ -153,23 +156,24 @@ statefulInterpreter now = do
     (op:opsTail) ->
       -- TODO: is it correct to pass latest GState?
       either throwError (processIntRes opsTail) $
-      interpretOneOp now mSourceAddr curGState op
+      interpretOneOp now maxSteps mSourceAddr curGState op
   where
     processIntRes opsTail InterpreterRes {..} = do
       irGState .= _irGState
       irOperations .= opsTail <> _irOperations
       irUpdatedValues <>= _irUpdatedValues
       irSourceAddress %= (<|> _irSourceAddress)
-      statefulInterpreter now
+      statefulInterpreter now maxSteps
 
 -- | Run only one interpreter operation and update 'GState' accordingly.
 interpretOneOp
   :: Timestamp
+  -> Word64
   -> Maybe Address
   -> GState
   -> InterpreterOp
   -> Either InterpreterError InterpreterRes
-interpretOneOp _ _ gs (OriginateOp account) =
+interpretOneOp _ _ _ gs (OriginateOp account) =
   case addAccount (contractAddress contract) account gs of
     Nothing -> Left (IEAlreadyOriginated account)
     Just newGS -> Right $
@@ -181,14 +185,14 @@ interpretOneOp _ _ gs (OriginateOp account) =
       }
   where
     contract = accContract account
-interpretOneOp now mSourceAddr gs (TransferOp addr txData) = do
+interpretOneOp now maxSteps mSourceAddr gs (TransferOp addr txData) = do
     acc <- maybe (Left (IEUnknownContract addr)) Right (accounts ^. at addr)
     let
       sourceAddr = fromMaybe (tdSenderAddress txData) mSourceAddr
       contract = accContract acc
       contractEnv = ContractEnv
         { ceNow = now
-        , ceMaxSteps = 100500  -- TODO [TM-18]
+        , ceMaxSteps = maxSteps
         , ceBalance = accBalance acc
         , ceStorage = accStorage acc
         , ceContracts = accContract <$> accounts
@@ -216,6 +220,5 @@ convertOp :: NetworkOp -> [InterpreterOp]
 convertOp = const []
 
 -- Return current time as 'Timestamp'.
--- TODO [TM-18] implement!
 getCurrentTime :: IO Timestamp
-getCurrentTime = pure (Timestamp 100500)
+getCurrentTime = (Timestamp . (fromIntegral :: Integer -> Word64) . round) <$> Time.getPOSIXTime

@@ -48,6 +48,7 @@ library
                      , natural-numbers
                      , QuickCheck
                      , text
+                     , time
                      , parser-combinators >= 1.0.0
                      , directory
                      , syb
