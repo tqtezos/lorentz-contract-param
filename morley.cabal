@@ -166,6 +166,7 @@ test-suite morley-test
   type:                exitcode-stdio-1.0
   other-modules:       Test.Parser
                      , Test.Macro
+                     , Test.Morley.Runtime
                      , Test.Tezos.Crypto
                      , Test.Typecheck
                      , Test.Util.Contracts
@@ -178,8 +179,9 @@ test-suite morley-test
                      , fmt
                      , formatting
                      , hspec
-                     , morley
+                     , lens
                      , megaparsec >= 7.0.0
+                     , morley
                      , QuickCheck
                      , text
                      , universum
