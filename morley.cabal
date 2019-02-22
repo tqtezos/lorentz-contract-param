@@ -29,20 +29,26 @@ library
                      , Morley.Runtime.TxData
                      , Morley.Types
                      , Prelude
+                     , Tezos.Crypto
 
   build-depends:       aeson
                      , aeson-options
                      , base-noprelude >= 4.7 && < 5
+                     , base16-bytestring
+                     , base58-bytestring
                      , bytestring
-                     , megaparsec >= 7.0.0
                      , containers
+                     , cryptonite
                      , data-default
+                     , fmt
                      , formatting
                      , lens
+                     , megaparsec >= 7.0.0
+                     , memory
                      , natural-numbers
+                     , QuickCheck
                      , text
                      , parser-combinators >= 1.0.0
-                     , base16-bytestring
                      , directory
                      , syb
                      , mtl
@@ -160,15 +166,21 @@ test-suite morley-test
   type:                exitcode-stdio-1.0
   other-modules:       Test.Parser
                      , Test.Macro
+                     , Test.Tezos.Crypto
                      , Test.Typecheck
                      , Test.Util.Contracts
+                     , Test.Util.QuickCheck
   build-depends:
-                       hspec
+                       aeson
                      , base-noprelude >= 4.7 && < 5
                      , directory
                      , filepath
-                     , megaparsec >= 7.0.0
+                     , fmt
+                     , formatting
+                     , hspec
                      , morley
+                     , megaparsec >= 7.0.0
+                     , QuickCheck
                      , text
                      , universum
   ghc-options:        -Weverything
