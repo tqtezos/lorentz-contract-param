@@ -31,6 +31,8 @@ data RunOptions = RunOptions
   , roStorageValue :: !(Value Op)
   , roTxData :: !TxData
   , roVerbose :: !Bool
+  , roNow :: !(Maybe Timestamp)
+  , roMaxSteps :: !Word64
   }
 
 data OriginateOptions = OriginateOptions
@@ -89,6 +91,8 @@ argParser = subparser $
         <*> valueOption "storage" "Initial storage of a running contract"
         <*> txData
         <*> verboseFlag
+        <*> nowOption
+        <*> maxStepsOption
 
     originateOptions :: Opt.Parser OriginateOptions
     originateOptions =
@@ -104,6 +108,19 @@ contractFileOption = optional $ strOption $
   long "contract" <>
   metavar "FILEPATH" <>
   help "Path to contract file"
+
+nowOption :: Opt.Parser (Maybe Timestamp)
+nowOption = optional $ fmap Timestamp . option auto $
+  long "now" <>
+  metavar "TIMESTAMP" <>
+  help "Timestamp that you want the runtime interpreter to use (default is now)"
+
+maxStepsOption :: Opt.Parser (Word64)
+maxStepsOption = option auto $
+  value 100500 <>
+  long "max steps" <>
+  metavar "Word64" <>
+  help "Max steps that you want the runtime interpreter to use (default is 100500)"
 
 dbPathOption :: Opt.Parser FilePath
 dbPathOption = strOption $
@@ -167,8 +184,7 @@ main = do
         putTextLn "Contract is well-typed"
       Run RunOptions {..} -> do
         michelsonContract <- prepareContract roContractFile
-        -- TODO: [TM-18] Pass timestamp from CLI if it's provided.
-        runContract Nothing roVerbose roDBPath roStorageValue michelsonContract roTxData
+        runContract roNow roMaxSteps roVerbose roDBPath roStorageValue michelsonContract roTxData
       Originate OriginateOptions {..} -> do
         michelsonContract <- prepareContract ooContractFile
         let acc = Account
