@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-missing-signatures #-}
 module Morley.Parser.Annotations
   ( note
   , noteT
@@ -61,8 +60,13 @@ noteF2 = do a <- noteF; b <- noteF; return (a, b)
 parseDef :: Default a => Parser a -> Parser a
 parseDef a = try a <|> pure def
 
+noteTDef :: Parser M.TypeAnn
 noteTDef = parseDef noteT
+
+noteVDef :: Parser M.VarAnn
 noteVDef = parseDef noteV
+
+_noteFDef :: Parser M.FieldAnn
 _noteFDef = parseDef noteF
 
 notesTVF :: Parser (M.TypeAnn, M.VarAnn, M.FieldAnn)
@@ -77,6 +81,9 @@ notesTV = permute2Def noteT noteV
 notesVF :: Parser (M.VarAnn, M.FieldAnn)
 notesVF  = permute2Def noteV noteF
 
+fieldType :: Default a
+          => Parser a
+          -> Parser (a, M.TypeAnn)
 fieldType fp = runPermutation $
   (,) <$> toPermutationWithDefault  def     fp
       <*> toPermutationWithDefault M.noAnn noteT

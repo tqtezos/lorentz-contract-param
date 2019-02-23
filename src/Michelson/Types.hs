@@ -1,5 +1,4 @@
 {-# LANGUAGE DeriveDataTypeable, DerivingStrategies #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Michelson.Types
   (
@@ -16,6 +15,10 @@ module Michelson.Types
   , Elt (..)
   , NetworkOp (..)
   , contractAddress
+
+  -- Internal types to avoid orphan instances
+  , InternalByteString(..)
+  , unInternalByteString
 
   -- Typechecker types
   , InstrAbstract (..)
@@ -127,7 +130,7 @@ contractAddress _ = Address "dummy-address"
 data Value op =
     ValueInt     Integer
   | ValueString  Text
-  | ValueBytes   ByteString
+  | ValueBytes   InternalByteString
   | ValueUnit
   | ValueTrue
   | ValueFalse
@@ -401,13 +404,19 @@ taddress = T_comparable T_address
 -- syntax from Michelson specification.
 ----------------------------------------------------------------------------
 
--- FIXME: this is a very bad dirty hack, it's temporary.
-instance ToJSON ByteString where
-  toJSON = toJSON @Text . decodeUtf8
+-- | ByteString does not have an instance for ToJSON and FromJSON
 
--- FIXME: this is a very bad dirty hack, it's temporary.
-instance FromJSON ByteString where
-  parseJSON = fmap (encodeUtf8 @Text) . parseJSON
+newtype InternalByteString = InternalByteString ByteString
+  deriving (Data, Eq, Show)
+
+unInternalByteString :: InternalByteString -> ByteString
+unInternalByteString (InternalByteString bs) = bs
+
+instance ToJSON InternalByteString where
+  toJSON = toJSON @Text . decodeUtf8 . unInternalByteString
+
+instance FromJSON InternalByteString where
+  parseJSON = fmap (InternalByteString . encodeUtf8 @Text) . parseJSON
 
 -- deriveJSON defaultOptions ''Contract
 instance ToJSON op => ToJSON (Contract op) where
