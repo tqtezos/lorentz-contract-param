@@ -194,6 +194,8 @@ test-suite morley-test
                      , Test.Parser
                      , Test.Tezos.Crypto
                      , Test.Typecheck
+                     , Test.Arbitrary
+                     , Test.Serialization.Aeson
                      , Test.Util.Contracts
                      , Test.Util.QuickCheck
   build-depends:
@@ -204,11 +206,13 @@ test-suite morley-test
                      , fmt
                      , formatting
                      , hspec
+                     , hspec-golden-aeson
                      , HUnit
                      , lens
                      , megaparsec >= 7.0.0
                      , morley
                      , QuickCheck
+                     , quickcheck-arbitrary-adt
                      , text
                      , universum
                      , vinyl

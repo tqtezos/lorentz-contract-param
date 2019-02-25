@@ -10,6 +10,7 @@ import qualified Test.Parser as Parser
 import qualified Test.Tezos.Crypto as Tezos.Crypto
 import qualified Test.Typecheck as Typecheck
 import qualified Test.Interpreter as Interpreter
+import qualified Test.Serialization.Aeson as Serialization.Aeson
 
 main :: IO ()
 main = hspec $ do
@@ -20,3 +21,4 @@ main = hspec $ do
   Interpreter.spec
   Tezos.Crypto.spec
   Morley.Runtime.spec
+  Serialization.Aeson.spec
