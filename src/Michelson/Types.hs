@@ -75,7 +75,7 @@ module Michelson.Types
 
 import qualified Text.Show
 import Data.Aeson
-  (FromJSON(..), ToJSON(..), genericParseJSON, genericToJSON)
+  (FromJSON(..), ToJSON(..))
 import Data.Aeson.TH (defaultOptions, deriveJSON)
 import Data.Data (Data(..))
 import Data.Default (Default(..))
@@ -95,7 +95,6 @@ data Contract op = Contract
 type Instr = InstrAbstract Op
 newtype Op = Op {unOp :: Instr}
   deriving stock (Eq, Show)
-  deriving newtype (ToJSON, FromJSON)
 
 -------------------------------------
 -- Basic polymorphic types for Parser/Macro/Typechecker modules
@@ -104,13 +103,11 @@ newtype Op = Op {unOp :: Instr}
 newtype Timestamp = Timestamp
   { unTimestamp :: Word64
   } deriving stock (Show, Eq, Ord, Data)
-    deriving newtype (ToJSON, FromJSON)
 
 newtype Mutez = Mutez
   { unMutez :: Word64
   } deriving stock (Show, Eq, Ord, Data)
-    deriving newtype ( ToJSON, FromJSON, Num
-                     , Integral, Real, Enum, Bounded)
+    deriving newtype (Num, Integral, Real, Enum, Bounded)
 
 {- Data types -}
 data Value op =
@@ -225,7 +222,7 @@ data InstrAbstract op =
 -------------------------------------
 newtype Annotation tag = Annotation T.Text
   deriving (Eq, Data, Functor)
-  deriving newtype (ToJSON, FromJSON, IsString)
+  deriving newtype (IsString)
 
 instance Default (Annotation tag) where
   def = Annotation ""
@@ -385,15 +382,10 @@ taddress = T_comparable T_address
 
 ----------------------------------------------------------------------------
 -- JSON serialization
---
--- TODO:
--- 1. Get rid of dirty hack with bytestrings (unsuppress `-Worphans` once done).
--- 2. Figure out whether it's possible to use TH for types with parameters.
--- 3. Maybe write it manually using some specific format, e. g. use JSON
--- syntax from Michelson specification.
 ----------------------------------------------------------------------------
 
--- | ByteString does not have an instance for ToJSON and FromJSON
+-- | ByteString does not have an instance for ToJSON and FromJSON, to
+-- avoid orphan type class instances, make a new type wrapper around it.
 
 newtype InternalByteString = InternalByteString ByteString
   deriving (Data, Eq, Show)
@@ -401,37 +393,23 @@ newtype InternalByteString = InternalByteString ByteString
 unInternalByteString :: InternalByteString -> ByteString
 unInternalByteString (InternalByteString bs) = bs
 
+-- it is not possible to derives these automatically because
+-- ByteString does not have a ToJSON or FromJSON instance
+
 instance ToJSON InternalByteString where
   toJSON = toJSON @Text . decodeUtf8 . unInternalByteString
 
 instance FromJSON InternalByteString where
   parseJSON = fmap (InternalByteString . encodeUtf8 @Text) . parseJSON
 
--- deriveJSON defaultOptions ''Contract
-instance ToJSON op => ToJSON (Contract op) where
-  toJSON = genericToJSON defaultOptions
-
-instance FromJSON op => FromJSON (Contract op) where
-  parseJSON = genericParseJSON defaultOptions
-
-instance ToJSON op => ToJSON (InstrAbstract op) where
-  toJSON = genericToJSON defaultOptions
-
-instance FromJSON op => FromJSON (InstrAbstract op) where
-  parseJSON = genericParseJSON defaultOptions
-
-instance ToJSON op => ToJSON (Value op) where
-  toJSON = genericToJSON defaultOptions
-
-instance FromJSON op => FromJSON (Value op) where
-  parseJSON = genericParseJSON defaultOptions
-
-instance ToJSON op => ToJSON (Elt op) where
-  toJSON = genericToJSON defaultOptions
-
-instance FromJSON op => FromJSON (Elt op) where
-  parseJSON = genericParseJSON defaultOptions
-
+deriveJSON defaultOptions ''Annotation
+deriveJSON defaultOptions ''Timestamp
+deriveJSON defaultOptions ''Mutez
+deriveJSON defaultOptions ''Op
+deriveJSON defaultOptions ''Contract
+deriveJSON defaultOptions ''InstrAbstract
+deriveJSON defaultOptions ''Value
+deriveJSON defaultOptions ''Elt
 deriveJSON defaultOptions ''Type
 deriveJSON defaultOptions ''Comparable
 deriveJSON defaultOptions ''T
