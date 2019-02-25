@@ -94,7 +94,7 @@ data Contract op = Contract
 -------------------------------------
 type Instr = InstrAbstract Op
 newtype Op = Op {unOp :: Instr}
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
 
 -------------------------------------
 -- Basic polymorphic types for Parser/Macro/Typechecker modules
@@ -102,11 +102,11 @@ newtype Op = Op {unOp :: Instr}
 
 newtype Timestamp = Timestamp
   { unTimestamp :: Word64
-  } deriving stock (Show, Eq, Ord, Data)
+  } deriving stock (Show, Eq, Ord, Data, Generic)
 
 newtype Mutez = Mutez
   { unMutez :: Word64
-  } deriving stock (Show, Eq, Ord, Data)
+  } deriving stock (Show, Eq, Ord, Data, Generic)
     deriving newtype (Num, Integral, Real, Enum, Bounded)
 
 {- Data types -}
@@ -221,7 +221,7 @@ data InstrAbstract op =
 -- Basic types for Michelson types --
 -------------------------------------
 newtype Annotation tag = Annotation T.Text
-  deriving (Eq, Data, Functor)
+  deriving (Eq, Data, Functor, Generic)
   deriving newtype (IsString)
 
 instance Default (Annotation tag) where
@@ -282,11 +282,11 @@ pattern WithAnn ann <- ann@(Annotation (toString -> _:_))
 
 -- Annotated type
 data Type = Type T TypeAnn
-  deriving (Eq, Show, Data)
+  deriving (Eq, Show, Data, Generic)
 
 -- Annotated Comparable Sub-type
 data Comparable = Comparable CT TypeAnn
-  deriving (Eq, Show, Data)
+  deriving (Eq, Show, Data, Generic)
 
 compToType :: Comparable -> Type
 compToType (Comparable ct tn) = Type (T_comparable ct) tn
@@ -311,7 +311,7 @@ data T =
   | T_lambda Type Type
   | T_map Comparable Type
   | T_big_map Comparable Type
-  deriving (Eq, Show, Data)
+  deriving (Eq, Show, Data, Generic)
 
 -- Comparable Sub-Type
 data CT =
@@ -324,7 +324,7 @@ data CT =
   | T_key_hash
   | T_timestamp
   | T_address
-  deriving (Eq, Ord, Show, Data)
+  deriving (Eq, Ord, Show, Data, Enum, Bounded, Generic)
 
 pattern Tint :: T
 pattern Tint <- T_comparable T_int
