@@ -7,14 +7,10 @@ module Michelson.Typed.Value
   , Operation (..)
   , SetDelegate (..)
   , TransferTokens (..)
-
-  , unsafeValToValue
-  , unsafeValToOperation
   ) where
 
 import Michelson.Typed.CValue (CVal(..))
 import Michelson.Typed.T (T(..))
-import Michelson.Untyped (Op, Value)
 import Tezos.Address (Address)
 import Tezos.Core (Mutez)
 import Tezos.Crypto (KeyHash, PublicKey, Signature)
@@ -85,9 +81,3 @@ deriving instance Show (Val instr t)
 --
 -- data BigMap op ref k v = BigMap
 --  { bmRef :: ref k v, bmChanges :: Map (CVal k) (ValueOp (Val cp v)) }
-
-unsafeValToValue :: Val instr t -> Value (Op nop)
-unsafeValToValue = undefined
-
-unsafeValToOperation :: Val instr t -> Operation instr
-unsafeValToOperation = undefined

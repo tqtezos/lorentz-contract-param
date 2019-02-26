@@ -43,6 +43,7 @@ library
                      , Michelson.TypeCheck.Value
                      , Michelson.Typed.Annotation
                      , Michelson.Typed.Arith
+                     , Michelson.Typed.Convert
                      , Michelson.Typed.CValue
                      , Michelson.Typed.Extract
                      , Michelson.Typed.Instr
