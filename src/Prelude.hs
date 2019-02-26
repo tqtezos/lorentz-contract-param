@@ -6,4 +6,4 @@ module Prelude
        ( module Universum
        ) where
 
-import Universum hiding (Type)
+import Universum hiding (Type, Val, Key)

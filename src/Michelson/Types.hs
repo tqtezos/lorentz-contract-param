@@ -10,11 +10,8 @@ module Michelson.Types
     -- * Data types
   , Timestamp (..)
   , Mutez (..)
-  , Address (..)
   , Value (..)
   , Elt (..)
-  , NetworkOp (..)
-  , contractAddress
 
   -- Internal types to avoid orphan instances
   , InternalByteString(..)
@@ -76,13 +73,13 @@ module Michelson.Types
   , isBytes
   ) where
 
+import qualified Text.Show
 import Data.Aeson
-  (FromJSON(..), FromJSONKey, ToJSON(..), ToJSONKey, genericParseJSON, genericToJSON)
+  (FromJSON(..), ToJSON(..), genericParseJSON, genericToJSON)
 import Data.Aeson.TH (defaultOptions, deriveJSON)
 import Data.Data (Data(..))
 import Data.Default (Default(..))
 import qualified Data.Text as T
-import Formatting.Buildable (Buildable)
 
 type Parameter = Type
 type Storage = Type
@@ -112,19 +109,8 @@ newtype Timestamp = Timestamp
 newtype Mutez = Mutez
   { unMutez :: Word64
   } deriving stock (Show, Eq, Ord, Data)
-    deriving newtype (ToJSON, FromJSON)
-
-newtype Address = Address
-  { unAddress :: Text
-  } deriving stock (Show, Eq, Ord, Data)
-    deriving newtype (ToJSON, FromJSON, ToJSONKey, FromJSONKey, Buildable)
-
--- TODO [TM-17] I guess it's possible to compute address of a contract, but I
--- don't know how do it (yet). Maybe it requires more data. In the
--- worst case we can store such map in GState. Maybe we'll have to
--- move this function to Morley.
-contractAddress :: Contract Op -> Address
-contractAddress _ = Address "dummy-address"
+    deriving newtype ( ToJSON, FromJSON, Num
+                     , Integral, Real, Enum, Bounded)
 
 {- Data types -}
 data Value op =
@@ -149,14 +135,6 @@ data Value op =
 data Elt op = Elt (Value op) (Value op)
   deriving (Eq, Show, Functor, Data, Generic)
 
--- | Corresponds to the @operation@ type in Michelson.
--- TODO: add actual data.
-data NetworkOp
-  = CreateContract
-  | CreateAccount
-  | TransferTokens
-  | SetDelegate
-
 data InstrAbstract op =
     DROP
   | DUP               VarAnn
@@ -174,7 +152,7 @@ data InstrAbstract op =
   | IF_LEFT           [op] [op]
   | IF_RIGHT          [op] [op]
   | NIL               TypeAnn VarAnn Type
-  | CONS              VarAnn
+  | CONS              VarAnn -- TODO add TypeNote param
   | IF_CONS           [op] [op]
   | SIZE              VarAnn
   | EMPTY_SET         TypeAnn VarAnn Comparable
@@ -188,6 +166,7 @@ data InstrAbstract op =
   | LOOP              [op]
   | LOOP_LEFT         [op]
   | LAMBDA            VarAnn Type Type [op]
+  -- TODO check on alphanet whether we can pass TypeNote
   | EXEC              VarAnn
   | DIP               [op]
   | FAILWITH
@@ -197,12 +176,13 @@ data InstrAbstract op =
   | UNPACK            VarAnn Type
   | CONCAT            VarAnn
   | SLICE             VarAnn
-  | ISNAT
+  | ISNAT             VarAnn
   | ADD               VarAnn
   | SUB               VarAnn
   | MUL               VarAnn
   | EDIV              VarAnn
   | ABS               VarAnn
+  -- TODO why no varnote for NEG
   | NEG
   | LSL               VarAnn
   | LSR               VarAnn
@@ -219,9 +199,9 @@ data InstrAbstract op =
   | GE                VarAnn
   | INT               VarAnn
   | SELF              VarAnn
-  | CONTRACT          Type
+  | CONTRACT          VarAnn Type
   | TRANSFER_TOKENS   VarAnn
-  | SET_DELEGATE
+  | SET_DELEGATE      VarAnn
   | CREATE_ACCOUNT    VarAnn VarAnn
   | CREATE_CONTRACT   VarAnn VarAnn
   | CREATE_CONTRACT2  VarAnn VarAnn (Contract op)
@@ -244,11 +224,20 @@ data InstrAbstract op =
 -- Basic types for Michelson types --
 -------------------------------------
 newtype Annotation tag = Annotation T.Text
-  deriving (Eq, Show, Data, Functor)
-  deriving newtype (ToJSON, FromJSON)
+  deriving (Eq, Data, Functor)
+  deriving newtype (ToJSON, FromJSON, IsString)
 
 instance Default (Annotation tag) where
   def = Annotation ""
+
+instance Show (Annotation FieldTag) where
+  show (Annotation x) = "%" <> toString x
+
+instance Show (Annotation VarTag) where
+  show (Annotation x) = "@" <> toString x
+
+instance Show (Annotation TypeTag) where
+  show (Annotation x) = ":" <> toString x
 
 data TypeTag
 data FieldTag
@@ -338,7 +327,7 @@ data CT =
   | T_key_hash
   | T_timestamp
   | T_address
-  deriving (Eq, Show, Data)
+  deriving (Eq, Ord, Show, Data)
 
 pattern Tint :: T
 pattern Tint <- T_comparable T_int

@@ -14,9 +14,12 @@ cabal-version:       >=1.10
 extra-source-files:  README.md
 
 library
+  build-tool-depends: autoexporter:autoexporter
+
   hs-source-dirs:      src
   default-language:    Haskell2010
-  exposed-modules:     Michelson.Interpret
+  exposed-modules:     Michelson.Advanced
+                     , Michelson.Interpret
                      , Michelson.Types
                      , Michelson.Typecheck
                      , Morley.Default
@@ -30,6 +33,23 @@ library
                      , Morley.Types
                      , Prelude
                      , Tezos.Crypto
+  other-modules:       Michelson.Advanced.Interpreter
+                     , Michelson.Advanced.Type
+                     , Michelson.Advanced.Type.Annotation
+                     , Michelson.Advanced.Type.Extract
+                     , Michelson.Advanced.Type.Sing
+                     , Michelson.Advanced.Type.T
+                     , Michelson.Advanced.TypeCheck
+                     , Michelson.Advanced.TypeCheck.Instr
+                     , Michelson.Advanced.TypeCheck.Helpers
+                     , Michelson.Advanced.TypeCheck.Types
+                     , Michelson.Advanced.TypeCheck.Value
+                     , Michelson.Advanced.Value
+                     , Michelson.Advanced.Value.Arith
+                     , Michelson.Advanced.Value.CValue
+                     , Michelson.Advanced.Value.Helpers
+                     , Michelson.Advanced.Value.Instr
+                     , Michelson.Advanced.Value.Value
 
   build-depends:       aeson
                      , aeson-options
@@ -49,11 +69,14 @@ library
                      , QuickCheck
                      , text
                      , time
+                     , timerep
                      , parser-combinators >= 1.0.0
                      , directory
+                     , singletons
                      , syb
                      , mtl
                      , universum
+                     , vinyl
   ghc-options:        -Weverything
                       -Wno-missing-exported-signatures
                       -Wno-missing-import-lists
@@ -165,9 +188,10 @@ test-suite morley-test
   main-is:             Spec.hs
   default-language:    Haskell2010
   type:                exitcode-stdio-1.0
-  other-modules:       Test.Parser
+  other-modules:       Test.Interpreter
                      , Test.Macro
                      , Test.Morley.Runtime
+                     , Test.Parser
                      , Test.Tezos.Crypto
                      , Test.Typecheck
                      , Test.Util.Contracts
@@ -180,12 +204,14 @@ test-suite morley-test
                      , fmt
                      , formatting
                      , hspec
+                     , HUnit
                      , lens
                      , megaparsec >= 7.0.0
                      , morley
                      , QuickCheck
                      , text
                      , universum
+                     , vinyl
   ghc-options:        -Weverything
                       -Wno-missing-exported-signatures
                       -Wno-missing-import-lists
