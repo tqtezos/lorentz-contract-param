@@ -1,0 +1,100 @@
+{
+    "seed": -2498050865098810815,
+    "samples": [
+        {
+            "unOp": {
+                "tag": "ADD",
+                "contents": "\u0012x&fy򢫸ARuKq󂾕O񇆀񛧰g𴮄\u0008\u001b\"\n򽏼\u0002QH񁳟T*"
+            }
+        },
+        {
+            "unOp": {
+                "tag": "AND",
+                "contents": "򼰨4]𞭬\u001f^񲾒EQtH񊍫򂤑^bCiNcf"
+            }
+        },
+        {
+            "unOp": {
+                "tag": "IF_CONS",
+                "contents": [
+                    [
+                        {
+                            "unOp": {
+                                "tag": "PACK",
+                                "contents": "\u0008󳒓9:򄽱"
+                            }
+                        }
+                    ],
+                    [
+                        {
+                            "unOp": {
+                                "tag": "ADD",
+                                "contents": "\u0000𕑮NuL\u001e𪳘F>\u0019\u001f2c3𓇻\u0017\""
+                            }
+                        },
+                        {
+                            "unOp": {
+                                "tag": "NIL",
+                                "contents": [
+                                    "脹T2S\u0015~\u0000\r򇁰x򚽭\u000fpb󢰃d2\u0005e򊌁",
+                                    "$𙂧񿪴𝰸C3\u0005V\u0014!n",
+                                    [
+                                        {
+                                            "tag": "T_operation"
+                                        },
+                                        "򆩲^Z\u0003\u001c\u0010t\u0013+x"
+                                    ]
+                                ]
+                            }
+                        },
+                        {
+                            "unOp": {
+                                "tag": "LOOP",
+                                "contents": [
+                                    {
+                                        "unOp": {
+                                            "tag": "DUP",
+                                            "contents": "3諗x[|V\u0002~\u0013`W񗕾S𻡕\u0004"
+                                        }
+                                    },
+                                    {
+                                        "unOp": {
+                                            "tag": "GET",
+                                            "contents": ";*\u0018\rwn|\u0011y.󃒙]𺘉c\u0000E\u0000=\u0011]\u000ch󦔇򓻿𗖂"
+                                        }
+                                    },
+                                    {
+                                        "unOp": {
+                                            "tag": "NIL",
+                                            "contents": [
+                                                "x\u0017Lv+\u0011}>\u0016b󽋳+󌷇PN \r!K󷤧\u000cj󴀐OH",
+                                                "-D\u0004􈇖\u0011R\u001b#-:\u0008FB\u0014\u0010",
+                                                [
+                                                    {
+                                                        "tag": "T_signature"
+                                                    },
+                                                    "򬳵0g^򒳯I򸃵񤌺B"
+                                                ]
+                                            ]
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                ]
+            }
+        },
+        {
+            "unOp": {
+                "tag": "EDIV",
+                "contents": "MML򘢉󼐇\u0004\thk~3?󡀎\u0012X򍢢\u000bU🂍񏸧M򟵒O*M\u001fm򫼦-"
+            }
+        },
+        {
+            "unOp": {
+                "tag": "FAILWITH"
+            }
+        }
+    ]
+}
