@@ -207,6 +207,7 @@ test-suite morley-test
   build-depends:
                        aeson
                      , base-noprelude >= 4.7 && < 5
+                     , containers
                      , directory
                      , filepath
                      , fmt

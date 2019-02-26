@@ -7,14 +7,18 @@ module Test.Morley.Runtime
 
 import Control.Lens (at)
 import Test.Hspec
-  (Expectation, Spec, context, describe, it, parallel, shouldBe, shouldSatisfy, specify)
+  (Expectation, Spec, context, describe, expectationFailure, it, parallel, shouldBe, shouldSatisfy,
+  specify)
 
-import Michelson.Interpret
+import Michelson.Interpret (ContractEnv(..), MichelsonFailed(..), michelsonInterpreter)
+import Michelson.TypeCheck (typeCheckContract)
+import Michelson.Typed (Sing, fromMType, withSomeSingT)
 import Michelson.Untyped
-import Morley.Types (NopInstr)
+import Morley.Nop (nopHandler)
 import Morley.Runtime
 import Morley.Runtime.GState (GState(..), initGState)
-import Tezos.Address (Address(..))
+import Morley.Types (NopInstr)
+import Tezos.Address (Address)
 import Tezos.Core (Mutez(..), Timestamp(..))
 
 spec :: Spec
@@ -31,7 +35,7 @@ spec = describe "Morley.Runtime" $ do
 ----------------------------------------------------------------------------
 
 data UnexpectedFailed =
-  UnexpectedFailed (MichelsonFailed NopInstr)
+  UnexpectedFailed MichelsonFailed
   deriving (Show)
 
 instance Exception UnexpectedFailed
@@ -60,12 +64,16 @@ updatesStorageValue ca = either throwM handleResult $ do
   (addr,) <$> interpreterPure dummyNow dummyMaxSteps gState' [TransferOp addr txData]
   where
     handleResult :: (Address, InterpreterRes) -> Expectation
-    handleResult (addr, ir) = do
-      expectedValue <-
-        either (throwM . UnexpectedFailed) (pure . snd) $
-        michelsonInterpreter (caEnv ca) (caContract ca)
-      accStorage <$> (gsAccounts (_irGState ir) ^. at addr) `shouldBe`
-        Just expectedValue
+    handleResult (addr, ir) =
+      withSomeSingT (fromMType $ para (caContract ca)) $ \(_ :: Sing cp) ->
+        case typeCheckContract nopHandler (fmap unOp (caContract ca)) of
+          Right typedContract -> do
+            expectedValue <-
+              either (throwM . UnexpectedFailed) (pure . snd) $
+              michelsonInterpreter @cp nopHandler (caEnv ca) typedContract
+            accStorage <$> (gsAccounts (_irGState ir) ^. at addr) `shouldBe`
+              Just expectedValue
+          Left _ -> expectationFailure "Illtyped contract"
 
 failsToOriginateTwice :: Expectation
 failsToOriginateTwice =
