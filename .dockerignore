@@ -1,0 +1,5 @@
+# .git directory invalidates Docker layers cache, and maybe others too
+.git
+.gitlab-ci.yml
+.dockerignore
+

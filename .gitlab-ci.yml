@@ -1,0 +1,61 @@
+stages:
+  - verify
+  - setup
+  - build
+  - test
+  - clean_up
+
+verify:
+  stage: verify
+  script:
+    - echo $PATH
+    - docker info
+    - id | grep docker || (echo 'gitlab runner user should be in docker group' && exit 1)
+  only:
+    refs:
+      - merge_requests
+  tags:
+    - stack
+
+setup_job:
+  stage: setup
+  script:
+    - docker build --target setup . -t haskell-base
+  only:
+    changes:
+      - stack.yaml
+    refs:
+      - merge_requests
+  tags:
+    - stack
+
+build_job:
+  stage: build
+  script:
+    - docker build --target build . -t haskell-app
+  only:
+    refs:
+      - merge_requests
+  tags:
+    - stack
+
+test_job:
+  stage: test
+  script:
+    - docker build --target test . -t haskell-app-t
+  only:
+    refs:
+      - merge_requests
+  tags:
+    - stack
+
+clean_up:
+  stage: clean_up
+  script:
+    - docker images prune
+  only:
+    refs:
+      - merge_requests
+  tags:
+    - stack
+
