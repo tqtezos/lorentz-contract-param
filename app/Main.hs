@@ -6,22 +6,26 @@ module Main
 import Data.Text.IO (getContents)
 import Fmt (pretty)
 import Options.Applicative
-  (auto, command, eitherReader, execParser, help, info, long, metavar, option, progDesc,
+  (auto, command, eitherReader, execParser, help, info, long, metavar, option, progDesc, short,
   strOption, subparser, switch, value)
 import qualified Options.Applicative as Opt
 import Text.Megaparsec (parse)
 import Text.Pretty.Simple (pPrint)
 
-import Michelson.Typecheck (typecheckContract)
+import qualified Michelson.Advanced as A
+import qualified Michelson.Typecheck as S
 import Michelson.Types
 import Morley.Macro (expandFlattenContract, expandValue)
 import qualified Morley.Parser as P
 import Morley.Runtime (Account(..), TxData(..), originateContract, runContract)
 import Morley.Types
+import Tezos.Crypto (parseAddress, Address)
+
+data TypeCheckAlgo = TCSimpleTyped | TCAdvancedTyped
 
 data CmdLnArgs
   = Parse (Maybe FilePath) Bool
-  | TypeCheck (Maybe FilePath) Bool
+  | TypeCheck (Maybe FilePath) Bool TypeCheckAlgo
   | Run !RunOptions
   | Originate !OriginateOptions
 
@@ -50,12 +54,15 @@ argParser = subparser $
   runSubCmd <>
   originateSubCmd
   where
+    uncurry3 :: (a -> b -> c -> d) -> (a, b, c) -> d
+    uncurry3 cons (a, b, c) = cons a b c
+
     parseSubCmd = command "parse" $
       info (uncurry Parse <$> parseOptions) $
         progDesc "Parse passed contract"
 
     typecheckSubCmd = command "typecheck" $
-      info (uncurry TypeCheck <$> typecheckOptions) $
+      info (uncurry3 TypeCheck <$> typecheckOptions) $
         progDesc "Typecheck passed contract"
 
     runSubCmd = command "run" $
@@ -71,10 +78,14 @@ argParser = subparser $
       long "verbose" <>
       help "Whether output should be verbose"
 
-    typecheckOptions :: Opt.Parser (Maybe FilePath, Bool)
-    typecheckOptions = (,)
+    typecheckOptions :: Opt.Parser (Maybe FilePath, Bool, TypeCheckAlgo)
+    typecheckOptions = (,,)
       <$> contractFileOption
       <*> verboseFlag
+      <*> (bool TCAdvancedTyped TCSimpleTyped <$>
+            switch (long "simple" <> short 's'
+                      <> help "Use simple type typechecker")
+          )
 
     parseOptions :: Opt.Parser (Maybe FilePath, Bool)
     parseOptions = (,)
@@ -153,14 +164,17 @@ txData =
     <*> valueOption "parameter" "Parameter of passed contract"
     <*> mutezOption "amount" "Amout sent by a transaction"
   where
-    sender = strOption $
+    sender = option (eitherReader parseAddrDo) $
       long "sender" <>
       metavar "ADDRESS" <>
       help "Sender address"
-    mkTxData :: String -> Value Op -> Mutez -> TxData
+    parseAddrDo addr =
+      either (Left . mappend "Failed to parse address: " . show) Right $
+        parseAddress $ toText addr
+    mkTxData :: Address -> Value Op -> Mutez -> TxData
     mkTxData addr param amount =
       TxData
-        { tdSenderAddress = Address (toText addr)
+        { tdSenderAddress = addr
         , tdParameter = param
         , tdAmount = amount
         }
@@ -179,14 +193,20 @@ main = do
         if hasExpandMacros
           then pPrint $ expandFlattenContract contract
           else pPrint contract
-      TypeCheck mFilename _hasVerboseFlag -> do
-        void $ prepareContract mFilename
+      TypeCheck mFilename _hasVerboseFlag tAlgo -> do
+        case tAlgo of
+          TCSimpleTyped ->
+            void $ prepareContract S.typecheckContract mFilename
+          TCAdvancedTyped ->
+            void $ prepareContract (A.typeCheckContract . fmap unOp) mFilename
         putTextLn "Contract is well-typed"
       Run RunOptions {..} -> do
-        michelsonContract <- prepareContract roContractFile
+        (michelsonContract, ()) <-
+          prepareContract S.typecheckContract roContractFile
         runContract roNow roMaxSteps roVerbose roDBPath roStorageValue michelsonContract roTxData
       Originate OriginateOptions {..} -> do
-        michelsonContract <- prepareContract ooContractFile
+        (michelsonContract, ()) <-
+          prepareContract S.typecheckContract ooContractFile
         let acc = Account
               { accBalance = ooBalance
               , accStorage = ooStorageValue
@@ -206,12 +226,15 @@ main = do
         parse P.contract filename code
 
     -- Read and parse the contract, expand and type check.
-    prepareContract :: Maybe FilePath -> IO (Contract Op)
-    prepareContract mFile = do
+    prepareContract
+      :: Exception e
+      => (Contract Op -> Either e tcRes)
+      -> Maybe FilePath -> IO (Contract Op, tcRes)
+    prepareContract doTypeCheck mFile = do
       contract <- readAndParseContract mFile
       let
         michelsonContract :: Contract Op
         michelsonContract = expandFlattenContract contract
 
-      either throwM pure $ typecheckContract michelsonContract
-      pure michelsonContract
+      fmap (michelsonContract,) $ either throwM pure $
+        doTypeCheck michelsonContract

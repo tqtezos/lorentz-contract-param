@@ -1,39 +1,58 @@
 module Test.Typecheck
-  ( spec
+  ( simpleSpec
+  , advancedSpec
   ) where
 
-import Michelson.Typecheck (typecheckContract)
-import Michelson.Types (Contract(..))
-import Morley.Macro (expandFlat)
-import Morley.Parser (contract)
 import Test.Hspec (Expectation, Spec, describe, expectationFailure, it)
 import Text.Megaparsec (parse)
 
+import qualified Michelson.Typecheck as S
+import Michelson.Types (Contract(..), Op (..))
+import Morley.Macro (expandFlat)
+import Morley.Parser (contract)
+import qualified Michelson.Advanced as A
+
 import Test.Util.Contracts (getIllTypedContracts, getWellTypedContracts)
 
-spec :: Spec
-spec = describe "Typechecker tests" $ do
-  it "Successfully typechecks contracts examples from contracts/" goodContractsTest
-  it "Reports errors on contracts examples from contracts/ill-typed" badContractsTest
+simpleSpec :: Spec
+simpleSpec = describe "Simple type typechecker tests" $ specImpl doTC
+  where
+    doTC = either (Left . displayException) pure . S.typecheckContract
 
-goodContractsTest :: Expectation
-goodContractsTest = mapM_ (checkFile True) =<< getWellTypedContracts
+advancedSpec :: Spec
+advancedSpec = describe "Advanced type typechecker tests" $ do
+    specImpl doTC
+  where
+    doTC = either (Left . displayException) (\_ -> pure ()) .
+            A.typeCheckContract . fmap unOp
 
-badContractsTest :: Expectation
-badContractsTest = mapM_ (checkFile False) =<< getIllTypedContracts
+specImpl :: TypeCheckFun -> Spec
+specImpl doTC = do
+    it "Successfully typechecks contracts examples from contracts/" $
+      goodContractsTest doTC
+    it "Reports errors on contracts examples from contracts/ill-typed" $
+      badContractsTest doTC
 
-checkFile :: Bool -> FilePath -> Expectation
-checkFile wellTyped file = do
+type TypeCheckFun = Contract Op -> Either String ()
+
+goodContractsTest :: TypeCheckFun -> Expectation
+goodContractsTest doTC = mapM_ (checkFile doTC True) =<< getWellTypedContracts
+
+badContractsTest :: TypeCheckFun -> Expectation
+badContractsTest doTC = mapM_ (checkFile doTC False) =<< getIllTypedContracts
+
+checkFile :: TypeCheckFun -> Bool -> FilePath -> Expectation
+checkFile doTypeCheck wellTyped file = do
   cd <- readFile file
   case parse contract file cd of
     Right c' -> do
       let c = Contract (para c') (stor c') (expandFlat $ code c')
-      case typecheckContract c of
+      case doTypeCheck c of
         Left err
           | wellTyped ->
             expectationFailure $
             "Typechecker unexpectedly failed on " <>
-            show file <> ": " <> displayException err
+            show file <> ": " <> err
           | otherwise ->
             pass
         Right _
