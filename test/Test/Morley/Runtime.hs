@@ -14,8 +14,8 @@ import Michelson.Untyped
 import Morley.Types (NopInstr)
 import Morley.Runtime
 import Morley.Runtime.GState (GState(..), initGState)
+import Tezos.Address (Address(..))
 import Tezos.Core (Mutez(..), Timestamp(..))
-import Tezos.Crypto (Address(..))
 
 spec :: Spec
 spec = describe "Morley.Runtime" $ do
@@ -101,8 +101,8 @@ dummyContractEnv = ContractEnv
   , ceStorage = ValueUnit
   , ceContracts = mempty
   , ceParameter = ValueUnit
-  , ceSource = Address "x"
-  , ceSender = Address "x"
+  , ceSource = ContractAddress "x"
+  , ceSender = ContractAddress "x"
   , ceAmount = Mutez 100
   }
 

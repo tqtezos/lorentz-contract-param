@@ -21,7 +21,8 @@ import Michelson.Typed
   withSomeSingT)
 import Michelson.Typed.Value (CVal(..), Val(..))
 import qualified Michelson.Untyped as M
-import Tezos.Crypto (parseAddress, parseKeyHash, parsePublicKey, parseSignature)
+import Tezos.Address (parseAddress)
+import Tezos.Crypto (parseKeyHash, parsePublicKey, parseSignature)
 
 typeCheckCVal :: M.Value op -> CT -> Maybe SomeValC
 typeCheckCVal (M.ValueInt i) T_int = pure $ CvInt i :--: ST_int

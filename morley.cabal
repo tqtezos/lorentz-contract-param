@@ -34,6 +34,7 @@ library
                      , Morley.Runtime.TxData
                      , Morley.Types
                      , Prelude
+                     , Tezos.Address
                      , Tezos.Core
                      , Tezos.Crypto
   other-modules:       Michelson.TypeCheck.Helpers

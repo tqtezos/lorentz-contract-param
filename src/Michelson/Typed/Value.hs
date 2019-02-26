@@ -8,8 +8,9 @@ module Michelson.Typed.Value
 
 import Michelson.Typed.CValue (CVal(..))
 import Michelson.Typed.T (T(..))
+import Tezos.Address (Address)
 import Tezos.Core (Mutez)
-import Tezos.Crypto (Address, PublicKey, Signature)
+import Tezos.Crypto (PublicKey, Signature)
 
 -- | Data type, representing operation, list of which is returned
 -- by Michelson contract (according to calling convention).
