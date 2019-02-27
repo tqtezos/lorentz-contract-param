@@ -1,47 +1,31 @@
 module Test.Typecheck
-  ( simpleSpec
-  , advancedSpec
+  ( typeCheckSpec
   ) where
 
 import Test.Hspec (Expectation, Spec, describe, expectationFailure, it)
 import Text.Megaparsec (parse)
 
-import qualified Michelson.Typecheck as S
-import Michelson.Types (Contract(..), Op (..))
+import Michelson.TypeCheck
+import Michelson.Types (Contract(..), Op(..))
 import Morley.Macro (expandFlat)
 import Morley.Parser (contract)
-import qualified Michelson.Advanced as A
 
 import Test.Util.Contracts (getIllTypedContracts, getWellTypedContracts)
 
-simpleSpec :: Spec
-simpleSpec = describe "Simple type typechecker tests" $ specImpl doTC
-  where
-    doTC = either (Left . displayException) pure . S.typecheckContract
-
-advancedSpec :: Spec
-advancedSpec = describe "Advanced type typechecker tests" $ do
-    specImpl doTC
+typeCheckSpec :: Spec
+typeCheckSpec = describe "Typechecker tests" $ do
+  it "Successfully typechecks contracts examples from contracts/" goodContractsTest
+  it "Reports errors on contracts examples from contracts/ill-typed" badContractsTest
   where
     doTC = either (Left . displayException) (\_ -> pure ()) .
-            A.typeCheckContract . fmap unOp
+            typeCheckContract . fmap unOp
 
-specImpl :: TypeCheckFun -> Spec
-specImpl doTC = do
-    it "Successfully typechecks contracts examples from contracts/" $
-      goodContractsTest doTC
-    it "Reports errors on contracts examples from contracts/ill-typed" $
-      badContractsTest doTC
+    goodContractsTest = mapM_ (checkFile doTC True) =<< getWellTypedContracts
 
-type TypeCheckFun = Contract Op -> Either String ()
+    badContractsTest = mapM_ (checkFile doTC False) =<< getIllTypedContracts
 
-goodContractsTest :: TypeCheckFun -> Expectation
-goodContractsTest doTC = mapM_ (checkFile doTC True) =<< getWellTypedContracts
 
-badContractsTest :: TypeCheckFun -> Expectation
-badContractsTest doTC = mapM_ (checkFile doTC False) =<< getIllTypedContracts
-
-checkFile :: TypeCheckFun -> Bool -> FilePath -> Expectation
+checkFile :: (Contract Op -> Either String ()) -> Bool -> FilePath -> Expectation
 checkFile doTypeCheck wellTyped file = do
   cd <- readFile file
   case parse contract file cd of

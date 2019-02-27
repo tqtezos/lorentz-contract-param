@@ -1,4 +1,4 @@
-module Michelson.Advanced.TypeCheck.Helpers
+module Michelson.TypeCheck.Helpers
     ( onLeft
     , deriveSpecialVN
     , deriveSpecialFNs
@@ -33,12 +33,12 @@ import qualified Data.Text as T
 import Data.Typeable ((:~:)(..), eqT, typeRep)
 import Prelude hiding (EQ, GT, LT)
 
-import Michelson.Advanced.Type
-  (CT(..), Notes(..), Notes'(..), Sing(..), T(..), converge, mkNotes, notesCase, orAnn)
-import Michelson.Advanced.TypeCheck.Types
-import Michelson.Advanced.Value
-  (Add, ArithOp(..), Compare, ConcatOp, EDivOp(..), GetOp(..), Instr(..), MemOp(..), Mul,
-  SizeOp, SliceOp, Sub, UnaryArithOp(..), UpdOp(..))
+import Michelson.TypeCheck.Types
+import Michelson.Typed
+  (CT(..), Instr(..), Notes(..), Notes'(..), Sing(..), T(..), converge, mkNotes, notesCase, orAnn)
+import Michelson.Typed.Arith (Add, ArithOp(..), Compare, Mul, Sub, UnaryArithOp(..))
+import Michelson.Typed.Polymorphic
+  (ConcatOp, EDivOp(..), GetOp(..), MemOp(..), SizeOp, SliceOp, UpdOp(..))
 
 import Michelson.Types (FieldAnn, VarAnn)
 import qualified Michelson.Types as M

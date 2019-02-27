@@ -1,13 +1,14 @@
 -- | Module, containing data types for Michelson value.
 
-module Michelson.Advanced.Value.Value
+module Michelson.Typed.Value
   ( Val (..)
+  , CVal (..)
   , Operation (..)
   ) where
 
+import Michelson.Typed.T (T(..))
+import Michelson.Typed.CValue (CVal(..))
 import Michelson.Types (Mutez)
-import Michelson.Advanced.Type (T(..))
-import Michelson.Advanced.Value.CValue (CVal(..))
 import Tezos.Crypto (Address, PublicKey, Signature)
 
 

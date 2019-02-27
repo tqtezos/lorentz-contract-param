@@ -16,8 +16,7 @@ main :: IO ()
 main = hspec $ do
   Parser.spec
   Macro.spec
-  Typecheck.simpleSpec
-  Typecheck.advancedSpec
+  Typecheck.typeCheckSpec
   Interpreter.spec
   Tezos.Crypto.spec
   Morley.Runtime.spec

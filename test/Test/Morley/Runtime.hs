@@ -2,6 +2,7 @@
 
 module Test.Morley.Runtime
   ( spec
+  , dummyContractEnv
   ) where
 
 import Control.Lens (at)

@@ -2,7 +2,7 @@
 
 -- | Module, providing 'CT' and 'T' data types, representing Michelson
 -- language types without annotations.
-module Michelson.Advanced.Type.T
+module Michelson.Typed.T
   (
     CT (..)
   , T (..)

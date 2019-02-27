@@ -1,15 +1,14 @@
 -- | Module, containing data types for Michelson value.
 
-module Michelson.Advanced.Value.Instr
+module Michelson.Typed.Instr
   ( Instr (..)
   , (#)
   ) where
 
-import Michelson.Advanced.Type (CT(..), T(..))
-import Michelson.Advanced.Value.Arith
-import Michelson.Advanced.Value.Helpers
-import Michelson.Advanced.Value.Value (Val(..))
-
+import Michelson.Typed.Arith
+import Michelson.Typed.Polymorphic
+import Michelson.Typed.T (CT(..), T(..))
+import Michelson.Typed.Value (Val(..))
 
 -- | Infix version of @Seq@ constructor.
 --
