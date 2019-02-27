@@ -13,7 +13,7 @@ import Text.Megaparsec (parse)
 import Text.Pretty.Simple (pPrint)
 
 import Michelson.TypeCheck (typeCheckContract)
-import Michelson.Types
+import Michelson.Untyped
 import Morley.Macro (expandFlattenContract, expandValue)
 import qualified Morley.Parser as P
 import Morley.Runtime (Account(..), TxData(..), originateContract, runContract)

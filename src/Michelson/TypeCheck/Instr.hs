@@ -44,8 +44,8 @@ import Michelson.Typed
   Not, Notes(..), Notes'(..), Or, Sing(..), T(..), Val(..), Xor, converge, convergeAnns,
   extractNotes, fromMType, mkNotes, notesCase, orAnn, withSomeSingCT, withSomeSingT)
 
-import Michelson.Types (VarAnn)
-import qualified Michelson.Types as M
+import qualified Michelson.Untyped as M
+import Michelson.Untyped.Annotation (VarAnn)
 
 -- | Like 'typeCheck', but for non-empty lists.
 typeCheckNE

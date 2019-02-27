@@ -1,32 +1,20 @@
 {-# LANGUAGE DeriveDataTypeable, DerivingStrategies #-}
 
-module Michelson.Types
-  (
-  -- * Contract basics
-    Parameter
-  , Storage
-  , Contract (..)
+-- | Michelson instructions in untyped model.
 
-  -- Typechecker types
-  , InstrAbstract (..)
+module Michelson.Untyped.Instr
+  ( InstrAbstract (..)
   , Instr
   , Op (..)
-
-  , module Michelson.Untyped
   ) where
 
 import Data.Aeson.TH (defaultOptions, deriveJSON)
 import Data.Data (Data(..))
 
-import Michelson.Untyped
-
-type Parameter = Type
-type Storage = Type
-data Contract op = Contract
-  { para :: Parameter
-  , stor :: Storage
-  , code :: [op]
-  } deriving (Eq, Show, Functor, Data, Generic)
+import Michelson.Untyped.Annotation (FieldAnn, TypeAnn, VarAnn)
+import Michelson.Untyped.Contract (Contract)
+import Michelson.Untyped.Type (Comparable, Type)
+import Michelson.Untyped.Value (Value)
 
 -------------------------------------
 -- Flattened types after macroexpander
@@ -36,9 +24,14 @@ newtype Op = Op {unOp :: Instr}
   deriving stock (Eq, Show, Generic)
 
 -------------------------------------
--- Basic polymorphic types for Parser/Macro/Typechecker modules
+-- Abstract instruction
 -------------------------------------
 
+-- | Michelson instruction with abstract parameter `op`.  This
+-- parameter is necessary, because at different stages of our pipeline
+-- it will be different. Initially it can contain macros and
+-- non-flattened instructions, but then it contains only vanilla
+-- Michelson instructions.
 data InstrAbstract op =
     DROP
   | DUP               VarAnn
@@ -129,5 +122,4 @@ data InstrAbstract op =
 ----------------------------------------------------------------------------
 
 deriveJSON defaultOptions ''Op
-deriveJSON defaultOptions ''Contract
 deriveJSON defaultOptions ''InstrAbstract

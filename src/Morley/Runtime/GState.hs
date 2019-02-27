@@ -20,7 +20,7 @@ import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Map.Strict as Map
 import System.IO.Error (IOError, isDoesNotExistError)
 
-import Michelson.Types
+import Michelson.Untyped
 import Tezos.Core (Mutez)
 import Tezos.Crypto (Address)
 

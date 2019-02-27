@@ -18,7 +18,7 @@ import qualified Data.Text as T
 import Data.Vinyl (Rec(..), (<+>))
 
 import Michelson.Typed
-import qualified Michelson.Types as M
+import qualified Michelson.Untyped as M
 import Tezos.Core (Mutez, Timestamp)
 import Tezos.Crypto (Address)
 

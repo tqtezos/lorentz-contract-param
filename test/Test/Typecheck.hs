@@ -6,7 +6,7 @@ import Test.Hspec (Expectation, Spec, describe, expectationFailure, it)
 import Text.Megaparsec (parse)
 
 import Michelson.TypeCheck
-import Michelson.Types (Contract(..), Op(..))
+import Michelson.Untyped (Contract(..), Op(..))
 import Morley.Macro (expandFlat)
 import Morley.Parser (contract)
 

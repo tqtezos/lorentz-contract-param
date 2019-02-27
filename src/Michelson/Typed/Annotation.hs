@@ -29,8 +29,7 @@ module Michelson.Typed.Annotation
 import Data.Default (Default(..))
 
 import Michelson.Typed.T (T(..))
-import Michelson.Types (Annotation, FieldAnn, TypeAnn, unifyAnn)
-
+import Michelson.Untyped.Annotation (Annotation, FieldAnn, TypeAnn, unifyAnn)
 
 -- | Data type, holding annotation data for a given Michelson type @t@
 -- or @*@ in case no data is provided for the tree.
@@ -167,4 +166,3 @@ convergeAnns
 convergeAnns a b = maybe (Left $ "Annotations do not converge: "
                             <> show a <> " /= " <> show b)
                           pure $ unifyAnn a b
-

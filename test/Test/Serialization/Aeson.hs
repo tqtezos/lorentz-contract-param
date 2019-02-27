@@ -9,7 +9,7 @@ import Test.Aeson.GenericSpecs
 import Test.Hspec (Spec)
 import Test.QuickCheck (Arbitrary)
 
-import Michelson.Types (Contract, Elt, FieldAnn, InstrAbstract, Op, TypeAnn, Value, VarAnn)
+import Michelson.Untyped (Contract, Elt, FieldAnn, InstrAbstract, Op, TypeAnn, Value, VarAnn)
 import Tezos.Core (Mutez, Timestamp)
 
 import Test.Arbitrary ()

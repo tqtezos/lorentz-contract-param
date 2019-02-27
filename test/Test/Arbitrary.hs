@@ -10,7 +10,7 @@ import qualified Data.Text.Encoding as T
 import Test.QuickCheck (Arbitrary(..), Gen, choose, elements, listOf, oneof, vector)
 import Test.QuickCheck.Arbitrary.ADT (ToADTArbitrary(..))
 
-import Michelson.Types
+import Michelson.Untyped
   (Annotation(..), CT(..), Comparable(..), Contract(..), Elt(..), FieldAnn, InstrAbstract(..),
   InternalByteString(..), Op(..), T(..), Type(..), TypeAnn, Value(..), VarAnn)
 import Tezos.Core (Mutez(..), Timestamp(..))

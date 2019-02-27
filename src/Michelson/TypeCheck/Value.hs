@@ -20,7 +20,7 @@ import Michelson.Typed
   withSomeSingT)
 import Michelson.Typed.Value (CVal(..), Val(..))
 
-import qualified Michelson.Types as M
+import qualified Michelson.Untyped as M
 import Tezos.Crypto (Address(..), parseAddress, parseKeyHash, parsePublicKey, parseSignature)
 
 typeCheckCVal :: M.Value M.Op -> CT -> Maybe SomeValC
@@ -185,4 +185,3 @@ typeCheckValsImpl tcDo mvs t = foldM check ([], NStar) mvs
                 `onLeft` (TCFailedOnValue mv t . ("wrong element type " <>))
       ns' <- converge ns vns `onLeft` TCFailedOnValue mv t
       pure (v : res, ns')
-

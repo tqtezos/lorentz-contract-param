@@ -22,7 +22,7 @@ import qualified Data.Time.Clock.POSIX as Time
 
 import Michelson.Interpret (ContractEnv(..), MichelsonFailed, michelsonInterpreter)
 import Michelson.Typed.Value (Operation)
-import Michelson.Types
+import Michelson.Untyped
 import Morley.Runtime.GState
 import Morley.Runtime.TxData
 import Tezos.Core (Mutez(..), Timestamp(..))

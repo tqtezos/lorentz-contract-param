@@ -10,7 +10,7 @@ import Test.Hspec
   (Expectation, Spec, context, describe, it, parallel, shouldBe, shouldSatisfy, specify)
 
 import Michelson.Interpret
-import Michelson.Types
+import Michelson.Untyped
 import Morley.Runtime
 import Morley.Runtime.GState (GState(..), initGState)
 import Tezos.Core (Mutez(..), Timestamp(..))

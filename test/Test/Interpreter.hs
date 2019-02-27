@@ -8,14 +8,14 @@ import Test.Hspec (Expectation, Spec, describe, expectationFailure, it, shouldBe
 import Test.HUnit (assertFailure)
 import Text.Megaparsec (parse)
 
-import Michelson.Typed (CT(..), T(..), Instr (..))
 import Michelson.Interpret
-import Test.Morley.Runtime (dummyContractEnv)
 import qualified Michelson.TypeCheck as T
-import Michelson.Types (Contract(..), Op(..))
+import Michelson.Typed (CT(..), Instr(..), T(..))
 import qualified Michelson.Typed.Value as V
+import Michelson.Untyped (Contract(..), Op(..))
 import Morley.Macro (expandFlat)
 import Morley.Parser (contract)
+import Test.Morley.Runtime (dummyContractEnv)
 
 spec :: Spec
 spec = describe "Advanced type interpreter tests" $ do
@@ -63,4 +63,3 @@ testRun file initSt initParam checkRes = do
       -> (V.Val (Instr cp) st, [V.Operation (Instr cp)])
     contractRes (V.VPair (V.VList ops, r) :& RNil) =
       (r, (\(V.VOp op) -> op) <$> ops)
-

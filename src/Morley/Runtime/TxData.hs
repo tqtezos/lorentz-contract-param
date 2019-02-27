@@ -4,7 +4,7 @@ module Morley.Runtime.TxData
        ( TxData (..)
        ) where
 
-import Michelson.Types (Op, Value)
+import Michelson.Untyped (Op, Value)
 import Tezos.Core (Mutez)
 import Tezos.Crypto (Address)
 

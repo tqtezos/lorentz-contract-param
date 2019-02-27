@@ -42,7 +42,7 @@ module Morley.Types
 
 import Data.Data (Data(..))
 import qualified Data.Text as T
-import Michelson.Types
+import Michelson.Untyped
   (Annotation(..), CT(..), Comparable(..), Contract(..), Elt(..), FieldAnn, Instr,
   InstrAbstract(..), InternalByteString(..), Op(..), Parameter, Storage, T(..), Type(..), TypeAnn,
   Value(..), VarAnn, ann, noAnn, unInternalByteString)

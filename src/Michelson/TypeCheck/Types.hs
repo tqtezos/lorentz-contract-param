@@ -18,8 +18,8 @@ import Michelson.Typed (Notes(..), Sing(..), T(..), fromSingT)
 import Michelson.Typed.Instr
 import Michelson.Typed.Value
 
-import Michelson.Types (VarAnn)
-import qualified Michelson.Types as M
+import qualified Michelson.Untyped as Untyped
+import Michelson.Untyped.Annotation (VarAnn)
 
 -- | Data type holding type information for stack.
 --
@@ -109,8 +109,8 @@ type ContractOut st = '[ 'T_pair ('T_list 'T_operation) st ]
 
 -- | Type check error
 data TCError =
-    TCFailedOnInstr M.Instr SomeIT Text
-  | TCFailedOnValue (M.Value M.Op) T Text
+    TCFailedOnInstr Untyped.Instr SomeIT Text
+  | TCFailedOnValue (Untyped.Value Untyped.Op) T Text
   | TCOtherError Text
 
 instance Show TCError where

@@ -22,7 +22,6 @@ library
                      , Michelson.TypeCheck
                      , Michelson.Typed
                      , Michelson.Typed.Value
-                     , Michelson.Types
                      , Michelson.Untyped
                      , Morley.Default
                      , Morley.Lexer
@@ -49,6 +48,8 @@ library
                      , Michelson.Typed.Sing
                      , Michelson.Typed.T
                      , Michelson.Untyped.Annotation
+                     , Michelson.Untyped.Contract
+                     , Michelson.Untyped.Instr
                      , Michelson.Untyped.Type
                      , Michelson.Untyped.Value
 
