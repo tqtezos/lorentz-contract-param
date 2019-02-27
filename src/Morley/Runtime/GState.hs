@@ -21,6 +21,7 @@ import qualified Data.Map.Strict as Map
 import System.IO.Error (IOError, isDoesNotExistError)
 
 import Michelson.Types
+import Tezos.Core (Mutez)
 import Tezos.Crypto (Address)
 
 data Account = Account

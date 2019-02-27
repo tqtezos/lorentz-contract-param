@@ -2,16 +2,15 @@ module Test.Serialization.Aeson
   ( spec
   ) where
 
-import Data.Aeson (ToJSON, FromJSON)
+import Data.Aeson (FromJSON, ToJSON)
 import Test.Aeson.GenericSpecs
-  (defaultSettings, roundtripAndGoldenSpecsWithSettings, goldenDirectoryOption,
-   GoldenDirectoryOption(CustomDirectoryName))
+  (GoldenDirectoryOption(CustomDirectoryName), defaultSettings, goldenDirectoryOption,
+  roundtripAndGoldenSpecsWithSettings)
 import Test.Hspec (Spec)
 import Test.QuickCheck (Arbitrary)
 
-import Michelson.Types
-  (Op, Timestamp, Mutez, Contract, InstrAbstract, Value, Elt,
-   TypeAnn, FieldAnn, VarAnn)
+import Michelson.Types (Contract, Elt, FieldAnn, InstrAbstract, Op, TypeAnn, Value, VarAnn)
+import Tezos.Core (Mutez, Timestamp)
 
 import Test.Arbitrary ()
 
@@ -27,10 +26,12 @@ test _ =
 
 spec :: Spec
 spec = do
-  -- Michelson types
-  test (Proxy @Op)
+  -- Core Tezos types
   test (Proxy @Timestamp)
   test (Proxy @Mutez)
+
+  -- Michelson types
+  test (Proxy @Op)
 
   -- these are actually all the same thing (Annotation a),
   -- where a is a phantom type,

@@ -8,8 +8,6 @@ module Michelson.Types
   , Contract (..)
 
     -- * Data types
-  , Timestamp (..)
-  , Mutez (..)
   , Value (..)
   , Elt (..)
 
@@ -73,13 +71,12 @@ module Michelson.Types
   , isBytes
   ) where
 
-import qualified Text.Show
-import Data.Aeson
-  (FromJSON(..), ToJSON(..))
+import Data.Aeson (FromJSON(..), ToJSON(..))
 import Data.Aeson.TH (defaultOptions, deriveJSON)
 import Data.Data (Data(..))
 import Data.Default (Default(..))
 import qualified Data.Text as T
+import qualified Text.Show
 
 type Parameter = Type
 type Storage = Type
@@ -99,15 +96,6 @@ newtype Op = Op {unOp :: Instr}
 -------------------------------------
 -- Basic polymorphic types for Parser/Macro/Typechecker modules
 -------------------------------------
-
-newtype Timestamp = Timestamp
-  { unTimestamp :: Word64
-  } deriving stock (Show, Eq, Ord, Data, Generic)
-
-newtype Mutez = Mutez
-  { unMutez :: Word64
-  } deriving stock (Show, Eq, Ord, Data, Generic)
-    deriving newtype (Num, Integral, Real, Enum, Bounded)
 
 {- Data types -}
 data Value op =
@@ -403,8 +391,6 @@ instance FromJSON InternalByteString where
   parseJSON = fmap (InternalByteString . encodeUtf8 @Text) . parseJSON
 
 deriveJSON defaultOptions ''Annotation
-deriveJSON defaultOptions ''Timestamp
-deriveJSON defaultOptions ''Mutez
 deriveJSON defaultOptions ''Op
 deriveJSON defaultOptions ''Contract
 deriveJSON defaultOptions ''InstrAbstract

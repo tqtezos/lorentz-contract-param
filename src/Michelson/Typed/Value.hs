@@ -6,11 +6,10 @@ module Michelson.Typed.Value
   , Operation (..)
   ) where
 
-import Michelson.Typed.T (T(..))
 import Michelson.Typed.CValue (CVal(..))
-import Michelson.Types (Mutez)
+import Michelson.Typed.T (T(..))
+import Tezos.Core (Mutez)
 import Tezos.Crypto (Address, PublicKey, Signature)
-
 
 -- | Data type, representing operation, list of which is returned
 -- by Michelson contract (according to calling convention).
@@ -63,5 +62,3 @@ deriving instance Show (Val instr t)
 --
 -- data BigMap op ref k v = BigMap
 --  { bmRef :: ref k v, bmChanges :: Map (CVal k) (ValueOp (Val cp v)) }
-
-

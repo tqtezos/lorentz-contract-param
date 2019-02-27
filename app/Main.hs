@@ -18,6 +18,7 @@ import Morley.Macro (expandFlattenContract, expandValue)
 import qualified Morley.Parser as P
 import Morley.Runtime (Account(..), TxData(..), originateContract, runContract)
 import Morley.Types
+import Tezos.Core (Mutez(..), Timestamp(..))
 import Tezos.Crypto (Address, parseAddress)
 
 data CmdLnArgs

@@ -19,15 +19,16 @@ import Data.Vinyl (Rec(..), (<+>))
 
 import Michelson.Typed
 import qualified Michelson.Types as M
+import Tezos.Core (Mutez, Timestamp)
 import Tezos.Crypto (Address)
 
 -- | Environment for contract execution.
 data ContractEnv = ContractEnv
-  { ceNow :: !M.Timestamp
+  { ceNow :: !Timestamp
   -- ^ Timestamp of the block whose validation triggered this execution.
   , ceMaxSteps :: !Word64
   -- ^ Number of steps after which execution unconditionally terminates.
-  , ceBalance :: !M.Mutez
+  , ceBalance :: !Mutez
   -- ^ Current amount of mutez of the current contract.
   , ceStorage :: !(M.Value M.Op)
   -- ^ Storage value associated with the current contract.
@@ -40,7 +41,7 @@ data ContractEnv = ContractEnv
   -- ^ The contract that initiated the current transaction.
   , ceSender :: !Address
   -- ^ The contract that initiated the current internal transaction.
-  , ceAmount :: !M.Mutez
+  , ceAmount :: !Mutez
   -- ^ Amount of the current transaction.
   }
 

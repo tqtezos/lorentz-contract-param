@@ -2,19 +2,18 @@
 
 module Test.Arbitrary () where
 
-import Michelson.Types
-  (Op(..), Timestamp(..), Mutez(..), Annotation(..),
-   Contract(..), InstrAbstract(..), Value(..), Elt(..), Type(..),
-   T(..), CT(..), TypeAnn, FieldAnn, VarAnn, Comparable(..),
-   InternalByteString(..))
-
-import qualified Data.Text.Encoding as T
-import qualified Data.Text as T
-
 import Prelude hiding (EQ, GT, LT)
-import Test.QuickCheck
-  (Arbitrary(..), Gen, choose, elements, listOf, oneof, vector)
+
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
+
+import Test.QuickCheck (Arbitrary(..), Gen, choose, elements, listOf, oneof, vector)
 import Test.QuickCheck.Arbitrary.ADT (ToADTArbitrary(..))
+
+import Michelson.Types
+  (Annotation(..), CT(..), Comparable(..), Contract(..), Elt(..), FieldAnn, InstrAbstract(..),
+  InternalByteString(..), Op(..), T(..), Type(..), TypeAnn, Value(..), VarAnn)
+import Tezos.Core (Mutez(..), Timestamp(..))
 
 instance Arbitrary InternalByteString where
   arbitrary = InternalByteString . T.encodeUtf8 . T.pack <$> listOf arbitrary
@@ -246,4 +245,3 @@ instance Arbitrary CT where
 instance ToADTArbitrary Comparable
 instance Arbitrary Comparable where
   arbitrary = Comparable <$> arbitrary <*> arbitrary
-

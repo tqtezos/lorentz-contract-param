@@ -8,7 +8,7 @@ module Michelson.Typed.CValue
 import Data.Time.Clock (UTCTime)
 
 import Michelson.Typed.T (CT(..))
-import Michelson.Types (Mutez)
+import Tezos.Core (Mutez)
 import Tezos.Crypto (Address, KeyHash)
 
 -- | Representation of comparable value
