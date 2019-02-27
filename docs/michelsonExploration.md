@@ -177,3 +177,39 @@ code {
        PAIR;
      }
 ```
+
+## Format of literals
+
+The specification doesn't describe format of literals of various types (like `key`, for example).
+I've even created an [issue](https://gitlab.com/tezos/tezos/issues/479) about that.
+Sample literals can be found in [Michelson tutorial](https://gitlab.com/camlcase-dev/michelson-tutorial/tree/master/01#appendix-a-michelson-data-literal-format), but we don't know for sure whether that list is complete.
+
+We know that string literal can be used as `key`, `key_hash`, `address`, etc.
+There was a guess that bytes can also be used to represent these types.
+This hypothesis has been checked.
+`tz1faswCTDciRzE4oJ9jn2Vm2dvjeyA9fUzU` is a valid `key_hash` on alphanet: https://alphanet.tzscan.io/tz1faswCTDciRzE4oJ9jn2Vm2dvjeyA9fUzU
+We can use http://lenschulwitz.com/base58 to decode it.
+The result is: `06A19FDAC9F52543DA1AED0BC1D6B46BF7C10DB7014CD673FCC361`.
+If we strip checksum, we'll get `06A19FDAC9F52543DA1AED0BC1D6B46BF7C10DB7014CD6`.
+If we strip tag prefix (which is contant for each `key_hash`), we'll get `DAC9F52543DA1AED0BC1D6B46BF7C10DB7014CD6`.
+
+The following script has been used to test whether any of these bytes sequences can be passed as a value of type `key_hash` (with `0x` prefix):
+```
+parameter key_hash;
+storage bool;
+code {
+      CDR;
+      NIL operation; PAIR;};
+```
+
+None of them worked.
+Concrete CLI command (others are similar):
+
+> `./alphanet.sh client run script container:test.tz on storage 'False' and input '0xDAC9F52543DA1AED0BC1D6B46BF7C10DB7014CD6'`.
+
+The same was tested for `address`, it also didn't work.
+
+Also sample public key (`edpktieBMrR9Df3dqzZAJpDZBXb1h188fyrQyRJcm5RH2WpbvMVR8b`) was tested the same way.
+All three byte values were invalud for type `key`.
+
+Conclusion: most likely values of these types (and e. g. `signature`) can be represented only as strings.
