@@ -49,6 +49,7 @@ library
                      , Michelson.Typed.Sing
                      , Michelson.Typed.T
                      , Michelson.Untyped.Annotation
+                     , Michelson.Untyped.Type
                      , Michelson.Untyped.Value
 
   build-depends:       aeson
