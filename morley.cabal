@@ -199,6 +199,7 @@ test-suite morley-test
                      , Test.Morley.Runtime
                      , Test.Parser
                      , Test.Serialization.Aeson
+                     , Test.Tezos.Address
                      , Test.Tezos.Crypto
                      , Test.Typecheck
                      , Test.Util.Contracts

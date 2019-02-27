@@ -6,10 +6,11 @@ import Test.Hspec (hspec)
 
 import qualified Test.Interpreter as Interpreter
 import qualified Test.Macro as Macro
-import qualified Test.Nop as Nop
 import qualified Test.Morley.Runtime as Morley.Runtime
+import qualified Test.Nop as Nop
 import qualified Test.Parser as Parser
 import qualified Test.Serialization.Aeson as Serialization.Aeson
+import qualified Test.Tezos.Address as Tezos.Address
 import qualified Test.Tezos.Crypto as Tezos.Crypto
 import qualified Test.Typecheck as Typecheck
 
@@ -21,5 +22,6 @@ main = hspec $ do
   Nop.nopHandlerSpec
   Interpreter.spec
   Tezos.Crypto.spec
+  Tezos.Address.spec
   Morley.Runtime.spec
   Serialization.Aeson.spec
