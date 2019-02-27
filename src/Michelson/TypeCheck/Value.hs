@@ -20,9 +20,8 @@ import Michelson.Typed
   (CT(..), Instr(..), Notes(..), Notes'(..), Sing(..), T(..), converge, mkNotes, withSomeSingCT,
   withSomeSingT)
 import Michelson.Typed.Value (CVal(..), Val(..))
-
 import qualified Michelson.Untyped as M
-import Tezos.Crypto (Address(..), parseAddress, parseKeyHash, parsePublicKey, parseSignature)
+import Tezos.Crypto (parseAddress, parseKeyHash, parsePublicKey, parseSignature)
 
 typeCheckCVal :: M.Value op -> CT -> Maybe SomeValC
 typeCheckCVal (M.ValueInt i) T_int = pure $ CvInt i :--: ST_int
@@ -34,8 +33,6 @@ typeCheckCVal (M.ValueString s) T_string =
   pure $ CvString s :--: ST_string
 typeCheckCVal (M.ValueString (parseAddress -> Right s)) T_address =
   pure $ CvAddress s :--: ST_address
-typeCheckCVal (M.ValueBytes (M.InternalByteString s)) T_address =
-  pure $ CvAddress (Address s) :--: ST_address
 typeCheckCVal (M.ValueString (parseKeyHash -> Right s)) T_key_hash =
   pure $ CvKeyHash s :--: ST_key_hash
 typeCheckCVal (M.ValueString (parseTimeRFC3339 -> Just zt)) T_timestamp =
@@ -93,9 +90,6 @@ typeCheckValImpl _ (M.ValueString (parseSignature -> Right s)) T_signature =
 typeCheckValImpl _ (M.ValueString (parseAddress -> Right s)) (T_contract pt) =
   withSomeSingT pt $ \p ->
     pure $ VContract s :::: (ST_contract p, NStar)
-typeCheckValImpl _ (M.ValueBytes (M.InternalByteString s)) (T_contract pt) = do
-  withSomeSingT pt $ \p ->
-    pure $ VContract (Address s) :::: (ST_contract p, NStar)
 typeCheckValImpl _ M.ValueUnit T_unit = pure $ VUnit :::: (ST_unit, NStar)
 typeCheckValImpl tcDo (M.ValuePair ml mr) (T_pair lt rt) = do
   l :::: (lst, ln) <- typeCheckValImpl tcDo ml lt
