@@ -23,6 +23,7 @@ library
                      , Michelson.Typed
                      , Michelson.Typed.Value
                      , Michelson.Types
+                     , Michelson.Untyped
                      , Morley.Default
                      , Morley.Lexer
                      , Morley.Macro
@@ -47,6 +48,7 @@ library
                      , Michelson.Typed.Polymorphic
                      , Michelson.Typed.Sing
                      , Michelson.Typed.T
+                     , Michelson.Untyped.Annotation
 
   build-depends:       aeson
                      , aeson-options
