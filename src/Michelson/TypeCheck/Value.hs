@@ -1,4 +1,4 @@
-module Michelson.Advanced.TypeCheck.Value
+module Michelson.TypeCheck.Value
     ( typeCheckValImpl
     , typeCheckCVal
     ) where
@@ -7,22 +7,21 @@ import Data.Default (def)
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.Singletons (SingI)
-import Data.Typeable ((:~:)(..))
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Data.Time.LocalTime (zonedTimeToUTC)
 import Data.Time.RFC3339 (parseTimeRFC3339)
+import Data.Typeable ((:~:)(..))
 import Prelude hiding (EQ, GT, LT)
 
-import Michelson.Advanced.Type
-  (CT(..), Notes(..), Notes'(..), Sing(..), T(..), converge,
-  mkNotes, withSomeSingCT, withSomeSingT)
-import Michelson.Advanced.TypeCheck.Helpers
-import Michelson.Advanced.TypeCheck.Types
-import Michelson.Advanced.Value
-  (CVal (..), Val (..), Instr (..))
+import Michelson.TypeCheck.Helpers
+import Michelson.TypeCheck.Types
+import Michelson.Typed
+  (CT(..), Instr(..), Notes(..), Notes'(..), Sing(..), T(..), converge, mkNotes, withSomeSingCT,
+  withSomeSingT)
+import Michelson.Typed.Value (CVal(..), Val(..))
 
 import qualified Michelson.Types as M
-import Tezos.Crypto (parsePublicKey, parseKeyHash, parseSignature, Address (..), parseAddress)
+import Tezos.Crypto (Address(..), parseAddress, parseKeyHash, parsePublicKey, parseSignature)
 
 typeCheckCVal :: M.Value M.Op -> CT -> Maybe SomeValC
 typeCheckCVal (M.ValueInt i) T_int = pure $ CvInt i :--: ST_int

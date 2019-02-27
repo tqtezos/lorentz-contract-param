@@ -1,7 +1,7 @@
 -- | Module, containing type classes for operating with Michelson values
 -- in the context of polymorphic stack type operations.
 
-module Michelson.Advanced.Value.Helpers
+module Michelson.Typed.Polymorphic
   ( EDivOp (..)
   , MemOp (..)
   , MapOp (..)
@@ -16,9 +16,9 @@ module Michelson.Advanced.Value.Helpers
 import qualified Data.Map as M
 import qualified Data.Set as S
 
-import Michelson.Advanced.Type (CT(..), T(..))
-import Michelson.Advanced.Value.Value (Val (..))
-import Michelson.Advanced.Value.CValue (CVal(..))
+import Michelson.Typed.T (CT(..), T(..))
+import Michelson.Typed.CValue (CVal(..))
+import Michelson.Typed.Value (Val(..))
 
 class MemOp (c :: T) where
   type MemOpKey c :: CT

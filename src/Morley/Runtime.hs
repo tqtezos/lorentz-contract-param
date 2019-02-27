@@ -20,7 +20,7 @@ import Control.Lens (at, makeLenses, (%=), (.=), (<>=))
 import Control.Monad.Except (Except, runExcept, throwError)
 import qualified Data.Time.Clock.POSIX as Time
 import Michelson.Interpret (ContractEnv(..), MichelsonFailed, michelsonInterpreter)
-import Michelson.Advanced (Operation)
+import Michelson.Typed.Value (Operation)
 import Tezos.Crypto (Address(..))
 import Michelson.Types
 import Morley.Runtime.GState

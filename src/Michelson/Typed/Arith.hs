@@ -3,7 +3,7 @@
 -- | Module, containing some boilerplate for support of
 -- arithmetic operations in Michelson language.
 
-module Michelson.Advanced.Value.Arith
+module Michelson.Typed.Arith
   ( ArithOp (..)
   , UnaryArithOp (..)
   , Add
@@ -26,8 +26,8 @@ module Michelson.Advanced.Value.Arith
   , Ge
   ) where
 
-import Michelson.Advanced.Type (CT(..))
-import Michelson.Advanced.Value.CValue (CVal(..))
+import Michelson.Typed.CValue (CVal(..))
+import Michelson.Typed.T (CT(..))
 
 import Data.Bits (complement, shift, xor, (.&.), (.|.))
 import Data.Time.Clock (addUTCTime, diffUTCTime)

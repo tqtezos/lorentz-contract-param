@@ -14,7 +14,7 @@
 -- both `a` and `b` by replacing some @*@ leafs with type or/and field
 -- annotations.
 
-module Michelson.Advanced.Type.Annotation
+module Michelson.Typed.Annotation
   (
     Notes (..)
   , Notes' (..)
@@ -28,7 +28,7 @@ module Michelson.Advanced.Type.Annotation
 
 import Data.Default (Default(..))
 
-import Michelson.Advanced.Type.T (T(..))
+import Michelson.Typed.T (T(..))
 import Michelson.Types (Annotation, FieldAnn, TypeAnn, unifyAnn)
 
 

@@ -1,15 +1,15 @@
 -- | Module, containing CVal data type
 -- which represents Michelson comparable values.
 
-module Michelson.Advanced.Value.CValue
+module Michelson.Typed.CValue
   ( CVal (..)
   ) where
 
 import Data.Time.Clock (UTCTime)
 
+import Michelson.Typed.T (CT(..))
 import Michelson.Types (Mutez)
-import Michelson.Advanced.Type (CT(..))
-import Tezos.Crypto (KeyHash, Address)
+import Tezos.Crypto (Address, KeyHash)
 
 -- | Representation of comparable value
 -- in Michelson language.

@@ -1,6 +1,6 @@
 -- | Module, providing functions for conversion from
 -- instruction and value representation from @Michelson.Type@ module
--- to strictly-typed GADT-based representation from @Michelson.Advanced.Value@ module.
+-- to strictly-typed GADT-based representation from @Michelson.Value@ module.
 --
 -- This conversion is labeled as type check because that's what we are obliged
 -- to do on our way.
@@ -25,26 +25,24 @@
 -- recursive call returned instruction of expected type
 -- (error is thrown otherwise).
 
-module Michelson.Advanced.TypeCheck.Instr
+module Michelson.TypeCheck.Instr
     ( typeCheck
     , typeCheckContract
     , typeCheckVal
     ) where
 
 import Data.Default (def)
-import Data.Singletons (SingI (sing))
+import Data.Singletons (SingI(sing))
 import Data.Typeable ((:~:)(..))
 import Prelude hiding (EQ, GT, LT)
 
-import Michelson.Advanced.Type
-  (CT(..), Notes(..), Notes'(..), Sing(..), T(..), converge, convergeAnns, extractNotes, fromMType,
-  mkNotes, notesCase, orAnn, withSomeSingCT, withSomeSingT)
-import Michelson.Advanced.TypeCheck.Helpers
-import Michelson.Advanced.TypeCheck.Types
-import Michelson.Advanced.TypeCheck.Value
-import Michelson.Advanced.Value
-  (Abs, And, Eq', Ge, Gt, Instr(..), IterOp(..), Le, Lsl, Lsr, Lt, MapOp(..), Neg, Neq, Not, Or,
-  Val(..), Xor)
+import Michelson.TypeCheck.Helpers
+import Michelson.TypeCheck.Types
+import Michelson.TypeCheck.Value
+import Michelson.Typed
+  (Abs, And, CT(..), Eq', Ge, Gt, Instr(..), IterOp(..), Le, Lsl, Lsr, Lt, MapOp(..), Neg, Neq,
+  Not, Notes(..), Notes'(..), Or, Sing(..), T(..), Val(..), Xor, converge, convergeAnns,
+  extractNotes, fromMType, mkNotes, notesCase, orAnn, withSomeSingCT, withSomeSingT)
 
 import Michelson.Types (VarAnn)
 import qualified Michelson.Types as M

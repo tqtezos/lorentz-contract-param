@@ -1,4 +1,4 @@
-module Michelson.Advanced.TypeCheck.Types
+module Michelson.TypeCheck.Types
     (
       IT (..)
     , SomeIT (..)
@@ -14,11 +14,12 @@ module Michelson.Advanced.TypeCheck.Types
 import Prelude hiding (EQ, GT, LT)
 import qualified Text.Show
 
-import Michelson.Advanced.Type (Notes(..), Sing(..), T(..), fromSingT)
-import Michelson.Advanced.Value
+import Michelson.Typed (Notes(..), Sing(..), T(..), fromSingT)
+import Michelson.Typed.Instr
+import Michelson.Typed.Value
 
-import qualified Michelson.Types as M
 import Michelson.Types (VarAnn)
+import qualified Michelson.Types as M
 
 -- | Data type holding type information for stack.
 --
