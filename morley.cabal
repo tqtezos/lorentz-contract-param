@@ -26,6 +26,7 @@ library
                      , Morley.Default
                      , Morley.Lexer
                      , Morley.Macro
+                     , Morley.Nop
                      , Morley.Parser
                      , Morley.Parser.Annotations
                      , Morley.Runtime

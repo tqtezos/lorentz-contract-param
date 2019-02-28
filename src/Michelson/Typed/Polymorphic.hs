@@ -148,4 +148,3 @@ instance EDivOp 'T_mutez 'T_nat where
       then VOption $ Nothing
       else VOption $ Just $
         VPair (VC $ CvNat (div (fromIntegral i) j), VC $ CvMutez $ (mod i (fromIntegral j)))
-

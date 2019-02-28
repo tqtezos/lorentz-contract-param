@@ -11,6 +11,7 @@ import Test.Hspec
 
 import Michelson.Interpret
 import Michelson.Untyped
+import Morley.Types (NopInstr)
 import Morley.Runtime
 import Morley.Runtime.GState (GState(..), initGState)
 import Tezos.Core (Mutez(..), Timestamp(..))

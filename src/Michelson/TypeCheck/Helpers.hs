@@ -129,9 +129,11 @@ convergeIT INil INil = pure INil
 convergeIT (a ::& as) (b ::& bs) =
     liftA2 (::&) (convergeITEl a b) (convergeIT as bs)
 
+-- TODO move to Util module
 onLeft :: Either a c -> (a -> b) -> Either b c
 onLeft e f = either (Left . f) pure e
 
+-- TODO move to Util module
 onLeftM :: Functor m => ExceptT e m c -> (e -> e) -> ExceptT e m c
 onLeftM = flip withExceptT
 

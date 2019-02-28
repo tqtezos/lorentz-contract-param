@@ -5,10 +5,11 @@ module Test.Typecheck
 import Test.Hspec (Expectation, Spec, describe, expectationFailure, it)
 import Text.Megaparsec (parse)
 
-import Michelson.TypeCheck
 import Michelson.Untyped (Contract(..), Op(..))
 import Morley.Macro (expandFlat)
+import Morley.Nop (typeCheckMorleyContract)
 import Morley.Parser (contract)
+import Morley.Types (NopInstr)
 
 import Test.Util.Contracts (getIllTypedContracts, getWellTypedContracts)
 
@@ -18,20 +19,20 @@ typeCheckSpec = describe "Typechecker tests" $ do
   it "Reports errors on contracts examples from contracts/ill-typed" badContractsTest
   where
     doTC = either (Left . displayException) (\_ -> pure ()) .
-            typeCheckContract . fmap unOp
+            typeCheckMorleyContract . fmap unOp
 
     goodContractsTest = mapM_ (checkFile doTC True) =<< getWellTypedContracts
 
     badContractsTest = mapM_ (checkFile doTC False) =<< getIllTypedContracts
 
 
-checkFile :: (Contract Op -> Either String ()) -> Bool -> FilePath -> Expectation
+checkFile :: (Contract (Op NopInstr) -> Either String ()) -> Bool -> FilePath -> Expectation
 checkFile doTypeCheck wellTyped file = do
   cd <- readFile file
   case parse contract file cd of
     Right c' -> do
       let c = Contract (para c') (stor c') (expandFlat $ code c')
-      case typecheckContract c of
+      case doTypeCheck c of
         Left err
           | wellTyped ->
             expectationFailure $

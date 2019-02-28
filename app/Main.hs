@@ -12,9 +12,9 @@ import qualified Options.Applicative as Opt
 import Text.Megaparsec (parse)
 import Text.Pretty.Simple (pPrint)
 
-import Michelson.TypeCheck (typeCheckContract)
 import Michelson.Untyped
 import Morley.Macro (expandFlattenContract, expandValue)
+import Morley.Nop (typeCheckMorleyContract)
 import qualified Morley.Parser as P
 import Morley.Runtime (Account(..), TxData(..), originateContract, runContract)
 import Morley.Types
@@ -184,15 +184,15 @@ main = do
           then pPrint $ expandFlattenContract contract
           else pPrint contract
       TypeCheck mFilename _hasVerboseFlag -> do
-        void $ prepareContract (typeCheckContract . fmap unOp) mFilename
+        void $ prepareContract (typeCheckMorleyContract . fmap unOp) mFilename
         putTextLn "Contract is well-typed"
       Run RunOptions {..} -> do
         (michelsonContract, _) <-
-          prepareContract (typeCheckContract . fmap unOp) roContractFile
+          prepareContract (typeCheckMorleyContract . fmap unOp) roContractFile
         runContract roNow roMaxSteps roVerbose roDBPath roStorageValue michelsonContract roTxData
       Originate OriginateOptions {..} -> do
         (michelsonContract, _) <-
-          prepareContract (typeCheckContract . fmap unOp) ooContractFile
+          prepareContract (typeCheckMorleyContract . fmap unOp) ooContractFile
         let acc = Account
               { accBalance = ooBalance
               , accStorage = ooStorageValue

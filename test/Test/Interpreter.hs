@@ -14,6 +14,7 @@ import Michelson.Typed (CT(..), Instr(..), T(..))
 import qualified Michelson.Typed.Value as V
 import Michelson.Untyped (Contract(..), Op(..))
 import Morley.Macro (expandFlat)
+import Morley.Nop (typeCheckMorleyContract)
 import Morley.Parser (contract)
 import Test.Morley.Runtime (dummyContractEnv)
 
@@ -44,7 +45,7 @@ testRun file initSt initParam checkRes = do
                   parse contract file <$> readFile file
   T.SomeContract (instr :: Instr cp' (T.ContractInp cp' st')
                                                   (T.ContractOut st')) _ _
-    <- assertEither "Type check error" $ pure $ T.typeCheckContract $
+    <- assertEither "Type check error" $ pure $ typeCheckMorleyContract $
         unOp <$> Contract (para c') (stor c') (expandFlat $ code c')
   case (eqT @cp @cp', eqT @st @st') of
     (Just Refl, Just Refl) -> do

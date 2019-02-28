@@ -10,6 +10,7 @@ import Test.Hspec (Spec)
 import Test.QuickCheck (Arbitrary)
 
 import Michelson.Untyped (Contract, Elt, FieldAnn, InstrAbstract, Op, TypeAnn, Value, VarAnn)
+import Morley.Types (NopInstr)
 import Tezos.Core (Mutez, Timestamp)
 
 import Test.Arbitrary ()
@@ -31,7 +32,7 @@ spec = do
   test (Proxy @Mutez)
 
   -- Michelson types
-  test (Proxy @Op)
+  test (Proxy @(Op NopInstr))
 
   -- these are actually all the same thing (Annotation a),
   -- where a is a phantom type,
@@ -41,7 +42,7 @@ spec = do
   test (Proxy @FieldAnn)
   test (Proxy @VarAnn)
 
-  test (Proxy @(Contract Op))
-  test (Proxy @(InstrAbstract Op))
-  test (Proxy @(Value Op))
-  test (Proxy @(Elt Op))
+  test (Proxy @(Contract (Op NopInstr)))
+  test (Proxy @(InstrAbstract NopInstr (Op NopInstr)))
+  test (Proxy @(Value (Op NopInstr)))
+  test (Proxy @(Elt (Op NopInstr)))

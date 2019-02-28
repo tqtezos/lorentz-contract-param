@@ -60,11 +60,13 @@ instance (Arbitrary op, ToADTArbitrary op) => ToADTArbitrary (Contract op)
 instance (Arbitrary op) => Arbitrary (Contract op) where
   arbitrary = Contract <$> arbitrary <*> arbitrary <*> arbitrary
 
-instance (Arbitrary op, ToADTArbitrary op) => ToADTArbitrary (InstrAbstract op)
-instance (Arbitrary op) => Arbitrary (InstrAbstract op) where
+instance (Arbitrary op, ToADTArbitrary op
+         , ToADTArbitrary nop, Arbitrary nop) => ToADTArbitrary (InstrAbstract nop op)
+instance (Arbitrary op, Arbitrary nop) => Arbitrary (InstrAbstract nop op) where
   arbitrary =
     oneof
-      [ pure DROP
+      [ NOP <$> arbitrary
+      , pure DROP
       , DUP <$> arbitrary
       , pure SWAP
       , PUSH <$> arbitrary <*> arbitrary <*> arbitrary
