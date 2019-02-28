@@ -25,6 +25,7 @@ import Michelson.Typed.Value (Operation)
 import Michelson.Untyped
 import Morley.Runtime.GState
 import Morley.Runtime.TxData
+import Morley.Types (NopInstr)
 import Tezos.Core (Mutez(..), Timestamp(..))
 import Tezos.Crypto (Address(..))
 
@@ -86,7 +87,7 @@ instance Exception InterpreterError
 -- don't know how do it (yet). Maybe it requires more data. In the
 -- worst case we can store such map in GState. Maybe we'll have to
 -- move this function to Morley.
-contractAddress :: Contract Op -> Address
+contractAddress :: Contract (Op nop) -> Address
 contractAddress _ = Address "dummy-address"
 
 -- | Originate a contract. Returns the address of the originated

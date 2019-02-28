@@ -30,12 +30,12 @@ data ContractEnv nop = ContractEnv
   -- ^ Number of steps after which execution unconditionally terminates.
   , ceBalance :: !Mutez
   -- ^ Current amount of mutez of the current contract.
-  , ceStorage :: !(M.Value (M.Op nop))
+  , ceStorage :: M.Value (M.Op nop)
   -- ^ Storage value associated with the current contract.
-  , ceContracts :: !(Map Address (M.Contract (M.Op nop))
+  , ceContracts :: Map Address (M.Contract (M.Op nop))
   -- ^ Mapping from existing contracts' addresses to their executable
   -- representation.
-  , ceParameter :: !(M.Value (M.Op nop))
+  , ceParameter :: M.Value (M.Op nop)
   -- ^ Parameter passed to the contract.
   , ceSource :: !Address
   -- ^ The contract that initiated the current transaction.
@@ -49,22 +49,25 @@ data ContractEnv nop = ContractEnv
 -- value that was on top of the stack when `FAILWITH` was called.
 data MichelsonFailed nop = MichelsonFailed
   -- { unMichelsonFailed :: Value (Op nop) } -- TODO uncomment when conversion to Value will be implemented
-  } deriving (Show)
+  deriving (Show)
 
 -- TODO [TM-16] Implement!
 -- | Interpret a contract without performing any side effects.
-michelsonInterpreter :: ContractEnv -> M.Contract M.Op -> Either MichelsonFailed ([Operation (Instr cp)], M.Value M.Op)
+michelsonInterpreter
+    :: ContractEnv nop
+    -> M.Contract (M.Op nop)
+    -> Either (MichelsonFailed nop) ([Operation (Instr cp)], M.Value (M.Op nop))
 michelsonInterpreter _ _ = pure ([], M.ValueFalse)
 
-newtype EvalOp a = EvalOp
-  { runEvalOp :: ExceptT MichelsonFailed (Reader ContractEnv) a
-  } deriving (Functor, Applicative, Monad, MonadError MichelsonFailed, MonadReader ContractEnv)
+newtype EvalOp nop a = EvalOp
+  { runEvalOp :: ExceptT (MichelsonFailed nop) (Reader (ContractEnv nop)) a
+  } deriving (Functor, Applicative, Monad, MonadError (MichelsonFailed nop), MonadReader (ContractEnv nop))
 
-doInstr :: EvalOp a -> ContractEnv -> Either MichelsonFailed a
+doInstr :: EvalOp nop a -> ContractEnv nop -> Either (MichelsonFailed nop) a
 doInstr = runReader . runExceptT . runEvalOp
 
 -- | Function to interpret Michelson instruction(s) against given stack.
-run :: (MonadError MichelsonFailed m, MonadReader ContractEnv m)
+run :: (MonadError (MichelsonFailed nop) m, MonadReader (ContractEnv nop) m)
     => Instr cp inp out
     -> Rec (Val (Instr cp)) inp
     -> m (Rec (Val (Instr cp)) out)
