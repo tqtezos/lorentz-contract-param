@@ -12,9 +12,9 @@ import qualified Options.Applicative as Opt
 import Text.Megaparsec (parse)
 import Text.Pretty.Simple (pPrint)
 
-import Michelson.TypeCheck (typeCheckContract)
 import Michelson.Untyped
 import Morley.Macro (expandFlattenContract, expandValue)
+import Morley.Nop (typeCheckMorleyContract)
 import qualified Morley.Parser as P
 import Morley.Runtime (Account(..), TxData(..), originateContract, runContract)
 import Morley.Types
@@ -30,7 +30,7 @@ data CmdLnArgs
 data RunOptions = RunOptions
   { roContractFile :: !(Maybe FilePath)
   , roDBPath :: !FilePath
-  , roStorageValue :: !(Value Op)
+  , roStorageValue :: !(Value (Op NopInstr))
   , roTxData :: !TxData
   , roVerbose :: !Bool
   , roNow :: !(Maybe Timestamp)
@@ -40,7 +40,7 @@ data RunOptions = RunOptions
 data OriginateOptions = OriginateOptions
   { ooContractFile :: !(Maybe FilePath)
   , ooDBPath :: !FilePath
-  , ooStorageValue :: !(Value Op)
+  , ooStorageValue :: !(Value (Op NopInstr))
   , ooBalance :: !Mutez
   , ooVerbose :: !Bool
   }
@@ -131,12 +131,12 @@ dbPathOption = strOption $
   value "db.json" <>
   help "Path to DB with data which is used instead of real blockchain data"
 
-valueOption :: String -> String -> Opt.Parser (Value Op)
+valueOption :: String -> String -> Opt.Parser (Value (Op NopInstr))
 valueOption name hInfo = option (eitherReader parseValue) $
   long name <>
   help hInfo
   where
-    parseValue :: String -> Either String (Value Op)
+    parseValue :: String -> Either String (Value (Op NopInstr))
     parseValue s =
       either (Left . mappend "Failed to parse value: " . show)
              (Right . expandValue)
@@ -162,14 +162,13 @@ txData =
     parseAddrDo addr =
       either (Left . mappend "Failed to parse address: " . show) Right $
         parseAddress $ toText addr
-    mkTxData :: Address -> Value Op -> Mutez -> TxData
+    mkTxData :: Address -> Value (Op NopInstr) -> Mutez -> TxData
     mkTxData addr param amount =
       TxData
         { tdSenderAddress = addr
         , tdParameter = param
         , tdAmount = amount
         }
-
 
 main :: IO ()
 main = do
@@ -185,15 +184,15 @@ main = do
           then pPrint $ expandFlattenContract contract
           else pPrint contract
       TypeCheck mFilename _hasVerboseFlag -> do
-        void $ prepareContract (typeCheckContract . fmap unOp) mFilename
+        void $ prepareContract (typeCheckMorleyContract . fmap unOp) mFilename
         putTextLn "Contract is well-typed"
       Run RunOptions {..} -> do
         (michelsonContract, _) <-
-          prepareContract (typeCheckContract . fmap unOp) roContractFile
+          prepareContract (typeCheckMorleyContract . fmap unOp) roContractFile
         runContract roNow roMaxSteps roVerbose roDBPath roStorageValue michelsonContract roTxData
       Originate OriginateOptions {..} -> do
         (michelsonContract, _) <-
-          prepareContract (typeCheckContract . fmap unOp) ooContractFile
+          prepareContract (typeCheckMorleyContract . fmap unOp) ooContractFile
         let acc = Account
               { accBalance = ooBalance
               , accStorage = ooStorageValue
@@ -215,12 +214,12 @@ main = do
     -- Read and parse the contract, expand and type check.
     prepareContract
       :: Exception e
-      => (Contract Op -> Either e tcRes)
-      -> Maybe FilePath -> IO (Contract Op, tcRes)
+      => (Contract (Op NopInstr) -> Either e tcRes)
+      -> Maybe FilePath -> IO (Contract (Op NopInstr), tcRes)
     prepareContract doTypeCheck mFile = do
       contract <- readAndParseContract mFile
       let
-        michelsonContract :: Contract Op
+        michelsonContract :: Contract (Op NopInstr)
         michelsonContract = expandFlattenContract contract
 
       fmap (michelsonContract,) $ either throwM pure $

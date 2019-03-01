@@ -13,6 +13,7 @@ import Test.QuickCheck.Arbitrary.ADT (ToADTArbitrary(..))
 import Michelson.Untyped
   (Annotation(..), CT(..), Comparable(..), Contract(..), Elt(..), FieldAnn, InstrAbstract(..),
   InternalByteString(..), Op(..), T(..), Type(..), TypeAnn, Value(..), VarAnn)
+import Morley.Types (NopInstr(..), StackTypePattern (..))
 import Tezos.Core (Mutez(..), Timestamp(..))
 
 instance Arbitrary InternalByteString where
@@ -21,8 +22,15 @@ instance Arbitrary InternalByteString where
 instance Arbitrary Text where
   arbitrary = T.pack <$> arbitrary
 
-instance ToADTArbitrary Op
-instance Arbitrary Op where
+instance Arbitrary StackTypePattern where
+  arbitrary = oneof [pure StkEmpty, pure StkRest, StkCons <$> arbitrary <*> arbitrary]
+
+-- TODO extend Arbitrary NopInstr with other constructors
+instance Arbitrary NopInstr where
+  arbitrary = oneof [STACKTYPE <$> arbitrary]
+
+instance (Arbitrary nop, ToADTArbitrary nop) => ToADTArbitrary (Op nop)
+instance Arbitrary nop => Arbitrary (Op nop) where
   arbitrary = Op <$> arbitrary
 
 instance ToADTArbitrary Timestamp
@@ -52,11 +60,13 @@ instance (Arbitrary op, ToADTArbitrary op) => ToADTArbitrary (Contract op)
 instance (Arbitrary op) => Arbitrary (Contract op) where
   arbitrary = Contract <$> arbitrary <*> arbitrary <*> arbitrary
 
-instance (Arbitrary op, ToADTArbitrary op) => ToADTArbitrary (InstrAbstract op)
-instance (Arbitrary op) => Arbitrary (InstrAbstract op) where
+instance (Arbitrary op, ToADTArbitrary op
+         , ToADTArbitrary nop, Arbitrary nop) => ToADTArbitrary (InstrAbstract nop op)
+instance (Arbitrary op, Arbitrary nop) => Arbitrary (InstrAbstract nop op) where
   arbitrary =
     oneof
-      [ pure DROP
+      [ NOP <$> arbitrary
+      , pure DROP
       , DUP <$> arbitrary
       , pure SWAP
       , PUSH <$> arbitrary <*> arbitrary <*> arbitrary

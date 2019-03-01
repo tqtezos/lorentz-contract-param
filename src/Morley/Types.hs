@@ -38,8 +38,16 @@ module Morley.Types
   , CadrStruct (..)
   , Macro (..)
   , ParsedInstr
+
+  -- * Morley Instructions
+  , NopInstr(..)
+  , InlineTest (..)
+  , PrintComment (..)
+  , StackTypePattern (..)
+  , StackRef(..)
   ) where
 
+import Data.Aeson.TH (defaultOptions, deriveJSON)
 import Data.Data (Data(..))
 import qualified Data.Text as T
 import Michelson.Untyped
@@ -80,17 +88,45 @@ instance Exception ParserException where
 -------------------------------------
 -- Types produced by parser
 -------------------------------------
-type ParsedInstr = InstrAbstract ParsedOp
+type ParsedInstr = InstrAbstract NopInstr ParsedOp
 data ParsedOp
   = PRIM ParsedInstr
   | MAC Macro
   | SEQ [ParsedOp]
-  deriving (Eq, Show)
+  deriving (Eq, Show, Data, Generic)
+
+-- Mark a specific point in contract execution for the rest of the pipeline
+data NopInstr =
+    STACKTYPE StackTypePattern
+  | TEST InlineTest
+  | PRINT PrintComment
+  deriving (Eq, Show, Data, Generic)
+
+-- A stack pattern-match
+data StackTypePattern
+ = StkEmpty
+ | StkRest
+ | StkCons Type StackTypePattern
+  deriving (Eq, Show, Data, Generic)
+
+-- A print format with references into the stack
+newtype PrintComment = PrintComment [Either T.Text StackRef]
+  deriving (Eq, Show, Data, Generic)
+
+newtype StackRef = StackRef Integer
+  deriving (Eq, Show, Data, Generic)
+
+-- An inline test assertion
+data InlineTest = InlineTest
+  { testName :: T.Text
+  , testComment :: PrintComment
+  , testInstrs :: [ParsedOp]
+  } deriving (Eq, Show, Data, Generic)
 
 -------------------------------------
 -- Types after macroexpander
 -------------------------------------
-type ExpandedInstr = InstrAbstract ExpandedOp
+type ExpandedInstr = InstrAbstract NopInstr ExpandedOp
 data ExpandedOp
   = PRIM_EX ExpandedInstr
   | SEQ_EX [ExpandedOp]
@@ -99,12 +135,12 @@ data ExpandedOp
 data PairStruct
   = F (VarAnn, FieldAnn)
   | P PairStruct PairStruct
-  deriving (Eq, Show)
+  deriving (Eq, Show, Data, Generic)
 
 data CadrStruct
   = A
   | D
-  deriving (Eq, Show)
+  deriving (Eq, Show, Data, Generic)
 
 data Macro
   = CMP ParsedInstr VarAnn
@@ -126,4 +162,14 @@ data Macro
   | ASSERT_LEFT
   | ASSERT_RIGHT
   | IF_SOME [ParsedOp] [ParsedOp]
-  deriving (Eq, Show)
+  deriving (Eq, Show, Data, Generic)
+
+deriveJSON defaultOptions ''ParsedOp
+deriveJSON defaultOptions ''NopInstr
+deriveJSON defaultOptions ''PrintComment
+deriveJSON defaultOptions ''StackTypePattern
+deriveJSON defaultOptions ''StackRef
+deriveJSON defaultOptions ''InlineTest
+deriveJSON defaultOptions ''PairStruct
+deriveJSON defaultOptions ''CadrStruct
+deriveJSON defaultOptions ''Macro

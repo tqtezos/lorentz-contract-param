@@ -9,6 +9,11 @@ module Michelson.TypeCheck.Types
     , ContractOut
     , SomeValC (..)
     , TCError (..)
+    , TcInstrHandler
+    , TcNopHandler
+    , TypeCheckEnv (..)
+    , TypeCheckT
+    , runTypeCheckT
     ) where
 
 import Prelude hiding (EQ, GT, LT)
@@ -102,18 +107,18 @@ data SomeContract where
     -> IT (ContractOut st)
     -> SomeContract
 
-deriving instance Show (SomeContract)
+deriving instance Show SomeContract
 
 type ContractInp param st = '[ 'T_pair param st ]
 type ContractOut st = '[ 'T_pair ('T_list 'T_operation) st ]
 
 -- | Type check error
-data TCError =
-    TCFailedOnInstr Untyped.Instr SomeIT Text
-  | TCFailedOnValue (Untyped.Value Untyped.Op) T Text
+data TCError nop =
+    TCFailedOnInstr (Untyped.Instr nop) SomeIT Text
+  | TCFailedOnValue (Untyped.Value (Untyped.Op nop)) T Text
   | TCOtherError Text
 
-instance Show TCError where
+instance Show nop => Show (TCError nop) where
   show (TCFailedOnInstr instr (SomeIT t) custom) =
     "Error checking expression " <> show instr
           <> " against input stack type " <> show t
@@ -124,4 +129,23 @@ instance Show TCError where
           <> bool (": " <> toString custom) "" (null custom)
   show (TCOtherError e) = "Error occurred during type check: " <> toString e
 
-instance Exception TCError
+instance (Show nop, Typeable nop) => Exception (TCError nop)
+
+type TcNopHandler nop = nop -> SomeIT -> Either (TCError nop) ()
+
+data TypeCheckEnv nop = TypeCheckEnv {
+  tcNopHandler :: TcNopHandler nop
+-- TODO should be probably filled with other fields
+}
+
+type TypeCheckT cp nop a =
+  ExceptT (TCError nop)
+    (Reader (TypeCheckEnv nop)) a
+
+runTypeCheckT :: TcNopHandler nop -> TypeCheckT cp nop a -> Either (TCError nop) a
+runTypeCheckT nh act = usingReader (TypeCheckEnv nh) $ runExceptT act
+
+type TcInstrHandler cp nop
+   = Untyped.Instr nop
+    -> SomeIT
+      -> TypeCheckT cp nop (SomeInstr cp)
