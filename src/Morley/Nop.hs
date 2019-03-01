@@ -22,15 +22,12 @@ handleStackTypeInstr _ _ StkRest _ = pure ()
 handleStackTypeInstr _ _ StkEmpty INil = pure ()
 handleStackTypeInstr origin i StkEmpty _ =
   Left $ "Unexpected length of the stack: STACKTYPE pattern has length " <> show i <>
-        ", but actual stack is longer: " <> show origin <> " elements"
+        ", but actual stack is longer: " <> show origin
 handleStackTypeInstr origin i _ INil =
   Left $ "Unexpected length of the stack: actual stack " <> show origin <> " has length " <> show i <>
         ", but STACKTYPE pattern is longer"
 handleStackTypeInstr orig i (StkCons t ts) ((xt, xann, _) ::& xs) = do
-  tann <- either (const $ Left $ "Couldn't match " <> show i <> " type of stack")
-                pure
-                (extractNotes t xt)
-  either (const $ Left $ "Couldn't c onverge annotations of " <> show i <> " element of pattern and actual stack")
-         (const $ Right ())
-         (converge tann xann)
+  tann <- first (const $ "Couldn't match " <> show i <> " type of stack") (extractNotes t xt)
+  void $ first (const $  "Couldn't c onverge annotations of " <> show i <> " element of pattern and actual stack")
+        (converge tann xann)
   handleStackTypeInstr orig (i + 1) ts xs

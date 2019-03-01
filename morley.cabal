@@ -191,14 +191,15 @@ test-suite morley-test
   main-is:             Spec.hs
   default-language:    Haskell2010
   type:                exitcode-stdio-1.0
-  other-modules:       Test.Interpreter
+  other-modules:       Test.Arbitrary
+                     , Test.Interpreter
                      , Test.Macro
+                     , Test.Nop
                      , Test.Morley.Runtime
                      , Test.Parser
+                     , Test.Serialization.Aeson
                      , Test.Tezos.Crypto
                      , Test.Typecheck
-                     , Test.Arbitrary
-                     , Test.Serialization.Aeson
                      , Test.Util.Contracts
                      , Test.Util.QuickCheck
   build-depends:
