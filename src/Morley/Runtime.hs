@@ -18,7 +18,6 @@ module Morley.Runtime
 
 import Control.Lens (at, makeLenses, (%=), (.=), (<>=))
 import Control.Monad.Except (Except, runExcept, throwError)
-import qualified Data.Time.Clock.POSIX as Time
 
 import Michelson.Interpret (ContractEnv(..), InterpretUntypedError(..), InterpretUntypedResult(..))
 import Michelson.Typed (Operation, unsafeValToValue)
@@ -28,7 +27,7 @@ import Morley.Runtime.GState
 import Morley.Runtime.TxData
 import Morley.Types (NopInstr)
 import Tezos.Address (Address(..))
-import Tezos.Core (Timestamp(..), unsafeMkMutez)
+import Tezos.Core (Timestamp(..), getCurrentTime, unsafeMkMutez)
 
 ----------------------------------------------------------------------------
 -- Auxiliary types
@@ -233,7 +232,3 @@ interpretOneOp now maxSteps mSourceAddr gs (TransferOp addr txData) = do
 
 convertOp :: Operation instr -> [InterpreterOp]
 convertOp = const []
-
--- Return current time as 'Timestamp'.
-getCurrentTime :: IO Timestamp
-getCurrentTime = (Timestamp . (fromIntegral :: Integer -> Word64) . round) <$> Time.getPOSIXTime

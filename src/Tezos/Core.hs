@@ -16,10 +16,19 @@ module Tezos.Core
 
     -- * Timestamp
   , Timestamp (..)
+  , timestampToSeconds
+  , timestampFromSeconds
+  , formatTimestamp
+  , parseTimestamp
+  , getCurrentTime
   ) where
 
 import Data.Aeson.TH (defaultOptions, deriveJSON)
 import Data.Data (Data(..))
+import Data.Time.Clock.POSIX (POSIXTime, getPOSIXTime, posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
+import Data.Time.LocalTime (utc, utcToZonedTime, zonedTimeToUTC)
+import Data.Time.RFC3339 (formatTimeRFC3339, parseTimeRFC3339)
+import qualified Formatting.Buildable as Buildable
 
 ----------------------------------------------------------------------------
 -- Mutez
@@ -92,12 +101,41 @@ divModMutezInt (toInteger . unMutez -> a) (toInteger -> b)
 -- Timestamp
 ----------------------------------------------------------------------------
 
--- | Dates in the real world. It's Unix time in seconds.
---
--- TODO: perhaps, we should use some better representation.
+-- | Time in the real world.
+-- Use the functions below to convert it to/from Unix time in seconds.
 newtype Timestamp = Timestamp
-  { unTimestamp :: Word64
+  { unTimestamp :: POSIXTime
   } deriving stock (Show, Eq, Ord, Data, Generic)
+
+timestampToSeconds :: Integral a => Timestamp -> a
+timestampToSeconds = round . unTimestamp
+{-# INLINE timestampToSeconds #-}
+
+timestampFromSeconds :: Integral a => a -> Timestamp
+timestampFromSeconds = Timestamp . fromIntegral
+{-# INLINE timestampFromSeconds #-}
+
+-- | Display timestamp in human-readable way as used by Michelson.
+-- Uses UTC timezone, though maybe we should take it as an argument.
+formatTimestamp :: Timestamp -> Text
+formatTimestamp =
+  formatTimeRFC3339 . utcToZonedTime utc . posixSecondsToUTCTime . unTimestamp
+
+instance Buildable.Buildable Timestamp where
+  build = Buildable.build . formatTimestamp
+
+-- | Parse textual representation of 'Timestamp'.
+parseTimestamp :: Text -> Maybe Timestamp
+parseTimestamp =
+  fmap (Timestamp . utcTimeToPOSIXSeconds . zonedTimeToUTC) . parseTimeRFC3339
+
+-- | Return current time as 'Timestamp'.
+getCurrentTime :: IO Timestamp
+getCurrentTime = Timestamp <$> getPOSIXTime
+
+----------------------------------------------------------------------------
+-- JSON
+----------------------------------------------------------------------------
 
 deriveJSON defaultOptions ''Mutez
 deriveJSON defaultOptions ''Timestamp
