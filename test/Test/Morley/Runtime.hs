@@ -17,7 +17,7 @@ import Morley.Runtime
 import Morley.Runtime.GState (GState(..), initGState)
 import Morley.Types (NopInstr)
 import Tezos.Address (Address(..))
-import Tezos.Core (Mutez(..), Timestamp(..))
+import Tezos.Core (Timestamp(..), unsafeMkMutez)
 
 spec :: Spec
 spec = describe "Morley.Runtime" $ do
@@ -57,7 +57,7 @@ updatesStorageValue ca = either throwM handleResult $ do
     txData = TxData
       { tdSenderAddress = ceSender ce
       , tdParameter = caParameter ca
-      , tdAmount = Mutez 100
+      , tdAmount = unsafeMkMutez 100
       }
   (addr,) <$> interpreterPure dummyNow dummyMaxSteps gState' [TransferOp addr txData]
   where
@@ -103,11 +103,11 @@ dummyContractEnv :: ContractEnv NopInstr
 dummyContractEnv = ContractEnv
   { ceNow = dummyNow
   , ceMaxSteps = dummyMaxSteps
-  , ceBalance = Mutez 100
+  , ceBalance = unsafeMkMutez 100
   , ceContracts = mempty
   , ceSource = ContractAddress "x"
   , ceSender = ContractAddress "x"
-  , ceAmount = Mutez 100
+  , ceAmount = unsafeMkMutez 100
   }
 
 -- Contract and auxiliary data

@@ -20,8 +20,7 @@ import Control.Lens (at, makeLenses, (%=), (.=), (<>=))
 import Control.Monad.Except (Except, runExcept, throwError)
 import qualified Data.Time.Clock.POSIX as Time
 
-import Michelson.Interpret
-  (ContractEnv(..), InterpretUntypedError(..), InterpretUntypedResult(..))
+import Michelson.Interpret (ContractEnv(..), InterpretUntypedError(..), InterpretUntypedResult(..))
 import Michelson.Typed (Operation, unsafeValToValue)
 import Michelson.Untyped (Contract(..), Op, Value)
 import Morley.Nop (interpretMorleyUntyped)
@@ -29,7 +28,7 @@ import Morley.Runtime.GState
 import Morley.Runtime.TxData
 import Morley.Types (NopInstr)
 import Tezos.Address (Address(..))
-import Tezos.Core (Mutez(..), Timestamp(..))
+import Tezos.Core (Timestamp(..), unsafeMkMutez)
 
 ----------------------------------------------------------------------------
 -- Auxiliary types
@@ -115,7 +114,7 @@ runContract maybeNow maxSteps verbose dbPath storageValue contract txData = do
     `catch` ignoreAlreadyOriginated
   interpreter maybeNow maxSteps verbose dbPath (TransferOp addr txData)
   where
-    defaultBalance = Mutez 4000000000
+    defaultBalance = unsafeMkMutez 4000000000
     acc = Account
       { accBalance = defaultBalance
       , accStorage = storageValue

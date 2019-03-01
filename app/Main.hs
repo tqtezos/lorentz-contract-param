@@ -6,8 +6,8 @@ module Main
 import Data.Text.IO (getContents)
 import Fmt (pretty)
 import Options.Applicative
-  (auto, command, eitherReader, execParser, help, info, long, metavar, option, progDesc, strOption,
-  subparser, switch, value)
+  (auto, command, eitherReader, execParser, help, info, long, metavar, option, progDesc,
+  readerError, strOption, subparser, switch, value)
 import qualified Options.Applicative as Opt
 import Text.Megaparsec (parse)
 import Text.Pretty.Simple (pPrint)
@@ -19,7 +19,7 @@ import qualified Morley.Parser as P
 import Morley.Runtime (Account(..), TxData(..), originateContract, runContract)
 import Morley.Types
 import Tezos.Address (Address, parseAddress)
-import Tezos.Core (Mutez(..), Timestamp(..))
+import Tezos.Core (Mutez, Timestamp(..), mkMutez)
 
 data CmdLnArgs
   = Parse (Maybe FilePath) Bool
@@ -143,7 +143,8 @@ valueOption name hInfo = option (eitherReader parseValue) $
       $ parse P.value "" (toText s)
 
 mutezOption :: String -> String -> Opt.Parser Mutez
-mutezOption name hInfo = fmap Mutez $ option auto $
+mutezOption name hInfo =
+  option (maybe (readerError "Invalid mutez") pure . mkMutez =<< auto) $
   long name <>
   metavar "INT" <>
   help hInfo

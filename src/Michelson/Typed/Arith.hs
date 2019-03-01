@@ -26,11 +26,12 @@ module Michelson.Typed.Arith
   , Ge
   ) where
 
-import Michelson.Typed.CValue (CVal(..))
-import Michelson.Typed.T (CT(..))
-
 import Data.Bits (complement, shift, xor, (.&.), (.|.))
 import Data.Time.Clock (addUTCTime, diffUTCTime)
+
+import Michelson.Typed.CValue (CVal(..))
+import Michelson.Typed.T (CT(..))
+import Tezos.Core (addMutez, mulMutez, subMutez)
 
 -- | Class for binary arithmetic operation.
 --
@@ -95,7 +96,10 @@ instance ArithOp Add 'T_int 'T_timestamp where
   evalOp _ (CvInt i) (CvTimestamp j) = CvTimestamp (addUTCTime (fromInteger $ i) j)
 instance ArithOp Add 'T_mutez 'T_mutez where
   type ArithRes Add 'T_mutez 'T_mutez = 'T_mutez
-  evalOp _ (CvMutez i) (CvMutez j) = CvMutez (i + j)
+  evalOp _ (CvMutez i) (CvMutez j) = CvMutez res
+    where
+      -- TODO [TM-49]: it should be [FAILED] value instead of `error`
+      res = fromMaybe (error "mutez addition failed") $ i `addMutez` j
 
 instance ArithOp Sub 'T_nat 'T_int where
   type ArithRes Sub 'T_nat 'T_int = 'T_int
@@ -115,10 +119,12 @@ instance ArithOp Sub 'T_timestamp 'T_int where
 instance ArithOp Sub 'T_timestamp 'T_timestamp where
   type ArithRes Sub 'T_timestamp 'T_timestamp = 'T_int
   evalOp _ (CvTimestamp i) (CvTimestamp j) = CvInt (floor $ toRational $ diffUTCTime i j * 1e-12)
--- Todo add condition when x - y < 0
 instance ArithOp Sub 'T_mutez 'T_mutez where
   type ArithRes Sub 'T_mutez 'T_mutez = 'T_mutez
-  evalOp _ (CvMutez i) (CvMutez j) = CvMutez (i - j)
+  evalOp _ (CvMutez i) (CvMutez j) = CvMutez res
+    where
+      -- TODO [TM-49]: it should be [FAILED] value instead of `error`
+      res = fromMaybe (error "mutez subtraction failed") $ i `subMutez` j
 
 instance ArithOp Mul 'T_nat 'T_int where
   type ArithRes Mul 'T_nat 'T_int = 'T_int
@@ -132,15 +138,18 @@ instance ArithOp Mul 'T_nat 'T_nat where
 instance ArithOp Mul 'T_int 'T_int where
   type ArithRes Mul 'T_int 'T_int = 'T_int
   evalOp _ (CvInt i) (CvInt j) = CvInt (i * j)
--- Todo check if there is overflow
 instance ArithOp Mul 'T_nat 'T_mutez where
   type ArithRes Mul 'T_nat 'T_mutez = 'T_mutez
-  evalOp _ (CvNat i) (CvMutez j) = CvMutez
-    (fromInteger $ (toInteger i) * (toInteger j))
+  evalOp _ (CvNat i) (CvMutez j) = CvMutez res
+    where
+      -- TODO [TM-49]: it should be [FAILED] value instead of `error`
+      res = fromMaybe (error "mutez multiplication failed") $ j `mulMutez` i
 instance ArithOp Mul 'T_mutez 'T_nat where
   type ArithRes Mul 'T_mutez 'T_nat = 'T_mutez
-  evalOp _ (CvMutez i) (CvNat j) = CvMutez
-    (fromInteger $ (toInteger i) * (toInteger j))
+  evalOp _ (CvMutez i) (CvNat j) = CvMutez res
+    where
+      -- TODO [TM-49]: it should be [FAILED] value instead of `error`
+      res = fromMaybe (error "mutez multiplication failed") $ i `mulMutez` j
 
 instance UnaryArithOp Abs 'T_int where
   type UnaryArithRes Abs 'T_int = 'T_nat

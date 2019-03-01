@@ -22,14 +22,15 @@ import Michelson.Typed
 import Michelson.Typed.Value (CVal(..), Val(..))
 import qualified Michelson.Untyped as M
 import Tezos.Address (parseAddress)
+import Tezos.Core (mkMutez)
 import Tezos.Crypto (parseKeyHash, parsePublicKey, parseSignature)
 
 typeCheckCVal :: M.Value op -> CT -> Maybe SomeValC
 typeCheckCVal (M.ValueInt i) T_int = pure $ CvInt i :--: ST_int
 typeCheckCVal (M.ValueInt i) T_nat
   | i >= 0 = pure $ CvNat (fromInteger i) :--: ST_nat
-typeCheckCVal (M.ValueInt (fromInteger -> i)) T_mutez
-  | i <= maxBound && i >= minBound = pure $ CvMutez i :--: ST_mutez
+typeCheckCVal (M.ValueInt (mkMutez . fromInteger -> Just mtz)) T_mutez =
+  pure $ CvMutez mtz :--: ST_mutez
 typeCheckCVal (M.ValueString s) T_string =
   pure $ CvString s :--: ST_string
 typeCheckCVal (M.ValueString (parseAddress -> Right s)) T_address =
