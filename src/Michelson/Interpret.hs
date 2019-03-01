@@ -3,9 +3,13 @@
 module Michelson.Interpret
   ( ContractEnv (..)
   , MichelsonFailed (..)
-  , michelsonInterpreter
 
   , interpret
+  , ContractReturn
+
+  , interpretUntyped
+  , InterpretUntypedError (..)
+  , InterpretUntypedResult (..)
   ) where
 
 import Prelude hiding (EQ, GT, LT)
@@ -14,20 +18,19 @@ import Control.Monad.Except (MonadError, throwError)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Singletons (SingI(..))
-import Data.Typeable ((:~:)(..), eqT)
+import Data.Typeable ((:~:)(..))
 import Data.Vinyl (Rec(..), (<+>))
 
 import Michelson.TypeCheck
-  (ContractInp, ContractOut, SomeContract(..), SomeVal(..), TcNopHandler, TypeCheckEnv(..),
+  (SomeContract(..), SomeVal(..), TCError, TcNopHandler, eqT', runTypeCheckT, typeCheckContract,
   typeCheckVal)
 import Michelson.Typed
-  (CVal(..), Instr(..), Operation(..), SetDelegate(..), Sing(..), T(..), TransferTokens(..),
-  Val(..), fromMType)
+  (CVal(..), Contract, Instr(..), Operation(..), SetDelegate(..), Sing(..), T(..),
+  TransferTokens(..), Val(..), fromMType)
 import qualified Michelson.Typed as Typed
 import Michelson.Typed.Arith
 import Michelson.Typed.Polymorphic
-import Michelson.Untyped (Op(..), Value(..))
-import qualified Michelson.Untyped as M
+import qualified Michelson.Untyped as U
 import Tezos.Address (Address)
 import Tezos.Core (Mutez, Timestamp)
 import Tezos.Crypto (blake2b, checkSignature, hashKey, sha256, sha512)
@@ -40,13 +43,9 @@ data ContractEnv nop = ContractEnv
   -- ^ Number of steps after which execution unconditionally terminates.
   , ceBalance :: !Mutez
   -- ^ Current amount of mutez of the current contract.
-  , ceStorage :: M.Value (M.Op nop)
-  -- ^ Storage value associated with the current contract.
-  , ceContracts :: Map Address (M.Contract (M.Op nop))
+  , ceContracts :: Map Address (U.Contract (U.Op nop))
   -- ^ Mapping from existing contracts' addresses to their executable
   -- representation.
-  , ceParameter :: M.Value (M.Op nop)
-  -- ^ Parameter passed to the contract.
   , ceSource :: !Address
   -- ^ The contract that initiated the current transaction.
   , ceSender :: !Address
@@ -57,79 +56,76 @@ data ContractEnv nop = ContractEnv
 
 -- | Represents `[FAILED]` state of a Michelson program. Contains
 -- value that was on top of the stack when `FAILWITH` was called.
-data MichelsonFailedProper nop = MichelsonFailedProper
-  -- { unMichelsonFailed :: Value (Op nop) } -- TODO uncomment when conversion to Value will be implemented
-  deriving (Show)
-
 data MichelsonFailed where
-  RuntimeFailure :: Val cp t -> MichelsonFailed
-  ValInvalidType :: Val cp t -> MichelsonFailed
-  InstrInvalidType :: Instr op cp int -> MichelsonFailed
-  IllTypedContract :: MichelsonFailed
-  IllTypedInputParameters :: Text -> MichelsonFailed
-  -- InvalidStorageParameter :: MichelsonFailed
+  MichelsonFailedWith :: Val cp t -> MichelsonFailed
+  MutezOverflow :: MichelsonFailed
 
 deriving instance Show MichelsonFailed
 
+data InterpretUntypedError nop
+  = RuntimeFailure MichelsonFailed
+  | IllTypedContract (TCError nop)
+  | IllTypedParam (TCError nop)
+  | IllTypedStorage (TCError nop)
+  | UnexpectedParamType Text
+  | UnexpectedStorageType Text
+
+deriving instance Show nop => Show (InterpretUntypedError nop)
+
+data InterpretUntypedResult where
+  InterpretUntypedResult
+    :: ( Typeable cp
+       , Typeable st
+       , SingI cp
+       , SingI st
+       )
+    => { iurOps :: [ Operation (Instr cp) ]
+       , iurNewStorage :: Val (Instr cp) st
+       }
+    -> InterpretUntypedResult
+
 -- | Interpret a contract without performing any side effects.
-michelsonInterpreter
-  :: forall instr nop.(SingI instr, Typeable instr, Show nop)
+interpretUntyped
+  :: Show nop
   => TcNopHandler nop
+  -> U.Contract (U.Op nop)
+  -> U.Value (U.Op nop)
+  -> U.Value (U.Op nop)
   -> ContractEnv nop
-  -> SomeContract
-  -> Either MichelsonFailed ([Typed.Operation (Typed.Instr instr)], Value (Op nop))
-michelsonInterpreter nopHandler cEnv@ContractEnv{..} someContract =
-  case someContract of
-    (SomeContract (instr :: Instr cp (ContractInp cp st)
-                                                     (ContractOut st)) _ _) -> do
-      Refl <- maybe (Left $ InstrInvalidType instr) pure $
-        eqT @cp @instr
-      case interpret @cp @st nopHandler cEnv instr of
-        Right (Typed.VPair (Typed.VList ops, newStorage)) ->
-          Right (map Typed.unsafeValToOperation ops, Typed.unsafeValToValue newStorage)
-        Left e -> Left e
+  -> Either (InterpretUntypedError nop) InterpretUntypedResult
+interpretUntyped nopHandler' U.Contract{..} paramU initStU env = do
+    (SomeContract (instr :: Contract cp st) _ _)
+       <- first IllTypedContract $ typeCheckContract nopHandler'
+              (U.Contract para stor (U.unOp <$> code))
+    paramV :::: ((_ :: Sing cp1), _)
+       <- first IllTypedParam $ runTypeCheckT nopHandler' $
+            typeCheckVal @cp paramU (fromMType para)
+    initStV :::: ((_ :: Sing st1), _)
+       <- first IllTypedStorage $ runTypeCheckT nopHandler' $
+            typeCheckVal @cp initStU (fromMType stor)
+    Refl <- first UnexpectedStorageType $ eqT' @st @st1
+    Refl <- first UnexpectedParamType   $ eqT' @cp @cp1
+    fmap (uncurry InterpretUntypedResult) $
+      first RuntimeFailure $
+      interpret instr paramV initStV env
 
 interpret
-  :: forall cp st nop.(SingI cp, Typeable cp, SingI st, Typeable st, Show nop)
-  => TcNopHandler nop
+  :: Contract cp st
+  -> Val (Instr cp) cp
+  -> Val (Instr cp) st
   -> ContractEnv nop
-  -> Instr cp (ContractInp cp st) (ContractOut st)
-  -> Either MichelsonFailed (Val (Instr cp) ('T_pair ('T_list 'T_operation) st))
-interpret nopHandler env instr =
-  case interpretImpl @cp @st @nop nopHandler env instr of
-    Left e -> Left e
-    Right ((res :: Val (Instr cp1) ('T_pair ('T_list 'T_operation) st1)) :& RNil) -> do
-      Refl <- maybe (Left $ ValInvalidType res) pure $
-        eqT @cp @cp1
-      Refl <- maybe (Left $ ValInvalidType res) pure $
-        eqT @st @st1
-      pure res
-
-interpretImpl
-  :: forall cp st nop.(Typeable cp, SingI cp, SingI st, Typeable st, Show nop)
-  => TcNopHandler nop
-  -> ContractEnv nop
-  -> Instr cp (ContractInp cp st) (ContractOut st)
-  -> Either MichelsonFailed (Rec (Val (Instr cp)) (ContractOut st))
-interpretImpl nopHandler env@ContractEnv{..} instr = do
-  case makeVPairSomeVal (toMType $ fromSingT (sing @cp), toMType $ fromSingT (sing @st))
-    (ceParameter, ceStorage) of
-    Left e -> Left e
-    Right ((pair :: Val (Instr cp) tPair) :::: _) -> do
-      Refl <- maybe (Left $ ValInvalidType pair) pure $
-        eqT @tPair @('T_pair cp st)
-      runEvalOp (runInstr instr (pair :& RNil)) env
+  -> ContractReturn cp st
+interpret instr param initSt env = fmap toRes $
+  runEvalOp (runInstr instr (VPair (param, initSt) :& RNil)) env
   where
-    makeVPairSomeVal
-      :: (M.Type, M.Type)
-      -> (M.Value (M.Op nop), M.Value (M.Op nop))
-      -> Either MichelsonFailed (SomeVal cp)
-    makeVPairSomeVal (tl, tr) (vl, vr) =
-      case usingReader (TypeCheckEnv nopHandler) . runExceptT $
-        typeCheckVal (M.ValuePair vl vr) $
-        fromMType $ M.Type (M.T_pair M.noAnn M.noAnn tl tr) M.noAnn of
-        Left e -> Left $ IllTypedInputParameters $ show e
-        Right val -> Right val
+    toRes
+      :: Rec (Val instr) '[ 'T_pair ('T_list 'T_operation) st ]
+      -> ([Operation instr], Val instr st)
+    toRes (VPair (VList ops_, newSt) :& RNil) =
+      (map (\(VOp op) -> op) ops_, newSt)
+
+type ContractReturn cp st =
+  Either MichelsonFailed ([Operation $ Instr cp], Val (Instr cp) st)
 
 newtype EvalOp nop a = EvalOp
   { unEvalOp :: ExceptT MichelsonFailed (Reader (ContractEnv nop)) a
@@ -218,8 +214,7 @@ runInstr EXEC (a :& VLam lBody :& r) = do
 runInstr (DIP i) (a :& r) = do
   res <- runInstr i r
   pure $ a :& res
-runInstr FAILWITH (a :& _) = throwError $ RuntimeFailure a
-runInstr FAILWITH (_) = error "cannot FAILWITH on empty stack"
+runInstr FAILWITH (a :& _) = throwError $ MichelsonFailedWith a
 runInstr CAST (a :& r) = pure $ a :& r
 runInstr RENAME (a :& r) = pure $ a :& r
 -- TODO

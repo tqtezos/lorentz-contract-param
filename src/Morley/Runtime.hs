@@ -20,13 +20,11 @@ import Control.Lens (at, makeLenses, (%=), (.=), (<>=))
 import Control.Monad.Except (Except, runExcept, throwError)
 import qualified Data.Time.Clock.POSIX as Time
 
-import Michelson.Interpret (ContractEnv(..), MichelsonFailed(..), michelsonInterpreter)
-import Michelson.TypeCheck (TCError(..), typeCheckContract)
-import Michelson.Typed (Operation)
-import Michelson.Typed.Extract (fromMType)
-import Michelson.Typed.Sing (Sing, withSomeSingT)
-import Michelson.Untyped (Contract(..), Op, Value, unOp)
-import Morley.Nop (nopHandler)
+import Michelson.Interpret
+  (ContractEnv(..), InterpretUntypedError(..), InterpretUntypedResult(..))
+import Michelson.Typed (Operation, unsafeValToValue)
+import Michelson.Untyped (Contract(..), Op, Value)
+import Morley.Nop (interpretMorleyUntyped)
 import Morley.Runtime.GState
 import Morley.Runtime.TxData
 import Morley.Types (NopInstr)
@@ -75,12 +73,10 @@ makeLenses ''InterpreterRes
 data InterpreterError
   = IEUnknownContract Address
   -- ^ The interpreted contract hasn't been originated.
-  | IEMichelsonFailed (Contract (Op NopInstr)) MichelsonFailed
-  -- ^ Michelson contract failed (using Michelson's FAILWITH instruction).
+  | IEInterpreterFailed (Contract (Op NopInstr)) (InterpretUntypedError NopInstr)
+  -- ^ Interpretation of Michelson contract failed.
   | IEAlreadyOriginated Account
-  -- ^ A contract is already originated.
-  | IEIlltypedContract (Contract (Op NopInstr)) (TCError NopInstr)
-  -- ^ Given contract is illtyped
+  -- ^ A contract is already originated
   deriving (Show)
 
 instance Exception InterpreterError
@@ -213,25 +209,22 @@ interpretOneOp now maxSteps mSourceAddr gs (TransferOp addr txData) = do
         { ceNow = now
         , ceMaxSteps = maxSteps
         , ceBalance = accBalance acc
-        , ceStorage = accStorage acc
         , ceContracts = accContract <$> accounts
-        , ceParameter = tdParameter txData
         , ceSource = sourceAddr
         , ceSender = tdSenderAddress txData
         , ceAmount = tdAmount txData
         }
-    withSomeSingT (fromMType $ para contract) $ \(_ :: Sing cp) -> do
-      case typeCheckContract nopHandler (fmap unOp contract) of
-        Right typedContract -> do
-          (networkOps, newValue) <- first (IEMichelsonFailed contract) $
-            michelsonInterpreter @cp nopHandler contractEnv typedContract
-          let
-            _irGState = setStorageValue addr newValue gs
-            _irOperations = foldMap convertOp networkOps
-            _irUpdatedValues = [(addr, newValue)]
-            _irSourceAddress = Just sourceAddr
-          pure InterpreterRes {..}
-        Left e -> Left $ IEIlltypedContract contract e
+    InterpretUntypedResult networkOps newValue
+      <- first (IEInterpreterFailed contract) $
+            interpretMorleyUntyped contract (tdParameter txData)
+                             (accStorage acc) contractEnv
+    let
+      newValueU = unsafeValToValue newValue
+      _irGState = setStorageValue addr newValueU gs
+      _irOperations = foldMap convertOp networkOps
+      _irUpdatedValues = [(addr, newValueU)]
+      _irSourceAddress = Just sourceAddr
+    pure InterpreterRes {..}
   where
     accounts = gsAccounts gs
 

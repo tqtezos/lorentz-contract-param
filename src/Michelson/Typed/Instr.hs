@@ -3,6 +3,9 @@
 module Michelson.Typed.Instr
   ( Instr (..)
   , (#)
+  , ContractInp
+  , ContractOut
+  , Contract
   ) where
 
 import Data.Singletons (SingI)
@@ -98,7 +101,7 @@ data Instr cp (inp :: [T]) (out :: [T]) where
          => Val (Instr cp) ('T_lambda i o) -> Instr cp s ('T_lambda i o ': s)
   EXEC :: Instr cp (t1 ': 'T_lambda t1 t2 ': s) (t2 ': s)
   DIP :: Instr cp a c -> Instr cp (b ': a) (b ': c)
-  FAILWITH :: Instr cp s t
+  FAILWITH :: Instr cp (a ': s) t
   CAST :: forall a cp s. SingI a => Instr cp (a ': s) (a ': s)
   RENAME :: Instr cp (a ': s) (a ': s)
   PACK :: Instr cp (a ': s) ('T_c 'T_bytes ': s)
@@ -214,3 +217,8 @@ data Instr cp (inp :: [T]) (out :: [T]) where
   ADDRESS :: Instr cp ('T_contract a ': s) ('T_c 'T_address ': s)
 
 deriving instance Show (Instr cp inp out)
+
+type ContractInp param st = '[ 'T_pair param st ]
+type ContractOut st = '[ 'T_pair ('T_list 'T_operation) st ]
+type Contract cp st = Instr cp (ContractInp cp st) (ContractOut st)
+

@@ -131,7 +131,7 @@ convergeIT (a ::& as) (b ::& bs) =
 
 -- TODO move to Util module
 onLeft :: Either a c -> (a -> b) -> Either b c
-onLeft e f = either (Left . f) pure e
+onLeft = flip first
 
 -- TODO move to Util module
 onLeftM :: Functor m => ExceptT e m c -> (e -> e) -> ExceptT e m c

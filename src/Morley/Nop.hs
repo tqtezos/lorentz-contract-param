@@ -1,12 +1,23 @@
 module Morley.Nop
-  ( typeCheckMorleyContract
+  ( interpretMorleyUntyped
+  , typeCheckMorleyContract
   , nopHandler
   ) where
 
+import Michelson.Interpret (ContractEnv, interpretUntyped, InterpretUntypedError,
+  InterpretUntypedResult)
 import Michelson.TypeCheck
 import Michelson.Typed (converge, extractNotes)
 import Michelson.Untyped (InstrAbstract(..))
 import Morley.Types
+
+interpretMorleyUntyped
+  :: Contract (Op NopInstr)
+  -> Value (Op NopInstr)
+  -> Value (Op NopInstr)
+  -> ContractEnv NopInstr
+  -> Either (InterpretUntypedError NopInstr) InterpretUntypedResult
+interpretMorleyUntyped = interpretUntyped nopHandler
 
 typeCheckMorleyContract :: Contract (Instr NopInstr) -> Either (TCError NopInstr) SomeContract
 typeCheckMorleyContract = typeCheckContract nopHandler

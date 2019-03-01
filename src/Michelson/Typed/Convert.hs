@@ -1,6 +1,5 @@
 module Michelson.Typed.Convert
   ( unsafeValToValue
-  , unsafeValToOperation
   ) where
 
 import qualified Data.Map as M
@@ -41,14 +40,6 @@ unsafeValToValue (VMap m) =
   M.ValueMap (map (\(k, v) -> M.Elt (cValToValue k) (unsafeValToValue v)) (M.toList m))
 unsafeValToValue (VBigMap m) =
   M.ValueMap (map (\(k, v) -> M.Elt (cValToValue k) (unsafeValToValue v)) (M.toList m))
-
--- | Function @unsafeValToOperation@ converts advanced type @Val@ to @Operation@.
---
--- VOp isn't represented in @Value@ from @Michelson.Type@ module, so it necessary
--- to provide convertion from VOp to Operation
-unsafeValToOperation :: HasCallStack => Val (Instr cp) t -> Operation (Instr cp)
-unsafeValToOperation (VOp op) = op
-unsafeValToOperation _ = error "unexpected unsafeValToOperation call"
 
 cValToValue :: CVal t -> M.Value (M.Op nop)
 cValToValue cVal = case cVal of

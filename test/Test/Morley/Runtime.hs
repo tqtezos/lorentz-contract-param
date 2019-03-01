@@ -7,18 +7,16 @@ module Test.Morley.Runtime
 
 import Control.Lens (at)
 import Test.Hspec
-  (Expectation, Spec, context, describe, expectationFailure, it, parallel, shouldBe, shouldSatisfy,
-  specify)
+  (Expectation, Spec, context, describe, it, parallel, shouldBe, shouldSatisfy, specify)
 
-import Michelson.Interpret (ContractEnv(..), MichelsonFailed(..), michelsonInterpreter)
-import Michelson.TypeCheck (typeCheckContract)
-import Michelson.Typed (Sing, fromMType, withSomeSingT)
+import Michelson.Interpret (ContractEnv(..), InterpretUntypedError(..), InterpretUntypedResult(..))
+import Michelson.Typed (unsafeValToValue)
 import Michelson.Untyped
-import Morley.Nop (nopHandler)
+import Morley.Nop (interpretMorleyUntyped)
 import Morley.Runtime
 import Morley.Runtime.GState (GState(..), initGState)
 import Morley.Types (NopInstr)
-import Tezos.Address (Address)
+import Tezos.Address (Address(..))
 import Tezos.Core (Mutez(..), Timestamp(..))
 
 spec :: Spec
@@ -35,7 +33,7 @@ spec = describe "Morley.Runtime" $ do
 ----------------------------------------------------------------------------
 
 data UnexpectedFailed =
-  UnexpectedFailed MichelsonFailed
+  UnexpectedFailed (InterpretUntypedError NopInstr)
   deriving (Show)
 
 instance Exception UnexpectedFailed
@@ -47,7 +45,7 @@ updatesStorageValue ca = either throwM handleResult $ do
     ce = caEnv ca
     account = Account
       { accBalance = ceBalance ce
-      , accStorage = ceStorage ce
+      , accStorage = caStorage ca
       , accContract = contract
       }
   gState' <- _irGState <$>
@@ -58,22 +56,22 @@ updatesStorageValue ca = either throwM handleResult $ do
     addr = contractAddress contract
     txData = TxData
       { tdSenderAddress = ceSender ce
-      , tdParameter = ceParameter ce
+      , tdParameter = caParameter ca
       , tdAmount = Mutez 100
       }
   (addr,) <$> interpreterPure dummyNow dummyMaxSteps gState' [TransferOp addr txData]
   where
+    toNewStorage :: InterpretUntypedResult -> Value (Op NopInstr)
+    toNewStorage InterpretUntypedResult {..} = unsafeValToValue iurNewStorage
+
     handleResult :: (Address, InterpreterRes) -> Expectation
-    handleResult (addr, ir) =
-      withSomeSingT (fromMType $ para (caContract ca)) $ \(_ :: Sing cp) ->
-        case typeCheckContract nopHandler (fmap unOp (caContract ca)) of
-          Right typedContract -> do
-            expectedValue <-
-              either (throwM . UnexpectedFailed) (pure . snd) $
-              michelsonInterpreter @cp nopHandler (caEnv ca) typedContract
-            accStorage <$> (gsAccounts (_irGState ir) ^. at addr) `shouldBe`
-              Just expectedValue
-          Left _ -> expectationFailure "Illtyped contract"
+    handleResult (addr, ir) = do
+      expectedValue <-
+        either (throwM . UnexpectedFailed) (pure . toNewStorage) $
+        interpretMorleyUntyped
+                  (caContract ca) (caParameter ca) (caStorage ca) (caEnv ca)
+      accStorage <$> (gsAccounts (_irGState ir) ^. at addr) `shouldBe`
+        Just expectedValue
 
 failsToOriginateTwice :: Expectation
 failsToOriginateTwice =
@@ -84,7 +82,7 @@ failsToOriginateTwice =
     ce = caEnv contractAux1
     account = Account
       { accBalance = ceBalance ce
-      , accStorage = ceStorage ce
+      , accStorage = caStorage contractAux1
       , accContract = contract
       }
     ops = [OriginateOp account, OriginateOp account]
@@ -106,9 +104,7 @@ dummyContractEnv = ContractEnv
   { ceNow = dummyNow
   , ceMaxSteps = dummyMaxSteps
   , ceBalance = Mutez 100
-  , ceStorage = ValueUnit
   , ceContracts = mempty
-  , ceParameter = ValueUnit
   , ceSource = ContractAddress "x"
   , ceSender = ContractAddress "x"
   , ceAmount = Mutez 100
@@ -118,12 +114,16 @@ dummyContractEnv = ContractEnv
 data ContractAux = ContractAux
   { caContract :: !(Contract (Op NopInstr))
   , caEnv :: !(ContractEnv NopInstr)
+  , caStorage :: !(Value (Op NopInstr))
+  , caParameter :: !(Value (Op NopInstr))
   }
 
 contractAux1 :: ContractAux
 contractAux1 = ContractAux
   { caContract = contract
-  , caEnv = env
+  , caEnv = dummyContractEnv
+  , caStorage = ValueTrue
+  , caParameter = ValueString "aaa"
   }
   where
     contract :: Contract (Op NopInstr)
@@ -135,11 +135,6 @@ contractAux1 = ContractAux
         , Op $ NIL noAnn noAnn $ Type T_operation noAnn
         , Op $ PAIR noAnn noAnn noAnn noAnn
         ]
-      }
-    env :: ContractEnv NopInstr
-    env = dummyContractEnv
-      { ceStorage = ValueTrue
-      , ceParameter = ValueString "aaa"
       }
 
 contractAux2 :: ContractAux

@@ -41,9 +41,10 @@ import Michelson.TypeCheck.Helpers
 import Michelson.TypeCheck.Types
 import Michelson.TypeCheck.Value
 import Michelson.Typed
-  (Abs, And, CT(..), Eq', Ge, Gt, Instr(..), IterOp(..), Le, Lsl, Lsr, Lt, MapOp(..), Neg, Neq,
-  Not, Notes(..), Notes'(..), Or, Sing(..), T(..), Val(..), Xor, converge, convergeAnns,
-  extractNotes, fromMType, mkNotes, notesCase, orAnn, withSomeSingCT, withSomeSingT)
+  (Abs, And, CT(..), Contract, ContractInp, ContractOut, Eq', Ge, Gt, Instr(..), IterOp(..), Le,
+  Lsl, Lsr, Lt, MapOp(..), Neg, Neq, Not, Notes(..), Notes'(..), Or, Sing(..), T(..), Val(..), Xor,
+  converge, convergeAnns, extractNotes, fromMType, mkNotes, notesCase, orAnn, withSomeSingCT,
+  withSomeSingT, ( # ))
 
 import qualified Michelson.Untyped as M
 import Michelson.Untyped.Annotation (VarAnn)
@@ -593,7 +594,7 @@ typeCheckInstr instr@(M.CREATE_CONTRACT2 ovn avn contract)
              ::& (ST_option (ST_c ST_key_hash), _, _) ::& (ST_c ST_bool, _, _)
              ::& (ST_c ST_bool, _, _) ::& (ST_c ST_mutez, _, _)
              ::& ((_ :: Sing g), gn, _) ::& rs)) = do
-  (SomeContract contr (_ :: IT (ContractInp i' g')) (out :: IT (ContractOut g'))) <-
+  (SomeContract (contr :: Contract i' g') _ out) <-
       typeCheckContractImpl (fmap M.unOp contract)
         `onLeftM` \err -> TCFailedOnInstr instr (SomeIT i)
                           ("failed to type check contract: " <> show err)
@@ -679,10 +680,12 @@ genericIf cons mCons mbt mbf bti bfi i@(_ ::& _) =
     pure $ cons p q ::: (i, o)
   (SiFail, q ::: ((_ :: IT qi), (qo :: IT qo))) -> do
     Refl <- assertEqT @bfi @qi instr i
-    pure $ cons FAILWITH q ::: (i, qo)
+    -- TODO TM-27 There shall be no `PUSH VUnit`, rewrite this code
+    pure $ cons (PUSH VUnit # FAILWITH) q ::: (i, qo)
   (p ::: ((_ :: IT pi), (po :: IT po)), SiFail) -> do
     Refl <- assertEqT @bti @pi instr i
-    pure $ cons p FAILWITH ::: (i, po)
+    -- TODO TM-27 There shall be no `PUSH VUnit`, rewrite this code
+    pure $ cons p (PUSH VUnit # FAILWITH) ::: (i, po)
   _ -> pure SiFail
 
   where

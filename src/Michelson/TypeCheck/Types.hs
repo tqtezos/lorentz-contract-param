@@ -5,8 +5,6 @@ module Michelson.TypeCheck.Types
     , SomeInstr (..)
     , SomeVal (..)
     , SomeContract (..)
-    , ContractInp
-    , ContractOut
     , SomeValC (..)
     , TCError (..)
     , TcInstrHandler
@@ -103,15 +101,12 @@ data SomeValC where
 data SomeContract where
   SomeContract
     :: (Typeable st, Typeable cp, SingI cp, SingI st)
-    => Instr cp (ContractInp cp st) (ContractOut st)
+    => Contract cp st
     -> IT (ContractInp cp st)
     -> IT (ContractOut st)
     -> SomeContract
 
 deriving instance Show SomeContract
-
-type ContractInp param st = '[ 'T_pair param st ]
-type ContractOut st = '[ 'T_pair ('T_list 'T_operation) st ]
 
 -- | Type check error
 data TCError nop =
