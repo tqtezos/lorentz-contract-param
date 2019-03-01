@@ -30,7 +30,7 @@ spec = describe "Morley.Runtime" $ do
 ----------------------------------------------------------------------------
 
 data UnexpectedFailed =
-  UnexpectedFailed MichelsonFailed
+  UnexpectedFailed (MichelsonFailed NopInstr)
   deriving (Show)
 
 instance Exception UnexpectedFailed
@@ -92,7 +92,7 @@ dummyNow = Timestamp 100
 dummyMaxSteps :: Word64
 dummyMaxSteps = 100500
 
-dummyContractEnv :: ContractEnv
+dummyContractEnv :: ContractEnv NopInstr
 dummyContractEnv = ContractEnv
   { ceNow = dummyNow
   , ceMaxSteps = dummyMaxSteps
@@ -107,8 +107,8 @@ dummyContractEnv = ContractEnv
 
 -- Contract and auxiliary data
 data ContractAux = ContractAux
-  { caContract :: !(Contract Op)
-  , caEnv :: !ContractEnv
+  { caContract :: !(Contract (Op NopInstr))
+  , caEnv :: !(ContractEnv NopInstr)
   }
 
 contractAux1 :: ContractAux
@@ -117,7 +117,7 @@ contractAux1 = ContractAux
   , caEnv = env
   }
   where
-    contract :: Contract Op
+    contract :: Contract (Op NopInstr)
     contract = Contract
       { para = Type tstring noAnn
       , stor = Type tbool noAnn
@@ -127,7 +127,7 @@ contractAux1 = ContractAux
         , Op $ PAIR noAnn noAnn noAnn noAnn
         ]
       }
-    env :: ContractEnv
+    env :: ContractEnv NopInstr
     env = dummyContractEnv
       { ceStorage = ValueTrue
       , ceParameter = ValueString "aaa"

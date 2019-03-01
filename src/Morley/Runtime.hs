@@ -54,7 +54,7 @@ data InterpreterRes = InterpreterRes
   -- ^ New 'GState'.
   , _irOperations :: [InterpreterOp]
   -- ^ List of operations to be added to the operations queue.
-  , _irUpdatedValues :: [(Address, Value Op)]
+  , _irUpdatedValues :: [(Address, Value (Op NopInstr))]
   -- ^ Addresses of all contracts whose storage value was updated and
   -- corresponding new values themselves.
   -- We log these values.
@@ -70,7 +70,7 @@ makeLenses ''InterpreterRes
 data InterpreterError
   = IEUnknownContract Address
   -- ^ The interpreted contract hasn't been originated.
-  | IEMichelsonFailed (Contract Op) MichelsonFailed
+  | IEMichelsonFailed (Contract (Op NopInstr)) (MichelsonFailed NopInstr)
   -- ^ Michelson contract failed (using Michelson's FAILWITH instruction).
   | IEAlreadyOriginated Account
   -- ^ A contract is already originated.
@@ -103,8 +103,8 @@ runContract
     -> Word64
     -> Bool
     -> FilePath
-    -> Value Op
-    -> Contract Op
+    -> Value (Op NopInstr)
+    -> Contract (Op NopInstr)
     -> TxData
     -> IO ()
 runContract maybeNow maxSteps verbose dbPath storageValue contract txData = do

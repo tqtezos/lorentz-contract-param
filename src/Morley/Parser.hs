@@ -5,6 +5,8 @@ module Morley.Parser
   , stringLiteral
   , type_
   , value
+  , stackType
+  , printComment
   ) where
 
 import Prelude hiding (many, note, some, try)
@@ -26,7 +28,7 @@ import Morley.Types (CustomParserException(..), ParsedOp(..), Parser, ParserExce
 import qualified Morley.Types as M
 
 -------------------------------------------------------------------------------
--- Top Level Parsers
+-- Top-Level Parsers
 -------------------------------------------------------------------------------
 
 contract :: Parser (M.Contract ParsedOp)
@@ -47,16 +49,35 @@ storage = do void $ symbol "storage"; type_
 code :: Parser [ParsedOp]
 code = do void $ symbol "code"; ops
 
-{- Value Parsers -}
 value :: Parser (M.Value ParsedOp)
-value = lexeme $ dataInner <|> parens dataInner
+value = lexeme $ valueInner <|> parens valueInner
+
+type_ :: Parser M.Type
+type_ = (ti <|> parens ti) <|> (customFailure UnknownTypeException)
   where
-    dataInner :: Parser (M.Value M.ParsedOp)
-    dataInner = choice $
-      [ intLiteral, stringLiteral, bytesLiteral, unitValue
-      , trueValue, falseValue, pairValue, leftValue, rightValue
-      , someValue, noneValue, seqValue, mapValue, lambdaValue
+    ti = snd <$> (lexeme $ typeInner (pure M.noAnn))
+
+ops :: Parser [M.ParsedOp]
+ops = braces $ sepEndBy op' semicolon
+  where
+    op' = choice
+      [ (M.PRIM . M.NOP) <$> nopInstr
+      , M.PRIM <$> prim
+      , M.MAC <$> macro
+      , primOrMac
+      , M.SEQ <$> ops
       ]
+
+-------------------------------------------------------------------------------
+-- Value Parsers
+-------------------------------------------------------------------------------
+
+valueInner :: Parser (M.Value M.ParsedOp)
+valueInner = choice $
+  [ intLiteral, stringLiteral, bytesLiteral, unitValue
+  , trueValue, falseValue, pairValue, leftValue, rightValue
+  , someValue, noneValue, seqValue, mapValue, lambdaValue
+  ]
 
 -- Literals
 intLiteral :: Parser (M.Value a)
@@ -155,12 +176,6 @@ field :: Parser (M.FieldAnn, M.Type)
 field = lexeme (fi <|> parens fi)
   where
     fi = typeInner noteF
-
-
-type_ :: Parser M.Type
-type_ = (ti <|> parens ti) <|> (customFailure UnknownTypeException)
-  where
-    ti = snd <$> (lexeme $ typeInner (pure M.noAnn))
 
 typeInner :: Parser M.FieldAnn -> Parser (M.FieldAnn, M.Type)
 typeInner fp = choice $ (\x -> x fp) <$>
@@ -309,14 +324,9 @@ t_map fp = (do symbol "map"; (f, t) <- fieldType fp; a <- comparable; b <- type_
 t_big_map :: (Default a) => Parser a -> Parser (a, M.Type)
 t_big_map fp = (do symbol "big_map"; (f, t) <- fieldType fp; a <- comparable; b <- type_; return (f, M.Type (M.T_big_map a b) t))
 
-{- Operations Parsers -}
-ops :: Parser [M.ParsedOp]
-ops = braces $ sepEndBy (prim' <|> mac' <|> primOrMac <|> seq') semicolon
-  where
-    prim' = M.PRIM <$> prim
-    mac'  = M.MAC <$> macro
-    seq'  = M.SEQ <$> ops
-
+-------------------------------------------------------------------------------
+-- Primitive Instruction Parsers
+-------------------------------------------------------------------------------
 prim :: Parser M.ParsedInstr
 prim = choice
   [ dropOp, dupOp, swapOp, pushOp, someOp, noneOp, unitOp, ifNoneOp
@@ -331,289 +341,285 @@ prim = choice
   , sha256Op, sha512Op, blake2BOp, hashKeyOp, stepsToQuotaOp, sourceOp, senderOp
   ]
 
--------------------------------------------------------------------------------
--- Core instructions
--------------------------------------------------------------------------------
-
 -- Control Structures
 
-failWithOp :: Parser (M.InstrAbstract ParsedOp)
+failWithOp :: Parser M.ParsedInstr
 failWithOp = do symbol' "FAILWITH"; return M.FAILWITH
 
-loopOp :: Parser (M.InstrAbstract ParsedOp)
+loopOp :: Parser M.ParsedInstr
 loopOp  = do void $ symbol' "LOOP"; M.LOOP <$> ops
 
-loopLOp :: Parser (M.InstrAbstract ParsedOp)
+loopLOp :: Parser M.ParsedInstr
 loopLOp = do void $ symbol' "LOOP_LEFT"; M.LOOP_LEFT <$> ops
 
-execOp :: Parser (M.InstrAbstract ParsedOp)
+execOp :: Parser M.ParsedInstr
 execOp = do void $ symbol' "EXEC"; M.EXEC <$> noteVDef
 
-dipOp :: Parser (M.InstrAbstract ParsedOp)
+dipOp :: Parser M.ParsedInstr
 dipOp = do void $ symbol' "DIP"; M.DIP <$> ops
 
 -- Stack Operations
 
-dropOp :: Parser (M.InstrAbstract ParsedOp)
+dropOp :: Parser M.ParsedInstr
 dropOp = do symbol' "DROP"; return M.DROP;
 
-dupOp :: Parser (M.InstrAbstract ParsedOp)
+dupOp :: Parser M.ParsedInstr
 dupOp = do void $ symbol' "DUP"; M.DUP <$> noteVDef
 
-swapOp :: Parser (M.InstrAbstract ParsedOp)
+swapOp :: Parser M.ParsedInstr
 swapOp = do symbol' "SWAP"; return M.SWAP;
 
-pushOp :: Parser (M.InstrAbstract ParsedOp)
+pushOp :: Parser M.ParsedInstr
 pushOp = do symbol' "PUSH"; v <- noteVDef; a <- type_; M.PUSH v a <$> value
 
-unitOp :: Parser (M.InstrAbstract ParsedOp)
+unitOp :: Parser M.ParsedInstr
 unitOp = do symbol' "UNIT"; (t, v) <- notesTV; return $ M.UNIT t v
 
-lambdaOp :: Parser (M.InstrAbstract ParsedOp)
+lambdaOp :: Parser M.ParsedInstr
 lambdaOp = do symbol' "LAMBDA"; v <- noteVDef; a <- type_; b <- type_;
               M.LAMBDA v a b <$> ops
 
 -- Generic comparison
 
-eqOp :: Parser (M.InstrAbstract ParsedOp)
+eqOp :: Parser M.ParsedInstr
 eqOp = do void $ symbol' "EQ"; M.EQ <$> noteVDef
 
-neqOp :: Parser (M.InstrAbstract ParsedOp)
+neqOp :: Parser M.ParsedInstr
 neqOp = do void $ symbol' "NEQ"; M.NEQ <$> noteVDef
 
-ltOp :: Parser (M.InstrAbstract ParsedOp)
+ltOp :: Parser M.ParsedInstr
 ltOp = do void $ symbol' "LT"; M.LT <$> noteVDef
 
-gtOp :: Parser (M.InstrAbstract ParsedOp)
+gtOp :: Parser M.ParsedInstr
 gtOp = do void $ symbol' "GT"; M.GT <$> noteVDef
 
-leOp :: Parser (M.InstrAbstract ParsedOp)
+leOp :: Parser M.ParsedInstr
 leOp = do void $ symbol' "LE"; M.LE <$> noteVDef
 
-geOp :: Parser (M.InstrAbstract ParsedOp)
+geOp :: Parser M.ParsedInstr
 geOp = do void $ symbol' "GE"; M.GE <$> noteVDef
 
 -- ad-hoc comparison
 
-compareOp :: Parser (M.InstrAbstract ParsedOp)
+compareOp :: Parser M.ParsedInstr
 compareOp = do void $ symbol' "COMPARE"; M.COMPARE <$> noteVDef
 
 -- Operations on booleans
 
-orOp :: Parser (M.InstrAbstract ParsedOp)
+orOp :: Parser M.ParsedInstr
 orOp = do void $ symbol' "OR";  M.OR <$> noteVDef
 
-andOp :: Parser (M.InstrAbstract ParsedOp)
+andOp :: Parser M.ParsedInstr
 andOp = do void $ symbol' "AND"; M.AND <$> noteVDef
 
-xorOp :: Parser (M.InstrAbstract ParsedOp)
+xorOp :: Parser M.ParsedInstr
 xorOp = do void $ symbol' "XOR"; M.XOR <$> noteVDef
 
-notOp :: Parser (M.InstrAbstract ParsedOp)
+notOp :: Parser M.ParsedInstr
 notOp = do void $ symbol' "NOT"; M.NOT <$> noteVDef
 
 -- Operations on integers and natural numbers
 
-addOp :: Parser (M.InstrAbstract ParsedOp)
+addOp :: Parser M.ParsedInstr
 addOp = do void $ symbol' "ADD"; M.ADD <$> noteVDef
 
-subOp :: Parser (M.InstrAbstract ParsedOp)
+subOp :: Parser M.ParsedInstr
 subOp = do void $ symbol' "SUB"; M.SUB <$> noteVDef
 
-mulOp :: Parser (M.InstrAbstract ParsedOp)
+mulOp :: Parser M.ParsedInstr
 mulOp = do void $ symbol' "MUL"; M.MUL <$> noteVDef
 
-edivOp :: Parser (M.InstrAbstract ParsedOp)
+edivOp :: Parser M.ParsedInstr
 edivOp = do void $ symbol' "EDIV";M.EDIV <$> noteVDef
 
-absOp :: Parser (M.InstrAbstract ParsedOp)
+absOp :: Parser M.ParsedInstr
 absOp = do void $ symbol' "ABS"; M.ABS <$> noteVDef
 
-negOp :: Parser (M.InstrAbstract ParsedOp)
+negOp :: Parser M.ParsedInstr
 negOp = do symbol' "NEG"; return M.NEG;
 
 -- Bitwise logical operators
 
-lslOp :: Parser (M.InstrAbstract ParsedOp)
+lslOp :: Parser M.ParsedInstr
 lslOp = do void $ symbol' "LSL"; M.LSL <$> noteVDef
 
-lsrOp :: Parser (M.InstrAbstract ParsedOp)
+lsrOp :: Parser M.ParsedInstr
 lsrOp = do void $ symbol' "LSR"; M.LSR <$> noteVDef
 
 -- Operations on string's
 
-concatOp :: Parser (M.InstrAbstract ParsedOp)
+concatOp :: Parser M.ParsedInstr
 concatOp = do void $ symbol' "CONCAT"; M.CONCAT <$> noteVDef
 
-sliceOp :: Parser (M.InstrAbstract ParsedOp)
+sliceOp :: Parser M.ParsedInstr
 sliceOp = do void $ symbol' "SLICE"; M.SLICE <$> noteVDef
 
 -- Operations on pairs
-pairOp :: Parser (M.InstrAbstract ParsedOp)
+pairOp :: Parser M.ParsedInstr
 pairOp = do symbol' "PAIR"; (t, v, (p, q)) <- notesTVF2; return $ M.PAIR t v p q
 
-carOp :: Parser (M.InstrAbstract ParsedOp)
+carOp :: Parser M.ParsedInstr
 carOp = do symbol' "CAR"; (v, f) <- notesVF; return $ M.CAR v f
 
-cdrOp :: Parser (M.InstrAbstract ParsedOp)
+cdrOp :: Parser M.ParsedInstr
 cdrOp = do symbol' "CDR"; (v, f) <- notesVF; return $ M.CDR v f
 
 -- Operations on collections (sets, maps, lists)
 
-emptySetOp :: Parser (M.InstrAbstract ParsedOp)
+emptySetOp :: Parser M.ParsedInstr
 emptySetOp = do symbol' "EMPTY_SET"; (t, v) <- notesTV;
                 M.EMPTY_SET t v <$> comparable
 
-emptyMapOp :: Parser (M.InstrAbstract ParsedOp)
+emptyMapOp :: Parser M.ParsedInstr
 emptyMapOp = do symbol' "EMPTY_MAP"; (t, v) <- notesTV; a <- comparable;
                 M.EMPTY_MAP t v a <$> type_
 
-memOp :: Parser (M.InstrAbstract ParsedOp)
+memOp :: Parser M.ParsedInstr
 memOp = do void $ symbol' "MEM"; M.MEM <$> noteVDef
 
-updateOp :: Parser (M.InstrAbstract ParsedOp)
+updateOp :: Parser M.ParsedInstr
 updateOp = do symbol' "UPDATE"; return M.UPDATE
 
-iterOp :: Parser (M.InstrAbstract ParsedOp)
+iterOp :: Parser M.ParsedInstr
 iterOp = do void $ symbol' "ITER"; M.ITER <$> ops
 
-sizeOp :: Parser (M.InstrAbstract ParsedOp)
+sizeOp :: Parser M.ParsedInstr
 sizeOp = do void $ symbol' "SIZE"; M.SIZE <$> noteVDef
 
-mapOp :: Parser (M.InstrAbstract ParsedOp)
+mapOp :: Parser M.ParsedInstr
 mapOp = do symbol' "MAP"; v <- noteVDef; M.MAP v <$> ops
 
-getOp :: Parser (M.InstrAbstract ParsedOp)
+getOp :: Parser M.ParsedInstr
 getOp = do void $ symbol' "GET"; M.GET <$> noteVDef
 
-nilOp :: Parser (M.InstrAbstract ParsedOp)
+nilOp :: Parser M.ParsedInstr
 nilOp = do symbol' "NIL"; (t, v) <- notesTV; M.NIL t v <$> type_
 
-consOp :: Parser (M.InstrAbstract ParsedOp)
+consOp :: Parser M.ParsedInstr
 consOp = do void $ symbol' "CONS"; M.CONS <$> noteVDef
 
-ifConsOp :: Parser (M.InstrAbstract ParsedOp)
+ifConsOp :: Parser M.ParsedInstr
 ifConsOp = do symbol' "IF_CONS"; a <- ops; M.IF_CONS a <$> ops
 
 -- Operations on options
 
-someOp :: Parser (M.InstrAbstract ParsedOp)
+someOp :: Parser M.ParsedInstr
 someOp = do symbol' "SOME"; (t, v, f) <- notesTVF; return $ M.SOME t v f
 
-noneOp :: Parser (M.InstrAbstract ParsedOp)
+noneOp :: Parser M.ParsedInstr
 noneOp = do symbol' "NONE"; (t, v, f) <- notesTVF; M.NONE t v f <$> type_
 
-ifNoneOp :: Parser (M.InstrAbstract ParsedOp)
+ifNoneOp :: Parser M.ParsedInstr
 ifNoneOp = do symbol' "IF_NONE"; a <- ops; M.IF_NONE a <$> ops
 
 -- Operations on unions
 
-leftOp :: Parser (M.InstrAbstract ParsedOp)
+leftOp :: Parser M.ParsedInstr
 leftOp = do symbol' "LEFT"; (t, v, (f, f')) <- notesTVF2;
                M.LEFT t v f f' <$> type_
 
-rightOp :: Parser (M.InstrAbstract ParsedOp)
+rightOp :: Parser M.ParsedInstr
 rightOp = do symbol' "RIGHT"; (t, v, (f, f')) <- notesTVF2;
                M.RIGHT t v f f' <$> type_
 
-ifLeftOp :: Parser (M.InstrAbstract ParsedOp)
+ifLeftOp :: Parser M.ParsedInstr
 ifLeftOp = do symbol' "IF_LEFT"; a <- ops; M.IF_LEFT a <$> ops
 
-ifRightOp :: Parser (M.InstrAbstract ParsedOp)
+ifRightOp :: Parser M.ParsedInstr
 ifRightOp = do symbol' "IF_RIGHT"; a <- ops; M.IF_RIGHT a <$> ops
 
 -- Operations on contracts
 
-createContractOp :: Parser (M.InstrAbstract ParsedOp)
+createContractOp :: Parser M.ParsedInstr
 createContractOp = do symbol' "CREATE_CONTRACT"; v <- noteVDef;
                        M.CREATE_CONTRACT v <$> noteVDef
 
-createContract2Op :: Parser (M.InstrAbstract ParsedOp)
+createContract2Op :: Parser M.ParsedInstr
 createContract2Op = do symbol' "CREATE_CONTRACT"; v <- noteVDef; v' <- noteVDef;
                        M.CREATE_CONTRACT2 v v' <$> braces contract
 
-createAccountOp :: Parser (M.InstrAbstract ParsedOp)
+createAccountOp :: Parser M.ParsedInstr
 createAccountOp = do symbol' "CREATE_ACCOUNT"; v <- noteVDef; v' <- noteVDef;
                        return $ M.CREATE_ACCOUNT v v'
 
-transferTokensOp :: Parser (M.InstrAbstract ParsedOp)
+transferTokensOp :: Parser M.ParsedInstr
 transferTokensOp = do void $ symbol' "TRANSFER_TOKENS"; M.TRANSFER_TOKENS <$> noteVDef
 
-setDelegateOp :: Parser (M.InstrAbstract ParsedOp)
+setDelegateOp :: Parser M.ParsedInstr
 setDelegateOp = do void $ symbol' "SET_DELEGATE"; M.SET_DELEGATE <$> noteVDef
 
-balanceOp :: Parser (M.InstrAbstract ParsedOp)
+balanceOp :: Parser M.ParsedInstr
 balanceOp = do void $ symbol' "BALANCE"; M.BALANCE <$> noteVDef
 
-contractOp :: Parser (M.InstrAbstract ParsedOp)
+contractOp :: Parser M.ParsedInstr
 contractOp = do void $ symbol' "CONTRACT"; M.CONTRACT <$> noteVDef <*> type_
 
-sourceOp :: Parser (M.InstrAbstract ParsedOp)
+sourceOp :: Parser M.ParsedInstr
 sourceOp = do void $ symbol' "SOURCE"; M.SOURCE <$> noteVDef
 
-senderOp :: Parser (M.InstrAbstract ParsedOp)
+senderOp :: Parser M.ParsedInstr
 senderOp = do void $ symbol' "SENDER"; M.SENDER <$> noteVDef
 
-amountOp :: Parser (M.InstrAbstract ParsedOp)
+amountOp :: Parser M.ParsedInstr
 amountOp = do void $ symbol' "AMOUNT"; M.AMOUNT <$> noteVDef
 
-implicitAccountOp :: Parser (M.InstrAbstract ParsedOp)
+implicitAccountOp :: Parser M.ParsedInstr
 implicitAccountOp = do void $ symbol' "IMPLICIT_ACCOUNT"; M.IMPLICIT_ACCOUNT <$> noteVDef
 
-selfOp :: Parser (M.InstrAbstract ParsedOp)
+selfOp :: Parser M.ParsedInstr
 selfOp = do void $ symbol' "SELF"; M.SELF <$> noteVDef
 
-addressOp :: Parser (M.InstrAbstract ParsedOp)
+addressOp :: Parser M.ParsedInstr
 addressOp = do void $ symbol' "ADDRESS"; M.ADDRESS <$> noteVDef
 
 -- Special Operations
-nowOp :: Parser (M.InstrAbstract ParsedOp)
+nowOp :: Parser M.ParsedInstr
 nowOp = do void $ symbol' "NOW"; M.NOW <$> noteVDef
 
-stepsToQuotaOp :: Parser (M.InstrAbstract ParsedOp)
+stepsToQuotaOp :: Parser M.ParsedInstr
 stepsToQuotaOp = do void $ symbol' "STEPS_TO_QUOTA"; M.STEPS_TO_QUOTA <$> noteVDef
 
 -- Operations on bytes
-packOp :: Parser (M.InstrAbstract ParsedOp)
+packOp :: Parser M.ParsedInstr
 packOp = do void $ symbol' "PACK"; M.PACK <$> noteVDef
 
-unpackOp :: Parser (M.InstrAbstract ParsedOp)
+unpackOp :: Parser M.ParsedInstr
 unpackOp = do symbol' "UNPACK"; v <- noteVDef; M.UNPACK v <$> type_
 
 -- Cryptographic Primitives
 
-checkSigOp :: Parser (M.InstrAbstract ParsedOp)
+checkSigOp :: Parser M.ParsedInstr
 checkSigOp = do void $ symbol' "CHECK_SIGNATURE"; M.CHECK_SIGNATURE <$> noteVDef
 
-blake2BOp :: Parser (M.InstrAbstract ParsedOp)
+blake2BOp :: Parser M.ParsedInstr
 blake2BOp = do void $ symbol' "BLAKE2B"; M.BLAKE2B <$> noteVDef
 
-sha256Op :: Parser (M.InstrAbstract ParsedOp)
+sha256Op :: Parser M.ParsedInstr
 sha256Op = do void $ symbol' "SHA256"; M.SHA256 <$> noteVDef
 
-sha512Op :: Parser (M.InstrAbstract ParsedOp)
+sha512Op :: Parser M.ParsedInstr
 sha512Op = do void $ symbol' "SHA512"; M.SHA512 <$> noteVDef
 
-hashKeyOp :: Parser (M.InstrAbstract ParsedOp)
+hashKeyOp :: Parser M.ParsedInstr
 hashKeyOp = do void $ symbol' "HASH_KEY"; M.HASH_KEY <$> noteVDef
 
 {- Type operations -}
-castOp :: Parser (M.InstrAbstract ParsedOp)
+castOp :: Parser M.ParsedInstr
 castOp = do void $ symbol' "CAST"; M.CAST <$> noteVDef <*> type_;
 
-renameOp :: Parser (M.InstrAbstract ParsedOp)
+renameOp :: Parser M.ParsedInstr
 renameOp = do void $ symbol' "RENAME"; M.RENAME <$> noteVDef
 
-isNatOp :: Parser (M.InstrAbstract ParsedOp)
+isNatOp :: Parser M.ParsedInstr
 isNatOp = do void $ symbol' "ISNAT"; M.ISNAT <$> noteVDef
 
-intOp :: Parser (M.InstrAbstract ParsedOp)
+intOp :: Parser M.ParsedInstr
 intOp = do void $ symbol' "INT"; M.INT <$> noteVDef
 
 -------------------------------------------------------------------------------
--- Macros
+-- Macro Parsers
 -------------------------------------------------------------------------------
-cmpOp :: Parser (M.InstrAbstract ParsedOp)
+cmpOp :: Parser M.ParsedInstr
 cmpOp = eqOp <|> neqOp <|> ltOp <|> gtOp <|> leOp <|> gtOp <|> geOp
 
 macro :: Parser M.Macro
@@ -703,3 +709,50 @@ primOrMac :: Parser M.ParsedOp
 primOrMac = ((M.MAC <$> ifCmpMac) <|> ifOrIfX)
   <|> ((M.MAC <$> mapCadrMac) <|> (M.PRIM <$> mapOp))
   <|> (try (M.PRIM <$> pairOp) <|> M.MAC <$> pairMac)
+
+-------------------------------------------------------------------------------
+-- Morley Instructions
+-------------------------------------------------------------------------------
+
+nopInstr :: Parser M.NopInstr
+nopInstr = choice [stackOp, testOp, printOp]
+
+stackOp :: Parser M.NopInstr
+stackOp = symbol' "STACKTYPE" >> M.STACKTYPE <$> stackType
+
+testOp :: Parser M.NopInstr
+testOp = symbol' "TEST" >> M.TEST <$> test
+
+printOp :: Parser M.NopInstr
+printOp = symbol' "PRINT" >> M.PRINT <$> printComment
+
+test :: Parser M.InlineTest
+test = do
+  n <- lexeme (T.pack <$> some alphaNumChar)
+  c <- printComment
+  o <- ops
+  return $ M.InlineTest n c o
+
+printComment :: Parser M.PrintComment
+printComment = do
+  symbol "\""
+  let validChar = T.pack <$> some (satisfy (\x -> x /= '%' && x /= '"'))
+  c <- many (Right <$> stackRef <|> Left <$> validChar)
+  symbol "\""
+  return $ M.PrintComment c
+
+stackRef :: Parser M.StackRef
+stackRef = do
+  symbol "%"
+  n <- brackets L.decimal
+  return $ M.StackRef n
+
+stackType :: Parser M.StackTypePattern
+stackType = symbol "'[" >> (emptyStk <|> stkCons <|> stkRest)
+  where
+    emptyStk = try $ symbol "]" >> return M.StkEmpty
+    stkRest = try $ symbol "..." >> symbol "]" >> return M.StkRest
+    stkCons = try $ do
+      t <- type_
+      s <- (symbol "," >> stkCons <|> stkRest) <|> emptyStk
+      return $ M.StkCons t s

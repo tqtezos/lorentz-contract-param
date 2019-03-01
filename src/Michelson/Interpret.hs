@@ -23,19 +23,19 @@ import Tezos.Core (Mutez, Timestamp)
 import Tezos.Crypto (Address)
 
 -- | Environment for contract execution.
-data ContractEnv = ContractEnv
+data ContractEnv nop = ContractEnv
   { ceNow :: !Timestamp
   -- ^ Timestamp of the block whose validation triggered this execution.
   , ceMaxSteps :: !Word64
   -- ^ Number of steps after which execution unconditionally terminates.
   , ceBalance :: !Mutez
   -- ^ Current amount of mutez of the current contract.
-  , ceStorage :: !(M.Value M.Op)
+  , ceStorage :: !(M.Value (M.Op nop))
   -- ^ Storage value associated with the current contract.
-  , ceContracts :: !(Map Address (M.Contract M.Op))
+  , ceContracts :: !(Map Address (M.Contract (M.Op nop))
   -- ^ Mapping from existing contracts' addresses to their executable
   -- representation.
-  , ceParameter :: !(M.Value M.Op)
+  , ceParameter :: !(M.Value (M.Op nop))
   -- ^ Parameter passed to the contract.
   , ceSource :: !Address
   -- ^ The contract that initiated the current transaction.
@@ -47,9 +47,9 @@ data ContractEnv = ContractEnv
 
 -- | Represents `[FAILED]` state of a Michelson program. Contains
 -- value that was on top of the stack when `FAILWITH` was called.
-data MichelsonFailed = MichelsonFailed
-  -- { unMichelsonFailed :: Value Op } -- TODO uncomment when conversion to Value will be implemented
-  deriving (Show)
+data MichelsonFailed nop = MichelsonFailed
+  -- { unMichelsonFailed :: Value (Op nop) } -- TODO uncomment when conversion to Value will be implemented
+  } deriving (Show)
 
 -- TODO [TM-16] Implement!
 -- | Interpret a contract without performing any side effects.

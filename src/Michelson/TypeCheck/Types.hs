@@ -108,12 +108,12 @@ type ContractInp param st = '[ 'T_pair param st ]
 type ContractOut st = '[ 'T_pair ('T_list 'T_operation) st ]
 
 -- | Type check error
-data TCError =
-    TCFailedOnInstr Untyped.Instr SomeIT Text
-  | TCFailedOnValue (Untyped.Value Untyped.Op) T Text
+data TCError nop =
+    TCFailedOnInstr (Untyped.Instr nop) SomeIT Text
+  | TCFailedOnValue (Untyped.Value (Untyped.Op nop)) T Text
   | TCOtherError Text
 
-instance Show TCError where
+instance Show nop => Show (TCError nop) where
   show (TCFailedOnInstr instr (SomeIT t) custom) =
     "Error checking expression " <> show instr
           <> " against input stack type " <> show t
@@ -124,4 +124,4 @@ instance Show TCError where
           <> bool (": " <> toString custom) "" (null custom)
   show (TCOtherError e) = "Error occurred during type check: " <> toString e
 
-instance Exception TCError
+instance (Show nop, Typeable nop) => Exception (TCError nop)

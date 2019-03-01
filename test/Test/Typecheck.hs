@@ -31,7 +31,7 @@ checkFile doTypeCheck wellTyped file = do
   case parse contract file cd of
     Right c' -> do
       let c = Contract (para c') (stor c') (expandFlat $ code c')
-      case doTypeCheck c of
+      case typecheckContract c of
         Left err
           | wellTyped ->
             expectationFailure $

@@ -19,8 +19,8 @@ import Michelson.Untyped.Value (Value)
 -------------------------------------
 -- Flattened types after macroexpander
 -------------------------------------
-type Instr = InstrAbstract Op
-newtype Op = Op {unOp :: Instr}
+type Instr nop = InstrAbstract nop (Op nop)
+newtype Op nop = Op {unOp :: Instr nop}
   deriving stock (Eq, Show, Generic)
 
 -------------------------------------
@@ -32,8 +32,9 @@ newtype Op = Op {unOp :: Instr}
 -- it will be different. Initially it can contain macros and
 -- non-flattened instructions, but then it contains only vanilla
 -- Michelson instructions.
-data InstrAbstract op =
-    DROP
+data InstrAbstract nop op
+  = NOP nop
+  | DROP
   | DUP               VarAnn
   | SWAP
   | PUSH              VarAnn Type (Value op)

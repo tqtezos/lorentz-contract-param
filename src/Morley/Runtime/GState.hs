@@ -21,15 +21,16 @@ import qualified Data.Map.Strict as Map
 import System.IO.Error (IOError, isDoesNotExistError)
 
 import Michelson.Untyped
+import Morley.Types (NopInstr)
 import Tezos.Core (Mutez)
 import Tezos.Crypto (Address)
 
 data Account = Account
   { accBalance :: !Mutez
   -- ^ Amount of mutez owned by this account.
-  , accStorage :: !(Value Op)
+  , accStorage :: !(Value (Op NopInstr))
   -- ^ Storage value associated with this account.
-  , accContract :: !(Contract Op)
+  , accContract :: !(Contract (Op NopInstr))
   -- ^ Contract of this account.
   } deriving (Show)
 
@@ -85,7 +86,7 @@ addAccount addr acc gs
 
 -- | Updare storage value associated with given address. Does nothing
 -- if the address is unknown.
-setStorageValue :: Address -> Value Op -> GState -> GState
+setStorageValue :: Address -> Value (Op NopInstr) -> GState -> GState
 setStorageValue addr newValue gs =
   gs {gsAccounts = gsAccounts gs & at addr %~ fmap setAccountValue}
   where

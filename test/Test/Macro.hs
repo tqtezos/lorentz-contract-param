@@ -2,9 +2,9 @@ module Test.Macro
   ( spec
   ) where
 
-import Test.Hspec (Expectation, Spec, describe, it, shouldBe)
 import Morley.Macro
 import Morley.Types
+import Test.Hspec (Expectation, Spec, describe, it, shouldBe)
 
 spec :: Spec
 spec = describe "Macros tests" $ do
@@ -153,20 +153,20 @@ expandValueTest = do
     parsedPair :: Value ParsedOp
     parsedPair = ValuePair (ValueInt 5) (ValueInt 5)
 
-    expandedPair :: Value Op
+    expandedPair :: Value (Op NopInstr)
     expandedPair = ValuePair (ValueInt 5) (ValueInt 5)
 
     parsedPapair :: Value ParsedOp
     parsedPapair = ValuePair (ValuePair (ValueInt 5) (ValueInt 5)) (ValueInt 5)
 
-    expandedPapair :: Value Op
+    expandedPapair :: Value (Op NopInstr)
     expandedPapair = ValuePair (ValuePair (ValueInt 5) (ValueInt 5)) (ValueInt 5)
 
     parsedLambdaWithMac :: Value ParsedOp
     parsedLambdaWithMac = ValueLambda
       [MAC (PAPAIR (P (F (noAnn, noAnn)) (P (F (noAnn, noAnn)) (F (noAnn, noAnn)))) noAnn noAnn)]
 
-    expandedLambdaWithMac :: Value Op
+    expandedLambdaWithMac :: Value (Op NopInstr)
     expandedLambdaWithMac = ValueLambda
       [ Op {unOp = DIP [Op {unOp = PAIR noAnn noAnn noAnn noAnn}]}
       , Op {unOp = PAIR noAnn noAnn noAnn noAnn}

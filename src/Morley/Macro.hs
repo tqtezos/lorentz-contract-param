@@ -22,19 +22,21 @@ module Morley.Macro
 import Generics.SYB (everywhere, mkT)
 import Morley.Types
   (CadrStruct(..), Contract(..), Elt(..), ExpandedInstr, ExpandedOp(..), FieldAnn, Instr,
-  InstrAbstract(..), Macro(..), Op(..), PairStruct(..), ParsedOp(..), TypeAnn, Value(..), VarAnn,
-  noAnn, ann)
+  InstrAbstract(..), Macro(..), NopInstr(..), Op(..), PairStruct(..), ParsedOp(..), TypeAnn,
+  Value(..), VarAnn, ann, noAnn)
 
-expandFlat :: [ParsedOp] -> [Op]
+--import Michelson.Types (NopWrapper(..))
+
+expandFlat :: [ParsedOp] -> [(Op NopInstr)]
 expandFlat = fmap Op . concatMap flatten . fmap expand
 
 -- | Expand and flatten and instructions in parsed contract.
-expandFlattenContract :: Contract ParsedOp -> Contract Op
+expandFlattenContract :: Contract ParsedOp -> Contract (Op NopInstr)
 expandFlattenContract Contract {..} =
   Contract para stor (expandFlat $ code)
 
 -- Probably, some SYB can be used here
-expandValue :: Value ParsedOp -> Value Op
+expandValue :: Value ParsedOp -> Value (Op NopInstr)
 expandValue = \case
   ValuePair l r -> ValuePair (expandValue l) (expandValue r)
   ValueLeft x -> ValueLeft (expandValue x)
@@ -45,10 +47,10 @@ expandValue = \case
   ValueLambda opList -> ValueLambda (expandFlat $ opList)
   x -> fmap (unsafeCastPrim . expand) x
 
-expandElt :: Elt ParsedOp -> Elt Op
+expandElt :: Elt ParsedOp -> Elt (Op NopInstr)
 expandElt (Elt l r) = Elt (expandValue l) (expandValue r)
 
-flatten :: ExpandedOp -> [Instr]
+flatten :: ExpandedOp -> [Instr NopInstr]
 flatten (SEQ_EX s) = concatMap flatten s
 flatten (PRIM_EX o) = [flattenInstr o]
 
@@ -56,11 +58,12 @@ flatten (PRIM_EX o) = [flattenInstr o]
 -- flattenInstr (IF_NONE l r) = IF_NONE (concatMap flatten l) (concatMap flatten r)
 -- flattenInstr (IF_LEFT l r) = IF_LEFT (concatMap flatten l) (concatMap flatten r)
 -- ...
-unsafeCastPrim :: ExpandedOp -> Op
+unsafeCastPrim :: ExpandedOp -> (Op NopInstr)
 unsafeCastPrim (PRIM_EX x) = Op (unsafeCastPrim <$> x)
 unsafeCastPrim _           = error "unexpected constructor"
 
-flattenInstr :: ExpandedInstr -> Instr
+
+flattenInstr :: ExpandedInstr -> (Instr NopInstr)
 flattenInstr = fmap unsafeCastPrim . everywhere (mkT flattenOps)
   where
     flattenOps :: [ExpandedOp] -> [ExpandedOp]
