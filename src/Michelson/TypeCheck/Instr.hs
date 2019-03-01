@@ -14,8 +14,8 @@
 -- application.
 --
 -- Function @typeCheck@ takes list of instructions and returns value of type
--- @Instr cp inp out@ along with @HST inp@ and @HST out@ all wrapped into
--- @SomeInstr cp@ data type. This wrapping is done to satsify Haskell type
+-- @Instr inp out@ along with @HST inp@ and @HST out@ all wrapped into
+-- @SomeInstr@ data type. This wrapping is done to satsify Haskell type
 -- system (which has no support for dependent types).
 -- Functions @typeCheckInstr@, @typeCheckVal@ behave similarly.
 --
@@ -54,12 +54,12 @@ typeCheckContract
   => TcNopHandler nop
   -> Un.Contract (Un.Instr nop)
   -> Either (TCError nop) SomeContract
-typeCheckContract nh = runTypeCheckT nh . typeCheckContractImpl
+typeCheckContract nh c = runTypeCheckT nh (Un.para c) $ typeCheckContractImpl c
 
 typeCheckContractImpl
-  :: forall cp nop. (Show nop, Buildable nop)
+  :: forall nop. (Show nop, Buildable nop)
   => Un.Contract (Un.Instr nop)
-  -> TypeCheckT cp nop SomeContract
+  -> TypeCheckT nop SomeContract
 typeCheckContractImpl (Un.Contract mParam mStorage pCode) = do
   code <- maybe (throwError $ TCOtherError "no instructions in contract code")
                 pure (nonEmpty pCode)
@@ -73,7 +73,7 @@ typeCheckContractImpl (Un.Contract mParam mStorage pCode) = do
                         "failed to extract annotations for parameter: " <> m
       let inpNote = mkNotes (NT_pair def def def paramNote storageNote)
       let inp = (ST_pair paramS storageS, inpNote, def) ::& SNil
-      typeCheckNE @param code (SomeHST inp) >>= \case
+      typeCheckNE code (SomeHST inp) >>= \case
         SiFail -> do
           let outNote = mkNotes (NT_pair def def def NStar storageNote)
               out = (ST_pair (ST_list ST_operation) storageS, outNote, def)
@@ -97,10 +97,10 @@ typeCheckContractImpl (Un.Contract mParam mStorage pCode) = do
 
 -- | Like 'typeCheck', but for non-empty lists.
 typeCheckNE
-  :: forall cp nop. (Typeable cp, SingI cp, Show nop, Buildable nop)
+  :: forall nop. (Show nop, Buildable nop)
   => NonEmpty (Un.Instr nop)
   -> SomeHST
-  -> TypeCheckT cp nop (SomeInstr cp)
+  -> TypeCheckT nop SomeInstr
 typeCheckNE (x :| xs) = typeCheckImpl typeCheckInstr (x : xs)
 
 -- | Function @typeCheckList@ converts list of Michelson instructions
@@ -112,10 +112,10 @@ typeCheckNE (x :| xs) = typeCheckImpl typeCheckInstr (x : xs)
 --
 -- As a second argument, @typeCheckList@ accepts input stack type representation.
 typeCheckList
-  :: forall cp nop. (Typeable cp, SingI cp, Show nop, Buildable nop)
+  :: forall nop. (Show nop, Buildable nop)
   => [Un.Instr nop]
   -> SomeHST
-  -> TypeCheckT cp nop (SomeInstr cp)
+  -> TypeCheckT nop SomeInstr
 typeCheckList = typeCheckImpl typeCheckInstr
 
 -- | Function @typeCheckVal@ converts a single Michelson value
@@ -125,16 +125,16 @@ typeCheckList = typeCheckImpl typeCheckInstr
 -- As a second argument, @typeCheckVal@ accepts expected type of value.
 --
 -- Type checking algorithm pattern-matches on parse value representation,
--- expected type @t@ and constructs @Val cp t@ value.
+-- expected type @t@ and constructs @Val t@ value.
 --
 -- If there was no match on a given pair of value and expected type,
 -- that is interpreted as input of wrong type and type check finishes with
 -- error.
 typeCheckVal
-  :: forall cp nop. (Typeable cp, SingI cp, Show nop, Buildable nop)
+  :: forall nop. (Show nop, Buildable nop)
   => Un.Value (Un.Op nop)
   -> T
-  -> TypeCheckT cp nop (SomeVal cp)
+  -> TypeCheckT nop SomeVal
 typeCheckVal = typeCheckValImpl typeCheckInstr
 
 -- | Function @typeCheckInstr@ converts a single Michelson instruction
@@ -151,14 +151,14 @@ typeCheckVal = typeCheckValImpl typeCheckInstr
 -- that is interpreted as input of wrong type and type check finishes with
 -- error.
 typeCheckInstr
-  :: forall cp nop . (Typeable cp, SingI cp, Show nop, Buildable nop)
-  => TcInstrHandler cp nop
+  :: forall nop . (Show nop, Buildable nop)
+  => TcInstrHandler nop
 
 typeCheckInstr (Un.NOP nop) si@(SomeHST it) = do
   nh <- gets tcNopHandler
   nfs <- gets tcNopFrames
   nfs' <- liftEither (nh nop nfs si)
-  put (TypeCheckEnv nh nfs')
+  modify $ \te -> te {tcNopFrames = nfs'}
   pure (Nop ::: (it, it))
 
 typeCheckInstr Un.DROP (SomeHST i@(_ ::& rs)) = pure (DROP ::: (i, rs))
@@ -299,7 +299,7 @@ typeCheckInstr instr@(Un.EMPTY_MAP tn vn (Un.Comparable mk ktn) mv) (SomeHST i) 
 
 typeCheckInstr instr@(Un.MAP vn mp) (SomeHST i@((ST_list v, ns, _vn) ::& rs) ) = do
   let vns = notesCase NStar (\(NT_list _ v') -> v') ns
-  typeCheckList @cp (Un.unOp <$> mp)
+  typeCheckList (Un.unOp <$> mp)
                       (SomeHST $ (v, vns, def) ::& rs) >>= \case
     SiFail -> pure SiFail
     someInstr@(_ ::: (_, (out :: HST out))) ->
@@ -313,7 +313,7 @@ typeCheckInstr instr@(Un.MAP vn mp) (SomeHST i@((ST_list v, ns, _vn) ::& rs) ) =
 typeCheckInstr instr@(Un.MAP vn mp) (SomeHST i@((ST_map k v, ns, _vn) ::& rs) ) = do
   let (kns, vns) = notesCase (def, NStar) (\(NT_map _ k' v') -> (k', v')) ns
       pns = mkNotes $ NT_pair def def def (mkNotes $ NT_c kns) vns
-  typeCheckList @cp (Un.unOp <$> mp)
+  typeCheckList (Un.unOp <$> mp)
                       (SomeHST $ ((ST_pair (ST_c k) v), pns, def) ::& rs) >>= \case
     SiFail -> pure SiFail
     someInstr@(_ ::: (_, (out :: HST out))) ->
@@ -366,7 +366,7 @@ typeCheckInstr (Un.IF mp mq) (SomeHST i@((ST_c ST_bool, _, _) ::& rs) ) =
 
 typeCheckInstr instr@(Un.LOOP is)
            (SomeHST i@((ST_c ST_bool, _, _) ::& (rs :: HST rs)) ) = do
-  typeCheckList @cp (fmap Un.unOp is) (SomeHST rs) >>= \case
+  typeCheckList (fmap Un.unOp is) (SomeHST rs) >>= \case
     SiFail -> pure SiFail
     subI ::: ((_ :: HST rs'), (o :: HST o)) -> liftEither $ do
       Refl <- assertEqT @rs @rs' instr i
@@ -385,7 +385,7 @@ typeCheckInstr instr@(Un.LOOP_LEFT is)
                       ::& (rs :: HST rs)) ) = do
   let (an, bn, avn, bvn) = deriveNsOr ons ovn
       ait = (at, an, avn) ::& rs
-  typeCheckList @cp (fmap Un.unOp is) (SomeHST ait) >>= \case
+  typeCheckList (fmap Un.unOp is) (SomeHST ait) >>= \case
     SiFail -> pure SiFail
     subI ::: ((_ :: HST rs'), (o :: HST o)) -> liftEither $ do
       Refl <- assertEqT @(a ': rs) @rs' instr i
@@ -423,7 +423,7 @@ typeCheckInstr instr@(Un.EXEC vn) (SomeHST i@(((_ :: Sing t1), _, _)
                 "lambda is given argument with wrong type: " <> m
 
 typeCheckInstr instr@(Un.DIP is) (SomeHST i@(a ::& (s :: HST s))) =
-  typeCheckList @cp (fmap Un.unOp is) (SomeHST s) >>= \case
+  typeCheckList (fmap Un.unOp is) (SomeHST s) >>= \case
     SiFail -> pure SiFail
     subI ::: ((_ :: HST s'), t) -> liftEither $ do
       Refl <- assertEqT @s @s' instr i
@@ -558,8 +558,12 @@ typeCheckInstr (Un.GE vn) (SomeHST i@((ST_c ST_int, _, _) ::& _)) =
 typeCheckInstr (Un.INT vn) (SomeHST i@((ST_c ST_nat, _, _) ::& rs)) =
   pure $ INT ::: (i, (ST_c ST_int, NStar, vn) ::& rs)
 
-typeCheckInstr (Un.SELF vn) (SomeHST i) =
-  pure $ SELF ::: (i, (sing, NStar, vn) ::& i)
+typeCheckInstr instr@(Un.SELF vn) shst@(SomeHST i) = do
+  cpType <- gets tcContractParam
+  let t = fromUType cpType
+  withSomeSingT t $ \(singcp :: Sing cp) -> do
+    nt <- liftEither $ extractNotes cpType singcp `onLeft` TCFailedOnInstr instr shst
+    pure $ SELF @cp ::: (i, (sing @('T_contract cp), N (NT_contract Un.noAnn nt), vn) ::& i)
 
 typeCheckInstr instr@(Un.CONTRACT vn mt)
            (SomeHST i@((ST_c ST_address, _, _) ::& rs)) =
@@ -679,18 +683,18 @@ typeCheckInstr instr sit = typeCheckInstrErrM instr sit ""
 -- | Helper function for two-branch if where each branch is given a single
 -- value.
 genericIf
-  :: forall cp bti bfi cond rs nop.
-    (Typeable cp, SingI cp, Typeable bti, Typeable bfi, Show nop, Buildable nop)
-  => (forall s'. Instr cp bti s'
-          -> Instr cp bfi s' -> Instr cp (cond ': rs) s')
+  :: forall bti bfi cond rs nop.
+    (Typeable bti, Typeable bfi, Show nop, Buildable nop)
+  => (forall s'. Instr bti s'
+          -> Instr bfi s' -> Instr (cond ': rs) s')
   -> ([Un.Op nop] -> [Un.Op nop] -> Un.Instr nop) -> [Un.Op nop] -> [Un.Op nop]
   -> HST bti
   -> HST bfi
   -> HST (cond ': rs)
-  -> TypeCheckT cp nop (SomeInstr cp)
+  -> TypeCheckT nop SomeInstr
 genericIf cons mCons mbt mbf bti bfi i@(_ ::& _) =
-  liftA2 (,) (typeCheckList @cp (Un.unOp <$> mbt) (SomeHST bti))
-             (typeCheckList @cp (Un.unOp <$> mbf) (SomeHST bfi)) >>= liftEither . \case
+  liftA2 (,) (typeCheckList (Un.unOp <$> mbt) (SomeHST bti))
+             (typeCheckList (Un.unOp <$> mbf) (SomeHST bfi)) >>= liftEither . \case
   (p ::: ((_ :: HST pi), (po :: HST po)), q ::: ((_ :: HST qi), (qo :: HST qo))) -> do
     Refl <- assertEqT @bti @pi instr i
     Refl <- assertEqT @bfi @qi instr i
@@ -712,16 +716,16 @@ genericIf cons mCons mbt mbf bti bfi i@(_ ::& _) =
     instr = mCons mbt mbf
 
 mapImpl
-  :: forall b cp c rs nop.
+  :: forall b c rs nop .
   ( MapOp c b
   , Typeable b
   , Typeable (MapOpInp c)
   , Typeable (MapOpRes c b)
   )
-  => Un.Instr nop -> SomeInstr cp -> HST (c ': rs)
+  => Un.Instr nop -> SomeInstr -> HST (c ': rs)
   -> (forall v' . Typeable v' =>
         Sing v' -> Notes v' -> HST rs -> HST (MapOpRes c v' ': rs))
-  -> TypeCheckT cp nop (SomeInstr cp)
+  -> TypeCheckT nop SomeInstr
 mapImpl instr someInstr i@(_ ::& _) mkRes =
   case someInstr of
     SiFail -> pure SiFail
@@ -737,12 +741,10 @@ mapImpl instr someInstr i@(_ ::& _) mkRes =
         _ -> typeCheckInstrErr instr (SomeHST i) $
               "iteration expression has wrong output stack type (empty stack)"
 
-
 iterImpl
-  :: forall cp c rs nop .
+  :: forall c rs nop .
     ( IterOp c
     , Typeable (IterOpEl c)
-    , Typeable cp, SingI cp
     , Show nop
     , Buildable nop
     )
@@ -750,10 +752,10 @@ iterImpl
   -> Un.Instr nop
   -> NonEmpty (Un.Op nop)
   -> HST (c ': rs)
-  -> TypeCheckT cp nop (SomeInstr cp)
+  -> TypeCheckT nop SomeInstr
 iterImpl et en instr mp i@((_, _, lvn) ::& rs) = do
   let evn = deriveVN "elt" lvn
-  typeCheckNE @cp (fmap Un.unOp mp) (SomeHST ((et, en, evn) ::& rs)) >>= \case
+  typeCheckNE (fmap Un.unOp mp) (SomeHST ((et, en, evn) ::& rs)) >>= \case
     SiFail -> pure SiFail
     subI ::: ((_ :: HST i), (o :: HST o)) -> liftEither $ do
       Refl <- assertEqT @i @(IterOpEl c ': rs) instr i
@@ -762,9 +764,8 @@ iterImpl et en instr mp i@((_, _, lvn) ::& rs) = do
       pure $ ITER subI ::: (i, o)
 
 lamImpl
-  :: forall it ot cp ts nop.
+  :: forall it ot ts nop.
     ( Typeable it, Typeable ts, Typeable ot
-    , Typeable cp, SingI cp
     , Show nop, Buildable nop
     , SingI it, SingI ot
     )
@@ -773,9 +774,9 @@ lamImpl
   -> Sing it -> Notes it
   -> Sing ot -> Notes ot
   -> HST ts
-  -> TypeCheckT cp nop (SomeInstr cp)
+  -> TypeCheckT nop SomeInstr
 lamImpl instr is vn it ins ot ons i = do
-  typeCheckList @cp (fmap Un.unOp is) (SomeHST $ (it, ins, def) ::& SNil) >>=
+  typeCheckList (fmap Un.unOp is) (SomeHST $ (it, ins, def) ::& SNil) >>=
     \case
       SiFail -> pure SiFail
       lam ::: ((_ :: HST li), (lo :: HST lo)) -> liftEither $ do

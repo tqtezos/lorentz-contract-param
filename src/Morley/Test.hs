@@ -50,9 +50,10 @@ import Tezos.Core
 -- or anything else relevant.
 type ContractPropValidator cp st prop =
   ContractEnv NopInstr
-      -> Val (Instr cp) cp
-      -> Val (Instr cp) st
-      -> ContractReturn cp st -> prop
+      -> Val Instr cp
+      -> Val Instr st
+      -> ContractReturn st
+      -> prop
 
 -- | Contract's property tester against given input.
 -- Takes contract environment, initial storage and parameter,
@@ -61,8 +62,8 @@ contractProp
   :: Contract cp st
   -> ContractPropValidator cp st prop
   -> ContractEnv NopInstr
-  -> Val (Instr cp) cp
-  -> Val (Instr cp) st
+  -> Val Instr cp
+  -> Val Instr st
   -> prop
 contractProp instr check env param initSt =
   check env param initSt $ interpret instr param initSt env

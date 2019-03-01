@@ -72,7 +72,7 @@ validateBasic1 _ _ _ (Left e) = error $ show e
 --    ADD;
 --    PUSH nat 12
 --    ADD;
-_myInstr :: Instr cp ('T_c 'T_int : s) ('T_c 'T_int : s)
+_myInstr :: Instr ('T_c 'T_int : s) ('T_c 'T_int : s)
 _myInstr =
   PUSH (VC $ CvInt 223) #
   SOME #
@@ -81,7 +81,7 @@ _myInstr =
   PUSH (VC $ CvNat 12) #
   ADD
 
-_myInstr2 :: Instr cp a ('T_option ('T_c 'T_int) : a)
+_myInstr2 :: Instr a ('T_option ('T_c 'T_int) : a)
 _myInstr2 =
   PUSH (VOption $ Just $ VC $ CvInt 223) #
   Nop
