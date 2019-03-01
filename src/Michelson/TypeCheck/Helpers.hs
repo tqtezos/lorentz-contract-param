@@ -40,8 +40,8 @@ import Michelson.Typed.Arith (Add, ArithOp(..), Compare, Mul, Sub, UnaryArithOp(
 import Michelson.Typed.Polymorphic
   (ConcatOp, EDivOp(..), GetOp(..), MemOp(..), SizeOp, SliceOp, UpdOp(..))
 
-import Michelson.Types (FieldAnn, VarAnn)
-import qualified Michelson.Types as M
+import qualified Michelson.Untyped as M
+import Michelson.Untyped.Annotation (FieldAnn, VarAnn)
 
 onLeft :: Either a c -> (a -> b) -> Either b c
 onLeft e f = either (Left . f) pure e

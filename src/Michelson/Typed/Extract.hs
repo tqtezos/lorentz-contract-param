@@ -13,10 +13,10 @@ module Michelson.Typed.Extract
   , fromMType
   ) where
 
-import qualified Michelson.Types as M
+import qualified Michelson.Untyped as M
 
 import Michelson.Typed.Annotation (Notes(..), Notes'(..), mkNotes)
-import Michelson.Typed.Sing (Sing(..), fromSingT, fromSingCT)
+import Michelson.Typed.Sing (Sing(..), fromSingCT, fromSingT)
 import Michelson.Typed.T (T(..))
 
 -- | Extracts 'T' type from 'Michelson.Type.Type'.

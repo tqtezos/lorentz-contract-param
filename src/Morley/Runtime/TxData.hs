@@ -4,7 +4,8 @@ module Morley.Runtime.TxData
        ( TxData (..)
        ) where
 
-import Michelson.Types
+import Michelson.Untyped (Op, Value)
+import Tezos.Core (Mutez)
 import Tezos.Crypto (Address)
 
 -- | Data associated with a particular transaction.

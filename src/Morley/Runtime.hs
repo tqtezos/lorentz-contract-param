@@ -19,12 +19,14 @@ module Morley.Runtime
 import Control.Lens (at, makeLenses, (%=), (.=), (<>=))
 import Control.Monad.Except (Except, runExcept, throwError)
 import qualified Data.Time.Clock.POSIX as Time
+
 import Michelson.Interpret (ContractEnv(..), MichelsonFailed, michelsonInterpreter)
 import Michelson.Typed.Value (Operation)
-import Tezos.Crypto (Address(..))
-import Michelson.Types
+import Michelson.Untyped
 import Morley.Runtime.GState
 import Morley.Runtime.TxData
+import Tezos.Core (Mutez(..), Timestamp(..))
+import Tezos.Crypto (Address(..))
 
 ----------------------------------------------------------------------------
 -- Auxiliary types

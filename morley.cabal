@@ -22,7 +22,7 @@ library
                      , Michelson.TypeCheck
                      , Michelson.Typed
                      , Michelson.Typed.Value
-                     , Michelson.Types
+                     , Michelson.Untyped
                      , Morley.Default
                      , Morley.Lexer
                      , Morley.Macro
@@ -33,6 +33,7 @@ library
                      , Morley.Runtime.TxData
                      , Morley.Types
                      , Prelude
+                     , Tezos.Core
                      , Tezos.Crypto
   other-modules:       Michelson.TypeCheck.Helpers
                      , Michelson.TypeCheck.Instr
@@ -46,6 +47,11 @@ library
                      , Michelson.Typed.Polymorphic
                      , Michelson.Typed.Sing
                      , Michelson.Typed.T
+                     , Michelson.Untyped.Annotation
+                     , Michelson.Untyped.Contract
+                     , Michelson.Untyped.Instr
+                     , Michelson.Untyped.Type
+                     , Michelson.Untyped.Value
 
   build-depends:       aeson
                      , aeson-options

@@ -8,7 +8,7 @@ module Michelson.Typed.T
   , T (..)
   ) where
 
-import Michelson.Types (CT(..))
+import Michelson.Untyped.Type (CT(..))
 
 -- | Michelson language type with annotations stripped off.
 data T =
@@ -27,6 +27,3 @@ data T =
   | T_map CT T
   | T_big_map CT T
   deriving (Eq, Show)
-
-
-

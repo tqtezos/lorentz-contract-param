@@ -42,10 +42,10 @@ module Morley.Types
 
 import Data.Data (Data(..))
 import qualified Data.Text as T
-import Michelson.Types
-  (CT(..), Comparable(..), Contract(..), Elt(..), FieldAnn, Instr, InstrAbstract(..), Op(..),
-  Parameter, Storage, T(..), Type(..), TypeAnn, Value(..), VarAnn, ann, noAnn,
-  InternalByteString(..), unInternalByteString, Annotation(..))
+import Michelson.Untyped
+  (Annotation(..), CT(..), Comparable(..), Contract(..), Elt(..), FieldAnn, Instr,
+  InstrAbstract(..), InternalByteString(..), Op(..), Parameter, Storage, T(..), Type(..), TypeAnn,
+  Value(..), VarAnn, ann, noAnn, unInternalByteString)
 import Morley.Default (Default(..))
 import Text.Megaparsec
 import qualified Text.Show

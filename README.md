@@ -5,9 +5,16 @@ effective.
 
 ## I: A reimplementation of the Michelson Language in Haskell
 
-- `Michelson.Types`: An abstract data type representing Michelson smart
-  contracts and expresions.
-- `Michelson.Typecheck`: A typechecker that validates ADT's that conform to
+- `Michelson.Untyped`: Simple data types representing Michelson smart
+  contracts and expresions. We use word `Untyped` to reflect that
+  Michelson type of corresponding Haskel values is not statically known
+  (e. g. there is a `Value` type which is basically dynamically typed).
+- `Michelson.Typed`: These modules contain more advanced types comparing to
+  `Michelson.Untyped` with similar semantics. These types use `GADTs` GHC
+  extension and in this representation Michelson type of each value and
+  instruction is statically known. There are also some utilities to use this
+  advanced machinery.
+- `Michelson.TypeCheck`: A typechecker that validates ADT's that conform to
   Michelson's typing rules.
 - `Michelson.Intepreter`: An intepreter for Michelson contracts which doesn't
   perform any side effects.
