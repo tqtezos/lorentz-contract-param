@@ -8,9 +8,6 @@ import Data.Default (def)
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.Singletons (SingI)
-import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
-import Data.Time.LocalTime (zonedTimeToUTC)
-import Data.Time.RFC3339 (parseTimeRFC3339)
 import Data.Typeable ((:~:)(..))
 import Prelude hiding (EQ, GT, LT)
 
@@ -22,7 +19,7 @@ import Michelson.Typed
 import Michelson.Typed.Value (CVal(..), Val(..))
 import qualified Michelson.Untyped as M
 import Tezos.Address (parseAddress)
-import Tezos.Core (mkMutez)
+import Tezos.Core (mkMutez, parseTimestamp, timestampFromSeconds)
 import Tezos.Crypto (parseKeyHash, parsePublicKey, parseSignature)
 
 typeCheckCVal :: M.Value op -> CT -> Maybe SomeValC
@@ -37,11 +34,10 @@ typeCheckCVal (M.ValueString (parseAddress -> Right s)) T_address =
   pure $ CvAddress s :--: ST_address
 typeCheckCVal (M.ValueString (parseKeyHash -> Right s)) T_key_hash =
   pure $ CvKeyHash s :--: ST_key_hash
-typeCheckCVal (M.ValueString (parseTimeRFC3339 -> Just zt)) T_timestamp =
-  pure $ CvTimestamp (zonedTimeToUTC zt) :--: ST_timestamp
-typeCheckCVal (M.ValueInt i) T_timestamp = do
-  let t = posixSecondsToUTCTime (fromInteger i)
+typeCheckCVal (M.ValueString (parseTimestamp -> Just t)) T_timestamp =
   pure $ CvTimestamp t :--: ST_timestamp
+typeCheckCVal (M.ValueInt i) T_timestamp =
+  pure $ CvTimestamp (timestampFromSeconds i) :--: ST_timestamp
 typeCheckCVal (M.ValueBytes (M.InternalByteString s)) T_bytes =
   pure $ CvBytes s :--: ST_bytes
 typeCheckCVal M.ValueTrue T_bool = pure $ CvBool True :--: ST_bool

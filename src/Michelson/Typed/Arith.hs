@@ -27,11 +27,10 @@ module Michelson.Typed.Arith
   ) where
 
 import Data.Bits (complement, shift, xor, (.&.), (.|.))
-import Data.Time.Clock (addUTCTime, diffUTCTime)
 
 import Michelson.Typed.CValue (CVal(..))
 import Michelson.Typed.T (CT(..))
-import Tezos.Core (addMutez, mulMutez, subMutez)
+import Tezos.Core (addMutez, mulMutez, subMutez, timestampFromSeconds, timestampToSeconds)
 
 -- | Class for binary arithmetic operation.
 --
@@ -90,10 +89,12 @@ instance ArithOp Add 'T_int 'T_int where
   evalOp _ (CvInt i) (CvInt j) = CvInt (i + j)
 instance ArithOp Add 'T_timestamp 'T_int where
   type ArithRes Add 'T_timestamp 'T_int = 'T_timestamp
-  evalOp _ (CvTimestamp i) (CvInt j) = CvTimestamp (addUTCTime (fromInteger $ j) i)
+  evalOp _ (CvTimestamp i) (CvInt j) =
+    CvTimestamp $ timestampFromSeconds $ timestampToSeconds i + j
 instance ArithOp Add 'T_int 'T_timestamp where
   type ArithRes Add 'T_int 'T_timestamp = 'T_timestamp
-  evalOp _ (CvInt i) (CvTimestamp j) = CvTimestamp (addUTCTime (fromInteger $ i) j)
+  evalOp _ (CvInt i) (CvTimestamp j) =
+    CvTimestamp $ timestampFromSeconds $ timestampToSeconds j + i
 instance ArithOp Add 'T_mutez 'T_mutez where
   type ArithRes Add 'T_mutez 'T_mutez = 'T_mutez
   evalOp _ (CvMutez i) (CvMutez j) = CvMutez res
@@ -115,10 +116,12 @@ instance ArithOp Sub 'T_int 'T_int where
   evalOp _ (CvInt i) (CvInt j) = CvInt (i - j)
 instance ArithOp Sub 'T_timestamp 'T_int where
   type ArithRes Sub 'T_timestamp 'T_int = 'T_timestamp
-  evalOp _ (CvTimestamp i) (CvInt j) = CvTimestamp (addUTCTime (fromInteger $ -j) i)
+  evalOp _ (CvTimestamp i) (CvInt j) =
+    CvTimestamp $ timestampFromSeconds $ timestampToSeconds i - j
 instance ArithOp Sub 'T_timestamp 'T_timestamp where
   type ArithRes Sub 'T_timestamp 'T_timestamp = 'T_int
-  evalOp _ (CvTimestamp i) (CvTimestamp j) = CvInt (floor $ toRational $ diffUTCTime i j * 1e-12)
+  evalOp _ (CvTimestamp i) (CvTimestamp j) =
+    CvInt $ timestampToSeconds i - timestampToSeconds j
 instance ArithOp Sub 'T_mutez 'T_mutez where
   type ArithRes Sub 'T_mutez 'T_mutez = 'T_mutez
   evalOp _ (CvMutez i) (CvMutez j) = CvMutez res
