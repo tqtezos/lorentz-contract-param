@@ -25,3 +25,4 @@ main = hspec $ do
   Tezos.Address.spec
   Morley.Runtime.spec
   Serialization.Aeson.spec
+  Interpreter.spec

@@ -3,7 +3,12 @@
 module Michelson.Typed.Instr
   ( Instr (..)
   , (#)
+  , ContractInp
+  , ContractOut
+  , Contract
   ) where
+
+import Data.Singletons (SingI)
 
 import Michelson.Typed.Arith
 import Michelson.Typed.Polymorphic
@@ -48,9 +53,9 @@ data Instr cp (inp :: [T]) (out :: [T]) where
   DROP :: Instr cp (a ': s) s
   DUP  :: Instr cp (a ': s) (a ': a ': s)
   SWAP :: Instr cp (a ': b ': s) (b ': a ': s)
-  PUSH :: Val (Instr cp) t -> Instr cp s (t ': s)
+  PUSH :: forall t cp s. SingI t => Val (Instr cp) t -> Instr cp s (t ': s)
   SOME :: Instr cp (a ': s) ('T_option a ': s)
-  NONE :: forall a s cp. Instr cp s ('T_option a ': s)
+  NONE :: forall a s cp. SingI a => Instr cp s ('T_option a ': s)
   UNIT :: Instr cp s ('T_unit ': s)
   IF_NONE
     :: Instr cp s s'
@@ -59,22 +64,22 @@ data Instr cp (inp :: [T]) (out :: [T]) where
   PAIR :: Instr cp (a ': b ': s) ('T_pair a b ': s)
   CAR :: Instr cp ('T_pair a b ': s) (a ': s)
   CDR :: Instr cp ('T_pair a b ': s) (b ': s)
-  LEFT :: Instr cp (a ': s) ('T_or a b ': s)
-  RIGHT :: Instr cp (b ': s) ('T_or a b ': s)
+  LEFT :: forall a b cp s. SingI b => Instr cp (a ': s) ('T_or a b ': s)
+  RIGHT :: forall a b cp s. SingI a => Instr cp (b ': s) ('T_or a b ': s)
   IF_LEFT :: Instr cp (a ': s) s'
           -> Instr cp (b ': s) s'
           -> Instr cp ('T_or a b ': s) s'
   IF_RIGHT :: Instr cp (b ': s) s'
           -> Instr cp (a ': s) s'
           -> Instr cp ('T_or a b ': s) s'
-  NIL :: Instr cp s ('T_list p ': s)
+  NIL :: SingI p => Instr cp s ('T_list p ': s)
   CONS :: Instr cp (a ': 'T_list a ': s) ('T_list a ': s)
   IF_CONS :: Instr cp (a ': 'T_list a ': s) s'
           -> Instr cp s s'
           -> Instr cp ('T_list a ': s) s'
   SIZE :: SizeOp c => Instr cp (c ': s) ('T_c 'T_nat ': s)
-  EMPTY_SET :: Instr cp s ('T_set e ': s)
-  EMPTY_MAP :: Instr cp s ('T_map a b ': s)
+  EMPTY_SET :: SingI e => Instr cp s ('T_set e ': s)
+  EMPTY_MAP :: (SingI a, SingI b) => Instr cp s ('T_map a b ': s)
   MAP :: MapOp c => Instr cp (MapOpInp c ': s) (b ': s)
       -> Instr cp (c ': s) (MapOpRes c b ': s)
   ITER :: IterOp c => Instr cp (IterOpEl c ': s) s -> Instr cp (c ': s) s
@@ -92,14 +97,15 @@ data Instr cp (inp :: [T]) (out :: [T]) where
        -> Instr cp ('T_c 'T_bool ': s) s
   LOOP_LEFT :: Instr cp (a ': s) ('T_or a b ': s)
             -> Instr cp ('T_or a b ': s) (b ': s)
-  LAMBDA :: Val (Instr cp) ('T_lambda i o) -> Instr cp s ('T_lambda i o ': s)
+  LAMBDA :: forall i o cp s. (SingI i, SingI o)
+         => Val (Instr cp) ('T_lambda i o) -> Instr cp s ('T_lambda i o ': s)
   EXEC :: Instr cp (t1 ': 'T_lambda t1 t2 ': s) (t2 ': s)
   DIP :: Instr cp a c -> Instr cp (b ': a) (b ': c)
-  FAILWITH :: Instr cp s t
-  CAST :: Instr cp (a ': s) (a ': s)
+  FAILWITH :: Instr cp (a ': s) t
+  CAST :: forall a cp s. SingI a => Instr cp (a ': s) (a ': s)
   RENAME :: Instr cp (a ': s) (a ': s)
   PACK :: Instr cp (a ': s) ('T_c 'T_bytes ': s)
-  UNPACK :: Instr cp ('T_c 'T_bytes ': s) ('T_option a ': s)
+  UNPACK :: SingI a => Instr cp ('T_c 'T_bytes ': s) ('T_option a ': s)
   CONCAT :: ConcatOp c => Instr cp (c ': c ': s) (c ': s)
   CONCAT' :: ConcatOp c => Instr cp ('T_list c ': s) (c ': s)
   SLICE
@@ -168,7 +174,7 @@ data Instr cp (inp :: [T]) (out :: [T]) where
   INT :: Instr cp ('T_c 'T_nat ': s) ('T_c 'T_int ': s)
   SELF :: Instr cp s ('T_contract cp ': s)
   CONTRACT
-    :: Instr cp ('T_c 'T_address ': s) ('T_option ('T_contract p) ': s)
+    :: SingI p => Instr cp ('T_c 'T_address ': s) ('T_option ('T_contract p) ': s)
   TRANSFER_TOKENS
     :: Instr cp (p ': 'T_c 'T_mutez ': 'T_contract p ': s)
                    ('T_operation ': s)
@@ -188,7 +194,8 @@ data Instr cp (inp :: [T]) (out :: [T]) where
                        ('T_pair ('T_list 'T_operation) g) ': g ': s)
         ('T_operation ': 'T_c 'T_address ': s)
   CREATE_CONTRACT2
-    :: Instr p '[ 'T_pair p g ] '[ 'T_pair ('T_list 'T_operation) g ]
+    :: (SingI p, SingI g)
+    => Instr p '[ 'T_pair p g ] '[ 'T_pair ('T_list 'T_operation) g ]
     -> Instr cp ('T_c 'T_key_hash ': 'T_option ('T_c 'T_key_hash)
                     ': 'T_c 'T_bool ': 'T_c 'T_bool ': 'T_c 'T_mutez ': g ': s)
                    ('T_operation ': 'T_c 'T_address ': s)
@@ -210,3 +217,8 @@ data Instr cp (inp :: [T]) (out :: [T]) where
   ADDRESS :: Instr cp ('T_contract a ': s) ('T_c 'T_address ': s)
 
 deriving instance Show (Instr cp inp out)
+
+type ContractInp param st = '[ 'T_pair param st ]
+type ContractOut st = '[ 'T_pair ('T_list 'T_operation) st ]
+type Contract cp st = Instr cp (ContractInp cp st) (ContractOut st)
+

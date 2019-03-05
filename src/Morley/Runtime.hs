@@ -20,9 +20,11 @@ import Control.Lens (at, makeLenses, (%=), (.=), (<>=))
 import Control.Monad.Except (Except, runExcept, throwError)
 import qualified Data.Time.Clock.POSIX as Time
 
-import Michelson.Interpret (ContractEnv(..), MichelsonFailed, michelsonInterpreter)
-import Michelson.Typed.Value (Operation)
-import Michelson.Untyped
+import Michelson.Interpret
+  (ContractEnv(..), InterpretUntypedError(..), InterpretUntypedResult(..))
+import Michelson.Typed (Operation, unsafeValToValue)
+import Michelson.Untyped (Contract(..), Op, Value)
+import Morley.Nop (interpretMorleyUntyped)
 import Morley.Runtime.GState
 import Morley.Runtime.TxData
 import Morley.Types (NopInstr)
@@ -71,10 +73,10 @@ makeLenses ''InterpreterRes
 data InterpreterError
   = IEUnknownContract Address
   -- ^ The interpreted contract hasn't been originated.
-  | IEMichelsonFailed (Contract (Op NopInstr)) (MichelsonFailed NopInstr)
-  -- ^ Michelson contract failed (using Michelson's FAILWITH instruction).
+  | IEInterpreterFailed (Contract (Op NopInstr)) (InterpretUntypedError NopInstr)
+  -- ^ Interpretation of Michelson contract failed.
   | IEAlreadyOriginated Account
-  -- ^ A contract is already originated.
+  -- ^ A contract is already originated
   deriving (Show)
 
 instance Exception InterpreterError
@@ -207,19 +209,20 @@ interpretOneOp now maxSteps mSourceAddr gs (TransferOp addr txData) = do
         { ceNow = now
         , ceMaxSteps = maxSteps
         , ceBalance = accBalance acc
-        , ceStorage = accStorage acc
         , ceContracts = accContract <$> accounts
-        , ceParameter = tdParameter txData
         , ceSource = sourceAddr
         , ceSender = tdSenderAddress txData
         , ceAmount = tdAmount txData
         }
-    (networkOps, newValue) <- first (IEMichelsonFailed contract) $
-      michelsonInterpreter contractEnv contract
+    InterpretUntypedResult networkOps newValue
+      <- first (IEInterpreterFailed contract) $
+            interpretMorleyUntyped contract (tdParameter txData)
+                             (accStorage acc) contractEnv
     let
-      _irGState = setStorageValue addr newValue gs
+      newValueU = unsafeValToValue newValue
+      _irGState = setStorageValue addr newValueU gs
       _irOperations = foldMap convertOp networkOps
-      _irUpdatedValues = [(addr, newValue)]
+      _irUpdatedValues = [(addr, newValueU)]
       _irSourceAddress = Just sourceAddr
     pure InterpreterRes {..}
   where

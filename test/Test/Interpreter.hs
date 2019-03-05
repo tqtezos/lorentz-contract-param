@@ -2,65 +2,66 @@ module Test.Interpreter
   ( spec
   ) where
 
-import Data.Typeable ((:~:)(..), eqT)
-import Data.Vinyl (Rec(..))
-import Test.Hspec (Expectation, Spec, describe, expectationFailure, it, shouldBe)
-import Test.HUnit (assertFailure)
-import Text.Megaparsec (parse)
+import Test.Hspec (Spec, describe, it, shouldSatisfy)
+import Test.Hspec.QuickCheck (prop)
+import Test.QuickCheck (Property, label, (.&&.), (===))
 
-import Michelson.Interpret
-import qualified Michelson.TypeCheck as T
-import Michelson.Typed (CT(..), Instr(..), T(..))
-import qualified Michelson.Typed.Value as V
-import Michelson.Untyped (Contract(..), Op(..))
-import Morley.Macro (expandFlat)
-import Morley.Nop (typeCheckMorleyContract)
-import Morley.Parser (contract)
+import Michelson.Interpret (interpret)
+import Michelson.Typed (CT(..), CVal(..), Instr(..), T(..), Val(..), ( # ))
+import Morley.Test (ContractPropValidator, contractProp, specWithContract)
 import Test.Morley.Runtime (dummyContractEnv)
 
 spec :: Spec
 spec = describe "Advanced type interpreter tests" $ do
-    it "Interpreter correctly executes contract \"contracts/basic1.tz\"" $
-      testRun "contracts/basic1.tz" trInitSt V.VUnit $ \(res, ops) -> do
-        trToList res `shouldBe` [123, 100]
-        case ops of
-          [] -> pass
-          _ -> expectationFailure "Non-empty operation list returned"
+    specWithContract "contracts/basic5.tz" $ \contract ->
+      it "Basic test" $
+        interpret contract VUnit (VList [ VC $ CvInt 1 ]) dummyContractEnv
+          `shouldSatisfy` isRight
+    specWithContract "contracts/increment.tz" $ \contract ->
+      it "Basic test" $
+        interpret contract VUnit (VC $ CvInt 23) dummyContractEnv
+          `shouldSatisfy` isRight
+    specWithContract "contracts/basic1.tz" $ \contract -> do
+      prop "Random check" $
+        contractProp contract validateBasic1 dummyContractEnv
+
+validateBasic1
+  :: ContractPropValidator 'T_unit ('T_list ('T_c 'T_int)) Property
+validateBasic1 _env _param input (Right (ops, res)) =
+    (trToList res === [calcSum input + 12, 100])
+    .&&.
+    (label "returned no ops" $ null ops)
   where
-    trInitSt = V.VList ((V.VC . V.CvInt) <$> [100, 10, 1])
+    calcSum :: Val instr ('T_list ('T_c 'T_int)) -> Integer
+    calcSum (VList l) = sum $ map (\(VC (CvInt i)) -> i) l
 
-    trToList :: V.Val (Instr 'T_unit) ('T_list ('T_c 'T_int)) -> [Integer]
-    trToList (V.VList l) = map (\(V.VC (V.CvInt i)) -> i) l
+    trToList :: Val instr ('T_list ('T_c 'T_int)) -> [Integer]
+    trToList (VList l) = map (\(VC (CvInt i)) -> i) l
 
-testRun
-  :: forall cp st .
-    (Typeable cp, Typeable st)
-  => FilePath
-  -> V.Val (Instr cp) st
-  -> V.Val (Instr cp) cp
-  -> ((V.Val (Instr cp) st, [V.Operation (Instr cp)]) -> Expectation)
-  -> Expectation
-testRun file initSt initParam checkRes = do
-  c' <- assertEither "Parse error" $
-                  parse contract file <$> readFile file
-  T.SomeContract (instr :: Instr cp' (T.ContractInp cp' st')
-                                                  (T.ContractOut st')) _ _
-    <- assertEither "Type check error" $ pure $ typeCheckMorleyContract $
-        unOp <$> Contract (para c') (stor c') (expandFlat $ code c')
-  case (eqT @cp @cp', eqT @st @st') of
-    (Just Refl, Just Refl) -> do
-      let initValue = V.VPair (initParam, initSt) :& RNil
-      case doInstr (run instr initValue) dummyContractEnv of
-        Left m -> expectationFailure $ "run error: " <> show m
-        Right r -> checkRes $ contractRes r
-    (Nothing, _) -> expectationFailure "Unexpected param type"
-    _ -> expectationFailure "Unexpected storage type"
-  where
-    assertEither text action =
-      either (\e -> assertFailure $ text <> ": " <> show e) pure =<< action
+validateBasic1 _ _ _ (Left e) = error $ show e
 
-    contractRes
-      :: Rec (V.Val (Instr cp)) (T.ContractOut st)
-      -> (V.Val (Instr cp) st, [V.Operation (Instr cp)])
-    contractRes (V.VPair (V.VList ops, r) :& RNil) =
-      (r, (\(V.VOp op) -> op) <$> ops)
+--------------------
+-- Examples
+--------------------
+
+-- | @myInstr@ is an equivalent to Michelson code:
+--
+--    PUSH int 223;
+--    SOME;
+--    IF_NONE { DUP; } { SWAP; };
+--    ADD;
+--    PUSH nat 12
+--    ADD;
+_myInstr :: Instr cp ('T_c 'T_int : s) ('T_c 'T_int : s)
+_myInstr =
+  PUSH (VC $ CvInt 223) #
+  SOME #
+  IF_NONE DUP SWAP #
+  ADD #
+  PUSH (VC $ CvNat 12) #
+  ADD
+
+_myInstr2 :: Instr cp a ('T_option ('T_c 'T_int) : a)
+_myInstr2 =
+  PUSH (VOption $ Just $ VC $ CvInt 223) #
+  Nop

@@ -5,8 +5,6 @@ module Michelson.TypeCheck.Types
     , SomeInstr (..)
     , SomeVal (..)
     , SomeContract (..)
-    , ContractInp
-    , ContractOut
     , SomeValC (..)
     , TCError (..)
     , TcInstrHandler
@@ -16,6 +14,7 @@ module Michelson.TypeCheck.Types
     , runTypeCheckT
     ) where
 
+import Data.Singletons (SingI)
 import Prelude hiding (EQ, GT, LT)
 import qualified Text.Show
 
@@ -91,26 +90,23 @@ instance Show (SomeInstr cp) where
 -- | Data type, holding strictly-typed Michelson value along with its
 -- type singleton.
 data SomeVal cp where
-    (::::) :: Typeable t
+    (::::) :: (SingI t, Typeable t)
            => Val (Instr cp) t -> (Sing t, Notes t) -> SomeVal cp
 
 -- | Data type, holding strictly-typed Michelson value along with its
 -- type singleton.
 data SomeValC where
-    (:--:) :: Typeable t => CVal t -> Sing t -> SomeValC
+    (:--:) :: (SingI t, Typeable t) => CVal t -> Sing t -> SomeValC
 
 data SomeContract where
   SomeContract
-    :: (Typeable st, Typeable cp)
-    => Instr cp (ContractInp cp st) (ContractOut st)
+    :: (Typeable st, Typeable cp, SingI cp, SingI st)
+    => Contract cp st
     -> IT (ContractInp cp st)
     -> IT (ContractOut st)
     -> SomeContract
 
 deriving instance Show SomeContract
-
-type ContractInp param st = '[ 'T_pair param st ]
-type ContractOut st = '[ 'T_pair ('T_list 'T_operation) st ]
 
 -- | Type check error
 data TCError nop =

@@ -6,15 +6,17 @@ module Michelson.Typed.Polymorphic
   , MemOp (..)
   , MapOp (..)
   , IterOp (..)
-  , SizeOp
+  , SizeOp (..)
   , GetOp (..)
   , UpdOp (..)
-  , SliceOp
-  , ConcatOp
+  , SliceOp (..)
+  , ConcatOp (..)
   ) where
 
+import qualified Data.ByteString as B
 import qualified Data.Map as M
 import qualified Data.Set as S
+import qualified Data.Text as T
 
 import Michelson.Typed.T (CT(..), T(..))
 import Michelson.Typed.CValue (CVal(..))
@@ -52,44 +54,98 @@ instance IterOp ('T_list e) where
 instance IterOp ('T_set e) where
   type IterOpEl ('T_set e) = 'T_c e
 
-class SizeOp (c :: T)
-instance SizeOp ('T_c 'T_string)
-instance SizeOp ('T_c 'T_bytes)
-instance SizeOp ('T_set a)
-instance SizeOp ('T_list a)
-instance SizeOp ('T_map k v)
+class SizeOp (c :: T) where
+  evalSize :: Val cp c -> Int
+instance SizeOp ('T_c 'T_string) where
+  evalSize (VC (CvString s)) = length s
+instance SizeOp ('T_c 'T_bytes) where
+  evalSize (VC (CvBytes b)) = length b
+instance SizeOp ('T_set a) where
+  evalSize (VSet s) = S.size s
+instance SizeOp ('T_list a) where
+  evalSize (VList l) = length l
+instance SizeOp ('T_map k v) where
+  evalSize (VMap m) = M.size m
 
 class UpdOp (c :: T) where
   type UpdOpKey c :: CT
   type UpdOpParams c :: T
+  evalUpd 
+    :: CVal (UpdOpKey c)
+    -> Val cp (UpdOpParams c) -> Val cp c -> Val cp c
 instance UpdOp ('T_map k v) where
   type UpdOpKey ('T_map k v) = k
   type UpdOpParams ('T_map k v) = 'T_option v
+  evalUpd k (VOption o) (VMap m) =
+    case o of
+      Just newV -> VMap $ M.insert k newV m
+      Nothing -> VMap $ M.delete k m
 instance UpdOp ('T_big_map k v) where
   type UpdOpKey ('T_big_map k v) = k
   type UpdOpParams ('T_big_map k v) = 'T_option v
+  evalUpd k (VOption o) (VBigMap m) =
+    case o of
+      Just newV -> VBigMap $ M.insert k newV m
+      Nothing -> VBigMap $ M.delete k m
 instance UpdOp ('T_set a) where
   type UpdOpKey ('T_set a) = a
   type UpdOpParams ('T_set a) = 'T_c 'T_bool
+  evalUpd k (VC (CvBool b)) (VSet s) =
+    case b of
+      True -> VSet $ S.insert k s
+      False -> VSet $ S.delete k s
 
 class GetOp (c :: T) where
   type GetOpKey c :: CT
   type GetOpVal c :: T
+  evalGet :: CVal (GetOpKey c) -> Val cp c -> Maybe (Val cp (GetOpVal c))
 instance GetOp ('T_big_map k v) where
   type GetOpKey ('T_big_map k v) = k
   type GetOpVal ('T_big_map k v) = v
+  evalGet k (VBigMap m) = k `M.lookup` m
 instance GetOp ('T_map k v) where
   type GetOpKey ('T_map k v) = k
   type GetOpVal ('T_map k v) = v
+  evalGet k (VMap m) = k `M.lookup` m
 
-class ConcatOp (c :: T)
-instance ConcatOp ('T_c 'T_string)
-instance ConcatOp ('T_c 'T_bytes)
-instance ConcatOp ('T_list t)
+class ConcatOp (c :: T) where
+  evalConcat :: Val cp c -> Val cp c -> Val cp c
+  evalConcat' :: [Val cp c] -> Val cp c
+instance ConcatOp ('T_c 'T_string) where
+  evalConcat (VC (CvString s1)) (VC (CvString s2)) = (VC . CvString) (s1 <> s2)
+  evalConcat' l =
+    (VC . CvString . fromString) $ concat $ (map (\(VC (CvString s)) -> toString s)) l
+instance ConcatOp ('T_c 'T_bytes) where
+  evalConcat (VC (CvBytes b1)) (VC (CvBytes b2)) = (VC . CvBytes) (b1 <> b2)
+  evalConcat' l =
+    (VC . CvBytes) $ foldr (<>) mempty (map (\(VC (CvBytes b)) -> b) l)
+instance ConcatOp ('T_list t) where
+  evalConcat (VList l1) (VList l2) = VList $ l1 <> l2
+  evalConcat' l =
+    VList $ concat $ map (\(VList l') -> l') l
 
-class SliceOp (c :: T)
-instance SliceOp ('T_c 'T_string)
-instance SliceOp ('T_c 'T_bytes)
+class SliceOp (c :: T) where
+  evalSlice :: Natural -> Natural -> Val cp c -> Maybe (Val cp c)
+instance SliceOp ('T_c 'T_string) where
+  evalSlice o l (VC (CvString s)) =
+    if o > fromIntegral (length s) || o + l > fromIntegral (length s)
+    then Nothing
+    else (Just . VC . CvString . toText) $ sliceText o l s
+    where
+      sliceText :: Natural -> Natural -> Text -> Text
+      sliceText o' l' s' =
+        T.drop ((fromIntegral . toInteger) o') $
+          T.take ((fromIntegral . toInteger) l') s'
+instance SliceOp ('T_c 'T_bytes) where
+  evalSlice o l (VC (CvBytes b)) =
+    if o > fromIntegral (length b) || o + l > fromIntegral (length b)
+    then Nothing
+    else (Just . VC . CvBytes) $ sliceBytes o l b
+    where
+      sliceBytes :: Natural -> Natural -> ByteString -> ByteString
+      sliceBytes o' l' b' =
+        B.drop ((fromIntegral . toInteger) o') $
+          B.take ((fromIntegral . toInteger) l') b'
 
 class EDivOp (n :: CT) (m :: CT) where
   type EDivOpRes n m :: CT

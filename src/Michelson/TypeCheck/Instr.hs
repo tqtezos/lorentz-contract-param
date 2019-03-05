@@ -41,9 +41,10 @@ import Michelson.TypeCheck.Helpers
 import Michelson.TypeCheck.Types
 import Michelson.TypeCheck.Value
 import Michelson.Typed
-  (Abs, And, CT(..), Eq', Ge, Gt, Instr(..), IterOp(..), Le, Lsl, Lsr, Lt, MapOp(..), Neg, Neq,
-  Not, Notes(..), Notes'(..), Or, Sing(..), T(..), Val(..), Xor, converge, convergeAnns,
-  extractNotes, fromMType, mkNotes, notesCase, orAnn, withSomeSingCT, withSomeSingT)
+  (Abs, And, CT(..), Contract, ContractInp, ContractOut, Eq', Ge, Gt, Instr(..), IterOp(..), Le,
+  Lsl, Lsr, Lt, MapOp(..), Neg, Neq, Not, Notes(..), Notes'(..), Or, Sing(..), T(..), Val(..), Xor,
+  converge, convergeAnns, extractNotes, fromMType, mkNotes, notesCase, orAnn, withSomeSingCT,
+  withSomeSingT, ( # ))
 
 import qualified Michelson.Untyped as M
 import Michelson.Untyped.Annotation (VarAnn)
@@ -102,14 +103,14 @@ typeCheckNE
   -> TypeCheckT cp nop (SomeInstr cp)
 typeCheckNE (x :| xs) = typeCheckImpl typeCheckInstr (x : xs)
 
--- | Function @typeCheck@ converts list of Michelson instructions
+-- | Function @typeCheckList@ converts list of Michelson instructions
 -- given in representation from @Michelson.Type@ module to representation
 -- in strictly typed GADT.
 --
 -- Types are checked along the way which is neccessary to construct a
 -- strictly typed value.
 --
--- As a second argument, @typeCheck@ accepts input stack type representation.
+-- As a second argument, @typeCheckList@ accepts input stack type representation.
 typeCheckList
   :: forall cp nop. (Typeable cp, SingI cp, Show nop)
   => [M.Instr nop]
@@ -233,7 +234,7 @@ typeCheckInstr instr@(M.LEFT tn vn pfn qfn bMt) (SomeIT i@((a, an, _) ::& rs)) =
 
 typeCheckInstr instr@(M.RIGHT tn vn pfn qfn aMt) (SomeIT i@((b, bn, _) ::& rs)) =
   withSomeSingT (fromMType aMt) $ \a -> do
-    an <- liftEither $  extractNotes aMt a
+    an <- liftEither $ extractNotes aMt a
               `onLeft` TCFailedOnInstr instr (SomeIT i)
     let ns = mkNotes $ NT_or tn pfn qfn an bn
     pure (RIGHT ::: (i, (ST_or a b, ns, vn) ::& rs))
@@ -411,16 +412,20 @@ typeCheckInstr instr@(M.DIP is) (SomeIT i@(a ::& (s :: IT s))) =
 typeCheckInstr M.FAILWITH _ = pure SiFail
 
 typeCheckInstr instr@(M.CAST vn mt)
-           (SomeIT i@(((e :: Sing e), en, evn) ::& rs)) = do
-  withSomeSingT (fromMType mt) $ \(_ :: Sing e') -> do
-    let check = do
-          Refl <- eqT' @e @e'
-          en' <- extractNotes mt e
-          converge en' en
-    case check of
-      Right ns ->
-        pure $ CAST ::: (i, (e, ns, vn `orAnn` evn) ::& rs)
-      Left m -> typeCheckInstrErrM instr (SomeIT i) $
+           (SomeIT i@(((e :: Sing e), (en :: Notes e), evn) ::& rs)) =
+  withSomeSingT (fromMType mt) $ \(_ :: Sing e') ->
+    case eqT' @e @e' of
+      Right Refl ->
+        case extractNotes mt e of
+          Right en' ->
+            case converge en en' of
+              Right ns ->
+                pure $ CAST ::: (i, (e, ns, vn `orAnn` evn) ::& rs)
+              Left m -> err m
+          Left m -> err m
+      Left m -> err m
+    where
+      err = \m -> typeCheckInstrErrM instr (SomeIT i) $
                   "cast to incompatible type: " <> m
 
 typeCheckInstr (M.RENAME vn) (SomeIT i@((at, an, _) ::& rs)) =
@@ -589,16 +594,15 @@ typeCheckInstr instr@(M.CREATE_CONTRACT2 ovn avn contract)
              ::& (ST_option (ST_c ST_key_hash), _, _) ::& (ST_c ST_bool, _, _)
              ::& (ST_c ST_bool, _, _) ::& (ST_c ST_mutez, _, _)
              ::& ((_ :: Sing g), gn, _) ::& rs)) = do
-  (SomeContract contr _ (out :: IT (ContractOut g'))) <-
+  (SomeContract (contr :: Contract i' g') _ out) <-
       typeCheckContractImpl (fmap M.unOp contract)
         `onLeftM` \err -> TCFailedOnInstr instr (SomeIT i)
                           ("failed to type check contract: " <> show err)
   liftEither $ do
     Refl <- checkEqT @g @g' instr i "contract storage type mismatch"
-    converge gn (outNotes out) `onLeft` TCFailedOnInstr instr (SomeIT i)
-    pure $ CREATE_CONTRACT2 contr
-            ::: (i, (ST_operation, NStar, ovn) ::&
-                    (ST_c ST_address, NStar, avn) ::& rs)
+    void $ converge gn (outNotes out) `onLeft` TCFailedOnInstr instr (SomeIT i)
+    pure $ CREATE_CONTRACT2 contr ::: (i, (ST_operation, NStar, ovn) ::&
+                                          (ST_c ST_address, NStar, avn) ::& rs)
   where
     outNotes :: IT '[ 'T_pair ('T_list 'T_operation) g' ] -> Notes g'
     outNotes ((_, n, _) ::& INil) =
@@ -676,10 +680,12 @@ genericIf cons mCons mbt mbf bti bfi i@(_ ::& _) =
     pure $ cons p q ::: (i, o)
   (SiFail, q ::: ((_ :: IT qi), (qo :: IT qo))) -> do
     Refl <- assertEqT @bfi @qi instr i
-    pure $ cons FAILWITH q ::: (i, qo)
+    -- TODO TM-27 There shall be no `PUSH VUnit`, rewrite this code
+    pure $ cons (PUSH VUnit # FAILWITH) q ::: (i, qo)
   (p ::: ((_ :: IT pi), (po :: IT po)), SiFail) -> do
     Refl <- assertEqT @bti @pi instr i
-    pure $ cons p FAILWITH ::: (i, po)
+    -- TODO TM-27 There shall be no `PUSH VUnit`, rewrite this code
+    pure $ cons p (PUSH VUnit # FAILWITH) ::: (i, po)
   _ -> pure SiFail
 
   where
@@ -740,6 +746,7 @@ lamImpl
     ( Typeable it, Typeable ts, Typeable ot
     , Typeable cp, SingI cp
     , Show nop
+    , SingI it, SingI ot
     )
   => M.Instr nop
   -> [M.Op nop]  -> VarAnn

@@ -2,15 +2,18 @@
 
 module Michelson.Typed.Value
   ( Val (..)
+  , CreateAccount (..)
   , CVal (..)
   , Operation (..)
+  , SetDelegate (..)
+  , TransferTokens (..)
   ) where
 
 import Michelson.Typed.CValue (CVal(..))
 import Michelson.Typed.T (T(..))
 import Tezos.Address (Address)
 import Tezos.Core (Mutez)
-import Tezos.Crypto (PublicKey, Signature)
+import Tezos.Crypto (KeyHash, PublicKey, Signature)
 
 -- | Data type, representing operation, list of which is returned
 -- by Michelson contract (according to calling convention).
@@ -18,13 +21,28 @@ import Tezos.Crypto (PublicKey, Signature)
 -- These operations are to be further executed against system state
 -- after the contract execution.
 data Operation instr where
-  TransferTokens ::
-       { opContractParameter :: Val instr p
-       , opAmount :: Mutez
-       , opContract :: Val instr ('T_contract p)
-       } -> Operation instr
+  OpTransferTokens :: TransferTokens instr p -> Operation instr
+  OpSetDelegate :: SetDelegate -> Operation instr
+  OpCreateAccount :: CreateAccount -> Operation instr
 
 deriving instance Show (Operation instr)
+
+data TransferTokens instr p = TransferTokens
+  { ttContractParameter :: Val instr p
+  , ttAmount :: Mutez
+  , ttContract :: Val instr ('T_contract p)
+  } deriving (Show)
+
+data SetDelegate = SetDelegate
+  { sdMbKeyHash :: Maybe KeyHash
+  } deriving (Show)
+
+data CreateAccount = CreateAccount
+  { caKeyHash :: KeyHash
+  , caMbKeyHash :: Maybe KeyHash
+  , caBool :: Bool
+  , caMutez :: Mutez
+  } deriving (Show)
 
 -- | Representation of Michelson value.
 --

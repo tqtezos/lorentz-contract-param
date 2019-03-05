@@ -11,6 +11,7 @@ module Michelson.Typed.Extract
   (
     extractNotes
   , fromMType
+  , toMType
   ) where
 
 import qualified Michelson.Untyped as M
@@ -78,3 +79,28 @@ extractNotes (M.Type wholeT tn) s = conv wholeT s
     conv a (fromSingT -> b) =
       Left $ "failed to construct annotation, provided types do not match: "
                 <> show a <> " /= " <> show b
+
+-- | Converts from 'T' to 'Michelson.Type.Type'.
+toMType :: T -> M.Type
+toMType t = M.Type (convert t) M.noAnn
+  where
+    convert :: T -> M.T
+    convert (T_c a) = M.T_comparable a
+    convert (T_key) = M.T_key
+    convert (T_unit) = M.T_unit
+    convert (T_signature) = M.T_signature
+    convert (T_option a) = M.T_option  M.noAnn (toMType a)
+    convert (T_list a) = M.T_list (toMType a)
+    convert (T_set a) = M.T_set $ M.Comparable a M.noAnn
+    convert (T_operation) = M.T_operation
+    convert (T_contract a) = M.T_contract (toMType a)
+    convert (T_pair a b) =
+      M.T_pair M.noAnn M.noAnn (toMType a) (toMType b)
+    convert (T_or a b) =
+      M.T_or M.noAnn M.noAnn (toMType a) (toMType b)
+    convert (T_lambda a b) =
+      M.T_lambda (toMType a) (toMType b)
+    convert (T_map a b) =
+      M.T_map (M.Comparable a M.noAnn) (toMType b)
+    convert (T_big_map a b) =
+      M.T_big_map (M.Comparable a M.noAnn) (toMType b)

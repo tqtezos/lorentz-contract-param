@@ -184,15 +184,15 @@ main = do
           then pPrint $ expandFlattenContract contract
           else pPrint contract
       TypeCheck mFilename _hasVerboseFlag -> do
-        void $ prepareContract (typeCheckMorleyContract . fmap unOp) mFilename
+        michelsonContract <- prepareContract mFilename
+        void $ either throwM pure $
+          (typeCheckMorleyContract . fmap unOp) michelsonContract
         putTextLn "Contract is well-typed"
       Run RunOptions {..} -> do
-        (michelsonContract, _) <-
-          prepareContract (typeCheckMorleyContract . fmap unOp) roContractFile
+        michelsonContract <- prepareContract roContractFile
         runContract roNow roMaxSteps roVerbose roDBPath roStorageValue michelsonContract roTxData
       Originate OriginateOptions {..} -> do
-        (michelsonContract, _) <-
-          prepareContract (typeCheckMorleyContract . fmap unOp) ooContractFile
+        michelsonContract <- prepareContract ooContractFile
         let acc = Account
               { accBalance = ooBalance
               , accStorage = ooStorageValue
@@ -213,14 +213,6 @@ main = do
 
     -- Read and parse the contract, expand and type check.
     prepareContract
-      :: Exception e
-      => (Contract (Op NopInstr) -> Either e tcRes)
-      -> Maybe FilePath -> IO (Contract (Op NopInstr), tcRes)
-    prepareContract doTypeCheck mFile = do
-      contract <- readAndParseContract mFile
-      let
-        michelsonContract :: Contract (Op NopInstr)
-        michelsonContract = expandFlattenContract contract
-
-      fmap (michelsonContract,) $ either throwM pure $
-        doTypeCheck michelsonContract
+      :: Maybe FilePath -> IO (Contract (Op NopInstr))
+    prepareContract mFile =
+      expandFlattenContract <$> readAndParseContract mFile
