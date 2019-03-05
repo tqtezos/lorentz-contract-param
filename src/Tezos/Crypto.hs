@@ -6,7 +6,6 @@ module Tezos.Crypto
   , SecretKey
   , Signature
   , KeyHash (..)
-  , Address (..)
   , toPublic
 
   -- * Formatting
@@ -19,8 +18,6 @@ module Tezos.Crypto
   , parseSignature
   , formatKeyHash
   , parseKeyHash
-  , formatAddress
-  , parseAddress
 
   -- * Signing
   , sign
@@ -32,6 +29,12 @@ module Tezos.Crypto
   , blake2b160
   , sha256
   , sha512
+
+  -- * Utilities
+  , encodeBase58Check
+  , decodeBase58Check
+  , B58CheckWithPrefixError (..)
+  , decodeBase58CheckWithPrefix
   ) where
 
 import Crypto.Error (CryptoError, CryptoFailable, eitherCryptoError)
@@ -39,14 +42,14 @@ import Crypto.Hash (Blake2b_160, Blake2b_256, Digest, SHA256, SHA512, hash)
 import Crypto.Number.Serialize (os2ip)
 import qualified Crypto.PubKey.Ed25519 as Ed25519
 import Crypto.Random (drgNewSeed, seedFromInteger, withDRG)
-import Data.Aeson (FromJSON(..), ToJSON(..), ToJSONKey, FromJSONKey)
+import Data.Aeson (FromJSON(..), ToJSON(..))
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Encoding as Aeson
 import qualified Data.ByteArray as ByteArray
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base58 as Base58
 import Data.Coerce (coerce)
-import Fmt (pretty)
+import Fmt (fmt, hexF, pretty)
 import qualified Formatting.Buildable as Buildable
 import Test.QuickCheck (Arbitrary(..), vector)
 
@@ -94,11 +97,6 @@ newtype KeyHash = KeyHash
 instance Arbitrary KeyHash where
   arbitrary = hashKey <$> arbitrary
 
--- | Address type
-newtype Address = Address
-  { unAddress :: ByteString
-  } deriving (Show, Eq, Ord)
-
 ----------------------------------------------------------------------------
 -- Magic bytes
 --
@@ -122,9 +120,6 @@ signatureTag = "\9\245\205\134\18"
 keyHashTag :: ByteString
 keyHashTag = "\6\161\159"
 
-addressTag :: ByteString
-addressTag = "" -- TODO fill in actual value
-
 ----------------------------------------------------------------------------
 -- Formatting
 ----------------------------------------------------------------------------
@@ -132,7 +127,7 @@ addressTag = "" -- TODO fill in actual value
 -- | Error that can happen during parsing of cryptographic primitive types.
 data CryptoParseError
   = CryptoParseWrongBase58Check
-  | CryptoParseWrongTag
+  | CryptoParseWrongTag !ByteString
   | CryptoParseCryptoError CryptoError
   deriving (Show, Eq)
 
@@ -140,7 +135,7 @@ instance Buildable.Buildable CryptoParseError where
   build =
     \case
       CryptoParseWrongBase58Check -> "Wrong base58check encoding of bytes"
-      CryptoParseWrongTag -> "Prefix is wrong tag"
+      CryptoParseWrongTag tag -> "Prefix is wrong tag: " <> fmt (hexF tag)
       CryptoParseCryptoError err ->
         "Cryptographic library reported an error: " <>
         Buildable.build (displayException err)
@@ -181,15 +176,6 @@ instance Buildable.Buildable KeyHash where
 parseKeyHash :: Text -> Either CryptoParseError KeyHash
 parseKeyHash = parseImpl keyHashTag pure
 
-formatAddress :: Address -> Text
-formatAddress = formatImpl addressTag . unAddress
-
-instance Buildable.Buildable Address where
-  build = Buildable.build . formatAddress
-
-parseAddress :: Text -> Either CryptoParseError Address
-parseAddress = parseImpl addressTag pure
-
 formatImpl :: ByteArray.ByteArrayAccess x => ByteString -> x -> Text
 formatImpl tag = encodeBase58Check . mappend tag . ByteArray.convert
 
@@ -200,9 +186,11 @@ parseImpl
   -> Text
   -> Either CryptoParseError res
 parseImpl expectedTag constructor text = do
-  bytes <- maybeToRight CryptoParseWrongBase58Check $ decodeBase58Check text
-  let (tag, payload) = BS.splitAt (length expectedTag) bytes
-  unless (tag == expectedTag) $ Left CryptoParseWrongTag
+  let convertErr :: B58CheckWithPrefixError -> CryptoParseError
+      convertErr =
+        \case B58CheckWithPrefixWrongPrefix prefix -> CryptoParseWrongTag prefix
+              B58CheckWithPrefixWrongEncoding -> CryptoParseWrongBase58Check
+  payload <- first convertErr $ decodeBase58CheckWithPrefix expectedTag text
   bimap CryptoParseCryptoError coerce $
     eitherCryptoError $ constructor payload
 
@@ -236,17 +224,6 @@ instance FromJSON KeyHash where
   parseJSON =
     Aeson.withText "KeyHash" $
     either (fail . pretty) pure . parseKeyHash
-
-instance ToJSON Address where
-  toJSON = Aeson.String . formatAddress
-  toEncoding = Aeson.text . formatAddress
-instance ToJSONKey Address
-
-instance FromJSON Address where
-  parseJSON =
-    Aeson.withText "Address" $
-    either (fail . pretty) pure . parseAddress
-instance FromJSONKey Address
 
 ----------------------------------------------------------------------------
 -- Signing
@@ -300,6 +277,7 @@ fromDigest = ByteArray.convert
 -- Utility functions
 ----------------------------------------------------------------------------
 
+-- | Encode a bytestring in Base58Check format.
 encodeBase58Check :: ByteString -> Text
 encodeBase58Check =
   decodeUtf8 . Base58.encodeBase58 Base58.bitcoinAlphabet . withCheckSum
@@ -307,6 +285,7 @@ encodeBase58Check =
     withCheckSum :: ByteString -> ByteString
     withCheckSum bs = bs <> checkSum bs
 
+-- | Decode a bytestring from Base58Check format.
 decodeBase58Check :: Text -> Maybe ByteString
 decodeBase58Check text = do
   bytes <- Base58.decodeBase58 Base58.bitcoinAlphabet (encodeUtf8 text)
@@ -316,3 +295,22 @@ decodeBase58Check text = do
 
 checkSum :: ByteString -> ByteString
 checkSum = BS.take 4 . (sha256 . sha256)
+
+data B58CheckWithPrefixError
+  = B58CheckWithPrefixWrongPrefix ByteString
+  | B58CheckWithPrefixWrongEncoding
+  deriving (Show)
+
+-- | Parse a base58check encoded value expecting some prefix. If the
+-- actual prefix matches the expected one, it's stripped of and the
+-- resulting payload is returned.
+decodeBase58CheckWithPrefix ::
+     ByteString -> Text -> Either B58CheckWithPrefixError ByteString
+decodeBase58CheckWithPrefix prefix text =
+  case decodeBase58Check text of
+    Nothing -> Left B58CheckWithPrefixWrongEncoding
+    Just bs ->
+      let (actualPrefix, payload) = BS.splitAt (length prefix) bs
+       in if actualPrefix == prefix
+          then Right payload
+          else Left (B58CheckWithPrefixWrongPrefix actualPrefix)

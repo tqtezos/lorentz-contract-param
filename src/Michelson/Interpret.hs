@@ -19,8 +19,8 @@ import Data.Vinyl (Rec(..), (<+>))
 
 import Michelson.Typed
 import qualified Michelson.Untyped as M
+import Tezos.Address (Address)
 import Tezos.Core (Mutez, Timestamp)
-import Tezos.Crypto (Address)
 
 -- | Environment for contract execution.
 data ContractEnv nop = ContractEnv

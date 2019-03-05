@@ -22,8 +22,8 @@ import System.IO.Error (IOError, isDoesNotExistError)
 
 import Michelson.Untyped
 import Morley.Types (NopInstr)
+import Tezos.Address (Address)
 import Tezos.Core (Mutez)
-import Tezos.Crypto (Address)
 
 data Account = Account
   { accBalance :: !Mutez

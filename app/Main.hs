@@ -18,8 +18,8 @@ import Morley.Nop (typeCheckMorleyContract)
 import qualified Morley.Parser as P
 import Morley.Runtime (Account(..), TxData(..), originateContract, runContract)
 import Morley.Types
+import Tezos.Address (Address, parseAddress)
 import Tezos.Core (Mutez(..), Timestamp(..))
-import Tezos.Crypto (Address, parseAddress)
 
 data CmdLnArgs
   = Parse (Maybe FilePath) Bool
@@ -160,7 +160,7 @@ txData =
       metavar "ADDRESS" <>
       help "Sender address"
     parseAddrDo addr =
-      either (Left . mappend "Failed to parse address: " . show) Right $
+      either (Left . mappend "Failed to parse address: " . pretty) Right $
         parseAddress $ toText addr
     mkTxData :: Address -> Value (Op NopInstr) -> Mutez -> TxData
     mkTxData addr param amount =

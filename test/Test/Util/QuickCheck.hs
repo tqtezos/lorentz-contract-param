@@ -25,12 +25,23 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 module Test.Util.QuickCheck
   ( ShowThroughBuild (..)
+
+  -- * Formatting/parsing properties
+  , formattingRoundtrip
+  , aesonRoundtrip
   ) where
 
 import Formatting (build, formatToString)
 import Formatting.Buildable (Buildable)
 import Test.QuickCheck (Arbitrary)
 import qualified Text.Show
+
+import Data.Aeson (FromJSON(..), ToJSON(..))
+import qualified Data.Aeson as Aeson
+import Data.Typeable (typeRep)
+import Test.Hspec (Spec)
+import Test.Hspec.QuickCheck (prop)
+import Test.QuickCheck (Property, (===))
 
 ----------------------------------------------------------------------------
 -- 'Show'ing a value though 'Buildable' type class.
@@ -43,3 +54,26 @@ newtype ShowThroughBuild a = STB
 
 instance Buildable a => Show (ShowThroughBuild a) where
   show = formatToString build . unSTB
+
+----------------------------------------------------------------------------
+-- Formatting
+----------------------------------------------------------------------------
+
+formattingRoundtrip ::
+     forall x err. (Buildable x, Typeable x, Arbitrary x, Buildable err, Eq x, Eq err)
+  => (x -> Text)
+  -> (Text -> Either err x)
+  -> Spec
+formattingRoundtrip format parse = prop typeName check
+  where
+    typeName = show $ typeRep (Proxy @x)
+    check :: ShowThroughBuild x -> Property
+    check (STB x) = bimap STB STB (parse (format x)) === Right (STB x)
+
+aesonRoundtrip ::
+     forall x. (Buildable x, ToJSON x, FromJSON x, Typeable x, Arbitrary x, Eq x)
+  => Spec
+aesonRoundtrip =
+  formattingRoundtrip
+    (decodeUtf8 . Aeson.encode @x)
+    (Aeson.eitherDecode . encodeUtf8)
