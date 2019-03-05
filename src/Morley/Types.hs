@@ -1,4 +1,5 @@
-{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveDataTypeable, DerivingStrategies #-}
+
 module Morley.Types
   (
    -- * Rexported from Michelson.Types
@@ -50,7 +51,8 @@ module Morley.Types
 import Data.Aeson.TH (defaultOptions, deriveJSON)
 import Data.Data (Data(..))
 import qualified Data.Text as T
-import Text.Megaparsec (errorBundlePretty, Parsec, ParseErrorBundle, ShowErrorComponent(..))
+import Fmt (Buildable(build), Builder, genericF, listF)
+import Text.Megaparsec (ParseErrorBundle, Parsec, ShowErrorComponent(..), errorBundlePretty)
 import Text.Show (show)
 
 import Michelson.Untyped
@@ -96,12 +98,18 @@ data ParsedOp
   | SEQ [ParsedOp]
   deriving (Eq, Show, Data, Generic)
 
+instance Buildable ParsedOp where
+  build = genericF
+
 -- Mark a specific point in contract execution for the rest of the pipeline
 data NopInstr =
     STACKTYPE StackTypePattern
   | TEST InlineTest
   | PRINT PrintComment
   deriving (Eq, Show, Data, Generic)
+
+instance Buildable NopInstr where
+  build = genericF
 
 -- A stack pattern-match
 data StackTypePattern
@@ -110,12 +118,36 @@ data StackTypePattern
  | StkCons Type StackTypePattern
   deriving (Eq, Show, Data, Generic)
 
+-- | Convert 'StackTypePattern' to a list of types. Also returns
+-- 'Bool' which is 'True' if the pattern is a fixed list of types and
+-- 'False' if it's a pattern match on the head of the stack.
+stackTypePatternToList :: StackTypePattern -> ([Type], Bool)
+stackTypePatternToList StkEmpty = ([], True)
+stackTypePatternToList StkRest = ([], False)
+stackTypePatternToList (StkCons t pat) =
+  first (t :) $ stackTypePatternToList pat
+
+instance Buildable StackTypePattern where
+  build = listF . pairToList . stackTypePatternToList
+    where
+      pairToList :: ([Type], Bool) -> [Builder]
+      pairToList (types, fixed)
+        | fixed = map build types
+        | otherwise = map build types ++ ["..."]
+
 -- A print format with references into the stack
-newtype PrintComment = PrintComment [Either T.Text StackRef]
-  deriving (Eq, Show, Data, Generic)
+newtype PrintComment = PrintComment
+  { unPrintComment :: [Either T.Text StackRef]
+  } deriving (Eq, Show, Data, Generic)
+
+instance Buildable PrintComment where
+  build = foldMap (either build build) . unPrintComment
 
 newtype StackRef = StackRef Integer
   deriving (Eq, Show, Data, Generic)
+
+instance Buildable StackRef where
+  build (StackRef i) = "%[" <> build i <> "]"
 
 -- An inline test assertion
 data InlineTest = InlineTest
@@ -124,6 +156,9 @@ data InlineTest = InlineTest
   , testInstrs :: [ParsedOp]
   } deriving (Eq, Show, Data, Generic)
 
+instance Buildable InlineTest where
+  build = genericF
+
 -------------------------------------
 -- Types after macroexpander
 -------------------------------------
@@ -131,17 +166,26 @@ type ExpandedInstr = InstrAbstract NopInstr ExpandedOp
 data ExpandedOp
   = PRIM_EX ExpandedInstr
   | SEQ_EX [ExpandedOp]
-  deriving (Eq, Show, Data)
+  deriving stock (Eq, Show, Data, Generic)
+
+instance Buildable ExpandedOp where
+  build = genericF
 
 data PairStruct
   = F (VarAnn, FieldAnn)
   | P PairStruct PairStruct
   deriving (Eq, Show, Data, Generic)
 
+instance Buildable PairStruct where
+  build = genericF
+
 data CadrStruct
   = A
   | D
   deriving (Eq, Show, Data, Generic)
+
+instance Buildable CadrStruct where
+  build = genericF
 
 data Macro
   = CMP ParsedInstr VarAnn
@@ -164,6 +208,9 @@ data Macro
   | ASSERT_RIGHT
   | IF_SOME [ParsedOp] [ParsedOp]
   deriving (Eq, Show, Data, Generic)
+
+instance Buildable Macro where
+  build = genericF
 
 deriveJSON defaultOptions ''ParsedOp
 deriveJSON defaultOptions ''NopInstr
