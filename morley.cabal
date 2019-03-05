@@ -197,6 +197,7 @@ test-suite morley-test
   type:                exitcode-stdio-1.0
   other-modules:       Test.Arbitrary
                      , Test.Interpreter
+                     , Test.Interpreter.Auction
                      , Test.Macro
                      , Test.Nop
                      , Test.Morley.Runtime
@@ -224,6 +225,7 @@ test-suite morley-test
                      , QuickCheck
                      , quickcheck-arbitrary-adt
                      , text
+                     , time
                      , universum
                      , vinyl
   ghc-options:        -Weverything

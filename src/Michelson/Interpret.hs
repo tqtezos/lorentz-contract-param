@@ -31,8 +31,8 @@ import qualified Michelson.Typed as Typed
 import Michelson.Typed.Arith
 import Michelson.Typed.Polymorphic
 import qualified Michelson.Untyped as U
-import Tezos.Address (Address)
-import Tezos.Core (Mutez, Timestamp)
+import Tezos.Address (Address(..))
+import Tezos.Core (Mutez, Timestamp(..))
 import Tezos.Crypto (blake2b, checkSignature, hashKey, sha256, sha512)
 
 -- | Environment for contract execution.
@@ -276,11 +276,11 @@ runInstr (CREATE_CONTRACT2 _ops)
   (VC (CvKeyHash _k) :& VOption _mbKeyHash :& (VC (CvBool _b2)) :&
     (VC (CvBool _b1)) :& (VC (CvMutez _m)) :& _g :& _r) =
       error "not implemented yet:("
-runInstr IMPLICIT_ACCOUNT (VC (CvKeyHash _k) :& _r) =
-  error "not implemented yet:("
-runInstr NOW _r = error "not implemented yet:("
-  -- ContractEnv{..} <- ask
-  -- pure $ VC (CvTimestamp ceNow) :& r
+runInstr IMPLICIT_ACCOUNT (VC (CvKeyHash k) :& r) =
+  pure $ VContract (KeyAddress k) :& r
+runInstr NOW r = do
+  ContractEnv{..} <- ask
+  pure $ VC (CvTimestamp ceNow) :& r
 runInstr AMOUNT r = do
   ContractEnv{..} <- ask
   pure $ VC (CvMutez ceAmount) :& r

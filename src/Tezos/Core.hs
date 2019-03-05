@@ -9,7 +9,9 @@ module Tezos.Core
   , mkMutez
   , unsafeMkMutez
   , addMutez
+  , unsafeAddMutez
   , subMutez
+  , unsafeSubMutez
   , mulMutez
   , divModMutez
   , divModMutezInt
@@ -18,6 +20,8 @@ module Tezos.Core
   , Timestamp (..)
   , timestampToSeconds
   , timestampFromSeconds
+  , timestampFromUTCTime
+  , timestampPlusSeconds
   , formatTimestamp
   , parseTimestamp
   , getCurrentTime
@@ -25,6 +29,7 @@ module Tezos.Core
 
 import Data.Aeson.TH (defaultOptions, deriveJSON)
 import Data.Data (Data(..))
+import Data.Time.Clock (UTCTime)
 import Data.Time.Clock.POSIX (POSIXTime, getPOSIXTime, posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import Data.Time.LocalTime (utc, utcToZonedTime, zonedTimeToUTC)
 import Data.Time.RFC3339 (formatTimeRFC3339, parseTimeRFC3339)
@@ -55,7 +60,7 @@ mkMutez n
 
 -- | Partial function for 'Mutez' creation, it's pre-condition is that
 -- the argument must not exceed the maximal 'Mutez' value.
-unsafeMkMutez :: Word64 -> Mutez
+unsafeMkMutez :: HasCallStack => Word64 -> Mutez
 unsafeMkMutez n =
   fromMaybe (error $ "mkMutez: overflow (" <> show n) (mkMutez n)
 {-# INLINE unsafeMkMutez #-}
@@ -66,6 +71,11 @@ addMutez (unMutez -> a) (unMutez -> b) =
   mkMutez (a + b) -- (a + b) can't overflow if 'Mutez' values are valid
 {-# INLINE addMutez #-}
 
+-- | Partial addition of 'Mutez', should be used only if you're
+-- sure there'll be no overflow.
+unsafeAddMutez :: HasCallStack => Mutez -> Mutez -> Mutez
+unsafeAddMutez = fromMaybe (error "unsafeAddMutez: overflow") ... addMutez
+
 -- | Subtraction of 'Mutez' values. Returns 'Nothing' when the
 -- subtrahend is greater than the minuend, and 'Just' otherwise.
 subMutez :: Mutez -> Mutez -> Maybe Mutez
@@ -73,6 +83,11 @@ subMutez (unMutez -> a) (unMutez -> b)
   | a >= b = Just (Mutez (a - b))
   | otherwise = Nothing
 {-# INLINE subMutez #-}
+
+-- | Partial subtraction of 'Mutez', should be used only if you're
+-- sure there'll be no underflow.
+unsafeSubMutez :: HasCallStack => Mutez -> Mutez -> Mutez
+unsafeSubMutez = fromMaybe (error "unsafeSubMutez: underflow") ... subMutez
 
 -- | Multiplication of 'Mutez' and an integral number. Returns
 -- 'Nothing' in case of overflow.
@@ -115,6 +130,14 @@ timestampFromSeconds :: Integral a => a -> Timestamp
 timestampFromSeconds = Timestamp . fromIntegral
 {-# INLINE timestampFromSeconds #-}
 
+timestampFromUTCTime :: UTCTime -> Timestamp
+timestampFromUTCTime = Timestamp . utcTimeToPOSIXSeconds
+{-# INLINE timestampFromUTCTime #-}
+
+-- | Add given amount of seconds to a 'Timestamp'.
+timestampPlusSeconds :: Timestamp -> Integer -> Timestamp
+timestampPlusSeconds ts sec = timestampFromSeconds (timestampToSeconds ts + sec)
+
 -- | Display timestamp in human-readable way as used by Michelson.
 -- Uses UTC timezone, though maybe we should take it as an argument.
 formatTimestamp :: Timestamp -> Text
@@ -126,8 +149,7 @@ instance Buildable.Buildable Timestamp where
 
 -- | Parse textual representation of 'Timestamp'.
 parseTimestamp :: Text -> Maybe Timestamp
-parseTimestamp =
-  fmap (Timestamp . utcTimeToPOSIXSeconds . zonedTimeToUTC) . parseTimeRFC3339
+parseTimestamp = fmap (timestampFromUTCTime . zonedTimeToUTC) . parseTimeRFC3339
 
 -- | Return current time as 'Timestamp'.
 getCurrentTime :: IO Timestamp

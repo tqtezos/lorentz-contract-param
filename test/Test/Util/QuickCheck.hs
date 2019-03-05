@@ -29,11 +29,15 @@ module Test.Util.QuickCheck
   -- * Formatting/parsing properties
   , formattingRoundtrip
   , aesonRoundtrip
+
+  -- * 'Property' helpers
+  , failedProp
   ) where
 
 import Formatting (build, formatToString)
 import Formatting.Buildable (Buildable)
 import Test.QuickCheck (Arbitrary)
+import Test.QuickCheck.Property (Result(..), failed, property)
 import qualified Text.Show
 
 import Data.Aeson (FromJSON(..), ToJSON(..))
@@ -77,3 +81,11 @@ aesonRoundtrip =
   formattingRoundtrip
     (decodeUtf8 . Aeson.encode @x)
     (Aeson.eitherDecode . encodeUtf8)
+
+----------------------------------------------------------------------------
+-- Property
+----------------------------------------------------------------------------
+
+-- | A 'Property' that always failes with given message.
+failedProp :: Text -> Property
+failedProp r = property $ failed { reason = toString r }

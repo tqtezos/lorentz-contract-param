@@ -9,21 +9,23 @@ import Test.QuickCheck (Property, label, (.&&.), (===))
 import Michelson.Interpret (interpret)
 import Michelson.Typed (CT(..), CVal(..), Instr(..), T(..), Val(..), ( # ))
 import Morley.Test (ContractPropValidator, contractProp, specWithContract)
+import Test.Interpreter.Auction (auctionSpec)
 import Test.Morley.Runtime (dummyContractEnv)
 
 spec :: Spec
 spec = describe "Advanced type interpreter tests" $ do
-    specWithContract "contracts/basic5.tz" $ \contract ->
-      it "Basic test" $
-        interpret contract VUnit (VList [ VC $ CvInt 1 ]) dummyContractEnv
-          `shouldSatisfy` isRight
-    specWithContract "contracts/increment.tz" $ \contract ->
-      it "Basic test" $
-        interpret contract VUnit (VC $ CvInt 23) dummyContractEnv
-          `shouldSatisfy` isRight
-    specWithContract "contracts/basic1.tz" $ \contract -> do
-      prop "Random check" $
-        contractProp contract validateBasic1 dummyContractEnv
+  specWithContract "contracts/basic5.tz" $ \contract ->
+    it "Basic test" $
+      interpret contract VUnit (VList [ VC $ CvInt 1 ]) dummyContractEnv
+        `shouldSatisfy` isRight
+  specWithContract "contracts/increment.tz" $ \contract ->
+    it "Basic test" $
+      interpret contract VUnit (VC $ CvInt 23) dummyContractEnv
+        `shouldSatisfy` isRight
+  specWithContract "contracts/basic1.tz" $ \contract -> do
+    prop "Random check" $
+      contractProp contract validateBasic1 dummyContractEnv
+  auctionSpec
 
 validateBasic1
   :: ContractPropValidator 'T_unit ('T_list ('T_c 'T_int)) Property
