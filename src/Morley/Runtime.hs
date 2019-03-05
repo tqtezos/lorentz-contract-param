@@ -18,6 +18,7 @@ module Morley.Runtime
 
 import Control.Lens (at, makeLenses, (%=), (.=), (<>=))
 import Control.Monad.Except (Except, runExcept, throwError)
+import Fmt (blockMapF, (+|))
 
 import Michelson.Interpret (ContractEnv(..), InterpretUntypedError(..), InterpretUntypedResult(..))
 import Michelson.Typed (Operation, unsafeValToValue)
@@ -137,9 +138,8 @@ interpreter maybeNow maxSteps verbose dbPath operation = do
   let
     eitherRes = interpreterPure now maxSteps gState [operation]
   InterpreterRes {..} <- either throwM pure eitherRes
-  -- TODO: pretty print
   when (verbose && not (null _irUpdatedValues)) $
-    putTextLn $ "Updates: " <> show _irUpdatedValues
+    putTextLn $ "Updates: " +| blockMapF _irUpdatedValues
   writeGState dbPath _irGState
 
 -- | Implementation of interpreter outside 'IO'.  It reads operations,
