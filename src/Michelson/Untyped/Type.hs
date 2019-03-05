@@ -44,6 +44,9 @@ module Michelson.Untyped.Type
 
 import Data.Aeson.TH (defaultOptions, deriveJSON)
 import Data.Data (Data(..))
+import Data.Text.Lazy.Builder (Builder)
+import Fmt ((+|), (|+))
+import Formatting.Buildable (Buildable(build))
 
 import Michelson.Untyped.Annotation
 
@@ -51,9 +54,17 @@ import Michelson.Untyped.Annotation
 data Type = Type T TypeAnn
   deriving (Eq, Show, Data, Generic)
 
+instance Buildable Type where
+  build (Type t a) = t |+ " " +| a |+ ""
+
 -- Annotated Comparable Sub-type
 data Comparable = Comparable CT TypeAnn
   deriving (Eq, Show, Data, Generic)
+
+instance Buildable Comparable where
+  build (Comparable ct a)
+    | a == noAnn = build ct
+    | otherwise = ct |+ " " +| a |+ ""
 
 compToType :: Comparable -> Type
 compToType (Comparable ct tn) = Type (T_comparable ct) tn
@@ -80,6 +91,32 @@ data T =
   | T_big_map Comparable Type
   deriving (Eq, Show, Data, Generic)
 
+instance Buildable T where
+  build =
+    \case
+      T_comparable ct -> build ct
+      T_key -> "key"
+      T_unit -> "unit"
+      T_signature -> "signature"
+      T_option fa t -> "option (" +| t |+ " " +| fa |+ ")"
+      T_list t -> "list (" +| t |+ ")"
+      T_set c -> "set (" +| c |+ ")"
+      T_operation -> "operation"
+      T_contract t -> "contract " +| t |+ ""
+      T_pair fa1 fa2 t1 t2 ->
+        "pair (" +| t1 |+ " " +| fa1 |+ ")"
+         +| " (" +| t2 |+ " " +| fa2 |+ ")"
+      T_or fa1 fa2 t1 t2 ->
+        "or ("   +| t1 |+ " " +| fa1 |+ ")"
+         +| " (" +| t2 |+ " " +| fa2 |+ ")"
+      T_lambda t1 t2 -> build2 "lambda" t1 t2
+      T_map t1 t2 -> build2 "map" t1 t2
+      T_big_map t1 t2 -> build2 "big_map" t1 t2
+    where
+      -- build something with 2 type parameters
+      build2 :: (Buildable t1, Buildable t2) => Builder -> t1 -> t2 -> Builder
+      build2 name t1 t2 = name |+ " (" +| t1 |+ " " +| t2 |+ ")"
+
 -- Comparable Sub-Type
 data CT =
     T_int
@@ -92,6 +129,19 @@ data CT =
   | T_timestamp
   | T_address
   deriving (Eq, Ord, Show, Data, Enum, Bounded, Generic)
+
+instance Buildable CT where
+  build =
+    \case
+      T_int -> "int"
+      T_nat -> "nat"
+      T_string -> "string"
+      T_bytes -> "bytes"
+      T_mutez -> "mutez"
+      T_bool -> "bool"
+      T_key_hash -> "key_hash"
+      T_timestamp -> "timestamp"
+      T_address -> "address"
 
 pattern Tint :: T
 pattern Tint <- T_comparable T_int

@@ -14,6 +14,10 @@ module Michelson.Untyped.Value
 import Data.Aeson (FromJSON(..), ToJSON(..))
 import Data.Aeson.TH (defaultOptions, deriveJSON)
 import Data.Data (Data(..))
+import Data.Text.Lazy.Builder (Builder)
+import Fmt (hexF, (+|), (|+))
+import Formatting.Buildable (Buildable)
+import qualified Formatting.Buildable as Buildable
 
 data Value op =
     ValueInt     Integer
@@ -44,6 +48,33 @@ newtype InternalByteString = InternalByteString ByteString
 
 unInternalByteString :: InternalByteString -> ByteString
 unInternalByteString (InternalByteString bs) = bs
+
+instance Buildable op => Buildable (Value op) where
+  build =
+    \case
+      ValueInt i -> Buildable.build i
+      ValueString s -> "\"" +| s |+ "\""
+      ValueBytes (InternalByteString b) -> "0x" <> hexF b
+      ValueUnit -> "Unit"
+      ValueTrue -> "True"
+      ValueFalse -> "False"
+      ValuePair a b -> "(Pair " +| a |+ " " +| b |+ ")"
+      ValueLeft v -> "(Left " +| v |+ ")"
+      ValueRight v -> "(Right " +| v |+ ")"
+      ValueSome v -> "(Some " +| v |+ ")"
+      ValueNone -> "None"
+      ValueSeq vs -> buildList vs
+      ValueMap els -> buildList els
+      ValueLambda ops -> buildList ops
+    where
+      buildList :: Buildable a => [a] -> Builder
+      buildList items =
+        "{" <>
+        mconcat (intersperse "; " $ map Buildable.build items) <>
+        "}"
+
+instance Buildable op => Buildable (Elt op) where
+  build (Elt a b) = "Elt " +| a |+ " " +| b |+ ""
 
 ----------------------------------------------------------------------------
 -- JSON serialization
