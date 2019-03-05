@@ -37,15 +37,22 @@ instance MemOp ('T_big_map k v) where
   type MemOpKey ('T_big_map k v) = k
   evalMem k (VBigMap m) = k `M.member` m
 
-class MapOp (c :: T) where
+class MapOp (c :: T) (b :: T) where
   type MapOpInp c :: T
-  type MapOpRes c :: T -> T
-instance MapOp ('T_map k v) where
+  type MapOpRes c b :: T
+  mapOpToList :: Val instr c -> [Val instr (MapOpInp c)]
+  mapOpFromList :: Val instr c -> [Val instr b] -> Val instr (MapOpRes c b)
+instance MapOp ('T_map k v) v' where
   type MapOpInp ('T_map k v) = 'T_pair ('T_c k) v
-  type MapOpRes ('T_map k v) = 'T_map k
-instance MapOp ('T_list e) where
+  type MapOpRes ('T_map k v) v' = 'T_map k v'
+  mapOpToList (VMap m) = map (\(k, v) -> VPair (VC k, v)) $ M.toAscList m
+  mapOpFromList (VMap m) l =
+    VMap $ M.fromList $ zip (map fst $ M.toAscList m) l
+instance MapOp ('T_list e) e' where
   type MapOpInp ('T_list e) = e
-  type MapOpRes ('T_list e) = 'T_list
+  type MapOpRes ('T_list e) e' = 'T_list e'
+  mapOpToList (VList l) = l
+  mapOpFromList (VList _) l' = VList l'
 
 class IterOp (c :: T) where
   type IterOpEl c :: T

@@ -24,7 +24,6 @@
 -- information from @HST inp@ and @HST out@ is being used to assert that
 -- recursive call returned instruction of expected type
 -- (error is thrown otherwise).
-
 module Michelson.TypeCheck.Instr
     ( typeCheckContract
     , typeCheckVal
@@ -295,15 +294,32 @@ typeCheckInstr instr@(Un.EMPTY_MAP tn vn (Un.Comparable mk ktn) mv) (SomeHST i) 
     let ns = mkNotes $ NT_map tn ktn vns
     pure $ EMPTY_MAP ::: (i, (ST_map k v, ns, vn) ::& i)
 
-typeCheckInstr instr@(Un.MAP vn mp) (SomeHST i@((ST_list v, ns, _vn) ::& _) ) = do
+typeCheckInstr instr@(Un.MAP vn mp) (SomeHST i@((ST_list v, ns, _vn) ::& rs) ) = do
   let vns = notesCase NStar (\(NT_list _ v') -> v') ns
-  mapImpl v vns instr mp i
-          (\rt rn -> (::&) (ST_list rt, mkNotes $ NT_list def rn, vn))
-typeCheckInstr instr@(Un.MAP vn mp) (SomeHST i@((ST_map k v, ns, _vn) ::& _) ) = do
+  typeCheckList @cp (Un.unOp <$> mp)
+                      (SomeHST $ (v, vns, def) ::& rs) >>= \case
+    SiFail -> pure SiFail
+    someInstr@(_ ::: (_, (out :: HST out))) ->
+      case out of
+        (_ :: Sing b, _, _) ::& _ ->
+          mapImpl @b instr someInstr i
+                  (\rt rn -> (::&) (ST_list rt, mkNotes $ NT_list def rn, vn))
+        _ -> liftEither $ typeCheckInstrErr instr (SomeHST i) $
+              "iteration expression has wrong output stack type (empty stack)"
+
+typeCheckInstr instr@(Un.MAP vn mp) (SomeHST i@((ST_map k v, ns, _vn) ::& rs) ) = do
   let (kns, vns) = notesCase (def, NStar) (\(NT_map _ k' v') -> (k', v')) ns
       pns = mkNotes $ NT_pair def def def (mkNotes $ NT_c kns) vns
-  mapImpl (ST_pair (ST_c k) v) pns instr mp i
-          (\rt rn -> (::&) (ST_map k rt, mkNotes $ NT_map def kns rn, vn))
+  typeCheckList @cp (Un.unOp <$> mp)
+                      (SomeHST $ ((ST_pair (ST_c k) v), pns, def) ::& rs) >>= \case
+    SiFail -> pure SiFail
+    someInstr@(_ ::: (_, (out :: HST out))) ->
+      case out of
+        (_ :: Sing b, _, _) ::& _ ->
+          mapImpl @b instr someInstr i
+                  (\rt rn -> (::&) (ST_map k rt, mkNotes $ NT_map def kns rn, vn))
+        _ -> liftEither $ typeCheckInstrErr instr (SomeHST i) $
+              "iteration expression has wrong output stack type (empty stack)"
 
 -- case `Un.HSTER []` is wrongly typed by definition
 -- (as it is required to at least drop an element), so we don't consider it
@@ -693,33 +709,31 @@ genericIf cons mCons mbt mbf bti bfi i@(_ ::& _) =
     instr = mCons mbt mbf
 
 mapImpl
-  :: forall cp c rs nop .
-  ( MapOp c
+  :: forall b cp c rs nop.
+  ( MapOp c b
+  , Typeable b
   , Typeable (MapOpInp c)
-  , Typeable cp, SingI cp
-  , Typeable (MapOpRes c)
-  , Show nop
-  , Buildable nop
+  , Typeable (MapOpRes c b)
   )
-  => Sing (MapOpInp c) -> Notes (MapOpInp c)
-  -> Un.Instr nop -> [Un.Op nop] -> HST (c ': rs)
+  => Un.Instr nop -> SomeInstr cp -> HST (c ': rs)
   -> (forall v' . Typeable v' =>
         Sing v' -> Notes v' -> HST rs -> HST (MapOpRes c v' ': rs))
   -> TypeCheckT cp nop (SomeInstr cp)
-mapImpl pt pns instr mp i@(_ ::& rs) mkRes =
-  typeCheckList @cp (Un.unOp <$> mp)
-                      (SomeHST $ (pt, pns, def) ::& rs) >>= \case
+mapImpl instr someInstr i@(_ ::& _) mkRes =
+  case someInstr of
     SiFail -> pure SiFail
     sub ::: ((_ :: HST subi), (subo :: HST subo)) -> liftEither $ do
       Refl <- assertEqT @subi @(MapOpInp c ': rs) instr i
       case SomeHST subo of
-        SomeHST ((b, bn, _bvn) ::& (rs' :: HST rs') :: HST subo') -> do
+        SomeHST ((b :: Sing b', bn, _bvn) ::& (rs' :: HST rs') :: HST subo') -> do
+          Refl <- assertEqT @b @b' instr i
           Refl <- assertEqT @subo @subo' instr i
           Refl <- checkEqT @rs @rs' instr i $
                       "iteration expression has wrong output stack type"
           pure $ MAP sub ::: (i, mkRes b bn rs')
         _ -> typeCheckInstrErr instr (SomeHST i) $
               "iteration expression has wrong output stack type (empty stack)"
+
 
 iterImpl
   :: forall cp c rs nop .
