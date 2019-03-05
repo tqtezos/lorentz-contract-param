@@ -207,6 +207,7 @@ test-suite morley-test
                      , Test.Tezos.Crypto
                      , Test.Typecheck
                      , Test.Util.Contracts
+                     , Test.Util.Interpreter
                      , Test.Util.QuickCheck
   build-depends:
                        aeson

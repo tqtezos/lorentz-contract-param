@@ -10,7 +10,7 @@ import Michelson.Interpret (interpret)
 import Michelson.Typed (CT(..), CVal(..), Instr(..), T(..), Val(..), ( # ))
 import Morley.Test (ContractPropValidator, contractProp, specWithContract)
 import Test.Interpreter.Auction (auctionSpec)
-import Test.Morley.Runtime (dummyContractEnv)
+import Test.Util.Interpreter (dummyContractEnv)
 
 spec :: Spec
 spec = describe "Advanced type interpreter tests" $ do
