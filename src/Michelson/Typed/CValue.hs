@@ -5,11 +5,9 @@ module Michelson.Typed.CValue
   ( CVal (..)
   ) where
 
-import Data.Time.Clock (UTCTime)
-
 import Michelson.Typed.T (CT(..))
 import Tezos.Address (Address)
-import Tezos.Core (Mutez)
+import Tezos.Core (Mutez, Timestamp)
 import Tezos.Crypto (KeyHash)
 
 -- | Representation of comparable value
@@ -29,7 +27,7 @@ data CVal t where
   CvMutez     :: Mutez -> CVal 'T_mutez
   CvBool      :: Bool -> CVal 'T_bool
   CvKeyHash   :: KeyHash -> CVal 'T_key_hash
-  CvTimestamp :: UTCTime -> CVal 'T_timestamp
+  CvTimestamp :: Timestamp -> CVal 'T_timestamp
   CvAddress   :: Address -> CVal 'T_address
 
 deriving instance Show (CVal t)

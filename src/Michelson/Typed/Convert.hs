@@ -13,6 +13,7 @@ import Michelson.Typed.T (CT(..), T(..))
 import Michelson.Typed.Value
 import qualified Michelson.Untyped as M
 import Tezos.Address (formatAddress)
+import Tezos.Core (unMutez)
 import Tezos.Crypto (formatKeyHash, formatPublicKey, formatSignature)
 
 -- | Function @unsafeValToValue@ converts typed @Val@ to untyped @Value@
@@ -47,7 +48,7 @@ cValToValue cVal = case cVal of
   CvNat i -> M.ValueInt $ toInteger i
   CvString s -> M.ValueString s
   CvBytes b -> M.ValueBytes $ M.InternalByteString b
-  CvMutez m -> M.ValueInt $ toInteger m
+  CvMutez m -> M.ValueInt $ toInteger $ unMutez m
   CvBool True -> M.ValueTrue
   CvBool False -> M.ValueFalse
   CvKeyHash h -> M.ValueString $ formatKeyHash h

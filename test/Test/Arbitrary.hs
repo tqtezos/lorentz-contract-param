@@ -13,8 +13,8 @@ import Test.QuickCheck.Arbitrary.ADT (ToADTArbitrary(..))
 import Michelson.Untyped
   (Annotation(..), CT(..), Comparable(..), Contract(..), Elt(..), FieldAnn, InstrAbstract(..),
   InternalByteString(..), Op(..), T(..), Type(..), TypeAnn, Value(..), VarAnn)
-import Morley.Types (NopInstr(..), StackTypePattern (..))
-import Tezos.Core (Mutez(..), Timestamp(..))
+import Morley.Types (NopInstr(..), StackTypePattern(..))
+import Tezos.Core (Mutez(..), Timestamp(..), timestampFromSeconds, unsafeMkMutez)
 
 instance Arbitrary InternalByteString where
   arbitrary = InternalByteString . T.encodeUtf8 . T.pack <$> listOf arbitrary
@@ -33,13 +33,12 @@ instance (Arbitrary nop, ToADTArbitrary nop) => ToADTArbitrary (Op nop)
 instance Arbitrary nop => Arbitrary (Op nop) where
   arbitrary = Op <$> arbitrary
 
-instance ToADTArbitrary Timestamp
 instance Arbitrary Timestamp where
-  arbitrary = Timestamp <$> arbitrary
+  arbitrary = timestampFromSeconds @Word <$> arbitrary
 
 instance ToADTArbitrary Mutez
 instance Arbitrary Mutez where
-  arbitrary = Mutez <$> arbitrary
+  arbitrary = unsafeMkMutez <$> choose (unMutez minBound, unMutez maxBound)
 
 instance ToADTArbitrary TypeAnn
 instance Arbitrary TypeAnn where

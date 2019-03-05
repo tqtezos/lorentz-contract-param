@@ -18,9 +18,11 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.Text as T
 
-import Michelson.Typed.T (CT(..), T(..))
 import Michelson.Typed.CValue (CVal(..))
+import Michelson.Typed.T (CT(..), T(..))
 import Michelson.Typed.Value (Val(..))
+
+import Tezos.Core (divModMutez, divModMutezInt)
 
 class MemOp (c :: T) where
   type MemOpKey c :: CT
@@ -189,18 +191,19 @@ instance EDivOp 'T_nat 'T_nat where
       else VOption $ Just $
         VPair (VC $ CvNat (div i j), VC $ CvNat $ (mod i j))
 instance EDivOp 'T_mutez 'T_mutez where
-  type EDivOpRes 'T_mutez 'T_mutez = 'T_mutez
+  type EDivOpRes 'T_mutez 'T_mutez = 'T_nat
   type EModOpRes 'T_mutez 'T_mutez = 'T_mutez
   evalEDivOp (CvMutez i) (CvMutez j) =
-    if j == 0
-      then VOption $ Nothing
-      else VOption $ Just $
-        VPair (VC $ CvMutez (div i j), VC $ CvMutez $ (mod i j))
+    VOption $
+    i `divModMutez` j <&> \case
+      (quotient, remainder) ->
+        VPair (VC $ CvNat (fromIntegral quotient), VC $ CvMutez remainder)
+
 instance EDivOp 'T_mutez 'T_nat where
-  type EDivOpRes 'T_mutez 'T_nat = 'T_nat
+  type EDivOpRes 'T_mutez 'T_nat = 'T_mutez
   type EModOpRes 'T_mutez 'T_nat = 'T_mutez
   evalEDivOp (CvMutez i) (CvNat j) =
-    if j == 0
-      then VOption $ Nothing
-      else VOption $ Just $
-        VPair (VC $ CvNat (div (fromIntegral i) j), VC $ CvMutez $ (mod i (fromIntegral j)))
+    VOption $
+    i `divModMutezInt` j <&> \case
+      (quotient, remainder) ->
+        VPair (VC $ CvMutez quotient, VC $ CvMutez remainder)
