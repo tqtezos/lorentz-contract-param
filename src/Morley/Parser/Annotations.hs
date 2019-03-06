@@ -19,11 +19,11 @@ module Morley.Parser.Annotations
 import Prelude hiding (many, note, some, try)
 
 import Control.Applicative.Permutations
-import Data.Char
+  (runPermutation, toPermutationWithDefault)
+import Data.Char (isAlpha, isAlphaNum, isAscii)
 import qualified Data.Text as T
-
-import Text.Megaparsec
-import Text.Megaparsec.Char
+import Text.Megaparsec (satisfy, takeWhileP, try)
+import Text.Megaparsec.Char (string)
 
 import Morley.Default
 import Morley.Lexer

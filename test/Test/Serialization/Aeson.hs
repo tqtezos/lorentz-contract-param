@@ -5,7 +5,7 @@ module Test.Serialization.Aeson
 import Data.Aeson (FromJSON, ToJSON)
 import Test.Aeson.GenericSpecs
   (GoldenDirectoryOption(CustomDirectoryName), defaultSettings, goldenDirectoryOption,
-  roundtripAndGoldenSpecsWithSettings)
+   roundtripAndGoldenSpecsWithSettings)
 import Test.Hspec (Spec)
 import Test.QuickCheck (Arbitrary)
 

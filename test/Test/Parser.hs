@@ -2,10 +2,11 @@ module Test.Parser
   ( spec
   ) where
 
-import Morley.Parser as P
-import Morley.Types as M
 import Test.Hspec (Expectation, Spec, describe, it, shouldBe, shouldSatisfy)
 import Text.Megaparsec (parse)
+
+import Morley.Parser as P
+import Morley.Types as M
 
 import Test.Util.Contracts (getIllTypedContracts, getWellTypedContracts)
 

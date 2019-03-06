@@ -1,8 +1,8 @@
 module Language.Michelson.Printer where
 
-import Michelson.Types
-
 import qualified Data.Text as T
+
+import Michelson.Types
 
 {-
 pp_Contract :: Contract -> T.Text

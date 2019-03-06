@@ -15,8 +15,7 @@
 -- annotations.
 
 module Michelson.Typed.Annotation
-  (
-    Notes (..)
+  ( Notes (..)
   , Notes' (..)
   , converge
   , convergeAnns
