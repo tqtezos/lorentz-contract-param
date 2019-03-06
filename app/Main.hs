@@ -178,7 +178,7 @@ txData =
 main :: IO ()
 main = do
   cmdLnArgs <- execParser (info argParser progInfo)
-  run cmdLnArgs
+  run cmdLnArgs `catchAny` (die . displayException)
   where
     progInfo = progDesc "Haskell implementation of Michelson typechecker and interpreter"
     run :: CmdLnArgs -> IO ()
