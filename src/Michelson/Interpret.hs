@@ -198,17 +198,14 @@ runInstr (MAP ops) (a :& r) =
           ((newVal :: Val (Instr cp) b) :& _) -> pure newVal)
         $ mapOpToList @c @b a
       pure $ mapOpFromList a newList :& r
-runInstr (ITER _) (VList [] :& r) = pure $ r
-runInstr (ITER ops) (VList (lh : lr) :& r) = do
-  res <- runInstr ops (lh :& r)
-  runInstr (ITER ops) (VList lr :& res)
-runInstr (ITER ops) (VSet s :& r) = do
-  let ascList = map (\x -> VC x) $ Set.toAscList s
-  runInstr (ITER ops) (VList ascList :& r)
-runInstr (ITER ops) (VMap m :& r) = do
-  let ascList = map (\(key, value) -> VPair (VC key, value)) $ Map.toAscList m
-  runInstr (ITER ops) (VList ascList :& r)
-runInstr (ITER _) (_) = error "unexpected call"
+runInstr (ITER ops) (a :& r) =
+  case ops of
+    (code :: Instr cp (IterOpEl c ': s) s) ->
+      case iterOpDetachOne @c a of
+        (Just x, xs) -> do
+          res <- runInstr code (x :& r)
+          runInstr (ITER code) (xs :& res)
+        (Nothing, _) -> pure r
 runInstr MEM (VC a :& b :& r) = pure $ VC (CvBool (evalMem a b)) :& r
 runInstr GET (VC a :& b :& r) = pure $ VOption (evalGet a b) :& r
 runInstr UPDATE (VC a :& b :& c :& r) = pure $ evalUpd a b c :& r

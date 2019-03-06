@@ -56,12 +56,21 @@ instance MapOp ('T_list e) e' where
 
 class IterOp (c :: T) where
   type IterOpEl c :: T
+  iterOpDetachOne ::
+    Val instr c -> (Maybe (Val instr (IterOpEl c)), Val instr c)
 instance IterOp ('T_map k v) where
   type IterOpEl ('T_map k v) = 'T_pair ('T_c k) v
+  iterOpDetachOne (VMap m) =
+    ((VPair . (\(k, v) -> (VC k, v))) <$> M.lookupMin m, VMap $ M.deleteMin m)
 instance IterOp ('T_list e) where
   type IterOpEl ('T_list e) = e
+  iterOpDetachOne (VList l) =
+    case l of
+      x : xs -> (Just x, VList xs)
+      [] -> (Nothing, VList [])
 instance IterOp ('T_set e) where
   type IterOpEl ('T_set e) = 'T_c e
+  iterOpDetachOne (VSet s) = (VC <$> S.lookupMin s, VSet $ S.deleteMin s)
 
 class SizeOp (c :: T) where
   evalSize :: Val cp c -> Int
