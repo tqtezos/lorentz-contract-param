@@ -64,7 +64,7 @@ argParser = subparser $
       info (Run <$> runOptions) $
         progDesc "Run passed contract on "
 
-    originateSubCmd = command "run" $
+    originateSubCmd = command "originate" $
       info (Originate <$> originateOptions) $
         progDesc "Originate passed contract. Add it to passed DB"
 
