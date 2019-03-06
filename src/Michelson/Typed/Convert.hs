@@ -1,5 +1,6 @@
 module Michelson.Typed.Convert
   ( unsafeValToValue
+  , valToOpOrValue
   ) where
 
 import qualified Data.Map as M
@@ -17,30 +18,41 @@ import Tezos.Core (unMutez)
 import Tezos.Crypto (formatKeyHash, formatPublicKey, formatSignature)
 
 -- | Function @unsafeValToValue@ converts typed @Val@ to untyped @Value@
--- from @Michelson.Untyped.Type@ module
+-- from @Michelson.Untyped.Value@ module
 --
 -- VOp cannot be represented in @Value@ from untyped types, so calling this function
 -- on it will cause an error
 unsafeValToValue :: HasCallStack => Val (Instr cp) t -> M.Value (M.Op nop)
-unsafeValToValue (VC cVal) = cValToValue cVal
-unsafeValToValue (VKey b) = M.ValueString $ formatPublicKey b
-unsafeValToValue VUnit = M.ValueUnit
-unsafeValToValue (VSignature b) = M.ValueString $ formatSignature b
-unsafeValToValue (VOption (Just x)) = M.ValueSome $ unsafeValToValue x
-unsafeValToValue (VOption Nothing) = M.ValueNone
-unsafeValToValue (VList l) = M.ValueSeq $ map unsafeValToValue l
-unsafeValToValue (VSet s) = M.ValueSeq $ map cValToValue $ toList s
-unsafeValToValue (VOp _) =
-  error "unexpected unsafeValToValue call trying to convert VOp to untyped Value"
-unsafeValToValue (VContract b) = M.ValueString $ formatAddress b
-unsafeValToValue (VPair (l, r)) = M.ValuePair (unsafeValToValue l) (unsafeValToValue r)
-unsafeValToValue (VOr (Left x)) = M.ValueLeft $ unsafeValToValue x
-unsafeValToValue (VOr (Right x)) = M.ValueRight $ unsafeValToValue x
-unsafeValToValue (VLam ops) = M.ValueLambda $ instrToOps ops
-unsafeValToValue (VMap m) =
-  M.ValueMap (map (\(k, v) -> M.Elt (cValToValue k) (unsafeValToValue v)) (M.toList m))
-unsafeValToValue (VBigMap m) =
-  M.ValueMap (map (\(k, v) -> M.Elt (cValToValue k) (unsafeValToValue v)) (M.toList m))
+unsafeValToValue = either (error err) id . valToOpOrValue
+  where
+    err =
+      "unexpected unsafeValToValue call trying to convert VOp to untyped Value"
+
+-- | Convert a typed 'Val' to an untyped 'Value' or an operation.
+valToOpOrValue ::
+     forall cp t nop.
+     Val (Instr cp) t
+  -> Either (Operation (Instr cp)) (M.Value (M.Op nop))
+valToOpOrValue = \case
+  VC cVal -> Right $ cValToValue cVal
+  VKey b -> Right $ M.ValueString $ formatPublicKey b
+  VUnit -> Right $ M.ValueUnit
+  VSignature b -> Right $ M.ValueString $ formatSignature b
+  VOption (Just x) -> Right $ M.ValueSome $ unsafeValToValue x
+  VOption Nothing -> Right $ M.ValueNone
+  VList l -> Right $ M.ValueSeq $ map unsafeValToValue l
+  VSet s -> Right $ M.ValueSeq $ map cValToValue $ toList s
+  VOp op -> Left op
+  VContract b -> Right $ M.ValueString $ formatAddress b
+  VPair (l, r) ->
+    Right $ M.ValuePair (unsafeValToValue l) (unsafeValToValue r)
+  VOr (Left x) -> Right $ M.ValueLeft $ unsafeValToValue x
+  VOr (Right x) -> Right $ M.ValueRight $ unsafeValToValue x
+  VLam ops -> Right $ M.ValueLambda $ instrToOps ops
+  VMap m ->
+    Right $ M.ValueMap (map (\(k, v) -> M.Elt (cValToValue k) (unsafeValToValue v)) (M.toList m))
+  VBigMap m ->
+    Right $ M.ValueMap (map (\(k, v) -> M.Elt (cValToValue k) (unsafeValToValue v)) (M.toList m))
 
 cValToValue :: CVal t -> M.Value (M.Op nop)
 cValToValue cVal = case cVal of
