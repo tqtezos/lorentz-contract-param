@@ -36,6 +36,7 @@ import Control.Monad.Except (liftEither, throwError)
 import Data.Default (def)
 import Data.Singletons (SingI(sing))
 import Data.Typeable ((:~:)(..))
+import Fmt (Buildable)
 
 import Michelson.TypeCheck.Helpers
 import Michelson.TypeCheck.Types
@@ -50,14 +51,14 @@ import qualified Michelson.Untyped as M
 import Michelson.Untyped.Annotation (VarAnn)
 
 typeCheckContract
-  :: forall nop. Show nop
+  :: forall nop. (Show nop, Buildable nop)
   => TcNopHandler nop
   -> M.Contract (M.Instr nop)
   -> Either (TCError nop) SomeContract
 typeCheckContract nh = runTypeCheckT nh . typeCheckContractImpl
 
 typeCheckContractImpl
-  :: forall cp nop. Show nop
+  :: forall cp nop. (Show nop, Buildable nop)
   => M.Contract (M.Instr nop)
   -> TypeCheckT cp nop SomeContract
 typeCheckContractImpl (M.Contract mParam mStorage pCode) = do
@@ -97,7 +98,7 @@ typeCheckContractImpl (M.Contract mParam mStorage pCode) = do
 
 -- | Like 'typeCheck', but for non-empty lists.
 typeCheckNE
-  :: forall cp nop. (Typeable cp, SingI cp, Show nop)
+  :: forall cp nop. (Typeable cp, SingI cp, Show nop, Buildable nop)
   => NonEmpty (M.Instr nop)
   -> SomeIT
   -> TypeCheckT cp nop (SomeInstr cp)
@@ -112,7 +113,7 @@ typeCheckNE (x :| xs) = typeCheckImpl typeCheckInstr (x : xs)
 --
 -- As a second argument, @typeCheckList@ accepts input stack type representation.
 typeCheckList
-  :: forall cp nop. (Typeable cp, SingI cp, Show nop)
+  :: forall cp nop. (Typeable cp, SingI cp, Show nop, Buildable nop)
   => [M.Instr nop]
   -> SomeIT
   -> TypeCheckT cp nop (SomeInstr cp)
@@ -131,7 +132,7 @@ typeCheckList = typeCheckImpl typeCheckInstr
 -- that is interpreted as input of wrong type and type check finishes with
 -- error.
 typeCheckVal
-  :: forall cp nop. (Typeable cp, SingI cp, Show nop)
+  :: forall cp nop. (Typeable cp, SingI cp, Show nop, Buildable nop)
   => M.Value (M.Op nop)
   -> T
   -> TypeCheckT cp nop (SomeVal cp)
@@ -151,7 +152,7 @@ typeCheckVal = typeCheckValImpl typeCheckInstr
 -- that is interpreted as input of wrong type and type check finishes with
 -- error.
 typeCheckInstr
-  :: forall cp nop . (Typeable cp, SingI cp, Show nop)
+  :: forall cp nop . (Typeable cp, SingI cp, Show nop, Buildable nop)
   => TcInstrHandler cp nop
 
 typeCheckInstr (M.NOP nop) si@(SomeIT it) = do
@@ -660,7 +661,7 @@ typeCheckInstr instr sit = typeCheckInstrErrM instr sit ""
 -- value.
 genericIf
   :: forall cp bti bfi cond rs nop.
-    (Typeable cp, SingI cp, Typeable bti, Typeable bfi, Show nop)
+    (Typeable cp, SingI cp, Typeable bti, Typeable bfi, Show nop, Buildable nop)
   => (forall s'. Instr cp bti s'
           -> Instr cp bfi s' -> Instr cp (cond ': rs) s')
   -> ([M.Op nop] -> [M.Op nop] -> M.Instr nop) -> [M.Op nop] -> [M.Op nop]
@@ -698,6 +699,7 @@ mapImpl
   , Typeable cp, SingI cp
   , Typeable (MapOpRes c)
   , Show nop
+  , Buildable nop
   )
   => Sing (MapOpInp c) -> Notes (MapOpInp c)
   -> M.Instr nop -> [M.Op nop] -> IT (c ': rs)
@@ -725,6 +727,7 @@ iterImpl
     , Typeable (IterOpEl c)
     , Typeable cp, SingI cp
     , Show nop
+    , Buildable nop
     )
   => Sing (IterOpEl c) -> Notes (IterOpEl c)
   -> M.Instr nop
@@ -745,7 +748,7 @@ lamImpl
   :: forall it ot cp ts nop.
     ( Typeable it, Typeable ts, Typeable ot
     , Typeable cp, SingI cp
-    , Show nop
+    , Show nop, Buildable nop
     , SingI it, SingI ot
     )
   => M.Instr nop

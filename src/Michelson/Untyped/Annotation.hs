@@ -20,6 +20,7 @@ import Data.Aeson.TH (defaultOptions, deriveJSON)
 import Data.Data (Data(..))
 import Data.Default (Default(..))
 import qualified Data.Text as T
+import Fmt (Buildable(build), Builder, (+|), (|+))
 import qualified Text.Show
 
 newtype Annotation tag = Annotation T.Text
@@ -45,6 +46,20 @@ data VarTag
 type TypeAnn = Annotation TypeTag
 type FieldAnn = Annotation FieldTag
 type VarAnn = Annotation VarTag
+
+instance Buildable TypeAnn where
+  build = buildAnnotation ":"
+
+instance Buildable FieldAnn where
+  build = buildAnnotation "%"
+
+instance Buildable VarAnn where
+  build = buildAnnotation "@"
+
+buildAnnotation :: Builder -> Annotation tag -> Builder
+buildAnnotation prefix a@(Annotation text)
+  | a == noAnn = ""
+  | otherwise = prefix +| text |+ ""
 
 noAnn :: Annotation a
 noAnn = Annotation ""

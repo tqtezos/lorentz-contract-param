@@ -18,6 +18,8 @@ module Morley.Runtime
 
 import Control.Lens (at, makeLenses, (%=), (.=), (<>=))
 import Control.Monad.Except (Except, runExcept, throwError)
+import Fmt (blockMapF, pretty, (+|), (|+))
+import Formatting.Buildable (Buildable(build))
 
 import Michelson.Interpret (ContractEnv(..), InterpretUntypedError(..), InterpretUntypedResult(..))
 import Michelson.Typed (Operation, unsafeValToValue)
@@ -66,7 +68,6 @@ data InterpreterRes = InterpreterRes
 
 makeLenses ''InterpreterRes
 
--- TODO: pretty printing
 -- | Errors that can happen during contract interpreting.
 data InterpreterError
   = IEUnknownContract Address
@@ -77,7 +78,16 @@ data InterpreterError
   -- ^ A contract is already originated
   deriving (Show)
 
-instance Exception InterpreterError
+instance Buildable InterpreterError where
+  build =
+    \case
+      IEUnknownContract addr -> "The contract is not originated " +| addr |+ ""
+      IEInterpreterFailed _ err -> "Michelson interpreter failed: " +| err |+ ""
+      IEAlreadyOriginated acc ->
+        "The following account is already originated: " +| acc |+ ""
+
+instance Exception InterpreterError where
+  displayException = pretty
 
 ----------------------------------------------------------------------------
 -- Interface
@@ -137,9 +147,8 @@ interpreter maybeNow maxSteps verbose dbPath operation = do
   let
     eitherRes = interpreterPure now maxSteps gState [operation]
   InterpreterRes {..} <- either throwM pure eitherRes
-  -- TODO: pretty print
   when (verbose && not (null _irUpdatedValues)) $
-    putTextLn $ "Updates: " <> show _irUpdatedValues
+    putTextLn $ "Updates: " +| blockMapF _irUpdatedValues
   writeGState dbPath _irGState
 
 -- | Implementation of interpreter outside 'IO'.  It reads operations,

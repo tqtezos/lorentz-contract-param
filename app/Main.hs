@@ -64,7 +64,7 @@ argParser = subparser $
       info (Run <$> runOptions) $
         progDesc "Run passed contract on "
 
-    originateSubCmd = command "run" $
+    originateSubCmd = command "originate" $
       info (Originate <$> originateOptions) $
         progDesc "Originate passed contract. Add it to passed DB"
 
@@ -178,7 +178,7 @@ txData =
 main :: IO ()
 main = do
   cmdLnArgs <- execParser (info argParser progInfo)
-  run cmdLnArgs
+  run cmdLnArgs `catchAny` (die . displayException)
   where
     progInfo = progDesc "Haskell implementation of Michelson typechecker and interpreter"
     run :: CmdLnArgs -> IO ()

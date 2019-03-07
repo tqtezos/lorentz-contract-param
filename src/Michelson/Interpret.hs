@@ -20,13 +20,14 @@ import qualified Data.Set as Set
 import Data.Singletons (SingI(..))
 import Data.Typeable ((:~:)(..))
 import Data.Vinyl (Rec(..), (<+>))
+import Fmt (Buildable(build), genericF)
 
 import Michelson.TypeCheck
   (SomeContract(..), SomeVal(..), TCError, TcNopHandler, eqT', runTypeCheckT, typeCheckContract,
   typeCheckVal)
 import Michelson.Typed
   (CVal(..), Contract, Instr(..), Operation(..), SetDelegate(..), Sing(..), T(..),
-  TransferTokens(..), Val(..), fromMType)
+  TransferTokens(..), Val(..), fromMType, valToOpOrValue)
 import qualified Michelson.Typed as Typed
 import Michelson.Typed.Arith
 import Michelson.Typed.Polymorphic
@@ -57,10 +58,28 @@ data ContractEnv nop = ContractEnv
 -- | Represents `[FAILED]` state of a Michelson program. Contains
 -- value that was on top of the stack when `FAILWITH` was called.
 data MichelsonFailed where
-  MichelsonFailedWith :: Val cp t -> MichelsonFailed
+  MichelsonFailedWith :: Val (Instr cp) t -> MichelsonFailed
   MutezOverflow :: MichelsonFailed
 
 deriving instance Show MichelsonFailed
+
+instance Buildable MichelsonFailed where
+  build =
+    \case
+      MichelsonFailedWith v ->
+        "Reached FAILWITH instruction with " <> formatValue v
+      MutezOverflow -> "Mutez overflow occurred"
+    where
+      formatValue v =
+        -- Pass `Bool` as `nop`, because it's not essential and we
+        -- need 'Buildable' for 'nop'.
+        case valToOpOrValue @_ @_ @Bool v of
+          Left op ->
+            case op of
+              OpTransferTokens {} -> "TransferTokens"
+              OpSetDelegate {} -> "SetDelegate"
+              OpCreateAccount {} -> "CreateAccount"
+          Right untypedV -> build untypedV
 
 data InterpretUntypedError nop
   = RuntimeFailure MichelsonFailed
@@ -69,8 +88,10 @@ data InterpretUntypedError nop
   | IllTypedStorage (TCError nop)
   | UnexpectedParamType Text
   | UnexpectedStorageType Text
+  deriving (Show, Generic)
 
-deriving instance Show nop => Show (InterpretUntypedError nop)
+instance Buildable nop => Buildable (InterpretUntypedError nop) where
+  build = genericF
 
 data InterpretUntypedResult where
   InterpretUntypedResult
@@ -86,7 +107,7 @@ data InterpretUntypedResult where
 
 -- | Interpret a contract without performing any side effects.
 interpretUntyped
-  :: Show nop
+  :: (Show nop, Buildable nop)
   => TcNopHandler nop
   -> U.Contract (U.Op nop)
   -> U.Value (U.Op nop)

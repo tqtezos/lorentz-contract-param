@@ -18,6 +18,8 @@ import Data.Aeson.Options (defaultOptions)
 import Data.Aeson.TH (deriveJSON)
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Map.Strict as Map
+import Fmt (genericF)
+import Formatting.Buildable (Buildable(build))
 import System.IO.Error (IOError, isDoesNotExistError)
 
 import Michelson.Untyped
@@ -32,7 +34,10 @@ data Account = Account
   -- ^ Storage value associated with this account.
   , accContract :: !(Contract (Op NopInstr))
   -- ^ Contract of this account.
-  } deriving (Show)
+  } deriving (Show, Generic)
+
+instance Buildable Account where
+  build = genericF
 
 deriveJSON defaultOptions ''Account
 

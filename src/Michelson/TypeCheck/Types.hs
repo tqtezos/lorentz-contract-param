@@ -15,10 +15,12 @@ module Michelson.TypeCheck.Types
     ) where
 
 import Data.Singletons (SingI)
+import Fmt (Buildable(..), pretty, (+|), (|+), (||+))
 import Prelude hiding (EQ, GT, LT)
 import qualified Text.Show
 
 import Michelson.Typed (Notes(..), Sing(..), T(..), fromSingT)
+import Michelson.Typed.Extract (toMType)
 import Michelson.Typed.Instr
 import Michelson.Typed.Value
 
@@ -114,18 +116,23 @@ data TCError nop =
   | TCFailedOnValue (Untyped.Value (Untyped.Op nop)) T Text
   | TCOtherError Text
 
-instance Show nop => Show (TCError nop) where
-  show (TCFailedOnInstr instr (SomeIT t) custom) =
-    "Error checking expression " <> show instr
-          <> " against input stack type " <> show t
-          <> bool (": " <> toString custom) "" (null custom)
-  show (TCFailedOnValue v t custom) =
-    "Error checking value " <> show v
-          <> " against type " <> show t
-          <> bool (": " <> toString custom) "" (null custom)
-  show (TCOtherError e) = "Error occurred during type check: " <> toString e
+instance Buildable nop => Buildable (TCError nop) where
+  build = \case
+    TCFailedOnInstr instr (SomeIT t) custom ->
+      "Error checking expression " +| instr
+          |+ " against input stack type " +| t
+          ||+ bool (": " +| custom |+ "") "" (null custom)
+    TCFailedOnValue v t custom ->
+      "Error checking value " +| v
+          |+ " against type " +| toMType t
+          |+ bool (": " +| custom |+ "") "" (null custom)
+    TCOtherError e ->
+      "Error occurred during type check: " +| e |+ ""
 
-instance (Show nop, Typeable nop) => Exception (TCError nop)
+instance Buildable nop => Show (TCError nop) where
+  show = pretty
+
+instance (Buildable nop, Typeable nop) => Exception (TCError nop)
 
 type TcNopHandler nop = nop -> SomeIT -> Either (TCError nop) ()
 

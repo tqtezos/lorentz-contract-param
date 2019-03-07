@@ -33,7 +33,7 @@ import Data.Time.Clock (UTCTime)
 import Data.Time.Clock.POSIX (POSIXTime, getPOSIXTime, posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import Data.Time.LocalTime (utc, utcToZonedTime, zonedTimeToUTC)
 import Data.Time.RFC3339 (formatTimeRFC3339, parseTimeRFC3339)
-import qualified Formatting.Buildable as Buildable
+import Formatting.Buildable (Buildable(build))
 
 ----------------------------------------------------------------------------
 -- Mutez
@@ -43,7 +43,7 @@ import qualified Formatting.Buildable as Buildable
 newtype Mutez = Mutez
   { unMutez :: Word64
   } deriving stock (Show, Eq, Ord, Data, Generic)
-    deriving newtype (Enum)
+    deriving newtype (Enum, Buildable)
 
 instance Bounded Mutez where
   minBound = Mutez 0
@@ -144,8 +144,8 @@ formatTimestamp :: Timestamp -> Text
 formatTimestamp =
   formatTimeRFC3339 . utcToZonedTime utc . posixSecondsToUTCTime . unTimestamp
 
-instance Buildable.Buildable Timestamp where
-  build = Buildable.build . formatTimestamp
+instance Buildable Timestamp where
+  build = build . formatTimestamp
 
 -- | Parse textual representation of 'Timestamp'.
 parseTimestamp :: Text -> Maybe Timestamp

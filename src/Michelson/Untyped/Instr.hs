@@ -10,6 +10,8 @@ module Michelson.Untyped.Instr
 
 import Data.Aeson.TH (defaultOptions, deriveJSON)
 import Data.Data (Data(..))
+import Fmt (genericF)
+import Formatting.Buildable (Buildable(build))
 
 import Michelson.Untyped.Annotation (FieldAnn, TypeAnn, VarAnn)
 import Michelson.Untyped.Contract (Contract)
@@ -22,6 +24,7 @@ import Michelson.Untyped.Value (Value)
 type Instr nop = InstrAbstract nop (Op nop)
 newtype Op nop = Op {unOp :: Instr nop}
   deriving stock (Eq, Show, Generic)
+  deriving newtype (Buildable)
 
 -------------------------------------
 -- Abstract instruction
@@ -117,6 +120,9 @@ data InstrAbstract nop op
   | SENDER            VarAnn
   | ADDRESS           VarAnn
   deriving (Eq, Show, Functor, Data, Generic)
+
+instance (Buildable nop, Buildable op) => Buildable (InstrAbstract nop op) where
+  build = genericF
 
 ----------------------------------------------------------------------------
 -- JSON serialization
