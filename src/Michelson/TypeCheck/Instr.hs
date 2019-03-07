@@ -44,28 +44,28 @@ import Michelson.TypeCheck.Value
 import Michelson.Typed
   (Abs, And, CT(..), Contract, ContractInp, ContractOut, Eq', Ge, Gt, Instr(..), IterOp(..), Le,
   Lsl, Lsr, Lt, MapOp(..), Neg, Neq, Not, Notes(..), Notes'(..), Or, Sing(..), T(..), Val(..), Xor,
-  converge, convergeAnns, extractNotes, fromMType, mkNotes, notesCase, orAnn, withSomeSingCT,
+  converge, convergeAnns, extractNotes, fromUType, mkNotes, notesCase, orAnn, withSomeSingCT,
   withSomeSingT, ( # ))
 
-import qualified Michelson.Untyped as M
+import qualified Michelson.Untyped as Un
 import Michelson.Untyped.Annotation (VarAnn)
 
 typeCheckContract
   :: forall nop. (Show nop, Buildable nop)
   => TcNopHandler nop
-  -> M.Contract (M.Instr nop)
+  -> Un.Contract (Un.Instr nop)
   -> Either (TCError nop) SomeContract
 typeCheckContract nh = runTypeCheckT nh . typeCheckContractImpl
 
 typeCheckContractImpl
   :: forall cp nop. (Show nop, Buildable nop)
-  => M.Contract (M.Instr nop)
+  => Un.Contract (Un.Instr nop)
   -> TypeCheckT cp nop SomeContract
-typeCheckContractImpl (M.Contract mParam mStorage pCode) = do
+typeCheckContractImpl (Un.Contract mParam mStorage pCode) = do
   code <- maybe (throwError $ TCOtherError "no instructions in contract code")
                 pure (nonEmpty pCode)
-  withSomeSingT (fromMType mParam) $ \(paramS :: Sing param) ->
-    withSomeSingT (fromMType mStorage) $ \(storageS :: Sing st) -> do
+  withSomeSingT (fromUType mParam) $ \(paramS :: Sing param) ->
+    withSomeSingT (fromUType mStorage) $ \(storageS :: Sing st) -> do
       storageNote <-
         liftEither $ extractNotes mStorage storageS `onLeft` \m -> TCOtherError $
                         "failed to extract annotations for storage: " <> m
@@ -99,7 +99,7 @@ typeCheckContractImpl (M.Contract mParam mStorage pCode) = do
 -- | Like 'typeCheck', but for non-empty lists.
 typeCheckNE
   :: forall cp nop. (Typeable cp, SingI cp, Show nop, Buildable nop)
-  => NonEmpty (M.Instr nop)
+  => NonEmpty (Un.Instr nop)
   -> SomeHST
   -> TypeCheckT cp nop (SomeInstr cp)
 typeCheckNE (x :| xs) = typeCheckImpl typeCheckInstr (x : xs)
@@ -114,7 +114,7 @@ typeCheckNE (x :| xs) = typeCheckImpl typeCheckInstr (x : xs)
 -- As a second argument, @typeCheckList@ accepts input stack type representation.
 typeCheckList
   :: forall cp nop. (Typeable cp, SingI cp, Show nop, Buildable nop)
-  => [M.Instr nop]
+  => [Un.Instr nop]
   -> SomeHST
   -> TypeCheckT cp nop (SomeInstr cp)
 typeCheckList = typeCheckImpl typeCheckInstr
@@ -133,7 +133,7 @@ typeCheckList = typeCheckImpl typeCheckInstr
 -- error.
 typeCheckVal
   :: forall cp nop. (Typeable cp, SingI cp, Show nop, Buildable nop)
-  => M.Value (M.Op nop)
+  => Un.Value (Un.Op nop)
   -> T
   -> TypeCheckT cp nop (SomeVal cp)
 typeCheckVal = typeCheckValImpl typeCheckInstr
@@ -155,52 +155,52 @@ typeCheckInstr
   :: forall cp nop . (Typeable cp, SingI cp, Show nop, Buildable nop)
   => TcInstrHandler cp nop
 
-typeCheckInstr (M.NOP nop) si@(SomeHST it) = do
+typeCheckInstr (Un.NOP nop) si@(SomeHST it) = do
   nh <- asks tcNopHandler
   Nop ::: (it, it) <$ liftEither (nh nop si)
 
-typeCheckInstr M.DROP (SomeHST i@(_ ::& rs)) = pure (DROP ::: (i, rs))
+typeCheckInstr Un.DROP (SomeHST i@(_ ::& rs)) = pure (DROP ::: (i, rs))
 
-typeCheckInstr (M.DUP _vn) (SomeHST i@(a ::& rs)) =
+typeCheckInstr (Un.DUP _vn) (SomeHST i@(a ::& rs)) =
   pure (DUP ::: (i, (a ::& a::& rs)))
 
-typeCheckInstr M.SWAP (SomeHST i@(a ::& b ::& rs)) =
+typeCheckInstr Un.SWAP (SomeHST i@(a ::& b ::& rs)) =
   pure (SWAP ::: (i, b ::& a ::& rs))
 
-typeCheckInstr instr@(M.PUSH vn mt mval) (SomeHST i) = do
-  val :::: (t, n) <- typeCheckVal mval (fromMType mt)
+typeCheckInstr instr@(Un.PUSH vn mt mval) (SomeHST i) = do
+  val :::: (t, n) <- typeCheckVal mval (fromUType mt)
   notes <- liftEither $ (extractNotes mt t >>= converge n)
               `onLeft` TCFailedOnInstr instr (SomeHST i)
   pure $ PUSH val ::: (i, (t, notes, vn) ::& i)
 
-typeCheckInstr (M.SOME tn vn fn) (SomeHST i@((at, an, _) ::& rs)) = do
+typeCheckInstr (Un.SOME tn vn fn) (SomeHST i@((at, an, _) ::& rs)) = do
   let n = mkNotes (NT_option tn fn an)
   pure (SOME ::: (i, (ST_option at, n, vn) ::& rs))
 
-typeCheckInstr instr@(M.NONE tn vn fn elMt) (SomeHST i) = do
-  withSomeSingT (fromMType elMt) $ \elT -> do
+typeCheckInstr instr@(Un.NONE tn vn fn elMt) (SomeHST i) = do
+  withSomeSingT (fromUType elMt) $ \elT -> do
     let t = ST_option elT
-    notes <- liftEither $ extractNotes (M.Type (M.T_option fn elMt) tn) t
+    notes <- liftEither $ extractNotes (Un.Type (Un.T_option fn elMt) tn) t
               `onLeft` TCFailedOnInstr instr (SomeHST i)
     pure $ NONE ::: (i, (t, notes, vn) ::& i)
 
-typeCheckInstr (M.UNIT tn vn) (SomeHST i) = do
+typeCheckInstr (Un.UNIT tn vn) (SomeHST i) = do
   let ns = mkNotes $ NT_unit tn
   pure $ UNIT ::: (i, (ST_unit, ns, vn) ::& i)
 
-typeCheckInstr (M.IF_NONE mp mq) (SomeHST i@((ST_option a, ons, ovn) ::& rs) ) = do
+typeCheckInstr (Un.IF_NONE mp mq) (SomeHST i@((ST_option a, ons, ovn) ::& rs) ) = do
   let (an, avn) = deriveNsOption ons ovn
-  genericIf IF_NONE M.IF_NONE mp mq rs ((a, an, avn) ::& rs) i
+  genericIf IF_NONE Un.IF_NONE mp mq rs ((a, an, avn) ::& rs) i
 
-typeCheckInstr (M.PAIR tn vn pfn qfn) (SomeHST i@((a, an, avn) ::&
+typeCheckInstr (Un.PAIR tn vn pfn qfn) (SomeHST i@((a, an, avn) ::&
                                              (b, bn, bvn) ::& rs)) = do
   let (vn', pfn', qfn') = deriveSpecialFNs pfn qfn avn bvn
       ns = mkNotes $ NT_pair tn pfn' qfn' an bn
   pure (PAIR ::: (i, (ST_pair a b, ns, vn `orAnn` vn') ::& rs))
 
-typeCheckInstr (M.CAR vn _) (SomeHST i@((ST_pair a _, NStar, _) ::& rs)) =
+typeCheckInstr (Un.CAR vn _) (SomeHST i@((ST_pair a _, NStar, _) ::& rs)) =
   pure (CAR ::: (i, (a, NStar, vn) ::& rs))
-typeCheckInstr instr@(M.CAR vn fn)
+typeCheckInstr instr@(Un.CAR vn fn)
             (SomeHST i@(( ST_pair a b
                        , N (NT_pair pairTN pfn qfn pns qns)
                        , pairVN ) ::& rs)) = do
@@ -212,9 +212,9 @@ typeCheckInstr instr@(M.CAR vn fn)
             , pairVN ) ::& rs
   pure $ CAR ::: (i', (a, pns, vn') ::& rs)
 
-typeCheckInstr (M.CDR vn _) (SomeHST i@((ST_pair _ b, NStar, _) ::& rs)) =
+typeCheckInstr (Un.CDR vn _) (SomeHST i@((ST_pair _ b, NStar, _) ::& rs)) =
   pure (CDR ::: (i, (b, NStar, vn) ::& rs))
-typeCheckInstr instr@(M.CDR vn fn)
+typeCheckInstr instr@(Un.CDR vn fn)
           (SomeHST i@(( ST_pair a b
                       , N (NT_pair pairTN pfn qfn pns qns)
                       , pairVN ) ::& rs)) = do
@@ -226,40 +226,40 @@ typeCheckInstr instr@(M.CDR vn fn)
             , pairVN ) ::& rs
   pure $ CDR ::: (i', (b, qns, vn') ::& rs)
 
-typeCheckInstr instr@(M.LEFT tn vn pfn qfn bMt) (SomeHST i@((a, an, _) ::& rs)) =
-  withSomeSingT (fromMType bMt) $ \b -> do
+typeCheckInstr instr@(Un.LEFT tn vn pfn qfn bMt) (SomeHST i@((a, an, _) ::& rs)) =
+  withSomeSingT (fromUType bMt) $ \b -> do
     bn <- liftEither $ extractNotes bMt b
               `onLeft` TCFailedOnInstr instr (SomeHST i)
     let ns = mkNotes $ NT_or tn pfn qfn an bn
     pure (LEFT ::: (i, (ST_or a b, ns, vn) ::& rs))
 
-typeCheckInstr instr@(M.RIGHT tn vn pfn qfn aMt) (SomeHST i@((b, bn, _) ::& rs)) =
-  withSomeSingT (fromMType aMt) $ \a -> do
+typeCheckInstr instr@(Un.RIGHT tn vn pfn qfn aMt) (SomeHST i@((b, bn, _) ::& rs)) =
+  withSomeSingT (fromUType aMt) $ \a -> do
     an <- liftEither $ extractNotes aMt a
               `onLeft` TCFailedOnInstr instr (SomeHST i)
     let ns = mkNotes $ NT_or tn pfn qfn an bn
     pure (RIGHT ::: (i, (ST_or a b, ns, vn) ::& rs))
 
-typeCheckInstr (M.IF_LEFT mp mq) (SomeHST i@((ST_or a b, ons, ovn) ::& rs) ) = do
+typeCheckInstr (Un.IF_LEFT mp mq) (SomeHST i@((ST_or a b, ons, ovn) ::& rs) ) = do
   let (an, bn, avn, bvn) = deriveNsOr ons ovn
       ait = (a, an, avn) ::& rs
       bit = (b, bn, bvn) ::& rs
-  genericIf IF_LEFT M.IF_LEFT mp mq ait bit i
+  genericIf IF_LEFT Un.IF_LEFT mp mq ait bit i
 
-typeCheckInstr (M.IF_RIGHT mq mp) (SomeHST i@((ST_or a b, ons, ovn) ::& rs) ) = do
+typeCheckInstr (Un.IF_RIGHT mq mp) (SomeHST i@((ST_or a b, ons, ovn) ::& rs) ) = do
   let (an, bn, avn, bvn) = deriveNsOr ons ovn
       ait = (a, an, avn) ::& rs
       bit = (b, bn, bvn) ::& rs
-  genericIf IF_RIGHT M.IF_RIGHT mq mp bit ait i
+  genericIf IF_RIGHT Un.IF_RIGHT mq mp bit ait i
 
-typeCheckInstr instr@(M.NIL tn vn elMt) (SomeHST i) =
-  withSomeSingT (fromMType elMt) $ \elT -> liftEither $ do
+typeCheckInstr instr@(Un.NIL tn vn elMt) (SomeHST i) =
+  withSomeSingT (fromUType elMt) $ \elT -> liftEither $ do
     let t = ST_list elT
-    notes <- extractNotes (M.Type (M.T_list elMt) tn) t
+    notes <- extractNotes (Un.Type (Un.T_list elMt) tn) t
               `onLeft` TCFailedOnInstr instr (SomeHST i)
     pure $ NIL ::: (i, (t, notes, vn) ::& i)
 
-typeCheckInstr instr@(M.CONS vn) (SomeHST i@(((at :: Sing a), an, _)
+typeCheckInstr instr@(Un.CONS vn) (SomeHST i@(((at :: Sing a), an, _)
                               ::& (ST_list (_ :: Sing a'), ln, _) ::& rs)) =
   case eqT' @a @a' of
     Right Refl -> liftEither $  do
@@ -271,83 +271,83 @@ typeCheckInstr instr@(M.CONS vn) (SomeHST i@(((at :: Sing a), an, _)
                 <> "that is being CONSed: " <> m
 
 
-typeCheckInstr (M.IF_CONS mp mq) (SomeHST i@((ST_list a, ns, vn) ::& rs) ) = do
+typeCheckInstr (Un.IF_CONS mp mq) (SomeHST i@((ST_list a, ns, vn) ::& rs) ) = do
   let an = notesCase NStar (\(NT_list _ an_) -> an_) ns
       ait =
         (a, an, vn <> "hd") ::& (ST_list a, ns, vn <> "tl") ::& rs
-  genericIf IF_CONS M.IF_CONS mp mq ait rs i
+  genericIf IF_CONS Un.IF_CONS mp mq ait rs i
 
-typeCheckInstr (M.SIZE vn) (SomeHST i@((ST_list _, _, _) ::& _) ) = liftEither $ sizeImpl i vn
-typeCheckInstr (M.SIZE vn) (SomeHST i@((ST_set _, _, _) ::& _) ) = liftEither $ sizeImpl i vn
-typeCheckInstr (M.SIZE vn) (SomeHST i@((ST_map _ _, _, _) ::& _) ) = liftEither $ sizeImpl i vn
-typeCheckInstr (M.SIZE vn) (SomeHST i@((ST_c ST_string, _, _) ::& _) ) = liftEither $  sizeImpl i vn
-typeCheckInstr (M.SIZE vn) (SomeHST i@((ST_c ST_bytes, _, _) ::& _) ) = liftEither $ sizeImpl i vn
+typeCheckInstr (Un.SIZE vn) (SomeHST i@((ST_list _, _, _) ::& _) ) = liftEither $ sizeImpl i vn
+typeCheckInstr (Un.SIZE vn) (SomeHST i@((ST_set _, _, _) ::& _) ) = liftEither $ sizeImpl i vn
+typeCheckInstr (Un.SIZE vn) (SomeHST i@((ST_map _ _, _, _) ::& _) ) = liftEither $ sizeImpl i vn
+typeCheckInstr (Un.SIZE vn) (SomeHST i@((ST_c ST_string, _, _) ::& _) ) = liftEither $  sizeImpl i vn
+typeCheckInstr (Un.SIZE vn) (SomeHST i@((ST_c ST_bytes, _, _) ::& _) ) = liftEither $ sizeImpl i vn
 
-typeCheckInstr (M.EMPTY_SET tn vn (M.Comparable mk ktn)) (SomeHST i) =
+typeCheckInstr (Un.EMPTY_SET tn vn (Un.Comparable mk ktn)) (SomeHST i) =
   withSomeSingCT mk $ \k ->
     pure $ EMPTY_SET ::: (i, (ST_set k, mkNotes $ NT_set tn ktn, vn) ::& i)
 
-typeCheckInstr instr@(M.EMPTY_MAP tn vn (M.Comparable mk ktn) mv) (SomeHST i) =
-  withSomeSingT (fromMType mv) $ \v ->
+typeCheckInstr instr@(Un.EMPTY_MAP tn vn (Un.Comparable mk ktn) mv) (SomeHST i) =
+  withSomeSingT (fromUType mv) $ \v ->
   withSomeSingCT mk $ \k -> liftEither $ do
     vns <- extractNotes mv v
               `onLeft` TCFailedOnInstr instr (SomeHST i)
     let ns = mkNotes $ NT_map tn ktn vns
     pure $ EMPTY_MAP ::: (i, (ST_map k v, ns, vn) ::& i)
 
-typeCheckInstr instr@(M.MAP vn mp) (SomeHST i@((ST_list v, ns, _vn) ::& _) ) = do
+typeCheckInstr instr@(Un.MAP vn mp) (SomeHST i@((ST_list v, ns, _vn) ::& _) ) = do
   let vns = notesCase NStar (\(NT_list _ v') -> v') ns
   mapImpl v vns instr mp i
           (\rt rn -> (::&) (ST_list rt, mkNotes $ NT_list def rn, vn))
-typeCheckInstr instr@(M.MAP vn mp) (SomeHST i@((ST_map k v, ns, _vn) ::& _) ) = do
+typeCheckInstr instr@(Un.MAP vn mp) (SomeHST i@((ST_map k v, ns, _vn) ::& _) ) = do
   let (kns, vns) = notesCase (def, NStar) (\(NT_map _ k' v') -> (k', v')) ns
       pns = mkNotes $ NT_pair def def def (mkNotes $ NT_c kns) vns
   mapImpl (ST_pair (ST_c k) v) pns instr mp i
           (\rt rn -> (::&) (ST_map k rt, mkNotes $ NT_map def kns rn, vn))
 
--- case `M.HSTER []` is wrongly typed by definition
+-- case `Un.HSTER []` is wrongly typed by definition
 -- (as it is required to at least drop an element), so we don't consider it
 
-typeCheckInstr instr@(M.ITER (i1 : ir)) (SomeHST i@((ST_set e, n, _) ::& _)) = do
+typeCheckInstr instr@(Un.ITER (i1 : ir)) (SomeHST i@((ST_set e, n, _) ::& _)) = do
   let en = notesCase NStar (\(NT_set _ en_) -> mkNotes $ NT_c en_) n
   iterImpl (ST_c e) en instr (i1 :| ir) i
-typeCheckInstr instr@(M.ITER (i1 : ir)) (SomeHST i@((ST_list e, n, _) ::& _)) = do
+typeCheckInstr instr@(Un.ITER (i1 : ir)) (SomeHST i@((ST_list e, n, _) ::& _)) = do
   let en = notesCase NStar (\(NT_list _ en_) -> en_) n
   iterImpl e en instr (i1 :| ir) i
-typeCheckInstr instr@(M.ITER (i1 : ir)) (SomeHST i@((ST_map k v, n, _) ::& _)) = do
+typeCheckInstr instr@(Un.ITER (i1 : ir)) (SomeHST i@((ST_map k v, n, _) ::& _)) = do
   let en = notesCase NStar (\(NT_map _ kns vns) ->
               mkNotes $ NT_pair def def def (mkNotes $ NT_c kns) vns) n
   iterImpl (ST_pair (ST_c k) v) en instr (i1 :| ir) i
 
-typeCheckInstr instr@(M.MEM vn)
+typeCheckInstr instr@(Un.MEM vn)
            (SomeHST i@((ST_c _, _, _) ::& (ST_set _, _, _) ::& _)) =
   liftEither $ memImpl instr i vn
-typeCheckInstr instr@(M.MEM vn)
+typeCheckInstr instr@(Un.MEM vn)
            (SomeHST i@((ST_c _, _, _) ::& (ST_map _ _, _, _) ::& _)) =
   liftEither $ memImpl instr i vn
-typeCheckInstr instr@(M.MEM vn)
+typeCheckInstr instr@(Un.MEM vn)
            (SomeHST i@((ST_c _, _, _) ::& (ST_big_map _ _, _, _) ::& _)) =
   liftEither $ memImpl instr i vn
 
-typeCheckInstr instr@(M.GET vn) (SomeHST i@(_ ::& (ST_map _ vt, cn, _) ::& _)) =
+typeCheckInstr instr@(Un.GET vn) (SomeHST i@(_ ::& (ST_map _ vt, cn, _) ::& _)) =
   liftEither $ getImpl instr i vt (notesCase NStar (\(NT_map _ _ v) -> v) cn) vn
-typeCheckInstr instr@(M.GET vn) (SomeHST i@(_ ::& (ST_big_map _ vt, cn, _) ::& _)) =
+typeCheckInstr instr@(Un.GET vn) (SomeHST i@(_ ::& (ST_big_map _ vt, cn, _) ::& _)) =
   liftEither $ getImpl instr i vt (notesCase NStar (\(NT_big_map _ _ v) -> v) cn) vn
 
-typeCheckInstr instr@M.UPDATE (SomeHST i@(_ ::& _ ::& (ST_map _ _, _, _) ::& _)) =
+typeCheckInstr instr@Un.UPDATE (SomeHST i@(_ ::& _ ::& (ST_map _ _, _, _) ::& _)) =
   liftEither $ updImpl instr i
-typeCheckInstr instr@M.UPDATE (SomeHST i@(_ ::& _ ::& (ST_big_map _ _, _, _)
+typeCheckInstr instr@Un.UPDATE (SomeHST i@(_ ::& _ ::& (ST_big_map _ _, _, _)
                                              ::& _)) =
   liftEither $ updImpl instr i
-typeCheckInstr instr@M.UPDATE (SomeHST i@(_ ::& _ ::& (ST_set _, _, _) ::& _)) =
+typeCheckInstr instr@Un.UPDATE (SomeHST i@(_ ::& _ ::& (ST_set _, _, _) ::& _)) =
   liftEither $ updImpl instr i
 
-typeCheckInstr (M.IF mp mq) (SomeHST i@((ST_c ST_bool, _, _) ::& rs) ) =
-  genericIf IF M.IF mp mq rs rs i
+typeCheckInstr (Un.IF mp mq) (SomeHST i@((ST_c ST_bool, _, _) ::& rs) ) =
+  genericIf IF Un.IF mp mq rs rs i
 
-typeCheckInstr instr@(M.LOOP is)
+typeCheckInstr instr@(Un.LOOP is)
            (SomeHST i@((ST_c ST_bool, _, _) ::& (rs :: HST rs)) ) = do
-  typeCheckList @cp (fmap M.unOp is) (SomeHST rs) >>= \case
+  typeCheckList @cp (fmap Un.unOp is) (SomeHST rs) >>= \case
     SiFail -> pure SiFail
     subI ::: ((_ :: HST rs'), (o :: HST o)) -> liftEither $ do
       Refl <- assertEqT @rs @rs' instr i
@@ -361,12 +361,12 @@ typeCheckInstr instr@(M.LOOP is)
         _ -> typeCheckInstrErr instr (SomeHST i) $
                         "iteration expression has wrong output stack type"
 
-typeCheckInstr instr@(M.LOOP_LEFT is)
+typeCheckInstr instr@(Un.LOOP_LEFT is)
            (SomeHST i@((ST_or (at :: Sing a) (bt :: Sing b), ons, ovn)
                       ::& (rs :: HST rs)) ) = do
   let (an, bn, avn, bvn) = deriveNsOr ons ovn
       ait = (at, an, avn) ::& rs
-  typeCheckList @cp (fmap M.unOp is) (SomeHST ait) >>= \case
+  typeCheckList @cp (fmap Un.unOp is) (SomeHST ait) >>= \case
     SiFail -> pure SiFail
     subI ::: ((_ :: HST rs'), (o :: HST o)) -> liftEither $ do
       Refl <- assertEqT @(a ': rs) @rs' instr i
@@ -382,9 +382,9 @@ typeCheckInstr instr@(M.LOOP_LEFT is)
         _ -> typeCheckInstrErr instr (SomeHST i) $
                         "iteration expression has wrong output stack type"
 
-typeCheckInstr instr@(M.LAMBDA vn imt omt is) (SomeHST i) = do
-  withSomeSingT (fromMType imt) $ \(it :: Sing it) -> do
-    withSomeSingT (fromMType omt) $ \(ot :: Sing ot) -> do
+typeCheckInstr instr@(Un.LAMBDA vn imt omt is) (SomeHST i) = do
+  withSomeSingT (fromUType imt) $ \(it :: Sing it) -> do
+    withSomeSingT (fromUType omt) $ \(ot :: Sing ot) -> do
       ins <- liftEither $ extractNotes imt it
               `onLeft` TCFailedOnInstr instr (SomeHST i)
       ons <- liftEither $ extractNotes omt ot
@@ -394,7 +394,7 @@ typeCheckInstr instr@(M.LAMBDA vn imt omt is) (SomeHST i) = do
       -- located right here
       lamImpl instr is vn it ins ot ons i
 
-typeCheckInstr instr@(M.EXEC vn) (SomeHST i@(((_ :: Sing t1), _, _)
+typeCheckInstr instr@(Un.EXEC vn) (SomeHST i@(((_ :: Sing t1), _, _)
                               ::& (ST_lambda (_ :: Sing t1') t2, ln, _)
                               ::& rs)) = do
   let t2n = notesCase NStar (\(NT_lambda _ _ n) -> n) ln
@@ -403,18 +403,18 @@ typeCheckInstr instr@(M.EXEC vn) (SomeHST i@(((_ :: Sing t1), _, _)
     Left m -> typeCheckInstrErrM instr (SomeHST i) $
                 "lambda is given argument with wrong type: " <> m
 
-typeCheckInstr instr@(M.DIP is) (SomeHST i@(a ::& (s :: HST s))) =
-  typeCheckList @cp (fmap M.unOp is) (SomeHST s) >>= \case
+typeCheckInstr instr@(Un.DIP is) (SomeHST i@(a ::& (s :: HST s))) =
+  typeCheckList @cp (fmap Un.unOp is) (SomeHST s) >>= \case
     SiFail -> pure SiFail
     subI ::: ((_ :: HST s'), t) -> liftEither $ do
       Refl <- assertEqT @s @s' instr i
       pure $ DIP subI ::: (i, a ::& t)
 
-typeCheckInstr M.FAILWITH _ = pure SiFail
+typeCheckInstr Un.FAILWITH _ = pure SiFail
 
-typeCheckInstr instr@(M.CAST vn mt)
+typeCheckInstr instr@(Un.CAST vn mt)
            (SomeHST i@(((e :: Sing e), (en :: Notes e), evn) ::& rs)) =
-  withSomeSingT (fromMType mt) $ \(_ :: Sing e') ->
+  withSomeSingT (fromUType mt) $ \(_ :: Sing e') ->
     case eqT' @e @e' of
       Right Refl ->
         case extractNotes mt e of
@@ -429,128 +429,128 @@ typeCheckInstr instr@(M.CAST vn mt)
       err = \m -> typeCheckInstrErrM instr (SomeHST i) $
                   "cast to incompatible type: " <> m
 
-typeCheckInstr (M.RENAME vn) (SomeHST i@((at, an, _) ::& rs)) =
+typeCheckInstr (Un.RENAME vn) (SomeHST i@((at, an, _) ::& rs)) =
   pure $ RENAME ::: (i, (at, an, vn) ::& rs)
 
-typeCheckInstr instr@(M.UNPACK vn mt) (SomeHST i@((ST_c ST_bytes, _, _) ::& rs)) =
-  withSomeSingT (fromMType mt) $ \t -> liftEither $ do
+typeCheckInstr instr@(Un.UNPACK vn mt) (SomeHST i@((ST_c ST_bytes, _, _) ::& rs)) =
+  withSomeSingT (fromUType mt) $ \t -> liftEither $ do
     tns <- extractNotes mt t
             `onLeft` TCFailedOnInstr instr (SomeHST i)
     let ns = mkNotes $ NT_option def def tns
     pure $ UNPACK ::: (i, (ST_option t, ns, vn) ::& rs)
 
-typeCheckInstr (M.PACK vn) (SomeHST i@(_ ::& rs)) =
+typeCheckInstr (Un.PACK vn) (SomeHST i@(_ ::& rs)) =
   pure $ PACK ::: (i, (ST_c ST_bytes, NStar, vn) ::& rs)
 
-typeCheckInstr (M.CONCAT vn) (SomeHST i@((ST_c ST_bytes, _, _) ::&
+typeCheckInstr (Un.CONCAT vn) (SomeHST i@((ST_c ST_bytes, _, _) ::&
                                     (ST_c ST_bytes, _, _) ::& _)) =
   liftEither $ concatImpl i vn
-typeCheckInstr (M.CONCAT vn) (SomeHST i@((ST_c ST_string, _, _) ::&
+typeCheckInstr (Un.CONCAT vn) (SomeHST i@((ST_c ST_string, _, _) ::&
                                     (ST_c ST_string, _, _) ::& _)) =
   liftEither $ concatImpl i vn
-typeCheckInstr (M.CONCAT vn) (SomeHST i@((ST_list (ST_c ST_bytes), _, _) ::& _)) =
+typeCheckInstr (Un.CONCAT vn) (SomeHST i@((ST_list (ST_c ST_bytes), _, _) ::& _)) =
   liftEither $  concatImpl' i vn
-typeCheckInstr (M.CONCAT vn) (SomeHST i@((ST_list (ST_c ST_string), _, _) ::& _)) =
+typeCheckInstr (Un.CONCAT vn) (SomeHST i@((ST_list (ST_c ST_string), _, _) ::& _)) =
   liftEither $ concatImpl' i vn
 
 
-typeCheckInstr (M.SLICE vn) (SomeHST i@((ST_c ST_nat, _, _) ::&
+typeCheckInstr (Un.SLICE vn) (SomeHST i@((ST_c ST_nat, _, _) ::&
                                    (ST_c ST_nat, _, _) ::&
                                    (ST_c ST_string, _, _) ::& _)) =
   liftEither $ sliceImpl i vn
-typeCheckInstr (M.SLICE vn) (SomeHST i@((ST_c ST_nat, _, _) ::&
+typeCheckInstr (Un.SLICE vn) (SomeHST i@((ST_c ST_nat, _, _) ::&
                                    (ST_c ST_nat, _, _) ::&
                                    (ST_c ST_bytes, _, _) ::& _)) =
   liftEither $ sliceImpl i vn
 
-typeCheckInstr (M.ISNAT vn') (SomeHST i@((ST_c ST_int, _, oldVn) ::& rs)) = do
+typeCheckInstr (Un.ISNAT vn') (SomeHST i@((ST_c ST_int, _, oldVn) ::& rs)) = do
   let vn = vn' `orAnn` oldVn
   pure $ ISNAT ::: (i, (ST_option (ST_c ST_nat), NStar, vn) ::& rs)
 
-typeCheckInstr (M.ADD vn) (SomeHST i@((ST_c a, _, _) ::&
+typeCheckInstr (Un.ADD vn) (SomeHST i@((ST_c a, _, _) ::&
                                  (ST_c b, _, _) ::& _)) = liftEither $ addImpl a b i vn
 
-typeCheckInstr (M.SUB vn) (SomeHST i@((ST_c a, _, _) ::&
+typeCheckInstr (Un.SUB vn) (SomeHST i@((ST_c a, _, _) ::&
                                  (ST_c b, _, _) ::& _)) = liftEither $ subImpl a b i vn
 
-typeCheckInstr (M.MUL vn) (SomeHST i@((ST_c a, _, _) ::&
+typeCheckInstr (Un.MUL vn) (SomeHST i@((ST_c a, _, _) ::&
                                  (ST_c b, _, _) ::& _)) = liftEither $ mulImpl a b i vn
 
-typeCheckInstr (M.EDIV vn) (SomeHST i@((ST_c a, _, _) ::&
+typeCheckInstr (Un.EDIV vn) (SomeHST i@((ST_c a, _, _) ::&
                                   (ST_c b, _, _) ::& _)) = liftEither $ edivImpl a b i vn
 
-typeCheckInstr (M.ABS vn) (SomeHST i@((ST_c ST_int, _, _) ::& _)) =
+typeCheckInstr (Un.ABS vn) (SomeHST i@((ST_c ST_int, _, _) ::& _)) =
   liftEither $ unaryArithImpl @Abs ABS i vn
 
-typeCheckInstr M.NEG (SomeHST i@((ST_c ST_int, _, _) ::& _)) =
+typeCheckInstr Un.NEG (SomeHST i@((ST_c ST_int, _, _) ::& _)) =
   liftEither $ unaryArithImpl @Neg NEG i def
 
-typeCheckInstr (M.LSL vn) (SomeHST i@((ST_c ST_nat, _, _) ::&
+typeCheckInstr (Un.LSL vn) (SomeHST i@((ST_c ST_nat, _, _) ::&
                          (ST_c ST_nat, _, _) ::& _)) = liftEither $ arithImpl @Lsl LSL i vn
 
-typeCheckInstr (M.LSR vn) (SomeHST i@((ST_c ST_nat, _, _) ::&
+typeCheckInstr (Un.LSR vn) (SomeHST i@((ST_c ST_nat, _, _) ::&
                          (ST_c ST_nat, _, _) ::& _)) = liftEither $ arithImpl @Lsr LSR i vn
 
-typeCheckInstr (M.OR vn) (SomeHST i@((ST_c ST_bool, _, _) ::&
+typeCheckInstr (Un.OR vn) (SomeHST i@((ST_c ST_bool, _, _) ::&
                          (ST_c ST_bool, _, _) ::& _)) = liftEither $ arithImpl @Or OR i vn
-typeCheckInstr (M.OR vn) (SomeHST i@((ST_c ST_nat, _, _) ::&
+typeCheckInstr (Un.OR vn) (SomeHST i@((ST_c ST_nat, _, _) ::&
                          (ST_c ST_nat, _, _) ::& _)) = liftEither $ arithImpl @Or OR i vn
 
-typeCheckInstr (M.AND vn) (SomeHST i@((ST_c ST_int, _, _) ::&
+typeCheckInstr (Un.AND vn) (SomeHST i@((ST_c ST_int, _, _) ::&
                          (ST_c ST_nat, _, _) ::& _)) = liftEither $ arithImpl @And AND i vn
-typeCheckInstr (M.AND vn) (SomeHST i@((ST_c ST_nat, _, _) ::&
+typeCheckInstr (Un.AND vn) (SomeHST i@((ST_c ST_nat, _, _) ::&
                          (ST_c ST_nat, _, _) ::& _)) = liftEither $ arithImpl @And AND i vn
-typeCheckInstr (M.AND vn) (SomeHST i@((ST_c ST_bool, _, _) ::&
+typeCheckInstr (Un.AND vn) (SomeHST i@((ST_c ST_bool, _, _) ::&
                          (ST_c ST_bool, _, _) ::& _)) = liftEither $ arithImpl @And AND i vn
 
-typeCheckInstr (M.XOR vn) (SomeHST i@((ST_c ST_bool, _, _) ::&
+typeCheckInstr (Un.XOR vn) (SomeHST i@((ST_c ST_bool, _, _) ::&
                          (ST_c ST_bool, _, _) ::& _)) = liftEither $ arithImpl @Xor XOR i vn
-typeCheckInstr (M.XOR vn) (SomeHST i@((ST_c ST_nat, _, _) ::&
+typeCheckInstr (Un.XOR vn) (SomeHST i@((ST_c ST_nat, _, _) ::&
                          (ST_c ST_nat, _, _) ::& _)) = liftEither $ arithImpl @Xor XOR i vn
 
-typeCheckInstr (M.NOT vn) (SomeHST i@((ST_c ST_nat, _, _) ::& _)) =
+typeCheckInstr (Un.NOT vn) (SomeHST i@((ST_c ST_nat, _, _) ::& _)) =
   liftEither $ unaryArithImpl @Not NOT i vn
-typeCheckInstr (M.NOT vn) (SomeHST i@((ST_c ST_bool, _, _) ::& _)) =
+typeCheckInstr (Un.NOT vn) (SomeHST i@((ST_c ST_bool, _, _) ::& _)) =
   liftEither $ unaryArithImpl @Not NOT i vn
-typeCheckInstr (M.NOT vn) (SomeHST i@((ST_c ST_int, _, _) ::& _)) =
+typeCheckInstr (Un.NOT vn) (SomeHST i@((ST_c ST_int, _, _) ::& _)) =
   liftEither $ unaryArithImpl @Not NOT i vn
 
-typeCheckInstr (M.COMPARE vn) (SomeHST i@((ST_c a, _, _) ::&
+typeCheckInstr (Un.COMPARE vn) (SomeHST i@((ST_c a, _, _) ::&
                                  (ST_c b, _, _) ::& _)) = liftEither $ compareImpl a b i vn
 
-typeCheckInstr (M.EQ vn) (SomeHST i@((ST_c ST_int, _, _) ::& _)) =
+typeCheckInstr (Un.EQ vn) (SomeHST i@((ST_c ST_int, _, _) ::& _)) =
   liftEither $ unaryArithImpl @Eq' EQ i vn
 
-typeCheckInstr (M.NEQ vn) (SomeHST i@((ST_c ST_int, _, _) ::& _)) =
+typeCheckInstr (Un.NEQ vn) (SomeHST i@((ST_c ST_int, _, _) ::& _)) =
   liftEither $ unaryArithImpl @Neq NEQ i vn
 
-typeCheckInstr (M.LT vn) (SomeHST i@((ST_c ST_int, _, _) ::& _)) =
+typeCheckInstr (Un.LT vn) (SomeHST i@((ST_c ST_int, _, _) ::& _)) =
   liftEither $ unaryArithImpl @Lt LT i vn
 
-typeCheckInstr (M.GT vn) (SomeHST i@((ST_c ST_int, _, _) ::& _)) =
+typeCheckInstr (Un.GT vn) (SomeHST i@((ST_c ST_int, _, _) ::& _)) =
   liftEither $ unaryArithImpl @Gt GT i vn
 
-typeCheckInstr (M.LE vn) (SomeHST i@((ST_c ST_int, _, _) ::& _)) =
+typeCheckInstr (Un.LE vn) (SomeHST i@((ST_c ST_int, _, _) ::& _)) =
   liftEither $ unaryArithImpl @Le LE i vn
 
-typeCheckInstr (M.GE vn) (SomeHST i@((ST_c ST_int, _, _) ::& _)) =
+typeCheckInstr (Un.GE vn) (SomeHST i@((ST_c ST_int, _, _) ::& _)) =
   liftEither $ unaryArithImpl @Ge GE i vn
 
-typeCheckInstr (M.INT vn) (SomeHST i@((ST_c ST_nat, _, _) ::& rs)) =
+typeCheckInstr (Un.INT vn) (SomeHST i@((ST_c ST_nat, _, _) ::& rs)) =
   pure $ INT ::: (i, (ST_c ST_int, NStar, vn) ::& rs)
 
-typeCheckInstr (M.SELF vn) (SomeHST i) =
+typeCheckInstr (Un.SELF vn) (SomeHST i) =
   pure $ SELF ::: (i, (sing, NStar, vn) ::& i)
 
-typeCheckInstr instr@(M.CONTRACT vn mt)
+typeCheckInstr instr@(Un.CONTRACT vn mt)
            (SomeHST i@((ST_c ST_address, _, _) ::& rs)) =
-  withSomeSingT (fromMType mt) $ \t -> liftEither $ do
+  withSomeSingT (fromUType mt) $ \t -> liftEither $ do
     tns <- extractNotes mt t
             `onLeft` TCFailedOnInstr instr (SomeHST i)
     let ns = mkNotes $ NT_option def def $ mkNotes $ NT_contract def tns
     pure $ CONTRACT ::: (i, (ST_option $ ST_contract t, ns, vn) ::& rs)
 
-typeCheckInstr instr@(M.TRANSFER_TOKENS vn) (SomeHST i@(((_ :: Sing p'), _, _)
+typeCheckInstr instr@(Un.TRANSFER_TOKENS vn) (SomeHST i@(((_ :: Sing p'), _, _)
   ::& (ST_c ST_mutez, _, _) ::& (ST_contract (_ :: Sing p), _, _) ::& rs)) = do
   case eqT' @p @p' of
     Right Refl ->
@@ -558,18 +558,18 @@ typeCheckInstr instr@(M.TRANSFER_TOKENS vn) (SomeHST i@(((_ :: Sing p'), _, _)
     Left m ->
       typeCheckInstrErrM instr (SomeHST i) $ "mismatch of contract param type: " <> m
 
-typeCheckInstr (M.SET_DELEGATE vn)
+typeCheckInstr (Un.SET_DELEGATE vn)
            (SomeHST i@((ST_option (ST_c ST_key_hash), _, _) ::& rs)) = do
   pure $ SET_DELEGATE ::: (i, (ST_operation, NStar, vn) ::& rs)
 
-typeCheckInstr (M.CREATE_ACCOUNT ovn avn)
+typeCheckInstr (Un.CREATE_ACCOUNT ovn avn)
            (SomeHST i@((ST_c ST_key_hash, _, _)
              ::& (ST_option (ST_c ST_key_hash), _, _) ::& (ST_c ST_bool, _, _)
              ::& (ST_c ST_mutez, _, _) ::& rs)) =
   pure $ CREATE_ACCOUNT ::: (i, (ST_operation, NStar, ovn) ::&
                                  (ST_c ST_address, NStar, avn) ::& rs)
 
-typeCheckInstr instr@(M.CREATE_CONTRACT ovn avn)
+typeCheckInstr instr@(Un.CREATE_CONTRACT ovn avn)
            (SomeHST i@((ST_c ST_key_hash, _, _)
              ::& (ST_option (ST_c ST_key_hash), _, _)
              ::& (ST_c ST_bool, _, _) ::& (ST_c ST_bool, _, _)
@@ -590,13 +590,13 @@ typeCheckInstr instr@(M.CREATE_CONTRACT ovn avn)
     pure $ CREATE_CONTRACT ::: (i, (ST_operation, NStar, ovn) ::&
                                      (ST_c ST_address, NStar, avn) ::& rs)
 
-typeCheckInstr instr@(M.CREATE_CONTRACT2 ovn avn contract)
+typeCheckInstr instr@(Un.CREATE_CONTRACT2 ovn avn contract)
            (SomeHST i@((ST_c ST_key_hash, _, _)
              ::& (ST_option (ST_c ST_key_hash), _, _) ::& (ST_c ST_bool, _, _)
              ::& (ST_c ST_bool, _, _) ::& (ST_c ST_mutez, _, _)
              ::& ((_ :: Sing g), gn, _) ::& rs)) = do
   (SomeContract (contr :: Contract i' g') _ out) <-
-      flip withExceptT (typeCheckContractImpl $ fmap M.unOp contract)
+      flip withExceptT (typeCheckContractImpl $ fmap Un.unOp contract)
                        (\err -> TCFailedOnInstr instr (SomeHST i)
                                     ("failed to type check contract: " <> show err))
   liftEither $ do
@@ -609,50 +609,50 @@ typeCheckInstr instr@(M.CREATE_CONTRACT2 ovn avn contract)
     outNotes ((_, n, _) ::& SNil) =
       notesCase NStar (\(NT_pair _ _ _ _ n') -> n') n
 
-typeCheckInstr (M.IMPLICIT_ACCOUNT vn)
+typeCheckInstr (Un.IMPLICIT_ACCOUNT vn)
            (SomeHST i@((ST_c ST_key_hash, _, _) ::& rs)) =
   pure $ IMPLICIT_ACCOUNT ::: (i, (ST_contract ST_unit, NStar, vn) ::& rs)
 
-typeCheckInstr (M.NOW vn) (SomeHST i) =
+typeCheckInstr (Un.NOW vn) (SomeHST i) =
   pure $ NOW ::: (i, (ST_c ST_timestamp, NStar, vn) ::& i)
 
-typeCheckInstr (M.AMOUNT vn) (SomeHST i) =
+typeCheckInstr (Un.AMOUNT vn) (SomeHST i) =
   pure $ AMOUNT ::: (i, (ST_c ST_mutez, NStar, vn) ::& i)
 
-typeCheckInstr (M.BALANCE vn) (SomeHST i) =
+typeCheckInstr (Un.BALANCE vn) (SomeHST i) =
   pure $ BALANCE ::: (i, (ST_c ST_mutez, NStar, vn) ::& i)
 
-typeCheckInstr (M.CHECK_SIGNATURE vn)
+typeCheckInstr (Un.CHECK_SIGNATURE vn)
            (SomeHST i@((ST_key, _, _)
              ::& (ST_signature, _, _) ::& (ST_c ST_bytes, _, _) ::& rs)) =
   pure $ CHECK_SIGNATURE ::: (i, (ST_c ST_bool, NStar, vn) ::& rs)
 
-typeCheckInstr (M.SHA256 vn)
+typeCheckInstr (Un.SHA256 vn)
            (SomeHST i@((ST_c ST_bytes, _, _) ::& rs)) =
   pure $ SHA256 ::: (i, (ST_c ST_bytes, NStar, vn) ::& rs)
 
-typeCheckInstr (M.SHA512 vn)
+typeCheckInstr (Un.SHA512 vn)
            (SomeHST i@((ST_c ST_bytes, _, _) ::& rs)) =
   pure $ SHA512 ::: (i, (ST_c ST_bytes, NStar, vn) ::& rs)
 
-typeCheckInstr (M.BLAKE2B vn)
+typeCheckInstr (Un.BLAKE2B vn)
            (SomeHST i@((ST_c ST_bytes, _, _) ::& rs)) =
   pure $ BLAKE2B ::: (i, (ST_c ST_bytes, NStar, vn) ::& rs)
 
-typeCheckInstr (M.HASH_KEY vn)
+typeCheckInstr (Un.HASH_KEY vn)
            (SomeHST i@((ST_key, _, _) ::& rs)) =
   pure $ HASH_KEY ::: (i, (ST_c ST_key_hash, NStar, vn) ::& rs)
 
-typeCheckInstr (M.STEPS_TO_QUOTA vn) (SomeHST i) =
+typeCheckInstr (Un.STEPS_TO_QUOTA vn) (SomeHST i) =
   pure $ STEPS_TO_QUOTA ::: (i, (ST_c ST_nat, NStar, vn) ::& i)
 
-typeCheckInstr (M.SOURCE vn) (SomeHST i) =
+typeCheckInstr (Un.SOURCE vn) (SomeHST i) =
   pure $ SOURCE ::: (i, (ST_c ST_address, NStar, vn) ::& i)
 
-typeCheckInstr (M.SENDER vn) (SomeHST i) =
+typeCheckInstr (Un.SENDER vn) (SomeHST i) =
   pure $ SENDER ::: (i, (ST_c ST_address, NStar, vn) ::& i)
 
-typeCheckInstr (M.ADDRESS vn) (SomeHST i@((ST_contract _, _, _) ::& rs)) =
+typeCheckInstr (Un.ADDRESS vn) (SomeHST i@((ST_contract _, _, _) ::& rs)) =
   pure $ ADDRESS ::: (i, (ST_c ST_address, NStar, vn) ::& rs)
 
 typeCheckInstr instr sit = typeCheckInstrErrM instr sit ""
@@ -664,14 +664,14 @@ genericIf
     (Typeable cp, SingI cp, Typeable bti, Typeable bfi, Show nop, Buildable nop)
   => (forall s'. Instr cp bti s'
           -> Instr cp bfi s' -> Instr cp (cond ': rs) s')
-  -> ([M.Op nop] -> [M.Op nop] -> M.Instr nop) -> [M.Op nop] -> [M.Op nop]
+  -> ([Un.Op nop] -> [Un.Op nop] -> Un.Instr nop) -> [Un.Op nop] -> [Un.Op nop]
   -> HST bti
   -> HST bfi
   -> HST (cond ': rs)
   -> TypeCheckT cp nop (SomeInstr cp)
 genericIf cons mCons mbt mbf bti bfi i@(_ ::& _) =
-  liftA2 (,) (typeCheckList @cp (M.unOp <$> mbt) (SomeHST bti))
-             (typeCheckList @cp (M.unOp <$> mbf) (SomeHST bfi)) >>= liftEither . \case
+  liftA2 (,) (typeCheckList @cp (Un.unOp <$> mbt) (SomeHST bti))
+             (typeCheckList @cp (Un.unOp <$> mbf) (SomeHST bfi)) >>= liftEither . \case
   (p ::: ((_ :: HST pi), (po :: HST po)), q ::: ((_ :: HST qi), (qo :: HST qo))) -> do
     Refl <- assertEqT @bti @pi instr i
     Refl <- assertEqT @bfi @qi instr i
@@ -702,12 +702,12 @@ mapImpl
   , Buildable nop
   )
   => Sing (MapOpInp c) -> Notes (MapOpInp c)
-  -> M.Instr nop -> [M.Op nop] -> HST (c ': rs)
+  -> Un.Instr nop -> [Un.Op nop] -> HST (c ': rs)
   -> (forall v' . Typeable v' =>
         Sing v' -> Notes v' -> HST rs -> HST (MapOpRes c v' ': rs))
   -> TypeCheckT cp nop (SomeInstr cp)
 mapImpl pt pns instr mp i@(_ ::& rs) mkRes =
-  typeCheckList @cp (M.unOp <$> mp)
+  typeCheckList @cp (Un.unOp <$> mp)
                       (SomeHST $ (pt, pns, def) ::& rs) >>= \case
     SiFail -> pure SiFail
     sub ::: ((_ :: HST subi), (subo :: HST subo)) -> liftEither $ do
@@ -730,13 +730,13 @@ iterImpl
     , Buildable nop
     )
   => Sing (IterOpEl c) -> Notes (IterOpEl c)
-  -> M.Instr nop
-  -> NonEmpty (M.Op nop)
+  -> Un.Instr nop
+  -> NonEmpty (Un.Op nop)
   -> HST (c ': rs)
   -> TypeCheckT cp nop (SomeInstr cp)
 iterImpl et en instr mp i@((_, _, lvn) ::& rs) = do
   let evn = deriveVN "elt" lvn
-  typeCheckNE @cp (fmap M.unOp mp) (SomeHST ((et, en, evn) ::& rs)) >>= \case
+  typeCheckNE @cp (fmap Un.unOp mp) (SomeHST ((et, en, evn) ::& rs)) >>= \case
     SiFail -> pure SiFail
     subI ::: ((_ :: HST i), (o :: HST o)) -> liftEither $ do
       Refl <- assertEqT @i @(IterOpEl c ': rs) instr i
@@ -751,14 +751,14 @@ lamImpl
     , Show nop, Buildable nop
     , SingI it, SingI ot
     )
-  => M.Instr nop
-  -> [M.Op nop]  -> VarAnn
+  => Un.Instr nop
+  -> [Un.Op nop]  -> VarAnn
   -> Sing it -> Notes it
   -> Sing ot -> Notes ot
   -> HST ts
   -> TypeCheckT cp nop (SomeInstr cp)
 lamImpl instr is vn it ins ot ons i = do
-  typeCheckList @cp (fmap M.unOp is) (SomeHST $ (it, ins, def) ::& SNil) >>=
+  typeCheckList @cp (fmap Un.unOp is) (SomeHST $ (it, ins, def) ::& SNil) >>=
     \case
       SiFail -> pure SiFail
       lam ::: ((_ :: HST li), (lo :: HST lo)) -> liftEither $ do

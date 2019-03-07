@@ -27,7 +27,7 @@ import Michelson.TypeCheck
   typeCheckVal)
 import Michelson.Typed
   (CVal(..), Contract, Instr(..), Operation(..), SetDelegate(..), Sing(..), T(..),
-  TransferTokens(..), Val(..), fromMType, valToOpOrValue)
+  TransferTokens(..), Val(..), fromUType, valToOpOrValue)
 import qualified Michelson.Typed as Typed
 import Michelson.Typed.Arith
 import Michelson.Typed.Polymorphic
@@ -120,10 +120,10 @@ interpretUntyped nopHandler' U.Contract{..} paramU initStU env = do
               (U.Contract para stor (U.unOp <$> code))
     paramV :::: ((_ :: Sing cp1), _)
        <- first IllTypedParam $ runTypeCheckT nopHandler' $
-            typeCheckVal @cp paramU (fromMType para)
+            typeCheckVal @cp paramU (fromUType para)
     initStV :::: ((_ :: Sing st1), _)
        <- first IllTypedStorage $ runTypeCheckT nopHandler' $
-            typeCheckVal @cp initStU (fromMType stor)
+            typeCheckVal @cp initStU (fromUType stor)
     Refl <- first UnexpectedStorageType $ eqT' @st @st1
     Refl <- first UnexpectedParamType   $ eqT' @cp @cp1
     fmap (uncurry InterpretUntypedResult) $

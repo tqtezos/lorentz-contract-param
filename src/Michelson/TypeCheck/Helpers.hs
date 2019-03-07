@@ -46,7 +46,7 @@ import Michelson.Typed.Arith (Add, ArithOp(..), Compare, Mul, Sub, UnaryArithOp(
 import Michelson.Typed.Polymorphic
   (ConcatOp, EDivOp(..), GetOp(..), MemOp(..), SizeOp, SliceOp, UpdOp(..))
 
-import qualified Michelson.Untyped as M
+import qualified Michelson.Untyped as Un
 import Michelson.Untyped.Annotation (FieldAnn, VarAnn)
 
 -- | Function which derives special annotations
@@ -65,24 +65,24 @@ deriveSpecialFNs
   :: FieldAnn -> FieldAnn
   -> VarAnn -> VarAnn
   -> (VarAnn, FieldAnn, FieldAnn)
-deriveSpecialFNs "@" "@" (M.Annotation pvn) (M.Annotation qvn) = (vn, pfn, qfn)
+deriveSpecialFNs "@" "@" (Un.Annotation pvn) (Un.Annotation qvn) = (vn, pfn, qfn)
   where
     ps = T.splitOn "." pvn
     qs = T.splitOn "." qvn
     fns = fst <$> takeWhile (\(a, b) -> a == b) (zip ps qs)
-    vn = M.Annotation $ T.intercalate "." fns
-    pfn = M.Annotation $ T.intercalate "." $ drop (length fns) ps
-    qfn = M.Annotation $ T.intercalate "." $ drop (length fns) qs
-deriveSpecialFNs "@" qfn pvn _   = (def, M.convAnn pvn, qfn)
-deriveSpecialFNs pfn "@" _ qvn   = (def, pfn, M.convAnn qvn)
+    vn = Un.Annotation $ T.intercalate "." fns
+    pfn = Un.Annotation $ T.intercalate "." $ drop (length fns) ps
+    qfn = Un.Annotation $ T.intercalate "." $ drop (length fns) qs
+deriveSpecialFNs "@" qfn pvn _   = (def, Un.convAnn pvn, qfn)
+deriveSpecialFNs pfn "@" _ qvn   = (def, pfn, Un.convAnn qvn)
 deriveSpecialFNs pfn qfn _ _     = (def, pfn, qfn)
 
 -- | Function which derives special annotations
 -- for CDR / CAR instructions.
 deriveSpecialVN :: VarAnn -> FieldAnn -> VarAnn -> VarAnn
 deriveSpecialVN vn elFn pairVN
-  | vn == "%" = M.convAnn elFn
-  | vn == "%%" && elFn /= def = pairVN <> M.convAnn elFn
+  | vn == "%" = Un.convAnn elFn
+  | vn == "%%" && elFn /= def = pairVN <> Un.convAnn elFn
   | otherwise = vn
 
 -- | Append suffix to variable annotation (if it's not empty)
@@ -99,8 +99,8 @@ deriveNsOr ons ovn =
   let (an, bn, afn, bfn) =
         notesCase (NStar, NStar, def, def)
           (\(NT_or _ afn_ bfn_ an_ bn_) -> (an_, bn_, afn_, bfn_)) ons
-      avn = deriveVN (M.convAnn afn `orAnn` "left") ovn
-      bvn = deriveVN (M.convAnn bfn `orAnn` "right") ovn
+      avn = deriveVN (Un.convAnn afn `orAnn` "left") ovn
+      bvn = deriveVN (Un.convAnn bfn `orAnn` "right") ovn
    in (an, bn, avn, bvn)
 
 -- | Function which extracts annotations for @option t@ type.
@@ -111,7 +111,7 @@ deriveNsOption :: Notes ('T_option a) -> VarAnn -> (Notes a, VarAnn)
 deriveNsOption ons ovn =
   let (an, fn) = notesCase (NStar, def)
                     (\(NT_option _ fn_ an_) -> (an_, fn_)) ons
-      avn = deriveVN (M.convAnn fn `orAnn` "some") ovn
+      avn = deriveVN (Un.convAnn fn `orAnn` "some") ovn
    in (an, avn)
 
 convergeHSTEl
@@ -138,7 +138,7 @@ onLeft = flip first
 
 checkEqT
   :: forall a b ts nop . (Typeable a, Typeable b, Typeable ts)
-  => M.Instr nop
+  => Un.Instr nop
   -> HST ts
   -> Text
   -> Either (TCError nop) (a :~: b)
@@ -147,7 +147,7 @@ checkEqT instr i m =
 
 assertEqT
   :: forall a b ts nop . (Typeable a, Typeable b, Typeable ts)
-  => M.Instr nop
+  => Un.Instr nop
   -> HST ts
   -> Either (TCError nop) (a :~: b)
 assertEqT instr i = checkEqT instr i "unexpected"
@@ -162,16 +162,16 @@ eqT' = maybe (Left $
                   <> show (typeRep (Proxy @b))
                   ) pure eqT
 
-typeCheckInstrErr :: M.Instr nop -> SomeHST -> Text -> Either (TCError nop) a
+typeCheckInstrErr :: Un.Instr nop -> SomeHST -> Text -> Either (TCError nop) a
 typeCheckInstrErr = Left ... TCFailedOnInstr
 
-typeCheckInstrErrM :: M.Instr nop -> SomeHST -> Text -> TypeCheckT cp nop a
+typeCheckInstrErrM :: Un.Instr nop -> SomeHST -> Text -> TypeCheckT cp nop a
 typeCheckInstrErrM = throwError ... TCFailedOnInstr
 
 typeCheckImpl
   :: forall cp nop . (Typeable cp, SingI cp)
   => TcInstrHandler cp nop
-  -> [M.Instr nop]
+  -> [Un.Instr nop]
   -> SomeHST
   -> TypeCheckT cp nop (SomeInstr cp)
 typeCheckImpl tcInstr [a] t = tcInstr a t
@@ -195,7 +195,7 @@ typeCheckImpl _ [] (SomeHST s) = pure $ Nop ::: (s, s)
 memImpl
   :: forall (q :: CT) (c :: T) ts cp nop.
     (Typeable ts, Typeable q, Typeable (MemOpKey c), MemOp c)
-  => M.Instr nop -> HST ('T_c q ': c ': ts) -> VarAnn
+  => Un.Instr nop -> HST ('T_c q ': c ': ts) -> VarAnn
   -> Either (TCError nop) (SomeInstr cp)
 memImpl instr i@(_ ::& _ ::& rs) vn =
   case eqT' @q @(MemOpKey c) of
@@ -208,7 +208,7 @@ getImpl
     ( GetOp c, Typeable (GetOpKey c)
     , Typeable (GetOpVal c)
     )
-  => M.Instr nop
+  => Un.Instr nop
   -> HST (getKey ': c ': rs)
   -> Sing (GetOpVal c)
   -> Notes (GetOpVal c)
@@ -225,7 +225,7 @@ getImpl instr i@(_ ::& _ ::& rs) rt vns vn = do
 updImpl
   :: forall c cp updKey updParams rs nop .
     (UpdOp c, Typeable (UpdOpKey c), Typeable (UpdOpParams c))
-  => M.Instr nop
+  => Un.Instr nop
   -> HST (updKey ': updParams ': c ': rs)
   -> Either (TCError nop) (SomeInstr cp)
 updImpl instr i@(_ ::& _ ::& crs) = do
@@ -245,7 +245,7 @@ sizeImpl i@(_ ::& rs) vn =
 sliceImpl
   :: (SliceOp c, Typeable c)
   => HST ('T_c 'T_nat : 'T_c 'T_nat : c : rs)
-  -> M.VarAnn -> Either (TCError nop) (SomeInstr cp)
+  -> Un.VarAnn -> Either (TCError nop) (SomeInstr cp)
 sliceImpl i@(_ ::& _ ::& (c, cn, cvn) ::& rs) vn = do
   let vn' = vn `orAnn` deriveVN "slice" cvn
       rn = mkNotes $ NT_option def def cn
@@ -254,7 +254,7 @@ sliceImpl i@(_ ::& _ ::& (c, cn, cvn) ::& rs) vn = do
 concatImpl'
   :: (ConcatOp c, Typeable c)
   => HST ('T_list c : rs)
-  -> M.VarAnn -> Either (TCError nop) (SomeInstr cp)
+  -> Un.VarAnn -> Either (TCError nop) (SomeInstr cp)
 concatImpl' i@((ST_list c, ln, _) ::& rs) vn = do
   let cn = notesCase NStar (\(NT_list _ n) -> n) ln
   pure $ CONCAT' ::: (i, (c, cn, vn) ::& rs)
@@ -262,9 +262,9 @@ concatImpl' i@((ST_list c, ln, _) ::& rs) vn = do
 concatImpl
   :: (ConcatOp c, Typeable c)
   => HST (c : c : rs)
-  -> M.VarAnn -> Either (TCError nop) (SomeInstr cp)
+  -> Un.VarAnn -> Either (TCError nop) (SomeInstr cp)
 concatImpl i@((c, cn1, _) ::& (_, cn2, _) ::& rs) vn = do
-  cn <- converge cn1 cn2 `onLeft` TCFailedOnInstr (M.CONCAT vn) (SomeHST i)
+  cn <- converge cn1 cn2 `onLeft` TCFailedOnInstr (Un.CONCAT vn) (SomeHST i)
   pure $ CONCAT ::: (i, (c, cn, vn) ::& rs)
 
 -- | Helper function to construct instructions for binary arithmetic
@@ -292,7 +292,7 @@ addImpl ST_nat ST_nat = arithImpl @Add ADD
 addImpl ST_int ST_timestamp = arithImpl @Add ADD
 addImpl ST_timestamp ST_int = arithImpl @Add ADD
 addImpl ST_mutez ST_mutez = arithImpl @Add ADD
-addImpl _ _ = \i vn -> typeCheckInstrErr (M.ADD vn) (SomeHST i) ""
+addImpl _ _ = \i vn -> typeCheckInstrErr (Un.ADD vn) (SomeHST i) ""
 
 edivImpl
   :: (Typeable rs, Typeable a, Typeable b)
@@ -304,7 +304,7 @@ edivImpl ST_nat ST_int = edivImplDo
 edivImpl ST_nat ST_nat = edivImplDo
 edivImpl ST_mutez ST_mutez = edivImplDo
 edivImpl ST_mutez ST_nat = edivImplDo
-edivImpl _ _ = \i vn -> typeCheckInstrErr (M.EDIV vn) (SomeHST i) ""
+edivImpl _ _ = \i vn -> typeCheckInstrErr (Un.EDIV vn) (SomeHST i) ""
 
 edivImplDo
   :: ( EDivOp n m
@@ -330,7 +330,7 @@ subImpl ST_nat ST_nat = arithImpl @Sub SUB
 subImpl ST_timestamp ST_timestamp = arithImpl @Sub SUB
 subImpl ST_timestamp ST_int = arithImpl @Sub SUB
 subImpl ST_mutez ST_mutez = arithImpl @Sub SUB
-subImpl _ _ = \i vn -> typeCheckInstrErr (M.SUB vn) (SomeHST i) ""
+subImpl _ _ = \i vn -> typeCheckInstrErr (Un.SUB vn) (SomeHST i) ""
 
 mulImpl
   :: (Typeable rs, Typeable a, Typeable b)
@@ -342,7 +342,7 @@ mulImpl ST_nat ST_int = arithImpl @Mul MUL
 mulImpl ST_nat ST_nat = arithImpl @Mul MUL
 mulImpl ST_nat ST_mutez = arithImpl @Mul MUL
 mulImpl ST_mutez ST_nat = arithImpl @Mul MUL
-mulImpl _ _ = \i vn -> typeCheckInstrErr (M.MUL vn) (SomeHST i) ""
+mulImpl _ _ = \i vn -> typeCheckInstrErr (Un.MUL vn) (SomeHST i) ""
 
 compareImpl
   :: (Typeable rs, Typeable a, Typeable b)
@@ -357,7 +357,7 @@ compareImpl ST_bytes ST_bytes = arithImpl @Compare COMPARE
 compareImpl ST_timestamp ST_timestamp = arithImpl @Compare COMPARE
 compareImpl ST_key_hash ST_key_hash = arithImpl @Compare COMPARE
 compareImpl ST_mutez ST_mutez = arithImpl @Compare COMPARE
-compareImpl _ _ = \i vn -> typeCheckInstrErr (M.COMPARE vn) (SomeHST i) ""
+compareImpl _ _ = \i vn -> typeCheckInstrErr (Un.COMPARE vn) (SomeHST i) ""
 
 -- | Helper function to construct instructions for binary arithmetic
 --erations.

@@ -17,38 +17,38 @@ import Michelson.Typed
   (CT(..), Instr(..), Notes(..), Notes'(..), Sing(..), T(..), converge, mkNotes, withSomeSingCT,
   withSomeSingT)
 import Michelson.Typed.Value (CVal(..), Val(..))
-import qualified Michelson.Untyped as M
+import qualified Michelson.Untyped as Un
 import Tezos.Address (parseAddress)
 import Tezos.Core (mkMutez, parseTimestamp, timestampFromSeconds)
 import Tezos.Crypto (parseKeyHash, parsePublicKey, parseSignature)
 
-typeCheckCVal :: M.Value op -> CT -> Maybe SomeValC
-typeCheckCVal (M.ValueInt i) T_int = pure $ CvInt i :--: ST_int
-typeCheckCVal (M.ValueInt i) T_nat
+typeCheckCVal :: Un.Value op -> CT -> Maybe SomeValC
+typeCheckCVal (Un.ValueInt i) T_int = pure $ CvInt i :--: ST_int
+typeCheckCVal (Un.ValueInt i) T_nat
   | i >= 0 = pure $ CvNat (fromInteger i) :--: ST_nat
-typeCheckCVal (M.ValueInt (mkMutez . fromInteger -> Just mtz)) T_mutez =
+typeCheckCVal (Un.ValueInt (mkMutez . fromInteger -> Just mtz)) T_mutez =
   pure $ CvMutez mtz :--: ST_mutez
-typeCheckCVal (M.ValueString s) T_string =
+typeCheckCVal (Un.ValueString s) T_string =
   pure $ CvString s :--: ST_string
-typeCheckCVal (M.ValueString (parseAddress -> Right s)) T_address =
+typeCheckCVal (Un.ValueString (parseAddress -> Right s)) T_address =
   pure $ CvAddress s :--: ST_address
-typeCheckCVal (M.ValueString (parseKeyHash -> Right s)) T_key_hash =
+typeCheckCVal (Un.ValueString (parseKeyHash -> Right s)) T_key_hash =
   pure $ CvKeyHash s :--: ST_key_hash
-typeCheckCVal (M.ValueString (parseTimestamp -> Just t)) T_timestamp =
+typeCheckCVal (Un.ValueString (parseTimestamp -> Just t)) T_timestamp =
   pure $ CvTimestamp t :--: ST_timestamp
-typeCheckCVal (M.ValueInt i) T_timestamp =
+typeCheckCVal (Un.ValueInt i) T_timestamp =
   pure $ CvTimestamp (timestampFromSeconds i) :--: ST_timestamp
-typeCheckCVal (M.ValueBytes (M.InternalByteString s)) T_bytes =
+typeCheckCVal (Un.ValueBytes (Un.InternalByteString s)) T_bytes =
   pure $ CvBytes s :--: ST_bytes
-typeCheckCVal M.ValueTrue T_bool = pure $ CvBool True :--: ST_bool
-typeCheckCVal M.ValueFalse T_bool = pure $ CvBool False :--: ST_bool
+typeCheckCVal Un.ValueTrue T_bool = pure $ CvBool True :--: ST_bool
+typeCheckCVal Un.ValueFalse T_bool = pure $ CvBool False :--: ST_bool
 typeCheckCVal _ _ = Nothing
 
 typeCheckCVals
   :: forall t op . Typeable t
-  => [M.Value op]
+  => [Un.Value op]
   -> CT
-  -> Either (M.Value op, Text) [CVal t]
+  -> Either (Un.Value op, Text) [CVal t]
 typeCheckCVals mvs t = traverse check mvs
   where
     check mv = do
@@ -72,69 +72,69 @@ typeCheckCVals mvs t = traverse check mvs
 typeCheckValImpl
   :: forall cp nop . (Typeable cp, SingI cp)
   => TcInstrHandler cp nop
-  -> M.Value (M.Op nop)
+  -> Un.Value (Un.Op nop)
   -> T
   -> TypeCheckT cp nop (SomeVal cp)
 typeCheckValImpl _ mv t@(T_c ct) =
   maybe (throwError $ TCFailedOnValue mv t "")
         (\(v :--: cst) -> pure $ VC v :::: (ST_c cst, NStar))
         (typeCheckCVal mv ct)
-typeCheckValImpl _ (M.ValueString (parsePublicKey -> Right s)) T_key =
+typeCheckValImpl _ (Un.ValueString (parsePublicKey -> Right s)) T_key =
   pure $ VKey s :::: (ST_key, NStar)
 
-typeCheckValImpl _ (M.ValueString (parseSignature -> Right s)) T_signature =
+typeCheckValImpl _ (Un.ValueString (parseSignature -> Right s)) T_signature =
   pure $ VSignature s :::: (ST_signature, NStar)
 
-typeCheckValImpl _ (M.ValueString (parseAddress -> Right s)) (T_contract pt) =
+typeCheckValImpl _ (Un.ValueString (parseAddress -> Right s)) (T_contract pt) =
   withSomeSingT pt $ \p ->
     pure $ VContract s :::: (ST_contract p, NStar)
-typeCheckValImpl _ M.ValueUnit T_unit = pure $ VUnit :::: (ST_unit, NStar)
-typeCheckValImpl tcDo (M.ValuePair ml mr) (T_pair lt rt) = do
+typeCheckValImpl _ Un.ValueUnit T_unit = pure $ VUnit :::: (ST_unit, NStar)
+typeCheckValImpl tcDo (Un.ValuePair ml mr) (T_pair lt rt) = do
   l :::: (lst, ln) <- typeCheckValImpl tcDo ml lt
   r :::: (rst, rn) <- typeCheckValImpl tcDo mr rt
   let ns = mkNotes $ NT_pair def def def ln rn
   pure $ VPair (l, r) :::: (ST_pair lst rst, ns)
-typeCheckValImpl tcDo (M.ValueLeft ml) (T_or lt rt) = do
+typeCheckValImpl tcDo (Un.ValueLeft ml) (T_or lt rt) = do
   l :::: (lst, ln) <- typeCheckValImpl tcDo ml lt
   withSomeSingT rt $ \rst ->
     pure $ VOr (Left l) :::: ( ST_or lst rst
                              , mkNotes $ NT_or def def def ln NStar )
-typeCheckValImpl tcDo (M.ValueRight mr) (T_or lt rt) = do
+typeCheckValImpl tcDo (Un.ValueRight mr) (T_or lt rt) = do
   r :::: (rst, rn) <- typeCheckValImpl tcDo mr rt
   withSomeSingT lt $ \lst ->
     pure $ VOr (Right r) :::: ( ST_or lst rst
                               , mkNotes $ NT_or def def def NStar rn )
-typeCheckValImpl tcDo (M.ValueSome mv) (T_option vt) = do
+typeCheckValImpl tcDo (Un.ValueSome mv) (T_option vt) = do
   v :::: (vst, vns) <- typeCheckValImpl tcDo mv vt
   let ns = mkNotes $ NT_option def def vns
   pure $ VOption (Just v) :::: (ST_option vst, ns)
-typeCheckValImpl _ M.ValueNone (T_option vt) =
+typeCheckValImpl _ Un.ValueNone (T_option vt) =
   withSomeSingT vt $ \vst ->
     pure $ VOption Nothing :::: (ST_option vst, NStar)
 
-typeCheckValImpl tcDo (M.ValueSeq mels) (T_list vt) =
+typeCheckValImpl tcDo (Un.ValueSeq mels) (T_list vt) =
   withSomeSingT vt $ \vst -> do
     (els, ns) <- typeCheckValsImpl tcDo mels vt
     pure $ VList els :::: (ST_list vst, mkNotes $ NT_list def ns)
 
-typeCheckValImpl _ (M.ValueSeq mels) (T_set vt) =
+typeCheckValImpl _ (Un.ValueSeq mels) (T_set vt) =
   withSomeSingCT vt $ \vst -> do
     els <- liftEither $ typeCheckCVals mels vt
             `onLeft` \(cv, err) -> TCFailedOnValue cv (T_c vt) $
                                       "wrong type of set element: " <> err
     pure $ VSet (S.fromList els) :::: (ST_set vst, NStar)
 
-typeCheckValImpl tcDo (M.ValueMap mels) (T_map kt vt) =
+typeCheckValImpl tcDo (Un.ValueMap mels) (T_map kt vt) =
   withSomeSingT vt $ \vst ->
   withSomeSingCT kt $ \kst -> do
-    ks <- liftEither $  typeCheckCVals (map (\(M.Elt k _) -> k) mels) kt
+    ks <- liftEither $  typeCheckCVals (map (\(Un.Elt k _) -> k) mels) kt
             `onLeft` \(cv, err) -> TCFailedOnValue cv (T_c kt) $
                                       "wrong type of map key: " <> err
-    (vals, vns) <- typeCheckValsImpl tcDo (map (\(M.Elt _ v) -> v) mels) vt
+    (vals, vns) <- typeCheckValsImpl tcDo (map (\(Un.Elt _ v) -> v) mels) vt
     let ns = mkNotes $ NT_map def def vns
     pure $ VMap (M.fromList $ zip ks vals) :::: (ST_map kst vst, ns)
 
-typeCheckValImpl tcDo v@(M.ValueLambda (fmap M.unOp -> mp)) t@(T_lambda mi mo) =
+typeCheckValImpl tcDo v@(Un.ValueLambda (fmap Un.unOp -> mp)) t@(T_lambda mi mo) =
   withSomeSingT mi $ \(it :: Sing it) ->
   withSomeSingT mo $ \(ot :: Sing ot) ->
     typeCheckImpl tcDo mp (SomeHST $ (it, NStar, def) ::& SNil) >>= \case
@@ -166,7 +166,7 @@ typeCheckValsImpl
     , Typeable cp, SingI cp
     )
   => TcInstrHandler cp nop
-  -> [M.Value (M.Op nop)]
+  -> [Un.Value (Un.Op nop)]
   -> T
   -> TypeCheckT cp nop ([Val (Instr cp) t], Notes t)
 typeCheckValsImpl tcDo mvs t = foldM check ([], NStar) mvs

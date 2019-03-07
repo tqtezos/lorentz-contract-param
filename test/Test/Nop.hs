@@ -5,7 +5,7 @@ module Test.Nop
 import Test.Hspec (Expectation, Spec, describe, expectationFailure, it)
 
 import Michelson.TypeCheck (HST(..), SomeHST(..))
-import Michelson.Typed (extractNotes, fromMType, withSomeSingT)
+import Michelson.Typed (extractNotes, fromUType, withSomeSingT)
 import Michelson.Untyped (noAnn, Type (..), T (..), CT (..), ann)
 import Morley.Nop (nopHandler)
 import Morley.Types (NopInstr(..), StackTypePattern(..))
@@ -43,7 +43,7 @@ nopHandlerSpec = describe "nopHandler STACKTYPE tests" $ do
 
     convertToHST :: [Type] -> SomeHST
     convertToHST [] = SomeHST SNil
-    convertToHST (t : ts) = withSomeSingT (fromMType t) $ \sing ->
+    convertToHST (t : ts) = withSomeSingT (fromUType t) $ \sing ->
       let nt = either (const $ error "unexpected trouble with extracting annotations") id (extractNotes t sing) in
       case convertToHST ts of
         SomeHST is -> SomeHST ((sing, nt, noAnn) ::& is)

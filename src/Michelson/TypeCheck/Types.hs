@@ -20,7 +20,7 @@ import Prelude hiding (EQ, GT, LT)
 import qualified Text.Show
 
 import Michelson.Typed (Notes(..), Sing(..), T(..), fromSingT)
-import Michelson.Typed.Extract (toMType)
+import Michelson.Typed.Extract (toUType)
 import Michelson.Typed.Instr
 import Michelson.Typed.Value
 
@@ -131,7 +131,7 @@ instance Buildable nop => Buildable (TCError nop) where
           ||+ bool (": " +| custom |+ "") "" (null custom)
     TCFailedOnValue v t custom ->
       "Error checking value " +| v
-          |+ " against type " +| toMType t
+          |+ " against type " +| toUType t
           |+ bool (": " +| custom |+ "") "" (null custom)
     TCOtherError e ->
       "Error occurred during type check: " +| e |+ ""
