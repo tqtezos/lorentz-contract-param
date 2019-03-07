@@ -32,7 +32,7 @@ module Michelson.TypeCheck.Instr
 
 import Prelude hiding (EQ, GT, LT)
 
-import Control.Monad.Except (liftEither, throwError)
+import Control.Monad.Except (liftEither, throwError, withExceptT)
 import Data.Default (def)
 import Data.Singletons (SingI(sing))
 import Data.Typeable ((:~:)(..))
@@ -596,9 +596,9 @@ typeCheckInstr instr@(M.CREATE_CONTRACT2 ovn avn contract)
              ::& (ST_c ST_bool, _, _) ::& (ST_c ST_mutez, _, _)
              ::& ((_ :: Sing g), gn, _) ::& rs)) = do
   (SomeContract (contr :: Contract i' g') _ out) <-
-      typeCheckContractImpl (fmap M.unOp contract)
-        `onLeftM` \err -> TCFailedOnInstr instr (SomeIT i)
-                          ("failed to type check contract: " <> show err)
+      flip withExceptT (typeCheckContractImpl $ fmap M.unOp contract)
+                       (\err -> TCFailedOnInstr instr (SomeIT i)
+                                    ("failed to type check contract: " <> show err))
   liftEither $ do
     Refl <- checkEqT @g @g' instr i "contract storage type mismatch"
     void $ converge gn (outNotes out) `onLeft` TCFailedOnInstr instr (SomeIT i)

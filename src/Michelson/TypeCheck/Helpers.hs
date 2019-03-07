@@ -1,6 +1,5 @@
 module Michelson.TypeCheck.Helpers
     ( onLeft
-    , onLeftM
     , deriveSpecialVN
     , deriveSpecialFNs
     , deriveVN
@@ -34,7 +33,7 @@ module Michelson.TypeCheck.Helpers
 
 import Prelude hiding (EQ, GT, LT)
 
-import Control.Monad.Except (liftEither, throwError, withExceptT)
+import Control.Monad.Except (liftEither, throwError)
 import Data.Default (def)
 import Data.Singletons (SingI(sing))
 import qualified Data.Text as T
@@ -132,10 +131,6 @@ convergeIT (a ::& as) (b ::& bs) =
 -- TODO move to Util module
 onLeft :: Either a c -> (a -> b) -> Either b c
 onLeft = flip first
-
--- TODO move to Util module
-onLeftM :: Functor m => ExceptT e m c -> (e -> e) -> ExceptT e m c
-onLeftM = flip withExceptT
 
 --------------------------------------------
 -- Typechecker auxiliary
