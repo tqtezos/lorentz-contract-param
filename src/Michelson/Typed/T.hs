@@ -3,8 +3,7 @@
 -- | Module, providing 'CT' and 'T' data types, representing Michelson
 -- language types without annotations.
 module Michelson.Typed.T
-  (
-    CT (..)
+  ( CT (..)
   , T (..)
   ) where
 

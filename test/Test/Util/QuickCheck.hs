@@ -38,7 +38,8 @@ import Formatting (build, formatToString)
 import Formatting.Buildable (Buildable)
 import Test.QuickCheck (Arbitrary)
 import Test.QuickCheck.Property (Result(..), failed, property)
-import qualified Text.Show
+import Text.Show (show)
+import Prelude hiding (show)
 
 import Data.Aeson (FromJSON(..), ToJSON(..))
 import qualified Data.Aeson as Aeson

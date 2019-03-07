@@ -50,13 +50,14 @@ module Morley.Types
 import Data.Aeson.TH (defaultOptions, deriveJSON)
 import Data.Data (Data(..))
 import qualified Data.Text as T
+import Text.Megaparsec (errorBundlePretty, Parsec, ParseErrorBundle, ShowErrorComponent(..))
+import Text.Show (show)
+
 import Michelson.Untyped
   (Annotation(..), CT(..), Comparable(..), Contract(..), Elt(..), FieldAnn, Instr,
   InstrAbstract(..), InternalByteString(..), Op(..), Parameter, Storage, T(..), Type(..), TypeAnn,
   Value(..), VarAnn, ann, noAnn, unInternalByteString)
 import Morley.Default (Default(..))
-import Text.Megaparsec
-import qualified Text.Show
 
 -------------------------------------
 -- Types for the parser

@@ -11,14 +11,16 @@ module Morley.Parser
 
 import Prelude hiding (many, note, some, try)
 
-import Control.Applicative.Permutations
+import Control.Applicative.Permutations (intercalateEffect, toPermutation)
 import qualified Data.ByteString.Base16 as B16
 import Data.Char as Char
 import Data.Default (Default)
 import qualified Data.Text as T
 
 import Text.Megaparsec
-import Text.Megaparsec.Char hiding (string')
+  (choice, customFailure, eitherP, many, manyTill, notFollowedBy, satisfy, sepEndBy, some,
+   takeWhile1P, try)
+import Text.Megaparsec.Char (alphaNumChar, char, string)
 import qualified Text.Megaparsec.Char.Lexer as L
 
 import Morley.Lexer

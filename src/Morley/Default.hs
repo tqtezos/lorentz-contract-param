@@ -3,8 +3,8 @@ module Morley.Default
   , Default (..)
   ) where
 
-import Control.Applicative.Permutations
-import Data.Default
+import Control.Applicative.Permutations (toPermutationWithDefault, runPermutation)
+import Data.Default (def, Default)
 
 {- Permutation Parsers -}
 
