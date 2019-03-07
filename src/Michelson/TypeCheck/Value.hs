@@ -137,14 +137,14 @@ typeCheckValImpl tcDo (M.ValueMap mels) (T_map kt vt) =
 typeCheckValImpl tcDo v@(M.ValueLambda (fmap M.unOp -> mp)) t@(T_lambda mi mo) =
   withSomeSingT mi $ \(it :: Sing it) ->
   withSomeSingT mo $ \(ot :: Sing ot) ->
-    typeCheckImpl tcDo mp (SomeIT $ (it, NStar, def) ::& INil) >>= \case
+    typeCheckImpl tcDo mp (SomeHST $ (it, NStar, def) ::& SNil) >>= \case
       SiFail -> pure $ VLam FAILWITH :::: (ST_lambda it ot, NStar)
-      lam ::: ((li :: IT li), (lo :: IT lo)) -> do
+      lam ::: ((li :: HST li), (lo :: HST lo)) -> do
         Refl <- liftEither $ eqT' @li @'[ it ] `onLeft` unexpectedErr
-        case (eqT' @'[ ot ] @lo, SomeIT lo, SomeIT li) of
+        case (eqT' @'[ ot ] @lo, SomeHST lo, SomeHST li) of
           (Right Refl,
-           SomeIT ((_, ons, _) ::& INil :: IT lo'),
-           SomeIT ((_, ins, _) ::& INil :: IT li')) -> do
+           SomeHST ((_, ons, _) ::& SNil :: HST lo'),
+           SomeHST ((_, ins, _) ::& SNil :: HST li')) -> do
             Refl <- liftEither $ eqT' @lo @lo' `onLeft` unexpectedErr
             Refl <- liftEither $ eqT' @li @li' `onLeft` unexpectedErr
             let ns = mkNotes $ NT_lambda def ins ons

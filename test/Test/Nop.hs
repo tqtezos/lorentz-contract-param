@@ -4,7 +4,7 @@ module Test.Nop
 
 import Test.Hspec (Expectation, Spec, describe, expectationFailure, it)
 
-import Michelson.TypeCheck (IT(..), SomeIT(..))
+import Michelson.TypeCheck (HST(..), SomeHST(..))
 import Michelson.Typed (extractNotes, fromMType, withSomeSingT)
 import Michelson.Untyped (noAnn, Type (..), T (..), CT (..), ann)
 import Morley.Nop (nopHandler)
@@ -26,29 +26,29 @@ nopHandlerSpec = describe "nopHandler STACKTYPE tests" $ do
     p2 = StkCons t1 (StkCons t2 StkEmpty)
     p3 = StkCons t1 (StkCons t2 StkRest)
 
-    test1 = (STACKTYPE StkEmpty, convertToIT [])
-    test2 = (STACKTYPE p2, convertToIT [t1, t2])
-    test3 = (STACKTYPE p3, convertToIT [t1, t2, t3])
-    test4 = (STACKTYPE p3, convertToIT [t1, t2])
+    test1 = (STACKTYPE StkEmpty, convertToHST [])
+    test2 = (STACKTYPE p2, convertToHST [t1, t2])
+    test3 = (STACKTYPE p3, convertToHST [t1, t2, t3])
+    test4 = (STACKTYPE p3, convertToHST [t1, t2])
 
-    test5 = (STACKTYPE StkEmpty, convertToIT [t1])
-    test6 = (STACKTYPE p2, convertToIT [t1, t2, t3])
-    test7 = (STACKTYPE p2, convertToIT [t1])
-    test8 = (STACKTYPE p3, convertToIT [t1])
-    test9 = (STACKTYPE p2, convertToIT [t1, t3])
+    test5 = (STACKTYPE StkEmpty, convertToHST [t1])
+    test6 = (STACKTYPE p2, convertToHST [t1, t2, t3])
+    test7 = (STACKTYPE p2, convertToHST [t1])
+    test8 = (STACKTYPE p3, convertToHST [t1])
+    test9 = (STACKTYPE p2, convertToHST [t1, t3])
 
     t1 = Type (T_option (ann "f") (Type T_key (ann "key"))) (ann "opt")
     t2 = Type (T_pair (ann "f") (ann "s") (Type T_unit "x") (Type T_signature "s")) noAnn
     t3 = Type (T_comparable T_int) (ann "tint")
 
-    convertToIT :: [Type] -> SomeIT
-    convertToIT [] = SomeIT INil
-    convertToIT (t : ts) = withSomeSingT (fromMType t) $ \sing ->
+    convertToHST :: [Type] -> SomeHST
+    convertToHST [] = SomeHST SNil
+    convertToHST (t : ts) = withSomeSingT (fromMType t) $ \sing ->
       let nt = either (const $ error "unexpected trouble with extracting annotations") id (extractNotes t sing) in
-      case convertToIT ts of
-        SomeIT is -> SomeIT ((sing, nt, noAnn) ::& is)
+      case convertToHST ts of
+        SomeHST is -> SomeHST ((sing, nt, noAnn) ::& is)
 
-    runNopTest :: (NopInstr, SomeIT) -> Bool -> Expectation
+    runNopTest :: (NopInstr, SomeHST) -> Bool -> Expectation
     runNopTest (ni, si) correct = case (nopHandler ni si, correct) of
       (Right _, False) -> expectationFailure $ "Test expected to fail but it passed"
       (Left e, True)   -> expectationFailure $ "Test expected to pass but it failed with error: " <> show e

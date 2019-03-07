@@ -5,8 +5,8 @@ module Michelson.TypeCheck.Helpers
     , deriveVN
     , deriveNsOr
     , deriveNsOption
-    , convergeITEl
-    , convergeIT
+    , convergeHSTEl
+    , convergeHST
 
     , eqT'
     , assertEqT
@@ -114,19 +114,19 @@ deriveNsOption ons ovn =
       avn = deriveVN (M.convAnn fn `orAnn` "some") ovn
    in (an, avn)
 
-convergeITEl
+convergeHSTEl
   :: (Sing t, Notes t, VarAnn)
   -> (Sing t, Notes t, VarAnn)
   -> Either Text (Sing t, Notes t, VarAnn)
-convergeITEl (at, an, avn) (_, bn, bvn) =
+convergeHSTEl (at, an, avn) (_, bn, bvn) =
   (,,) at <$> converge an bn
           <*> pure (bool def avn $ avn == bvn)
 
 -- | Combine annotations from two given stack types
-convergeIT :: IT ts -> IT ts -> Either Text (IT ts)
-convergeIT INil INil = pure INil
-convergeIT (a ::& as) (b ::& bs) =
-    liftA2 (::&) (convergeITEl a b) (convergeIT as bs)
+convergeHST :: HST ts -> HST ts -> Either Text (HST ts)
+convergeHST SNil SNil = pure SNil
+convergeHST (a ::& as) (b ::& bs) =
+    liftA2 (::&) (convergeHSTEl a b) (convergeHST as bs)
 
 -- TODO move to Util module
 onLeft :: Either a c -> (a -> b) -> Either b c
@@ -139,16 +139,16 @@ onLeft = flip first
 checkEqT
   :: forall a b ts nop . (Typeable a, Typeable b, Typeable ts)
   => M.Instr nop
-  -> IT ts
+  -> HST ts
   -> Text
   -> Either (TCError nop) (a :~: b)
 checkEqT instr i m =
-  eqT' @a @b `onLeft` (TCFailedOnInstr instr (SomeIT i) . ((m <> ": ") <>))
+  eqT' @a @b `onLeft` (TCFailedOnInstr instr (SomeHST i) . ((m <> ": ") <>))
 
 assertEqT
   :: forall a b ts nop . (Typeable a, Typeable b, Typeable ts)
   => M.Instr nop
-  -> IT ts
+  -> HST ts
   -> Either (TCError nop) (a :~: b)
 assertEqT instr i = checkEqT instr i "unexpected"
 
@@ -162,30 +162,30 @@ eqT' = maybe (Left $
                   <> show (typeRep (Proxy @b))
                   ) pure eqT
 
-typeCheckInstrErr :: M.Instr nop -> SomeIT -> Text -> Either (TCError nop) a
+typeCheckInstrErr :: M.Instr nop -> SomeHST -> Text -> Either (TCError nop) a
 typeCheckInstrErr = Left ... TCFailedOnInstr
 
-typeCheckInstrErrM :: M.Instr nop -> SomeIT -> Text -> TypeCheckT cp nop a
+typeCheckInstrErrM :: M.Instr nop -> SomeHST -> Text -> TypeCheckT cp nop a
 typeCheckInstrErrM = throwError ... TCFailedOnInstr
 
 typeCheckImpl
   :: forall cp nop . (Typeable cp, SingI cp)
   => TcInstrHandler cp nop
   -> [M.Instr nop]
-  -> SomeIT
+  -> SomeHST
   -> TypeCheckT cp nop (SomeInstr cp)
 typeCheckImpl tcInstr [a] t = tcInstr a t
-typeCheckImpl tcInstr (p_ : (r : rs)) (SomeIT (a :: IT a)) = do
-  tcInstr p_ (SomeIT a) >>= \case
-    p ::: ((_ :: IT a'), (b :: IT b)) ->
-      typeCheckImpl @cp tcInstr (r : rs) (SomeIT b) >>= \case
-        q ::: ((_ :: IT b'), c) -> do
+typeCheckImpl tcInstr (p_ : (r : rs)) (SomeHST (a :: HST a)) = do
+  tcInstr p_ (SomeHST a) >>= \case
+    p ::: ((_ :: HST a'), (b :: HST b)) ->
+      typeCheckImpl @cp tcInstr (r : rs) (SomeHST b) >>= \case
+        q ::: ((_ :: HST b'), c) -> do
           Refl <- liftEither $ eqT' @a @a' `onLeft` TCOtherError
           Refl <- liftEither $ eqT' @b @b' `onLeft` TCOtherError
           pure $ (Seq p q) ::: (a, c)
         SiFail -> pure SiFail
     SiFail -> pure SiFail
-typeCheckImpl _ [] (SomeIT s) = pure $ Nop ::: (s, s)
+typeCheckImpl _ [] (SomeHST s) = pure $ Nop ::: (s, s)
 
 --------------------------------------------
 -- Some generic instruction implementation
@@ -195,12 +195,12 @@ typeCheckImpl _ [] (SomeIT s) = pure $ Nop ::: (s, s)
 memImpl
   :: forall (q :: CT) (c :: T) ts cp nop.
     (Typeable ts, Typeable q, Typeable (MemOpKey c), MemOp c)
-  => M.Instr nop -> IT ('T_c q ': c ': ts) -> VarAnn
+  => M.Instr nop -> HST ('T_c q ': c ': ts) -> VarAnn
   -> Either (TCError nop) (SomeInstr cp)
 memImpl instr i@(_ ::& _ ::& rs) vn =
   case eqT' @q @(MemOpKey c) of
     Right Refl -> pure (MEM ::: (i, (ST_c ST_bool, NStar, vn) ::& rs))
-    Left m     -> typeCheckInstrErr instr (SomeIT i) $
+    Left m     -> typeCheckInstrErr instr (SomeHST i) $
                 "query element type is not equal to set's element type: " <> m
 
 getImpl
@@ -209,7 +209,7 @@ getImpl
     , Typeable (GetOpVal c)
     )
   => M.Instr nop
-  -> IT (getKey ': c ': rs)
+  -> HST (getKey ': c ': rs)
   -> Sing (GetOpVal c)
   -> Notes (GetOpVal c)
   -> VarAnn
@@ -219,32 +219,32 @@ getImpl instr i@(_ ::& _ ::& rs) rt vns vn = do
     Right Refl -> do
       let rn = mkNotes $ NT_option def def vns
       pure $ GET ::: (i, (ST_option rt, rn, vn) ::& rs)
-    Left m -> typeCheckInstrErr instr (SomeIT i) $
+    Left m -> typeCheckInstrErr instr (SomeHST i) $
                     "wrong key stack type" <> m
 
 updImpl
   :: forall c cp updKey updParams rs nop .
     (UpdOp c, Typeable (UpdOpKey c), Typeable (UpdOpParams c))
   => M.Instr nop
-  -> IT (updKey ': updParams ': c ': rs)
+  -> HST (updKey ': updParams ': c ': rs)
   -> Either (TCError nop) (SomeInstr cp)
 updImpl instr i@(_ ::& _ ::& crs) = do
   case (eqT' @updKey @('T_c (UpdOpKey c)), eqT' @updParams @(UpdOpParams c)) of
     (Right Refl, Right Refl) -> pure $ UPDATE ::: (i, crs)
-    (Left m, _) -> typeCheckInstrErr instr (SomeIT i) $
+    (Left m, _) -> typeCheckInstrErr instr (SomeHST i) $
                       "wrong key stack type" <> m
-    (_, Left m) -> typeCheckInstrErr instr (SomeIT i) $
+    (_, Left m) -> typeCheckInstrErr instr (SomeHST i) $
                       "wrong update value stack type" <> m
 
 sizeImpl
   :: SizeOp c
-  => IT (c ': rs) -> VarAnn -> Either (TCError nop) (SomeInstr cp)
+  => HST (c ': rs) -> VarAnn -> Either (TCError nop) (SomeInstr cp)
 sizeImpl i@(_ ::& rs) vn =
   pure $ SIZE ::: (i, (ST_c ST_nat, NStar, vn) ::& rs)
 
 sliceImpl
   :: (SliceOp c, Typeable c)
-  => IT ('T_c 'T_nat : 'T_c 'T_nat : c : rs)
+  => HST ('T_c 'T_nat : 'T_c 'T_nat : c : rs)
   -> M.VarAnn -> Either (TCError nop) (SomeInstr cp)
 sliceImpl i@(_ ::& _ ::& (c, cn, cvn) ::& rs) vn = do
   let vn' = vn `orAnn` deriveVN "slice" cvn
@@ -253,7 +253,7 @@ sliceImpl i@(_ ::& _ ::& (c, cn, cvn) ::& rs) vn = do
 
 concatImpl'
   :: (ConcatOp c, Typeable c)
-  => IT ('T_list c : rs)
+  => HST ('T_list c : rs)
   -> M.VarAnn -> Either (TCError nop) (SomeInstr cp)
 concatImpl' i@((ST_list c, ln, _) ::& rs) vn = do
   let cn = notesCase NStar (\(NT_list _ n) -> n) ln
@@ -261,10 +261,10 @@ concatImpl' i@((ST_list c, ln, _) ::& rs) vn = do
 
 concatImpl
   :: (ConcatOp c, Typeable c)
-  => IT (c : c : rs)
+  => HST (c : c : rs)
   -> M.VarAnn -> Either (TCError nop) (SomeInstr cp)
 concatImpl i@((c, cn1, _) ::& (_, cn2, _) ::& rs) vn = do
-  cn <- converge cn1 cn2 `onLeft` TCFailedOnInstr (M.CONCAT vn) (SomeIT i)
+  cn <- converge cn1 cn2 `onLeft` TCFailedOnInstr (M.CONCAT vn) (SomeHST i)
   pure $ CONCAT ::: (i, (c, cn, vn) ::& rs)
 
 -- | Helper function to construct instructions for binary arithmetic
@@ -275,7 +275,7 @@ arithImpl
      , Typeable ('T_c (ArithRes aop n m) ': s)
      )
   => Instr cp ('T_c n ': 'T_c m ': s) ('T_c (ArithRes aop n m) ': s)
-  -> IT ('T_c n ': 'T_c m ': s)
+  -> HST ('T_c n ': 'T_c m ': s)
   -> VarAnn
   -> Either (TCError nop) (SomeInstr cp)
 arithImpl mkInstr i@(_ ::& _ ::& rs) vn =
@@ -284,7 +284,7 @@ arithImpl mkInstr i@(_ ::& _ ::& rs) vn =
 addImpl
   :: (Typeable rs, Typeable a, Typeable b)
   => Sing a -> Sing b
-  -> IT ('T_c a ': 'T_c b ': rs) -> VarAnn -> Either (TCError nop) (SomeInstr cp)
+  -> HST ('T_c a ': 'T_c b ': rs) -> VarAnn -> Either (TCError nop) (SomeInstr cp)
 addImpl ST_int ST_int = arithImpl @Add ADD
 addImpl ST_int ST_nat = arithImpl @Add ADD
 addImpl ST_nat ST_int = arithImpl @Add ADD
@@ -292,19 +292,19 @@ addImpl ST_nat ST_nat = arithImpl @Add ADD
 addImpl ST_int ST_timestamp = arithImpl @Add ADD
 addImpl ST_timestamp ST_int = arithImpl @Add ADD
 addImpl ST_mutez ST_mutez = arithImpl @Add ADD
-addImpl _ _ = \i vn -> typeCheckInstrErr (M.ADD vn) (SomeIT i) ""
+addImpl _ _ = \i vn -> typeCheckInstrErr (M.ADD vn) (SomeHST i) ""
 
 edivImpl
   :: (Typeable rs, Typeable a, Typeable b)
   => Sing a -> Sing b
-  -> IT ('T_c a ': 'T_c b ': rs) -> VarAnn -> Either (TCError nop) (SomeInstr cp)
+  -> HST ('T_c a ': 'T_c b ': rs) -> VarAnn -> Either (TCError nop) (SomeInstr cp)
 edivImpl ST_int ST_int = edivImplDo
 edivImpl ST_int ST_nat = edivImplDo
 edivImpl ST_nat ST_int = edivImplDo
 edivImpl ST_nat ST_nat = edivImplDo
 edivImpl ST_mutez ST_mutez = edivImplDo
 edivImpl ST_mutez ST_nat = edivImplDo
-edivImpl _ _ = \i vn -> typeCheckInstrErr (M.EDIV vn) (SomeIT i) ""
+edivImpl _ _ = \i vn -> typeCheckInstrErr (M.EDIV vn) (SomeHST i) ""
 
 edivImplDo
   :: ( EDivOp n m
@@ -313,7 +313,7 @@ edivImplDo
      , SingI (EDivOpRes n m)
      , Typeable (EDivOpRes n m)
      )
-  => IT ('T_c n ': 'T_c m ': s)
+  => HST ('T_c n ': 'T_c m ': s)
   -> VarAnn
   -> Either (TCError nop) (SomeInstr cp)
 edivImplDo i@(_ ::& _ ::& rs) vn =
@@ -322,7 +322,7 @@ edivImplDo i@(_ ::& _ ::& rs) vn =
 subImpl
   :: (Typeable rs, Typeable a, Typeable b)
   => Sing a -> Sing b
-  -> IT ('T_c a ': 'T_c b ': rs) -> VarAnn -> Either (TCError nop) (SomeInstr cp)
+  -> HST ('T_c a ': 'T_c b ': rs) -> VarAnn -> Either (TCError nop) (SomeInstr cp)
 subImpl ST_int ST_int = arithImpl @Sub SUB
 subImpl ST_int ST_nat = arithImpl @Sub SUB
 subImpl ST_nat ST_int = arithImpl @Sub SUB
@@ -330,24 +330,24 @@ subImpl ST_nat ST_nat = arithImpl @Sub SUB
 subImpl ST_timestamp ST_timestamp = arithImpl @Sub SUB
 subImpl ST_timestamp ST_int = arithImpl @Sub SUB
 subImpl ST_mutez ST_mutez = arithImpl @Sub SUB
-subImpl _ _ = \i vn -> typeCheckInstrErr (M.SUB vn) (SomeIT i) ""
+subImpl _ _ = \i vn -> typeCheckInstrErr (M.SUB vn) (SomeHST i) ""
 
 mulImpl
   :: (Typeable rs, Typeable a, Typeable b)
   => Sing a -> Sing b
-  -> IT ('T_c a ': 'T_c b ': rs) -> VarAnn -> Either (TCError nop) (SomeInstr cp)
+  -> HST ('T_c a ': 'T_c b ': rs) -> VarAnn -> Either (TCError nop) (SomeInstr cp)
 mulImpl ST_int ST_int = arithImpl @Mul MUL
 mulImpl ST_int ST_nat = arithImpl @Mul MUL
 mulImpl ST_nat ST_int = arithImpl @Mul MUL
 mulImpl ST_nat ST_nat = arithImpl @Mul MUL
 mulImpl ST_nat ST_mutez = arithImpl @Mul MUL
 mulImpl ST_mutez ST_nat = arithImpl @Mul MUL
-mulImpl _ _ = \i vn -> typeCheckInstrErr (M.MUL vn) (SomeIT i) ""
+mulImpl _ _ = \i vn -> typeCheckInstrErr (M.MUL vn) (SomeHST i) ""
 
 compareImpl
   :: (Typeable rs, Typeable a, Typeable b)
   => Sing a -> Sing b
-  -> IT ('T_c a ': 'T_c b ': rs) -> VarAnn -> Either (TCError nop) (SomeInstr cp)
+  -> HST ('T_c a ': 'T_c b ': rs) -> VarAnn -> Either (TCError nop) (SomeInstr cp)
 compareImpl ST_bool ST_bool = arithImpl @Compare COMPARE
 compareImpl ST_nat ST_nat = arithImpl @Compare COMPARE
 compareImpl ST_address ST_address = arithImpl @Compare COMPARE
@@ -357,7 +357,7 @@ compareImpl ST_bytes ST_bytes = arithImpl @Compare COMPARE
 compareImpl ST_timestamp ST_timestamp = arithImpl @Compare COMPARE
 compareImpl ST_key_hash ST_key_hash = arithImpl @Compare COMPARE
 compareImpl ST_mutez ST_mutez = arithImpl @Compare COMPARE
-compareImpl _ _ = \i vn -> typeCheckInstrErr (M.COMPARE vn) (SomeIT i) ""
+compareImpl _ _ = \i vn -> typeCheckInstrErr (M.COMPARE vn) (SomeHST i) ""
 
 -- | Helper function to construct instructions for binary arithmetic
 --erations.
@@ -367,7 +367,7 @@ unaryArithImpl
      , Typeable ('T_c (UnaryArithRes aop n) ': s)
      )
   => Instr cp ('T_c n ': s) ('T_c (UnaryArithRes aop n) ': s)
-  -> IT ('T_c n ': s)
+  -> HST ('T_c n ': s)
   -> VarAnn
   -> Either (TCError nop) (SomeInstr cp)
 unaryArithImpl mkInstr i@(_ ::& rs) vn =
