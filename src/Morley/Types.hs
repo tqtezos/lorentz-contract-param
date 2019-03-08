@@ -46,7 +46,7 @@ module Morley.Types
 
   -- * Morley Instructions
   , NopInstr(..)
-  , InlineTest (..)
+  , TestAssert (..)
   , PrintComment (..)
   , StackTypePattern (..)
   , StackRef(..)
@@ -153,7 +153,7 @@ data NopInstr =
     STACKTYPE StackTypePattern -- ^ Matches current stack against a type-pattern
   | FN T.Text StackFn          -- ^ Begin a typed stack function (push a @TcNopFrame@)
   | FN_END                     -- ^ End a stack function (pop a @TcNopFrame@)
-  | TEST InlineTest            -- ^ Copy the current stack and run an inline test on it
+  | TEST_ASSERT TestAssert     -- ^ Copy the current stack and run an inline assertion on it
   | PRINT PrintComment         -- ^ Print a comment with optional embedded @StackRef@s
   deriving (Eq, Show, Data, Generic)
 
@@ -254,13 +254,13 @@ instance Buildable StackRef where
   build (StackRef i) = "%[" <> build i <> "]"
 
 -- An inline test assertion
-data InlineTest = InlineTest
-  { testName :: T.Text
-  , testComment :: PrintComment
-  , testInstrs :: [ParsedOp]
+data TestAssert = TestAssert
+  { tassName :: T.Text
+  , tassComment :: PrintComment
+  , tassInstrs :: [ParsedOp]
   } deriving (Eq, Show, Data, Generic)
 
-instance Buildable InlineTest where
+instance Buildable TestAssert where
   build = genericF
 
 -------------------------------------
@@ -328,7 +328,7 @@ deriveJSON defaultOptions ''TyVar
 deriveJSON defaultOptions ''LetMacro
 deriveJSON defaultOptions ''LetValue
 deriveJSON defaultOptions ''LetType
-deriveJSON defaultOptions ''InlineTest
+deriveJSON defaultOptions ''TestAssert
 deriveJSON defaultOptions ''PairStruct
 deriveJSON defaultOptions ''CadrStruct
 deriveJSON defaultOptions ''Macro

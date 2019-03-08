@@ -877,23 +877,23 @@ primOrMac = ((Mo.MAC <$> ifCmpMac) <|> ifOrIfX)
 -------------------------------------------------------------------------------
 
 nopInstr :: Parser Mo.NopInstr
-nopInstr = choice [stackOp, testOp, printOp]
+nopInstr = choice [stackOp, testAssertOp, printOp]
 
 stackOp :: Parser Mo.NopInstr
 stackOp = symbol' "STACKTYPE" >> Mo.STACKTYPE <$> stackType
 
-testOp :: Parser Mo.NopInstr
-testOp = symbol' "TEST" >> Mo.TEST <$> test
+testAssertOp :: Parser Mo.NopInstr
+testAssertOp = symbol' "TEST_ASSERT" >> Mo.TEST_ASSERT <$> testAssert
 
 printOp :: Parser Mo.NopInstr
 printOp = symbol' "PRINT" >> Mo.PRINT <$> printComment
 
-test :: Parser Mo.InlineTest
-test = do
+testAssert :: Parser Mo.TestAssert
+testAssert = do
   n <- lexeme (T.pack <$> some alphaNumChar)
   c <- printComment
   o <- ops
-  return $ Mo.InlineTest n c o
+  return $ Mo.TestAssert n c o
 
 printComment :: Parser Mo.PrintComment
 printComment = do
