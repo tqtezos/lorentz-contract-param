@@ -28,7 +28,7 @@ import Text.Megaparsec.Char (string)
 import Morley.Default
 import Morley.Lexer
 import Morley.Types (Parser)
-import qualified Morley.Types as M
+import qualified Morley.Types as Mo
 
 -- General T/V/F Annotation parser
 note :: T.Text -> Parser T.Text
@@ -45,45 +45,45 @@ note c = lexeme $ string c >> (note' <|> emptyNote)
       b <- takeWhileP Nothing validChar
       return $ T.append a b
 
-noteT :: Parser M.TypeAnn
-noteT = M.ann <$> note ":"
+noteT :: Parser Mo.TypeAnn
+noteT = Mo.ann <$> note ":"
 
-noteV :: Parser M.VarAnn
-noteV = M.ann <$> note "@"
+noteV :: Parser Mo.VarAnn
+noteV = Mo.ann <$> note "@"
 
-noteF :: Parser M.FieldAnn
-noteF = M.ann <$> note "%"
+noteF :: Parser Mo.FieldAnn
+noteF = Mo.ann <$> note "%"
 
-noteF2 :: Parser (M.FieldAnn, M.FieldAnn)
+noteF2 :: Parser (Mo.FieldAnn, Mo.FieldAnn)
 noteF2 = do a <- noteF; b <- noteF; return (a, b)
 
 parseDef :: Default a => Parser a -> Parser a
 parseDef a = try a <|> pure def
 
-noteTDef :: Parser M.TypeAnn
+noteTDef :: Parser Mo.TypeAnn
 noteTDef = parseDef noteT
 
-noteVDef :: Parser M.VarAnn
+noteVDef :: Parser Mo.VarAnn
 noteVDef = parseDef noteV
 
-_noteFDef :: Parser M.FieldAnn
+_noteFDef :: Parser Mo.FieldAnn
 _noteFDef = parseDef noteF
 
-notesTVF :: Parser (M.TypeAnn, M.VarAnn, M.FieldAnn)
+notesTVF :: Parser (Mo.TypeAnn, Mo.VarAnn, Mo.FieldAnn)
 notesTVF = permute3Def noteT noteV noteF
 
-notesTVF2 :: Parser (M.TypeAnn, M.VarAnn, (M.FieldAnn, M.FieldAnn))
+notesTVF2 :: Parser (Mo.TypeAnn, Mo.VarAnn, (Mo.FieldAnn, Mo.FieldAnn))
 notesTVF2 = permute3Def noteT noteV noteF2
 
-notesTV :: Parser (M.TypeAnn, M.VarAnn)
+notesTV :: Parser (Mo.TypeAnn, Mo.VarAnn)
 notesTV = permute2Def noteT noteV
 
-notesVF :: Parser (M.VarAnn, M.FieldAnn)
+notesVF :: Parser (Mo.VarAnn, Mo.FieldAnn)
 notesVF  = permute2Def noteV noteF
 
 fieldType :: Default a
           => Parser a
-          -> Parser (a, M.TypeAnn)
+          -> Parser (a, Mo.TypeAnn)
 fieldType fp = runPermutation $
   (,) <$> toPermutationWithDefault  def     fp
-      <*> toPermutationWithDefault M.noAnn noteT
+      <*> toPermutationWithDefault Mo.noAnn noteT

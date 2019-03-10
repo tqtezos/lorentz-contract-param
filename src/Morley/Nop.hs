@@ -23,18 +23,18 @@ typeCheckMorleyContract :: Contract (Instr NopInstr) -> Either (TCError NopInstr
 typeCheckMorleyContract = typeCheckContract nopHandler
 
 nopHandler :: TcNopHandler NopInstr
-nopHandler nop@(STACKTYPE s) si@(SomeIT it) =
+nopHandler nop@(STACKTYPE s) si@(SomeHST it) =
   either (Left . TCFailedOnInstr (NOP nop) si) (const $ Right ()) $
   handleStackTypeInstr it 0 s it
 nopHandler  _ _ = pure ()
 
-handleStackTypeInstr :: IT initial -> Int -> StackTypePattern -> IT xs -> Either Text ()
+handleStackTypeInstr :: HST initial -> Int -> StackTypePattern -> HST xs -> Either Text ()
 handleStackTypeInstr _ _ StkRest _ = pure ()
-handleStackTypeInstr _ _ StkEmpty INil = pure ()
+handleStackTypeInstr _ _ StkEmpty SNil = pure ()
 handleStackTypeInstr origin i StkEmpty _ =
   Left $ "Unexpected length of the stack: STACKTYPE pattern has length " <> show i <>
         ", but actual stack is longer: " <> show origin
-handleStackTypeInstr origin i _ INil =
+handleStackTypeInstr origin i _ SNil =
   Left $ "Unexpected length of the stack: actual stack " <> show origin <> " has length " <> show i <>
         ", but STACKTYPE pattern is longer"
 handleStackTypeInstr orig i (StkCons t ts) ((xt, xann, _) ::& xs) = do
