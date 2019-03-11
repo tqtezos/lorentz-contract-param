@@ -27,7 +27,11 @@ module Morley.Types
   -- Parser types
   , CustomParserException (..)
   , Parser
+  , Parsec
+  , ParseErrorBundle
   , ParserException (..)
+  , LetEnv (..)
+  , noLetEnv
 
   -- * Typechecker types
   , ExpandedInstr
@@ -46,10 +50,24 @@ module Morley.Types
   , PrintComment (..)
   , StackTypePattern (..)
   , StackRef(..)
+
+  --  * Let-block
+  , StackFn(..)
+  , Var (..)
+  , TyVar (..)
+  , varSet
+  , LetMacro (..)
+  , LetValue (..)
+  , LetType (..)
   ) where
+
 
 import Data.Aeson.TH (defaultOptions, deriveJSON)
 import Data.Data (Data(..))
+import Data.Map (Map)
+import qualified Data.Map as Map
+import Data.Set (Set)
+import qualified Data.Set as Set
 import qualified Data.Text as T
 import Fmt (Buildable(build), Builder, genericF, listF)
 import Text.Megaparsec (ParseErrorBundle, Parsec, ShowErrorComponent(..), errorBundlePretty)
@@ -76,7 +94,8 @@ instance ShowErrorComponent CustomParserException where
   showErrorComponent OddNumberBytesException = "odd number bytes"
   showErrorComponent UnexpectedLineBreak = "unexpected linebreak"
 
-type Parser = Parsec CustomParserException T.Text
+type Parser = ReaderT LetEnv (Parsec CustomParserException T.Text)
+
 instance Default a => Default (Parser a) where
   def = pure def
 
@@ -88,40 +107,106 @@ instance Show ParserException where
 instance Exception ParserException where
   displayException (ParserException bundle) = errorBundlePretty bundle
 
+-- | The environment containing lets from the let-block
+data LetEnv = LetEnv
+  { letMacros :: Map Text LetMacro
+  , letValues :: Map Text LetValue
+  , letTypes  :: Map Text LetType
+  } deriving (Show, Eq)
+
+noLetEnv :: LetEnv
+noLetEnv = LetEnv Map.empty Map.empty Map.empty
+
 -------------------------------------
 -- Types produced by parser
 -------------------------------------
-type ParsedInstr = InstrAbstract NopInstr ParsedOp
+
+-- | Unexpanded instructions produced directly by the @ops@ parser, which
+-- contains primitive Michelson Instructions, inline-able macros and sequences
 data ParsedOp
-  = PRIM ParsedInstr
-  | MAC Macro
-  | SEQ [ParsedOp]
+  = PRIM ParsedInstr -- ^ Primitive Michelson instruction
+  | MAC Macro        -- ^ Built-in Michelson macro defined by the specification
+  | LMAC LetMacro    -- ^ User-defined macro with instructions to be inlined
+  | SEQ [ParsedOp]   -- ^ A sequence of instructions
   deriving (Eq, Show, Data, Generic)
+
+-- | @ParsedInstr@ is paramaterized on @ParsedOp@ to indicated that primitive
+-- instructions which can contain other primitive instructions (such as @IF@),
+-- contain @ParsedOp@, and paramterized on @NopInstr@ to indicate the "payload"
+-- of the @NOP@ primitive.
+type ParsedInstr = InstrAbstract NopInstr ParsedOp
 
 instance Buildable ParsedOp where
   build = genericF
 
--- Mark a specific point in contract execution for the rest of the pipeline
+-- | Implementation-specific instructions embedded in a @NOP@ primitive, which
+-- mark a specific point during a contract's typechecking or execution.
+--
+-- These instructions are not allowed to modify the contract's stack, but may
+-- impose additional constraints that can cause a contract to report errors in
+-- type-checking or testing.
+--
+-- Additionaly, some implementation-specific language features such as
+-- type-checking of @LetMacro@s are implemented using this mechanism
+-- (specifically @FN@ and @FN_END@).
 data NopInstr =
-    STACKTYPE StackTypePattern
-  | TEST InlineTest
-  | PRINT PrintComment
+    STACKTYPE StackTypePattern -- ^ Matches current stack against a type-pattern
+  | FN T.Text StackFn          -- ^ Begin a typed stack function (push a @TcNopFrame@)
+  | FN_END                     -- ^ End a stack function (pop a @TcNopFrame@)
+  | TEST InlineTest            -- ^ Copy the current stack and run an inline test on it
+  | PRINT PrintComment         -- ^ Print a comment with optional embedded @StackRef@s
   deriving (Eq, Show, Data, Generic)
 
 instance Buildable NopInstr where
   build = genericF
 
--- A stack pattern-match
+-- | A print format with references into the stack
+newtype PrintComment = PrintComment
+  { unPrintComment :: [Either T.Text StackRef]
+  } deriving (Eq, Show, Data, Generic)
+
+instance Buildable PrintComment where
+  build = foldMap (either build build) . unPrintComment
+
+-- | A reference into the stack
+newtype StackRef = StackRef Integer
+  deriving (Eq, Show, Data, Generic)
+
+newtype Var = Var T.Text deriving (Eq, Show, Ord, Data, Generic)
+
+instance Buildable Var where
+  build = genericF
+
+-- | A type-variable or a type-constant
+data TyVar =
+    VarID Var
+  | TyCon Type
+  deriving (Eq, Show, Data, Generic)
+
+instance Buildable TyVar where
+  build = genericF
+
+-- | A stack pattern-match
 data StackTypePattern
  = StkEmpty
  | StkRest
- | StkCons Type StackTypePattern
+ | StkCons TyVar StackTypePattern
   deriving (Eq, Show, Data, Generic)
+
+-- | A stack function that expresses the type signature of a @LetMacro@
+data StackFn = StackFn
+  { quantifiedVars :: Maybe (Set Var)
+  , inPattern :: StackTypePattern
+  , outPattern :: StackTypePattern
+  } deriving (Eq, Show, Data, Generic)
+
+instance Buildable StackFn where
+  build = genericF
 
 -- | Convert 'StackTypePattern' to a list of types. Also returns
 -- 'Bool' which is 'True' if the pattern is a fixed list of types and
 -- 'False' if it's a pattern match on the head of the stack.
-stackTypePatternToList :: StackTypePattern -> ([Type], Bool)
+stackTypePatternToList :: StackTypePattern -> ([TyVar], Bool)
 stackTypePatternToList StkEmpty = ([], True)
 stackTypePatternToList StkRest = ([], False)
 stackTypePatternToList (StkCons t pat) =
@@ -130,21 +215,40 @@ stackTypePatternToList (StkCons t pat) =
 instance Buildable StackTypePattern where
   build = listF . pairToList . stackTypePatternToList
     where
-      pairToList :: ([Type], Bool) -> [Builder]
+      pairToList :: ([TyVar], Bool) -> [Builder]
       pairToList (types, fixed)
         | fixed = map build types
         | otherwise = map build types ++ ["..."]
 
--- A print format with references into the stack
-newtype PrintComment = PrintComment
-  { unPrintComment :: [Either T.Text StackRef]
+-- | Get the set of variables in a stack pattern
+varSet :: StackTypePattern -> Set Var
+varSet StkEmpty = Set.empty
+varSet StkRest = Set.empty
+varSet (StkCons (VarID v) stk) = v `Set.insert` (varSet stk)
+varSet (StkCons _ stk) = varSet stk
+
+-- | A programmer-defined macro
+data LetMacro = LetMacro
+  { lmName :: T.Text
+  , lmSig :: StackFn
+  , lmExpr :: [ParsedOp]
   } deriving (Eq, Show, Data, Generic)
 
-instance Buildable PrintComment where
-  build = foldMap (either build build) . unPrintComment
+instance Buildable LetMacro where
+  build = genericF
 
-newtype StackRef = StackRef Integer
-  deriving (Eq, Show, Data, Generic)
+-- | A programmer-defined constant
+data LetValue = LetValue
+  { lvName :: T.Text
+  , lvSig :: Type
+  , lvVal :: (Value ParsedOp)
+  } deriving (Eq, Show)
+
+-- | A programmer-defined type-synonym
+data LetType = LetType
+  { ltName :: T.Text
+  , ltSig :: Type
+  } deriving (Eq, Show)
 
 instance Buildable StackRef where
   build (StackRef i) = "%[" <> build i <> "]"
@@ -187,6 +291,7 @@ data CadrStruct
 instance Buildable CadrStruct where
   build = genericF
 
+-- | Built-in Michelson Macros defined by the specification
 data Macro
   = CMP ParsedInstr VarAnn
   | IFX ParsedInstr [ParsedOp] [ParsedOp]
@@ -217,6 +322,12 @@ deriveJSON defaultOptions ''NopInstr
 deriveJSON defaultOptions ''PrintComment
 deriveJSON defaultOptions ''StackTypePattern
 deriveJSON defaultOptions ''StackRef
+deriveJSON defaultOptions ''StackFn
+deriveJSON defaultOptions ''Var
+deriveJSON defaultOptions ''TyVar
+deriveJSON defaultOptions ''LetMacro
+deriveJSON defaultOptions ''LetValue
+deriveJSON defaultOptions ''LetType
 deriveJSON defaultOptions ''InlineTest
 deriveJSON defaultOptions ''PairStruct
 deriveJSON defaultOptions ''CadrStruct

@@ -144,7 +144,7 @@ valueOption name hInfo = option (eitherReader parseValue) $
     parseValue s =
       either (Left . mappend "Failed to parse value: " . show)
              (Right . expandValue)
-      $ parse P.value "" (toText s)
+      $ P.parseNoEnv P.value "" (toText s)
 
 mutezOption :: String -> String -> Opt.Parser Mutez
 mutezOption name hInfo =
@@ -214,7 +214,7 @@ main = do
       code <- readCode mFilename
       let filename = fromMaybe "<stdin>" mFilename
       either (throwM . P.ParserException) pure $
-        parse P.contract filename code
+        parse P.program filename code
 
     -- Read and parse the contract, expand and type check.
     prepareContract

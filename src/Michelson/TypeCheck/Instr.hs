@@ -155,8 +155,11 @@ typeCheckInstr
   => TcInstrHandler cp nop
 
 typeCheckInstr (Un.NOP nop) si@(SomeHST it) = do
-  nh <- asks tcNopHandler
-  Nop ::: (it, it) <$ liftEither (nh nop si)
+  nh <- gets tcNopHandler
+  nfs <- gets tcNopFrames
+  nfs' <- liftEither (nh nop nfs si)
+  put (TypeCheckEnv nh nfs')
+  pure (Nop ::: (it, it))
 
 typeCheckInstr Un.DROP (SomeHST i@(_ ::& rs)) = pure (DROP ::: (i, rs))
 

@@ -39,9 +39,10 @@ you must be able to justify that.
         silently reappearing again.
 
 - Documentation
-  - [ ] I checked whether I should update the docs and did so if necessary:
-    - [README](../blob/master/README.md)
-    - Haddock
+  - I checked whether I should update the docs and did so if necessary:
+    - [ ] [README](../blob/master/README.md)
+    - [ ] Haddock
+    - [ ] [docs/](../blob/master/docs/)
 
 #### Stylistic guide (mandatory)
 

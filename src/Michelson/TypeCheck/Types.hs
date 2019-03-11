@@ -9,6 +9,7 @@ module Michelson.TypeCheck.Types
     , TCError (..)
     , TcInstrHandler
     , TcNopHandler
+    , TcNopFrames
     , TypeCheckEnv (..)
     , TypeCheckT
     , runTypeCheckT
@@ -73,6 +74,8 @@ infixr 7 ::&
 -- | No-argument type wrapper for @HST@ data type.
 data SomeHST where
   SomeHST :: Typeable ts => HST ts -> SomeHST
+
+deriving instance Show SomeHST
 
 -- | Data type holding both instruction and
 -- type representations of instruction's input and output.
@@ -141,19 +144,26 @@ instance Buildable nop => Show (TCError nop) where
 
 instance (Buildable nop, Typeable nop) => Exception (TCError nop)
 
-type TcNopHandler nop = nop -> SomeHST -> Either (TCError nop) ()
+-- | Function for typeChecking a @nop@ and updating state
+type TcNopHandler nop = nop -> TcNopFrames nop -> SomeHST
+                        -> Either (TCError nop) (TcNopFrames nop)
 
-data TypeCheckEnv nop = TypeCheckEnv {
-  tcNopHandler :: TcNopHandler nop
+-- | State for type checking @nop@
+type TcNopFrames nop = [(nop, SomeHST)]
+
+-- | The typechecking state
+data TypeCheckEnv nop = TypeCheckEnv
+  { tcNopHandler :: TcNopHandler nop
+  , tcNopFrames :: TcNopFrames nop
 -- TODO should be probably filled with other fields
-}
+  }
 
 type TypeCheckT cp nop a =
   ExceptT (TCError nop)
-    (Reader (TypeCheckEnv nop)) a
+    (State (TypeCheckEnv nop)) a
 
 runTypeCheckT :: TcNopHandler nop -> TypeCheckT cp nop a -> Either (TCError nop) a
-runTypeCheckT nh act = usingReader (TypeCheckEnv nh) $ runExceptT act
+runTypeCheckT nh act = evaluatingState (TypeCheckEnv nh []) $ runExceptT act
 
 type TcInstrHandler cp nop
    = Untyped.Instr nop

@@ -1,5 +1,6 @@
 module Morley.Parser
-  ( contract
+  ( program
+  , parseNoEnv
   , ops
   , ParserException (..)
   , stringLiteral
@@ -13,14 +14,16 @@ import Prelude hiding (many, note, some, try)
 
 import Control.Applicative.Permutations (intercalateEffect, toPermutation)
 import qualified Data.ByteString.Base16 as B16
-import Data.Char as Char
+import qualified Data.Char as Char
 import Data.Default (Default)
+import qualified Data.Map as Map
+import qualified Data.Set as Set
 import qualified Data.Text as T
 
 import Text.Megaparsec
-  (choice, customFailure, eitherP, many, manyTill, notFollowedBy, satisfy, sepEndBy, some,
-   takeWhile1P, try)
-import Text.Megaparsec.Char (alphaNumChar, char, string)
+  (choice, customFailure, eitherP, many, manyTill, notFollowedBy, parse, satisfy, sepEndBy, some,
+  takeWhile1P, try)
+import Text.Megaparsec.Char (alphaNumChar, char, lowerChar, string, upperChar)
 import qualified Text.Megaparsec.Char.Lexer as L
 
 import Morley.Lexer
@@ -33,6 +36,26 @@ import qualified Morley.Types as Mo
 -- Top-Level Parsers
 -------------------------------------------------------------------------------
 
+
+-- Contracts
+------------------
+
+-- | Michelson contract with let definitions
+program :: Mo.Parsec CustomParserException T.Text (Mo.Contract ParsedOp)
+program = runReaderT programInner Mo.noLetEnv
+
+programInner :: Parser (Mo.Contract ParsedOp)
+programInner = do
+  mSpace
+  env <- fromMaybe Mo.noLetEnv <$> (optional letBlock)
+  local (const env) contract
+
+-- | Parse with empty environment
+parseNoEnv :: Parser a -> String -> T.Text
+       -> Either (Mo.ParseErrorBundle T.Text CustomParserException) a
+parseNoEnv p = parse (runReaderT p Mo.noLetEnv)
+
+-- | Michelson contract
 contract :: Parser (Mo.Contract ParsedOp)
 contract = do
   mSpace
@@ -41,6 +64,19 @@ contract = do
                    <*> toPermutation storage
                    <*> toPermutation code
   return $ Mo.Contract p s c
+
+-- Contract Blocks
+------------------
+
+-- | let block parser
+letBlock :: Parser Mo.LetEnv
+letBlock = do
+  symbol "let"
+  symbol "{"
+  ls <- local (const Mo.noLetEnv) letInner
+  symbol "}"
+  semicolon
+  return ls
 
 parameter :: Parser Mo.Type
 parameter = do void $ symbol "parameter"; type_
@@ -51,6 +87,8 @@ storage = do void $ symbol "storage"; type_
 code :: Parser [ParsedOp]
 code = do void $ symbol "code"; ops
 
+-- Michelson expressions
+------------------------
 value :: Parser (Mo.Value ParsedOp)
 value = lexeme $ valueInner <|> parens valueInner
 
@@ -60,15 +98,115 @@ type_ = (ti <|> parens ti) <|> (customFailure UnknownTypeException)
     ti = snd <$> (lexeme $ typeInner (pure Mo.noAnn))
 
 ops :: Parser [Mo.ParsedOp]
-ops = braces $ sepEndBy op' semicolon
-  where
-    op' = choice
-      [ (Mo.PRIM . Mo.NOP) <$> nopInstr
-      , Mo.PRIM <$> prim
-      , Mo.MAC <$> macro
-      , primOrMac
-      , Mo.SEQ <$> ops
-      ]
+ops = do
+  lms <- asks Mo.letMacros
+  let op' = choice [ (Mo.PRIM . Mo.NOP) <$> nopInstr
+                   , Mo.LMAC <$> mkLetMac lms
+                   , Mo.PRIM <$> prim
+                   , Mo.MAC <$> macro
+                   , primOrMac
+                   , Mo.SEQ <$> ops
+                   ]
+  braces $ sepEndBy op' semicolon
+
+-------------------------------------------------------------------------------
+-- Let block
+-------------------------------------------------------------------------------
+
+-- | Element of a let block
+data Let = LetM Mo.LetMacro | LetV Mo.LetValue | LetT Mo.LetType
+
+-- | Incrementally build the let environment
+letInner :: Parser Mo.LetEnv
+letInner = do
+  env <- ask
+  l <- lets
+  semicolon
+  (local (addLet l) letInner) <|> return (addLet l env)
+
+-- | add a Let to the environment in the correct place
+addLet :: Let -> Mo.LetEnv -> Mo.LetEnv
+addLet l (Mo.LetEnv lms lvs lts) = case l of
+  LetM lm -> Mo.LetEnv (Map.insert (Mo.lmName lm) lm lms) lvs lts
+  LetV lv -> Mo.LetEnv lms (Map.insert (Mo.lvName lv) lv lvs) lts
+  LetT lt -> Mo.LetEnv lms lvs (Map.insert (Mo.ltName lt) lt lts)
+
+lets :: Parser Let
+lets = choice [ (LetM <$> (try letMacro))
+              , (LetV <$> (try letValue))
+              , (LetT <$> (try letType))
+              ]
+
+-- | build a let name parser from a leading character parser
+letName :: Parser Char -> Parser T.Text
+letName p = lexeme $ do
+  v <- p
+  let validChar x = Char.isAscii x && (Char.isAlphaNum x || x == '\'' || x == '_')
+  vs <- many (satisfy validChar)
+  return $ T.pack (v:vs)
+
+letMacro :: Parser Mo.LetMacro
+letMacro = lexeme $ do
+  n <- letName lowerChar
+  symbol "::"
+  s <- stackFn
+  symbol "="
+  o <- ops
+  return $ Mo.LetMacro n s o
+
+letType :: Parser Mo.LetType
+letType = lexeme $ do
+  symbol "type"
+  n <- letName lowerChar
+  symbol "="
+  t <- type_
+  case t of
+    (Mo.Type t' a) ->
+      if a == Mo.noAnn
+      then return $ Mo.LetType n (Mo.Type t' (Mo.ann n))
+      else return $ Mo.LetType n t
+
+letValue :: Parser Mo.LetValue
+letValue = lexeme $ do
+  n <- letName upperChar
+  symbol "::"
+  t <- type_
+  symbol "="
+  v <- value
+  return $ Mo.LetValue n t v
+
+-- | make a parser from a string
+mkParser :: (a -> T.Text) -> a -> Parser a
+mkParser f a = (try $ symbol (f a)) >> return a
+
+mkLetMac :: Map Text Mo.LetMacro -> Parser Mo.LetMacro
+mkLetMac lms = choice $ mkParser Mo.lmName <$> (Map.elems lms)
+
+mkLetVal :: Map Text Mo.LetValue -> Parser Mo.LetValue
+mkLetVal lvs = choice $ mkParser Mo.lvName <$> (Map.elems lvs)
+
+mkLetType :: Map Text Mo.LetType -> Parser Mo.LetType
+mkLetType lts = choice $ mkParser Mo.ltName <$> (Map.elems lts)
+
+stackFn :: Parser Mo.StackFn
+stackFn = do
+  vs <- (optional (symbol "forall" >> some varID <* symbol "."))
+  a <- stackType
+  symbol "->"
+  b <- stackType
+  return $ Mo.StackFn (Set.fromList <$> vs) a b
+
+tyVar :: Parser Mo.TyVar
+tyVar = (Mo.TyCon <$> type_) <|> (Mo.VarID <$> varID)
+
+lowerAlphaNumChar :: Parser Char
+lowerAlphaNumChar = satisfy (\x -> Char.isLower x || Char.isDigit x)
+
+varID :: Parser Mo.Var
+varID = lexeme $ do
+  v <- lowerChar
+  vs <- many lowerAlphaNumChar
+  return $ Mo.Var (T.pack (v:vs))
 
 -------------------------------------------------------------------------------
 -- Value Parsers
@@ -78,8 +216,13 @@ valueInner :: Parser (Mo.Value Mo.ParsedOp)
 valueInner = choice $
   [ intLiteral, stringLiteral, bytesLiteral, unitValue
   , trueValue, falseValue, pairValue, leftValue, rightValue
-  , someValue, noneValue, seqValue, mapValue, lambdaValue
+  , someValue, noneValue, seqValue, mapValue, lambdaValue, dataLetValue
   ]
+
+dataLetValue :: Parser (Mo.Value ParsedOp)
+dataLetValue = do
+  lvs <- asks Mo.letValues
+  Mo.lvVal <$> (mkLetVal lvs)
 
 -- Literals
 intLiteral :: Parser (Mo.Value a)
@@ -181,8 +324,16 @@ field = lexeme (fi <|> parens fi)
 
 typeInner :: Parser Mo.FieldAnn -> Parser (Mo.FieldAnn, Mo.Type)
 typeInner fp = choice $ (\x -> x fp) <$>
-  [ t_ct, t_key, t_unit, t_signature, t_option, t_list, t_set
-  , t_operation, t_contract, t_pair, t_or, t_lambda, t_map, t_big_map]
+  [ t_ct, t_key, t_unit, t_signature, t_option, t_list, t_set, t_operation
+  , t_contract, t_pair, t_or, t_lambda, t_map, t_big_map, t_letType
+  ]
+
+t_letType :: Parser fp -> Parser (fp, Mo.Type)
+t_letType fp = do
+  lts <- asks Mo.letTypes
+  lt <- Mo.ltSig <$> (mkLetType lts)
+  f <- fp
+  return (f, lt)
 
 -- Comparable Types
 comparable :: Parser Mo.Comparable
@@ -372,7 +523,16 @@ swapOp :: Parser Mo.ParsedInstr
 swapOp = do symbol' "SWAP"; return Mo.SWAP;
 
 pushOp :: Parser Mo.ParsedInstr
-pushOp = do symbol' "PUSH"; v <- noteVDef; a <- type_; Mo.PUSH v a <$> value
+pushOp = do
+  symbol' "PUSH"
+  v <- noteVDef
+  (try $ pushLet v) <|> (push' v)
+  where
+    pushLet v = do
+      lvs <- asks Mo.letValues
+      lv <- mkLetVal lvs
+      return $ Mo.PUSH v (Mo.lvSig lv) (Mo.lvVal lv)
+    push' v = do a <- type_; Mo.PUSH v a <$> value
 
 unitOp :: Parser Mo.ParsedInstr
 unitOp = do symbol' "UNIT"; (t, v) <- notesTV; return $ Mo.UNIT t v
@@ -755,6 +915,6 @@ stackType = symbol "'[" >> (emptyStk <|> stkCons <|> stkRest)
     emptyStk = try $ symbol "]" >> return Mo.StkEmpty
     stkRest = try $ symbol "..." >> symbol "]" >> return Mo.StkRest
     stkCons = try $ do
-      t <- type_
+      t <- tyVar
       s <- (symbol "," >> stkCons <|> stkRest) <|> emptyStk
       return $ Mo.StkCons t s

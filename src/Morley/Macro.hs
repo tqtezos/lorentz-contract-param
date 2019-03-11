@@ -23,8 +23,8 @@ import Generics.SYB (everywhere, mkT)
 
 import Morley.Types
   (CadrStruct(..), Contract(..), Elt(..), ExpandedInstr, ExpandedOp(..), FieldAnn, Instr,
-  InstrAbstract(..), Macro(..), NopInstr(..), Op(..), PairStruct(..), ParsedOp(..), TypeAnn,
-  Value(..), VarAnn, ann, noAnn)
+  InstrAbstract(..), LetMacro(..), Macro(..), NopInstr(..), Op(..), PairStruct(..), ParsedOp(..),
+  TypeAnn, Value(..), VarAnn, ann, noAnn)
 
 expandFlat :: [ParsedOp] -> [(Op NopInstr)]
 expandFlat = fmap Op . concatMap flatten . fmap expand
@@ -74,6 +74,14 @@ expand :: ParsedOp -> ExpandedOp
 expand (MAC m)  = SEQ_EX $ expandMacro m
 expand (PRIM i) = PRIM_EX $ fmap expand i
 expand (SEQ s)  = SEQ_EX $ expand <$> s
+expand (LMAC l)  = SEQ_EX $ expandLetMac l
+
+expandLetMac :: LetMacro -> [ExpandedOp]
+expandLetMac LetMacro {..} =
+  [ PRIM_EX $ NOP (FN lmName lmSig)
+  , SEQ_EX $ expand <$> lmExpr
+  , PRIM_EX $ NOP FN_END
+  ]
 
 expandMacro :: Macro -> [ExpandedOp]
 expandMacro = \case

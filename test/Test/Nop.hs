@@ -6,9 +6,9 @@ import Test.Hspec (Expectation, Spec, describe, expectationFailure, it)
 
 import Michelson.TypeCheck (HST(..), SomeHST(..))
 import Michelson.Typed (extractNotes, fromUType, withSomeSingT)
-import Michelson.Untyped (noAnn, Type (..), T (..), CT (..), ann)
+import Michelson.Untyped (CT(..), T(..), Type(..), ann, noAnn)
 import Morley.Nop (nopHandler)
-import Morley.Types (NopInstr(..), StackTypePattern(..))
+import Morley.Types (NopInstr(..), StackTypePattern(..), TyVar(..))
 
 nopHandlerSpec :: Spec
 nopHandlerSpec = describe "nopHandler STACKTYPE tests" $ do
@@ -23,8 +23,8 @@ nopHandlerSpec = describe "nopHandler STACKTYPE tests" $ do
   it "Failed test on [a, b, ...] pattern and stack [a]" $ runNopTest test8 False
   it "Failed test on [a, b] pattern and stack [a, c]" $ runNopTest test9 False
   where
-    p2 = StkCons t1 (StkCons t2 StkEmpty)
-    p3 = StkCons t1 (StkCons t2 StkRest)
+    p2 = StkCons (TyCon t1) (StkCons (TyCon t2) StkEmpty)
+    p3 = StkCons (TyCon t1) (StkCons (TyCon t2) StkRest)
 
     test1 = (STACKTYPE StkEmpty, convertToHST [])
     test2 = (STACKTYPE p2, convertToHST [t1, t2])
@@ -49,7 +49,7 @@ nopHandlerSpec = describe "nopHandler STACKTYPE tests" $ do
         SomeHST is -> SomeHST ((sing, nt, noAnn) ::& is)
 
     runNopTest :: (NopInstr, SomeHST) -> Bool -> Expectation
-    runNopTest (ni, si) correct = case (nopHandler ni si, correct) of
+    runNopTest (ni, si) correct = case (nopHandler ni [] si, correct) of
       (Right _, False) -> expectationFailure $ "Test expected to fail but it passed"
       (Left e, True)   -> expectationFailure $ "Test expected to pass but it failed with error: " <> show e
       _                -> pass
