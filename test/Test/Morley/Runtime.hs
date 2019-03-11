@@ -15,9 +15,11 @@ import Morley.Nop (interpretMorleyUntyped)
 import Morley.Runtime
 import Morley.Runtime.GState (GState(..), initGState)
 import Morley.Types (NopInstr)
-import Test.Util.Interpreter (ContractAux(..), dummyContractEnv, dummyNow, dummyMaxSteps)
 import Tezos.Address (Address(..))
 import Tezos.Core (unsafeMkMutez)
+
+import Test.Util.Interpreter
+  (ContractAux(..), dummyContractEnv, dummyMaxSteps, dummyNow, dummyOrigination)
 
 spec :: Spec
 spec = describe "Morley.Runtime" $ do
@@ -43,23 +45,20 @@ updatesStorageValue ca = either throwM handleResult $ do
   let
     contract = caContract ca
     ce = caEnv ca
-    account = Account
-      { accBalance = ceBalance ce
-      , accStorage = caStorage ca
-      , accContract = contract
+    origination = (dummyOrigination (caStorage ca) contract)
+      { ooBalance = ceBalance ce
       }
-  gState' <- _irGState <$>
-    interpreterPure dummyNow dummyMaxSteps initGState [OriginateOp account]
-  -- Note: `contractAddress` most likely should require the
-  -- contract to be originated, even though now it doesn't.
-  let
-    addr = contractAddress contract
+    addr = mkContractAddress origination
     txData = TxData
       { tdSenderAddress = ceSender ce
       , tdParameter = caParameter ca
       , tdAmount = unsafeMkMutez 100
       }
-  (addr,) <$> interpreterPure dummyNow dummyMaxSteps gState' [TransferOp addr txData]
+    interpreterOps =
+      [ OriginateOp origination
+      , TransferOp addr txData
+      ]
+  (addr,) <$> interpreterPure dummyNow dummyMaxSteps initGState interpreterOps
   where
     toNewStorage :: InterpretUntypedResult -> Value (Op NopInstr)
     toNewStorage InterpretUntypedResult {..} = unsafeValToValue iurNewStorage
@@ -79,13 +78,8 @@ failsToOriginateTwice =
   isAlreadyOriginated
   where
     contract = caContract contractAux1
-    ce = caEnv contractAux1
-    account = Account
-      { accBalance = ceBalance ce
-      , accStorage = caStorage contractAux1
-      , accContract = contract
-      }
-    ops = [OriginateOp account, OriginateOp account]
+    origination = dummyOrigination (caStorage contractAux1) contract
+    ops = [OriginateOp origination, OriginateOp origination]
     isAlreadyOriginated (Left (IEAlreadyOriginated {})) = True
     isAlreadyOriginated _ = False
 

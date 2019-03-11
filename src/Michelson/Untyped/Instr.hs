@@ -6,9 +6,15 @@ module Michelson.Untyped.Instr
   ( InstrAbstract (..)
   , Instr
   , Op (..)
+
+  -- * Contract's address
+  , OriginationOperation (..)
+  , mkContractAddress
   ) where
 
+import qualified Data.Aeson as Aeson
 import Data.Aeson.TH (defaultOptions, deriveJSON)
+import qualified Data.ByteString.Lazy as BSL
 import Data.Data (Data(..))
 import Fmt (genericF)
 import Formatting.Buildable (Buildable(build))
@@ -17,6 +23,9 @@ import Michelson.Untyped.Annotation (FieldAnn, TypeAnn, VarAnn)
 import Michelson.Untyped.Contract (Contract)
 import Michelson.Untyped.Type (Comparable, Type)
 import Michelson.Untyped.Value (Value)
+import Tezos.Address (Address, mkContractAddressRaw)
+import Tezos.Core (Mutez)
+import Tezos.Crypto (KeyHash)
 
 -------------------------------------
 -- Flattened types after macroexpander
@@ -125,8 +134,43 @@ instance (Buildable nop, Buildable op) => Buildable (InstrAbstract nop op) where
   build = genericF
 
 ----------------------------------------------------------------------------
+-- Contract's address computation
+--
+-- Note: it might be a bit weird place for this functionality, but it's the
+-- lowest layer where all necessary Michelson types are defined. We may
+-- reconsider it later.
+----------------------------------------------------------------------------
+
+-- | Data necessary to originate a contract.
+data OriginationOperation nop = OriginationOperation
+  { ooManager :: !KeyHash
+  -- ^ Manager of the contract.
+  , ooDelegate :: !(Maybe KeyHash)
+  -- ^ Optional delegate.
+  , ooSpendable :: !Bool
+  -- ^ Whether the contract is spendable.
+  , ooDelegatable :: !Bool
+  -- ^ Whether the contract is delegatable.
+  , ooBalance :: !Mutez
+  -- ^ Initial balance of the contract.
+  , ooStorage :: !(Value (Op nop))
+  -- ^ Initial storage value of the contract.
+  , ooContract :: !(Contract (Op nop))
+  -- ^ The contract itself.
+  } deriving (Show)
+
+-- | Compute address of a contract from its origination operation.
+--
+-- TODO [TM-62] It's certainly imprecise, real Tezos implementation doesn't
+-- use JSON, but we don't need precise format yet, so we just use some
+-- serialization format (JSON because we have necessary instances already).
+mkContractAddress :: Aeson.ToJSON nop => OriginationOperation nop -> Address
+mkContractAddress = mkContractAddressRaw . BSL.toStrict . Aeson.encode
+
+----------------------------------------------------------------------------
 -- JSON serialization
 ----------------------------------------------------------------------------
 
 deriveJSON defaultOptions ''Op
 deriveJSON defaultOptions ''InstrAbstract
+deriveJSON defaultOptions ''OriginationOperation
