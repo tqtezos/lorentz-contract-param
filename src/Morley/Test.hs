@@ -25,11 +25,11 @@ import Test.QuickCheck (Arbitrary(..), choose)
 import Text.Megaparsec (parse)
 
 import Michelson.Interpret (ContractEnv, ContractReturn, interpret)
-import Michelson.TypeCheck (SomeContract(..), TCError, typeCheckContract)
+import Michelson.TypeCheck (SomeContract(..), TCError)
 import Michelson.Typed (CT(..), CVal(..), Contract, Instr, T(..), Val(..))
 import qualified Michelson.Untyped as U
 import Morley.Macro (expandFlattenContract)
-import Morley.Nop (nopHandler)
+import Morley.Nop (typeCheckMorleyContract)
 import qualified Morley.Parser as Mo
 import Morley.Types (NopInstr)
 import Tezos.Core
@@ -97,7 +97,7 @@ importContract file = do
   contract <- assertEither (ICEParse . show) $
                   parse Mo.contract file <$> readFile file
   SomeContract (instr :: Contract cp' st') _ _
-    <- assertEither ICETypeCheck $ pure $ typeCheckContract nopHandler $
+    <- assertEither ICETypeCheck $ pure $ typeCheckMorleyContract $
         U.unOp <$> expandFlattenContract contract
   case (eqT @cp @cp', eqT @st @st') of
     (Just Refl, Just Refl) -> pure instr

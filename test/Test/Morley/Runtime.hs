@@ -2,7 +2,6 @@
 
 module Test.Morley.Runtime
   ( spec
-  , dummyContractEnv
   ) where
 
 import Control.Lens (at)
@@ -16,8 +15,9 @@ import Morley.Nop (interpretMorleyUntyped)
 import Morley.Runtime
 import Morley.Runtime.GState (GState(..), initGState)
 import Morley.Types (NopInstr)
+import Test.Util.Interpreter (ContractAux(..), dummyContractEnv, dummyNow, dummyMaxSteps)
 import Tezos.Address (Address(..))
-import Tezos.Core (Timestamp(..), unsafeMkMutez)
+import Tezos.Core (unsafeMkMutez)
 
 spec :: Spec
 spec = describe "Morley.Runtime" $ do
@@ -92,31 +92,6 @@ failsToOriginateTwice =
 ----------------------------------------------------------------------------
 -- Data
 ----------------------------------------------------------------------------
-
-dummyNow :: Timestamp
-dummyNow = Timestamp 100
-
-dummyMaxSteps :: Word64
-dummyMaxSteps = 100500
-
-dummyContractEnv :: ContractEnv NopInstr
-dummyContractEnv = ContractEnv
-  { ceNow = dummyNow
-  , ceMaxSteps = dummyMaxSteps
-  , ceBalance = unsafeMkMutez 100
-  , ceContracts = mempty
-  , ceSource = ContractAddress "x"
-  , ceSender = ContractAddress "x"
-  , ceAmount = unsafeMkMutez 100
-  }
-
--- Contract and auxiliary data
-data ContractAux = ContractAux
-  { caContract :: !(Contract (Op NopInstr))
-  , caEnv :: !(ContractEnv NopInstr)
-  , caStorage :: !(Value (Op NopInstr))
-  , caParameter :: !(Value (Op NopInstr))
-  }
 
 contractAux1 :: ContractAux
 contractAux1 = ContractAux
