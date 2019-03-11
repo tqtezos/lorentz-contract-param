@@ -80,7 +80,7 @@ data Instr cp (inp :: [T]) (out :: [T]) where
   SIZE :: SizeOp c => Instr cp (c ': s) ('T_c 'T_nat ': s)
   EMPTY_SET :: SingI e => Instr cp s ('T_set e ': s)
   EMPTY_MAP :: (SingI a, SingI b) => Instr cp s ('T_map a b ': s)
-  MAP :: MapOp c => Instr cp (MapOpInp c ': s) (b ': s)
+  MAP :: MapOp c b => Instr cp (MapOpInp c ': s) (b ': s)
       -> Instr cp (c ': s) (MapOpRes c b ': s)
   ITER :: IterOp c => Instr cp (IterOpEl c ': s) s -> Instr cp (c ': s) s
   MEM :: MemOp c => Instr cp ('T_c (MemOpKey c) ': c ': s) ('T_c 'T_bool ': s)

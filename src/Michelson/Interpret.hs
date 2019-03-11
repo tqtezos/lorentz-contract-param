@@ -189,31 +189,23 @@ runInstr (IF_CONS bCons _) (VList (lh : lr) :& r) = runInstr bCons (lh :& VList 
 runInstr SIZE (a :& r) = pure $ VC (CvNat $ (fromInteger . toInteger) $ evalSize a) :& r
 runInstr EMPTY_SET r = pure $ VSet Set.empty :& r
 runInstr EMPTY_MAP r = pure $ VMap Map.empty :& r
--- TODO: make MAP and ITER polymorphic in orger to get rid of error "unexpected call"
-runInstr (MAP ops) (VMap a :& r) = do
-  newList <- mapM (\(key, value) -> do
-    res <- runInstr ops (VPair (VC key, value) :& r)
-    case res of
-      ((newValue :: Val (Instr cp) t) :& _) -> pure (key, newValue)) $ Map.toAscList a
-  pure $ ((VMap . Map.fromList) newList) :& r
-runInstr (MAP ops) (VList a :& r) = do
-  newList <- mapM (\x -> do
-    res <- runInstr ops (x :& r)
-    case res of
-      ((newX :: Val (Instr cp) t) :& _) -> pure newX) a
-  pure $ VList newList :& r
-runInstr (MAP _) (_) = error "unexpected call"
-runInstr (ITER _) (VList [] :& r) = pure $ r
-runInstr (ITER ops) (VList (lh : lr) :& r) = do
-  res <- runInstr ops (lh :& r)
-  runInstr (ITER ops) (VList lr :& res)
-runInstr (ITER ops) (VSet s :& r) = do
-  let ascList = map (\x -> VC x) $ Set.toAscList s
-  runInstr (ITER ops) (VList ascList :& r)
-runInstr (ITER ops) (VMap m :& r) = do
-  let ascList = map (\(key, value) -> VPair (VC key, value)) $ Map.toAscList m
-  runInstr (ITER ops) (VList ascList :& r)
-runInstr (ITER _) (_) = error "unexpected call"
+runInstr (MAP ops) (a :& r) =
+  case ops of
+    (code :: Instr cp (MapOpInp c ': s) (b ': s)) -> do
+      newList <- mapM (\(val :: Val (Instr cp) (MapOpInp c)) -> do
+        res <- runInstr code (val :& r)
+        case res of
+          ((newVal :: Val (Instr cp) b) :& _) -> pure newVal)
+        $ mapOpToList @c @b a
+      pure $ mapOpFromList a newList :& r
+runInstr (ITER ops) (a :& r) =
+  case ops of
+    (code :: Instr cp (IterOpEl c ': s) s) ->
+      case iterOpDetachOne @c a of
+        (Just x, xs) -> do
+          res <- runInstr code (x :& r)
+          runInstr (ITER code) (xs :& res)
+        (Nothing, _) -> pure r
 runInstr MEM (VC a :& b :& r) = pure $ VC (CvBool (evalMem a b)) :& r
 runInstr GET (VC a :& b :& r) = pure $ VOption (evalGet a b) :& r
 runInstr UPDATE (VC a :& b :& c :& r) = pure $ evalUpd a b c :& r
