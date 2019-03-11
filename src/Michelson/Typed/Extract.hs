@@ -10,6 +10,7 @@
 module Michelson.Typed.Extract
   ( extractNotes
   , fromUType
+  , mkUType
   , toUType
   ) where
 
@@ -36,6 +37,53 @@ fromUType (Un.Type wholeT _) = conv wholeT
     conv (Un.T_lambda lT rT) = T_lambda (fromUType lT) (fromUType rT)
     conv (Un.T_map (Un.Comparable key _) val) = T_map key (fromUType val)
     conv (Un.T_big_map (Un.Comparable key _) val) = T_big_map key (fromUType val)
+
+
+mkUType :: Sing x -> Notes x -> Un.Type
+mkUType sing notes = case (sing, notes) of
+  (ST_c ct, N (NT_c tn))              -> mt (Un.T_comparable (fromSingCT ct)) tn
+  (ST_c ct, NStar)                    -> mt (Un.T_comparable (fromSingCT ct)) na
+  (ST_key, N (NT_key tn))             -> mt Un.T_key tn
+  (ST_key, NStar)                     -> mt Un.T_key na
+  (ST_unit, N (NT_unit tn))           -> mt Un.T_unit tn
+  (ST_unit, NStar)                    -> mt Un.T_unit na
+  (ST_signature, N (NT_signature tn)) -> mt Un.T_signature tn
+  (ST_signature,NStar)                -> mt Un.T_signature na
+  (ST_option t,N (NT_option tn fn n)) -> mt (Un.T_option fn (mkUType t n)) tn
+  ((ST_option t), NStar)              -> mt (Un.T_option na (mkUType t NStar)) na
+  (ST_list t, N (NT_list tn n))       -> mt (Un.T_list (mkUType t n)) tn
+  (ST_list t, NStar)                  -> mt (Un.T_list (mkUType t NStar)) na
+  (ST_set ct, N (NT_set tn n))        -> mt (Un.T_set $ mkComp ct n) tn
+  (ST_set ct, NStar)                  -> mt (Un.T_set $ mkComp ct na) na
+  (ST_operation, N (NT_operation tn)) -> mt Un.T_operation tn
+  (ST_operation, NStar)               -> mt Un.T_operation na
+  (ST_contract t, N (NT_contract tn n)) ->
+    mt (Un.T_contract (mkUType t n)) tn
+  (ST_contract t, NStar)              -> mt (Un.T_contract (mkUType t NStar)) na
+  (ST_pair tl tr, N (NT_pair tn fl fr nl nr)) ->
+    mt (Un.T_pair fl fr (mkUType tl nl) (mkUType tr nr)) tn
+  (ST_pair tl tr, NStar) ->
+    mt (Un.T_pair na na (mkUType tl NStar) (mkUType tr NStar)) na
+  (ST_or tl tr, N (NT_or tn fl fr nl nr)) ->
+    mt (Un.T_or fl fr (mkUType tl nl) (mkUType tr nr)) tn
+  (ST_or tl tr, NStar) ->
+    mt (Un.T_or na na (mkUType tl NStar) (mkUType tr NStar)) na
+  (ST_lambda p q, N (NT_lambda tn np nq)) ->
+    mt (Un.T_lambda (mkUType p np) (mkUType q nq)) tn
+  (ST_lambda p q, NStar) ->
+    mt (Un.T_lambda (mkUType p NStar) (mkUType q NStar)) na
+  (ST_map k v, N (NT_map tn nk nv)) ->
+    mt (Un.T_map (mkComp k nk) (mkUType v nv)) tn
+  (ST_map k v, NStar) ->
+    mt (Un.T_map (mkComp k na) (mkUType v NStar)) na
+  (ST_big_map k v, N (NT_big_map tn nk nv)) ->
+    mt (Un.T_big_map (mkComp k nk) (mkUType v nv)) tn
+  (ST_big_map k v, NStar) ->
+    mt (Un.T_big_map (mkComp k na) (mkUType v NStar)) na
+ where
+  mkComp t a = Un.Comparable (fromSingCT t) a
+  mt = Un.Type
+  na = Un.noAnn
 
 -- | Extracts @Notes t@ type from 'Michelson.Type.Type' and corresponding
 -- singleton.

@@ -1,0 +1,21 @@
+let {
+  type num = int;
+  Three :: int = 3;
+  add3 :: '[int] -> '[int] = {push int 3; add;};
+  add3 :: '[int] -> '[int] = {push num Three; add;};
+  add :: '[int, int] -> '[int] = {sub;};
+  stkRest :: '[int, ...] -> '[int, ...] = {push int 3; ADD;};
+};
+
+parameter unit;
+storage unit;
+code { DROP;
+       PUSH nat Three;
+       drop;
+       PUSH num Three;
+       push Three;
+       add;
+       stacktype '[int, ...];
+       stkRest;
+       DROP;
+       UNIT; NIL operation; PAIR; };

@@ -10,110 +10,15 @@ will also be a valid Morley expression, i.e. Morley is a superset of
 Michelson. Any language extensions that break this principle must be explicitly
 enabled
 
-## Pairs
+## Syntax Sugar
 
-### Type Syntax
-`pair` types may be written using Haskell-style tuples:
+[See `morleySyntaxSugar.md`](https://gitlab.com/camlcase-dev/morley/blob/master/docs/morleySyntaxSugar.md)
 
-```
-(a, b) ~ (pair a b)
-(a, b) :t %f ~ (pair :t %f a b)
-```
+## Extended NOP Instructions
 
-When tuples are nested, parenthesis may be omitted:
+[See `morleyInstructions.md`](https://gitlab.com/camlcase-dev/morley/blob/master/docs/morleyInstructions.md)
 
-```
-(a,b,c) ~ (a,(b,c))
-```
+## Let-block Definitions
 
-But if so, only the outer pair may be annotated:
+[See `morleyLet.md`](https://gitlab.com/camlcase-dev/morley/blob/master/docs/morleyLet.md)
 
-```
-(a, b, c) :t %f ~ (a, (b, c)) :t %f
-```
-
-Inner types may be annotated as usual:
-
-```
-(a :ta %fa, b :tb %fb, c :tc %fc) ~ (a :ta %fa, (b :tb %fb, c :tc %fc))
-```
-
-### Value Syntax
-
-`Pair` values may also be written with tuples:
-
-```
-(a, b) ~ (Pair a b)
-(a, b, c) ~ (a,(b,c))
-```
-
-## Unions
-
-### Type Syntax
-
-`or` types may be written using the `|` character: 
-
-```
-(or a b) ~ (a | b)
-(or :t %f a b) ~ (a | b) :t %f
-```
-
-When bars are nested, parenthesis may be omitted:
-
-```
-(a | b | c) ~ (a | (b | c))
-```
-
-Annotations follow the same pattern as Tuples:
-
-```
-(a | b | c) :t %f ~ (a | (b | c)) :t %f
-(a :ta %fa | b :tb %fb | c :tc %fc) ~ (a :ta %fa | (b :tb %fb | c :tc %fc))
-```
-
-## Unit
-
-The `unit` type may be written as a `0`-tuple
-
-```
-unit ~ ()
-```
-
-The `Unit` value may also be written this way:
-
-```
-Unit ~ ()
-```
-
-## Lambda: 
-
-They `lambda` type may be written:
-
-```
-(lambda a b) ~ (\ a -> b)
-```
-
-## Containers
-
-The `list` and `set` types may be written:
-
-```
-(list a) ~ [a]
-(set a) ~ {a}
-```
-
-## Instruction syntax:
-
-Instructions and macros may be written in lower case:
-
-```
-DROP ~ drop
-```
-
-## Custom Macros
-
-TBD
-
-## Inline Testing
-
-TBD

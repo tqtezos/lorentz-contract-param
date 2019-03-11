@@ -95,7 +95,7 @@ importContract
   => FilePath -> IO (Contract cp st)
 importContract file = do
   contract <- assertEither (ICEParse . show) $
-                  parse Mo.contract file <$> readFile file
+                  parse Mo.program file <$> readFile file
   SomeContract (instr :: Contract cp' st') _ _
     <- assertEither ICETypeCheck $ pure $ typeCheckMorleyContract $
         U.unOp <$> expandFlattenContract contract

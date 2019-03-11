@@ -33,48 +33,48 @@ parseContractsTest = do
 checkFile :: FilePath -> Expectation
 checkFile file = do
   code <- readFile file
-  parse P.contract file code `shouldSatisfy` isRight
+  parse P.program file code `shouldSatisfy` isRight
 
 valueParserTest :: Expectation
 valueParserTest = do
-  parse P.value "" "{PUSH int 5;}" `shouldBe`
+  P.parseNoEnv P.value "" "{PUSH int 5;}" `shouldBe`
     (Right $ Mo.ValueLambda [Mo.PRIM (Mo.PUSH noAnn (Mo.Type (Mo.T_comparable Mo.T_int) noAnn) (Mo.ValueInt 5))])
-  parse P.value "" "{1; 2}" `shouldBe`
+  P.parseNoEnv P.value "" "{1; 2}" `shouldBe`
     (Right $ Mo.ValueSeq [Mo.ValueInt 1, Mo.ValueInt 2])
-  parse P.value "" "{Elt 1 2; Elt 3 4}" `shouldBe`
+  P.parseNoEnv P.value "" "{Elt 1 2; Elt 3 4}" `shouldBe`
     (Right $ Mo.ValueMap [Mo.Elt (Mo.ValueInt 1) (Mo.ValueInt 2), Mo.Elt (Mo.ValueInt 3) (Mo.ValueInt 4)])
 
 stringLiteralTest :: Expectation
 stringLiteralTest = do
-  parse P.stringLiteral "" "\"\"" `shouldSatisfy` isRight
-  parse P.stringLiteral "" "\" \\t \\b \\n\\r  \"" `shouldSatisfy` isRight
-  parse P.stringLiteral "" "\"abacaba \\t \n\n\r\"" `shouldSatisfy` isRight
-  parse P.stringLiteral "" "\"abacaba \\t \n\n\r a\"" `shouldSatisfy` isLeft
-  parse P.stringLiteral "" "\"abacaba \\t \\n\\n\\r" `shouldSatisfy` isLeft
+  P.parseNoEnv P.stringLiteral "" "\"\"" `shouldSatisfy` isRight
+  P.parseNoEnv P.stringLiteral "" "\" \\t \\b \\n\\r  \"" `shouldSatisfy` isRight
+  P.parseNoEnv P.stringLiteral "" "\"abacaba \\t \n\n\r\"" `shouldSatisfy` isRight
+  P.parseNoEnv P.stringLiteral "" "\"abacaba \\t \n\n\r a\"" `shouldSatisfy` isLeft
+  P.parseNoEnv P.stringLiteral "" "\"abacaba \\t \\n\\n\\r" `shouldSatisfy` isLeft
 
 ifParsersTest :: Expectation
 ifParsersTest = do
-  parse P.ops "" "{IF {} {};}" `shouldBe`
+  P.parseNoEnv P.ops "" "{IF {} {};}" `shouldBe`
     (Prelude.Right [Mo.PRIM $ Mo.IF [] []])
-  parse P.ops "" "{IFEQ {} {};}" `shouldBe`
+  P.parseNoEnv P.ops "" "{IFEQ {} {};}" `shouldBe`
     (Prelude.Right [Mo.MAC $ Mo.IFX (Mo.EQ noAnn) [] []])
-  parse P.ops "" "{IFCMPEQ {} {};}" `shouldBe`
+  P.parseNoEnv P.ops "" "{IFCMPEQ {} {};}" `shouldBe`
     (Prelude.Right [Mo.MAC $ Mo.IFCMP (Mo.EQ noAnn) noAnn [] []])
 
 mapParsersTest :: Expectation
 mapParsersTest = do
-  parse P.ops "" "{MAP {};}" `shouldBe`
+  parseNoEnv P.ops "" "{MAP {};}" `shouldBe`
     (Prelude.Right [Mo.PRIM $ Mo.MAP noAnn []])
-  parse P.ops "" "{MAP_CAR {};}" `shouldBe`
+  parseNoEnv P.ops "" "{MAP_CAR {};}" `shouldBe`
     (Prelude.Right [Mo.MAC $ Mo.MAP_CADR [Mo.A] noAnn noAnn []])
 
 pairParsersTest :: Expectation
 pairParsersTest = do
-  parse P.ops "" "{PAIR;}" `shouldBe`
+  P.parseNoEnv P.ops "" "{PAIR;}" `shouldBe`
     Prelude.Right [Mo.PRIM $ PAIR noAnn noAnn noAnn noAnn]
-  parse P.ops "" "{PAIR %a;}" `shouldBe`
+  P.parseNoEnv P.ops "" "{PAIR %a;}" `shouldBe`
     Prelude.Right [MAC $ PAPAIR (P (F (noAnn, Mo.ann "a")) (F (noAnn,noAnn))) noAnn noAnn]
-  parse P.ops "" "{PAPAIR;}" `shouldBe`
+  P.parseNoEnv P.ops "" "{PAPAIR;}" `shouldBe`
     Prelude.Right
       [MAC $
         PAPAIR (P (F (noAnn,noAnn)) (P (F (noAnn,noAnn)) (F (noAnn,noAnn))))
@@ -83,8 +83,8 @@ pairParsersTest = do
 
 pairTypeParserTest :: Expectation
 pairTypeParserTest = do
-  parse P.type_ "" "pair unit unit" `shouldBe` Right unitPair
-  parse P.type_ "" "(unit, unit)" `shouldBe` Right unitPair
+  P.parseNoEnv P.type_ "" "pair unit unit" `shouldBe` Right unitPair
+  P.parseNoEnv P.type_ "" "(unit, unit)" `shouldBe` Right unitPair
   where
     unitPair :: Mo.Type
     unitPair =
@@ -92,8 +92,8 @@ pairTypeParserTest = do
 
 orTypeParserTest :: Expectation
 orTypeParserTest = do
-  parse P.type_ "" "or unit unit" `shouldBe` Right unitOr
-  parse P.type_ "" "(unit | unit)" `shouldBe` Right unitOr
+  P.parseNoEnv P.type_ "" "or unit unit" `shouldBe` Right unitOr
+  P.parseNoEnv P.type_ "" "(unit | unit)" `shouldBe` Right unitOr
   where
     unitOr :: Mo.Type
     unitOr =
@@ -101,8 +101,8 @@ orTypeParserTest = do
 
 lambdaTypeParserTest :: Expectation
 lambdaTypeParserTest = do
-  parse P.type_ "" "lambda unit unit" `shouldBe` Right lambdaUnitUnit
-  parse P.type_ "" "\\unit -> unit" `shouldBe` Right lambdaUnitUnit
+  P.parseNoEnv P.type_ "" "lambda unit unit" `shouldBe` Right lambdaUnitUnit
+  P.parseNoEnv P.type_ "" "\\unit -> unit" `shouldBe` Right lambdaUnitUnit
   where
     lambdaUnitUnit :: Mo.Type
     lambdaUnitUnit =
@@ -110,8 +110,8 @@ lambdaTypeParserTest = do
 
 listTypeParserTest :: Expectation
 listTypeParserTest = do
-  parse P.type_ "" "list unit" `shouldBe` Right unitList
-  parse P.type_ "" "[unit]" `shouldBe` Right unitList
+  P.parseNoEnv P.type_ "" "list unit" `shouldBe` Right unitList
+  P.parseNoEnv P.type_ "" "[unit]" `shouldBe` Right unitList
   where
     unitList :: Mo.Type
     unitList =
@@ -119,8 +119,8 @@ listTypeParserTest = do
 
 setTypeParserTest :: Expectation
 setTypeParserTest = do
-  parse P.type_ "" "set int" `shouldBe` Right intSet
-  parse P.type_ "" "{int}" `shouldBe` Right intSet
+  P.parseNoEnv P.type_ "" "set int" `shouldBe` Right intSet
+  P.parseNoEnv P.type_ "" "{int}" `shouldBe` Right intSet
   where
     intSet :: Mo.Type
     intSet =
@@ -128,8 +128,8 @@ setTypeParserTest = do
 
 pairTest :: Expectation
 pairTest = do
-  parse P.value "" "Pair Unit Unit" `shouldBe` Right unitPair
-  parse P.value "" "(Unit, Unit)" `shouldBe` Right unitPair
+  P.parseNoEnv P.value "" "Pair Unit Unit" `shouldBe` Right unitPair
+  P.parseNoEnv P.value "" "(Unit, Unit)" `shouldBe` Right unitPair
   where
     unitPair :: Mo.Value Mo.ParsedOp
     unitPair = Mo.ValuePair Mo.ValueUnit Mo.ValueUnit

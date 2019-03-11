@@ -13,7 +13,7 @@ import Test.QuickCheck.Arbitrary.ADT (ToADTArbitrary(..))
 import Michelson.Untyped
   (Annotation(..), CT(..), Comparable(..), Contract(..), Elt(..), FieldAnn, InstrAbstract(..),
   InternalByteString(..), Op(..), T(..), Type(..), TypeAnn, Value(..), VarAnn)
-import Morley.Types (NopInstr(..), StackTypePattern(..))
+import Morley.Types (NopInstr(..), StackTypePattern(..), TyVar(..), Var(..))
 import Tezos.Core (Mutez(..), Timestamp(..), timestampFromSeconds, unsafeMkMutez)
 
 instance Arbitrary InternalByteString where
@@ -21,6 +21,12 @@ instance Arbitrary InternalByteString where
 
 instance Arbitrary Text where
   arbitrary = T.pack <$> arbitrary
+
+instance Arbitrary Var where
+  arbitrary = Var <$> arbitrary
+
+instance Arbitrary TyVar where
+  arbitrary = oneof [VarID <$> arbitrary, TyCon <$> arbitrary]
 
 instance Arbitrary StackTypePattern where
   arbitrary = oneof [pure StkEmpty, pure StkRest, StkCons <$> arbitrary <*> arbitrary]
