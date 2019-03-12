@@ -19,7 +19,8 @@ import Control.Exception (IOException)
 import Data.Time.Calendar (Day, addDays, diffDays)
 import Data.Time.Clock (UTCTime(..))
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
-import Data.Typeable ((:~:)(..), eqT)
+import Data.Typeable ((:~:)(..), TypeRep, eqT, typeRep)
+import Fmt (Buildable(build), pretty, (+|), (|+), (||+))
 import Test.Hspec (Spec, describe, expectationFailure, it, runIO)
 import Test.QuickCheck (Arbitrary(..), choose)
 import Text.Megaparsec (parse)
@@ -31,7 +32,7 @@ import qualified Michelson.Untyped as U
 import Morley.Ext (interpretMorley, typeCheckMorleyContract)
 import Morley.Macro (expandFlattenContract)
 import qualified Morley.Parser as Mo
-import Morley.Types (MorleyLogs)
+import Morley.Types (MorleyLogs, ParserException(..))
 import Tezos.Core
   (Mutez(..), Timestamp, timestampFromSeconds, timestampFromUTCTime, timestampToSeconds,
   unsafeMkMutez)
@@ -81,8 +82,8 @@ specWithContract file execSpec =
   either errorSpec (describe ("Test contract " <> file) . execSpec)
     =<< runIO
           ( (Right <$> importContract file)
-            `catch` (\(e :: ImportContractError) -> pure $ Left $ show e)
-            `catch` \(e :: IOException) -> pure $ Left $ show e )
+            `catch` (\(e :: ImportContractError) -> pure $ Left $ displayException e)
+            `catch` \(e :: IOException) -> pure $ Left $ displayException e )
   where
     errorSpec = it ("Type check contract " <> file) . expectationFailure
 
@@ -96,27 +97,41 @@ importContract
     (Typeable cp, Typeable st)
   => FilePath -> IO (Contract cp st)
 importContract file = do
-  contract <- assertEither (ICEParse . show) $
+  contract <- assertEither (ICEParse . ParserException) $
                   parse Mo.program file <$> readFile file
   SomeContract (instr :: Contract cp' st') _ _
     <- assertEither ICETypeCheck $ pure $ typeCheckMorleyContract $
         U.unOp <$> expandFlattenContract contract
   case (eqT @cp @cp', eqT @st @st') of
     (Just Refl, Just Refl) -> pure instr
-    (Nothing, _) -> throwM ICEUnexpectedParamType
-    _ -> throwM ICEUnexpectedStorageType
+    (Nothing, _) -> throwM $
+      ICEUnexpectedParamType (U.para contract) (typeRep (Proxy @cp))
+    _ -> throwM (ICEUnexpectedStorageType (U.stor contract) (typeRep (Proxy @st)))
   where
     assertEither err action = either (throwM . err) pure =<< action
 
 -- | Error type for 'importContract' function.
 data ImportContractError
-  = ICEUnexpectedParamType
-  | ICEUnexpectedStorageType
-  | ICEParse Text
-  | ICETypeCheck TCError
+  = ICEUnexpectedParamType !U.Type !TypeRep
+  | ICEUnexpectedStorageType !U.Type !TypeRep
+  | ICEParse !ParserException
+  | ICETypeCheck !TCError
   deriving Show
 
-instance Exception ImportContractError
+instance Buildable ImportContractError where
+  build =
+    \case
+      ICEUnexpectedParamType actual expected ->
+        "Unexpected parameter type: " +| actual |+
+        ", expected: " +| expected ||+ ""
+      ICEUnexpectedStorageType actual expected ->
+        "Unexpected storage type: " +| actual |+
+        ", expected: " +| expected ||+ ""
+      ICEParse e -> "Failed to parse the contract: " +| e |+ ""
+      ICETypeCheck e -> "The contract is ill-typed: " +| e |+ ""
+
+instance Exception ImportContractError where
+  displayException = pretty
 
 instance Arbitrary (CVal 'T_key_hash) where
   arbitrary = CvKeyHash <$> arbitrary
