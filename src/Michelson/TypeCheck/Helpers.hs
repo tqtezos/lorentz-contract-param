@@ -207,6 +207,7 @@ getImpl
   :: forall c getKey rs nop .
     ( GetOp c, Typeable (GetOpKey c)
     , Typeable (GetOpVal c)
+    , SingI (GetOpVal c)
     )
   => Un.Instr nop
   -> HST (getKey ': c ': rs)

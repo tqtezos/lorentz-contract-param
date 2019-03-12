@@ -15,6 +15,7 @@ module Michelson.Interpret
 import Prelude hiding (EQ, GT, LT)
 
 import Control.Monad.Except (MonadError, throwError)
+import qualified Data.Aeson as Aeson
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Singletons (SingI(..))
@@ -26,15 +27,16 @@ import Michelson.TypeCheck
   (SomeContract(..), SomeVal(..), TCError, TcNopHandler, eqT', runTypeCheckT, typeCheckContract,
   typeCheckVal)
 import Michelson.Typed
-  (CVal(..), Contract, Instr(..), Operation(..), SetDelegate(..), Sing(..), T(..),
-  TransferTokens(..), Val(..), fromUType, valToOpOrValue)
+  (CVal(..), Contract, CreateAccount(..), CreateContract(..) , Instr(..), Operation(..),
+  SetDelegate(..), Sing(..), T(..), TransferTokens(..), Val(..), fromUType, valToOpOrValue)
 import qualified Michelson.Typed as Typed
 import Michelson.Typed.Arith
+import Michelson.Typed.Convert (convertContract, unsafeValToValue)
 import Michelson.Typed.Polymorphic
 import qualified Michelson.Untyped as U
 import Tezos.Address (Address(..))
 import Tezos.Core (Mutez, Timestamp(..))
-import Tezos.Crypto (blake2b, checkSignature, hashKey, sha256, sha512)
+import Tezos.Crypto (KeyHash, blake2b, checkSignature, hashKey, sha256, sha512)
 
 -- | Environment for contract execution.
 data ContractEnv nop = ContractEnv
@@ -79,6 +81,7 @@ instance Buildable MichelsonFailed where
               OpTransferTokens {} -> "TransferTokens"
               OpSetDelegate {} -> "SetDelegate"
               OpCreateAccount {} -> "CreateAccount"
+              OpCreateContract {} -> "CreateContract"
           Right untypedV -> build untypedV
 
 data InterpretUntypedError nop
@@ -105,7 +108,7 @@ data InterpretUntypedResult where
 
 -- | Interpret a contract without performing any side effects.
 interpretUntyped
-  :: (Show nop, Buildable nop)
+  :: (Aeson.ToJSON nop, Show nop, Buildable nop)
   => TcNopHandler nop
   -> U.Contract (U.Op nop)
   -> U.Value (U.Op nop)
@@ -129,7 +132,8 @@ interpretUntyped nopHandler' U.Contract{..} paramU initStU env = do
       interpret instr paramV initStV env
 
 interpret
-  :: Contract cp st
+  :: Aeson.ToJSON nop
+  => Contract cp st
   -> Val Instr cp
   -> Val Instr st
   -> ContractEnv nop
@@ -156,7 +160,8 @@ runEvalOp = runReader . runExceptT . unEvalOp
 
 -- | Function to interpret Michelson instruction(s) against given stack.
 runInstr
-    :: Instr inp out
+    :: forall nop inp out. Aeson.ToJSON nop
+    => Instr inp out
     -> Rec (Val Instr) inp
     -> EvalOp nop (Rec (Val Instr) out)
 runInstr (Seq i1 i2) r = runInstr i1 r >>= \r' -> runInstr i2 r'
@@ -221,7 +226,6 @@ runInstr (LAMBDA lam) r = pure $ lam :& r
 runInstr EXEC (a :& VLam lBody :& r) = do
   res <- runInstr lBody (a :& RNil)
   pure $ res <+> r
--- More here
 runInstr (DIP i) (a :& r) = do
   res <- runInstr i r
   pure $ a :& res
@@ -274,19 +278,25 @@ runInstr SET_DELEGATE (VOption mbKeyHash :& r) =
   case mbKeyHash of
     Just (VC (CvKeyHash k)) -> pure $ VOp (OpSetDelegate $ SetDelegate $ Just k) :& r
     Nothing -> pure $ VOp (OpSetDelegate $ SetDelegate $ Nothing) :& r
--- TODO
 runInstr CREATE_ACCOUNT
-  (VC (CvKeyHash _k) :& VOption _mbKeyHash :&
-    (VC (CvBool _b)) :& (VC (CvMutez _m)) :& _r) =
-      error "not implemented yet:("
+  (VC (CvKeyHash k) :& VOption mbKeyHash :&
+    (VC (CvBool spendable)) :& (VC (CvMutez m)) :& r) =
+  pure (VOp (OpCreateAccount $ CreateAccount k (unwrapMbKeyHash mbKeyHash) spendable m)
+    :& (VC . CvAddress) (KeyAddress k) :& r)
 runInstr CREATE_CONTRACT
-  (VC (CvKeyHash _k) :& VOption _mbKeyHash :& (VC (CvBool _b2)) :&
-    (VC (CvBool _b1)) :& (VC (CvMutez _m)) :& VLam _ops :& _g :& _r) =
-      error "not implemented yet:("
-runInstr (CREATE_CONTRACT2 _ops)
-  (VC (CvKeyHash _k) :& VOption _mbKeyHash :& (VC (CvBool _b2)) :&
-    (VC (CvBool _b1)) :& (VC (CvMutez _m)) :& _g :& _r) =
-      error "not implemented yet:("
+  (VC (CvKeyHash k) :& VOption mbKeyHash :& (VC (CvBool spendable)) :&
+    (VC (CvBool delegetable)) :& (VC (CvMutez m)) :& VLam ops :& g :& r) =
+  pure (VOp (OpCreateContract $
+    CreateContract k (unwrapMbKeyHash mbKeyHash) spendable delegetable m g ops)
+    :& (VC . CvAddress) (U.mkContractAddress @nop $
+      createOrigOp k mbKeyHash spendable delegetable m ops g) :& r)
+runInstr (CREATE_CONTRACT2 ops)
+  (VC (CvKeyHash k) :& VOption mbKeyHash :& (VC (CvBool spendable)) :&
+    (VC (CvBool delegetable)) :& (VC (CvMutez m)) :& g :& r) =
+  pure (VOp (OpCreateContract $
+    CreateContract k (unwrapMbKeyHash mbKeyHash) spendable delegetable m g ops)
+    :& (VC . CvAddress) (U.mkContractAddress @nop $
+      createOrigOp k mbKeyHash spendable delegetable m ops g) :& r)
 runInstr IMPLICIT_ACCOUNT (VC (CvKeyHash k) :& r) =
   pure $ VContract (KeyAddress k) :& r
 runInstr NOW r = do
@@ -304,7 +314,6 @@ runInstr SHA256 (VC (CvBytes b) :& r) = pure $ VC (CvBytes $ sha256 b) :& r
 runInstr SHA512 (VC (CvBytes b) :& r) = pure $ VC (CvBytes $ sha512 b) :& r
 runInstr BLAKE2B (VC (CvBytes b) :& r) = pure $ VC (CvBytes $ blake2b b) :& r
 runInstr HASH_KEY (VKey k :& r) = pure $ VC (CvKeyHash $ hashKey k) :& r
--- TODO
 runInstr STEPS_TO_QUOTA _r = error "not implemented yet:("
 runInstr SOURCE r = do
   ContractEnv{..} <- ask
@@ -313,7 +322,6 @@ runInstr SENDER r = do
   ContractEnv{..} <- ask
   pure $ VC (CvAddress ceSender) :& r
 runInstr ADDRESS (VContract a :& r) = pure $ VC (CvAddress a) :& r
-
 
 -- | Evaluates an arithmetic operation and either fails or proceeds.
 runArithOp
@@ -325,3 +333,26 @@ runArithOp
 runArithOp op l r = case evalOp op l r of
   Left  err -> throwError (MichelsonArithError err)
   Right res -> pure (VC res)
+
+createOrigOp
+  :: (SingI param, SingI store)
+  => KeyHash
+  -> Maybe (Val Instr ('T_c 'U.T_key_hash))
+  -> Bool -> Bool -> Mutez
+  -> Contract param store
+  -> Val Instr t
+  -> U.OriginationOperation nop
+createOrigOp k mbKeyHash delegetable spendable m contract g =
+  U.OriginationOperation
+    { ooManager = k
+    , ooDelegate = (unwrapMbKeyHash mbKeyHash)
+    , ooSpendable = spendable
+    , ooDelegatable = delegetable
+    , ooBalance = m
+    , ooStorage = unsafeValToValue g
+    , ooContract = convertContract contract
+    }
+
+unwrapMbKeyHash :: Maybe (Val Instr ('T_c 'U.T_key_hash)) -> Maybe KeyHash
+unwrapMbKeyHash (Just (VC (CvKeyHash keyHash))) = Just keyHash
+unwrapMbKeyHash Nothing = Nothing

@@ -3,8 +3,6 @@
 module Michelson.Typed.Instr
   ( Instr (..)
   , (#)
-  , ContractInp
-  , ContractOut
   , Contract
   ) where
 
@@ -13,7 +11,7 @@ import Data.Singletons (SingI)
 import Michelson.Typed.Arith
 import Michelson.Typed.Polymorphic
 import Michelson.Typed.T (CT(..), T(..))
-import Michelson.Typed.Value (Val(..))
+import Michelson.Typed.Value (ContractInp, ContractOut, Val(..))
 
 -- | Infix version of @Seq@ constructor.
 --
@@ -183,7 +181,8 @@ data Instr (inp :: [T]) (out :: [T]) where
          ': 'T_c 'T_mutez ': s) ('T_operation ': 'T_c 'T_address ': s)
 
   CREATE_CONTRACT
-    :: Instr
+    :: (SingI p, SingI g)
+    => Instr
         ('T_c 'T_key_hash ': 'T_option ('T_c 'T_key_hash) ': 'T_c 'T_bool
           ': 'T_c 'T_bool ': 'T_c 'T_mutez
           ': 'T_lambda ('T_pair p g)
@@ -199,6 +198,7 @@ data Instr (inp :: [T]) (out :: [T]) where
               'T_c 'T_mutez ':
                g ': s)
              ('T_operation ': 'T_c 'T_address ': s)
+
   IMPLICIT_ACCOUNT
     :: Instr ('T_c 'T_key_hash ': s) ('T_contract 'T_unit ': s)
   NOW :: Instr s ('T_c 'T_timestamp ': s)
@@ -218,6 +218,4 @@ data Instr (inp :: [T]) (out :: [T]) where
 
 deriving instance Show (Instr inp out)
 
-type ContractInp param st = '[ 'T_pair param st ]
-type ContractOut st = '[ 'T_pair ('T_list 'T_operation) st ]
 type Contract cp st = Instr (ContractInp cp st) (ContractOut st)

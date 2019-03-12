@@ -54,7 +54,7 @@ import Michelson.Untyped.Annotation (VarAnn)
 -- element.
 data HST (ts :: [T])  where
   SNil :: HST '[]
-  (::&) :: (Typeable xs, Typeable x)
+  (::&) :: (Typeable xs, Typeable x, SingI x)
         => (Sing x, Notes x, VarAnn)
         -> HST xs
         -> HST (x ': xs)

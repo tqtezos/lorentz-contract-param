@@ -1,5 +1,7 @@
 module Michelson.Typed.Convert
-  ( unsafeValToValue
+  ( convertContract
+  , instrToOps
+  , unsafeValToValue
   , valToOpOrValue
   ) where
 
@@ -16,6 +18,16 @@ import qualified Michelson.Untyped as Un
 import Tezos.Address (formatAddress)
 import Tezos.Core (unMutez)
 import Tezos.Crypto (formatKeyHash, formatPublicKey, formatSignature)
+
+convertContract
+  :: forall param store nop. (SingI param, SingI store)
+  => Contract param store -> Un.Contract (Un.Op nop)
+convertContract contract =
+  Un.Contract
+    { para = toUType $ fromSingT (sing @param)
+    , stor = toUType $ fromSingT (sing @store)
+    , code = instrToOps contract
+    }
 
 -- | Function @unsafeValToValue@ converts typed @Val@ to untyped @Value@
 -- from @Michelson.Untyped.Value@ module

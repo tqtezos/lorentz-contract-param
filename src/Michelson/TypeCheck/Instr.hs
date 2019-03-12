@@ -723,7 +723,7 @@ mapImpl
   , Typeable (MapOpRes c b)
   )
   => Un.Instr nop -> SomeInstr -> HST (c ': rs)
-  -> (forall v' . Typeable v' =>
+  -> (forall v'. (Typeable v', SingI v') =>
         Sing v' -> Notes v' -> HST rs -> HST (MapOpRes c v' ': rs))
   -> TypeCheckT nop SomeInstr
 mapImpl instr someInstr i@(_ ::& _) mkRes =
@@ -744,6 +744,7 @@ mapImpl instr someInstr i@(_ ::& _) mkRes =
 iterImpl
   :: forall c rs nop .
     ( IterOp c
+    , SingI (IterOpEl c)
     , Typeable (IterOpEl c)
     , Show nop
     , Buildable nop
