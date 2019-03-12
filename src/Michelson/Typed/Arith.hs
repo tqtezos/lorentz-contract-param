@@ -6,6 +6,8 @@
 module Michelson.Typed.Arith
   ( ArithOp (..)
   , UnaryArithOp (..)
+  , ArithError (..)
+  , ArithErrorType (..)
   , Add
   , Sub
   , Mul
@@ -27,6 +29,7 @@ module Michelson.Typed.Arith
   ) where
 
 import Data.Bits (complement, shift, xor, (.&.), (.|.))
+import Fmt (Buildable(build))
 
 import Michelson.Typed.CValue (CVal(..))
 import Michelson.Typed.T (CT(..))
@@ -42,12 +45,24 @@ class ArithOp aop (n :: CT) (m :: CT) where
   -- computing operation @op@ from operands of types @n@ and @m@.
   --
   -- For instance, adding integer to natural produces integer,
-  -- which is reflected in following instance of type fanily:
+  -- which is reflected in following instance of type family:
   -- @ArithRes Add T_nat T_int = T_int@.
   type ArithRes aop n m :: CT
 
   -- | Evaluate arithmetic operation on given operands.
-  evalOp :: proxy aop -> CVal n -> CVal m -> CVal (ArithRes aop n m)
+  evalOp :: proxy aop -> CVal n -> CVal m -> Either (ArithError (CVal n) (CVal m)) (CVal (ArithRes aop n m))
+
+-- | Denotes the error type occured in the arithmetic operation.
+data ArithErrorType
+  = AddOverflow
+  | MulOverflow
+  | SubUnderflow
+  deriving (Show, Eq, Ord)
+
+-- | Represents an arithmetic error of the operation.
+data ArithError n m
+  = MutezArithError ArithErrorType n m
+  deriving (Show, Eq, Ord)
 
 -- | Marker data type for add operation.
 class UnaryArithOp aop (n :: CT) where
@@ -77,82 +92,78 @@ data Ge
 
 instance ArithOp Add 'T_nat 'T_int where
   type ArithRes Add 'T_nat 'T_int = 'T_int
-  evalOp _ (CvNat i) (CvInt j) = CvInt (toInteger i + j)
+  evalOp _ (CvNat i) (CvInt j) = Right $ CvInt (toInteger i + j)
 instance ArithOp Add 'T_int 'T_nat where
   type ArithRes Add 'T_int 'T_nat = 'T_int
-  evalOp _ (CvInt i) (CvNat j) = CvInt (i + toInteger j)
+  evalOp _ (CvInt i) (CvNat j) = Right $ CvInt (i + toInteger j)
 instance ArithOp Add 'T_nat 'T_nat where
   type ArithRes Add 'T_nat 'T_nat = 'T_nat
-  evalOp _ (CvNat i) (CvNat j) = CvNat (i + j)
+  evalOp _ (CvNat i) (CvNat j) = Right $ CvNat (i + j)
 instance ArithOp Add 'T_int 'T_int where
   type ArithRes Add 'T_int 'T_int = 'T_int
-  evalOp _ (CvInt i) (CvInt j) = CvInt (i + j)
+  evalOp _ (CvInt i) (CvInt j) = Right $ CvInt (i + j)
 instance ArithOp Add 'T_timestamp 'T_int where
   type ArithRes Add 'T_timestamp 'T_int = 'T_timestamp
   evalOp _ (CvTimestamp i) (CvInt j) =
-    CvTimestamp $ timestampFromSeconds $ timestampToSeconds i + j
+    Right $ CvTimestamp $ timestampFromSeconds $ timestampToSeconds i + j
 instance ArithOp Add 'T_int 'T_timestamp where
   type ArithRes Add 'T_int 'T_timestamp = 'T_timestamp
   evalOp _ (CvInt i) (CvTimestamp j) =
-    CvTimestamp $ timestampFromSeconds $ timestampToSeconds j + i
+    Right $ CvTimestamp $ timestampFromSeconds $ timestampToSeconds j + i
 instance ArithOp Add 'T_mutez 'T_mutez where
   type ArithRes Add 'T_mutez 'T_mutez = 'T_mutez
-  evalOp _ (CvMutez i) (CvMutez j) = CvMutez res
+  evalOp _ n@(CvMutez i) m@(CvMutez j) = res
     where
-      -- TODO [TM-49]: it should be [FAILED] value instead of `error`
-      res = fromMaybe (error "mutez addition failed") $ i `addMutez` j
+      res = maybe (Left $ MutezArithError AddOverflow n m) (Right . CvMutez) $ i `addMutez` j
 
 instance ArithOp Sub 'T_nat 'T_int where
   type ArithRes Sub 'T_nat 'T_int = 'T_int
-  evalOp _ (CvNat i) (CvInt j) = CvInt (toInteger i - j)
+  evalOp _ (CvNat i) (CvInt j) = Right $ CvInt (toInteger i - j)
 instance ArithOp Sub 'T_int 'T_nat where
   type ArithRes Sub 'T_int 'T_nat = 'T_int
-  evalOp _ (CvInt i) (CvNat j) = CvInt (i - toInteger j)
+  evalOp _ (CvInt i) (CvNat j) = Right $ CvInt (i - toInteger j)
 instance ArithOp Sub 'T_nat 'T_nat where
   type ArithRes Sub 'T_nat 'T_nat = 'T_int
-  evalOp _ (CvNat i) (CvNat j) = CvInt (toInteger i - toInteger j)
+  evalOp _ (CvNat i) (CvNat j) = Right $ CvInt (toInteger i - toInteger j)
 instance ArithOp Sub 'T_int 'T_int where
   type ArithRes Sub 'T_int 'T_int = 'T_int
-  evalOp _ (CvInt i) (CvInt j) = CvInt (i - j)
+  evalOp _ (CvInt i) (CvInt j) = Right $ CvInt (i - j)
 instance ArithOp Sub 'T_timestamp 'T_int where
   type ArithRes Sub 'T_timestamp 'T_int = 'T_timestamp
   evalOp _ (CvTimestamp i) (CvInt j) =
-    CvTimestamp $ timestampFromSeconds $ timestampToSeconds i - j
+    Right $ CvTimestamp $ timestampFromSeconds $ timestampToSeconds i - j
 instance ArithOp Sub 'T_timestamp 'T_timestamp where
   type ArithRes Sub 'T_timestamp 'T_timestamp = 'T_int
   evalOp _ (CvTimestamp i) (CvTimestamp j) =
-    CvInt $ timestampToSeconds i - timestampToSeconds j
+    Right $ CvInt $ timestampToSeconds i - timestampToSeconds j
 instance ArithOp Sub 'T_mutez 'T_mutez where
   type ArithRes Sub 'T_mutez 'T_mutez = 'T_mutez
-  evalOp _ (CvMutez i) (CvMutez j) = CvMutez res
+  evalOp _ n@(CvMutez i) m@(CvMutez j) = res
     where
-      -- TODO [TM-49]: it should be [FAILED] value instead of `error`
-      res = fromMaybe (error "mutez subtraction failed") $ i `subMutez` j
+      res = maybe (Left $ MutezArithError SubUnderflow n m) (Right . CvMutez) $ i `subMutez` j
 
 instance ArithOp Mul 'T_nat 'T_int where
   type ArithRes Mul 'T_nat 'T_int = 'T_int
-  evalOp _ (CvNat i) (CvInt j) = CvInt (toInteger i * j)
+  evalOp _ (CvNat i) (CvInt j) = Right $ CvInt (toInteger i * j)
 instance ArithOp Mul 'T_int 'T_nat where
   type ArithRes Mul 'T_int 'T_nat = 'T_int
-  evalOp _ (CvInt i) (CvNat j) = CvInt (i * toInteger j)
+  evalOp _ (CvInt i) (CvNat j) = Right $ CvInt (i * toInteger j)
 instance ArithOp Mul 'T_nat 'T_nat where
   type ArithRes Mul 'T_nat 'T_nat = 'T_nat
-  evalOp _ (CvNat i) (CvNat j) = CvNat (i * j)
+  evalOp _ (CvNat i) (CvNat j) = Right $ CvNat (i * j)
 instance ArithOp Mul 'T_int 'T_int where
   type ArithRes Mul 'T_int 'T_int = 'T_int
-  evalOp _ (CvInt i) (CvInt j) = CvInt (i * j)
+  evalOp _ (CvInt i) (CvInt j) = Right $ CvInt (i * j)
 instance ArithOp Mul 'T_nat 'T_mutez where
   type ArithRes Mul 'T_nat 'T_mutez = 'T_mutez
-  evalOp _ (CvNat i) (CvMutez j) = CvMutez res
+  evalOp _ n@(CvNat i) m@(CvMutez j) = res
     where
-      -- TODO [TM-49]: it should be [FAILED] value instead of `error`
-      res = fromMaybe (error "mutez multiplication failed") $ j `mulMutez` i
+      res = maybe (Left $ MutezArithError MulOverflow n m) (Right . CvMutez) $ j `mulMutez` i
 instance ArithOp Mul 'T_mutez 'T_nat where
   type ArithRes Mul 'T_mutez 'T_nat = 'T_mutez
-  evalOp _ (CvMutez i) (CvNat j) = CvMutez res
+  evalOp _ n@(CvMutez i) m@(CvNat j) = res
     where
-      -- TODO [TM-49]: it should be [FAILED] value instead of `error`
-      res = fromMaybe (error "mutez multiplication failed") $ i `mulMutez` j
+      res = maybe (Left $ MutezArithError MulOverflow n m) (Right . CvMutez) $ i `mulMutez` j
 
 instance UnaryArithOp Abs 'T_int where
   type UnaryArithRes Abs 'T_int = 'T_nat
@@ -164,38 +175,38 @@ instance UnaryArithOp Neg 'T_int where
 
 instance ArithOp Or 'T_nat 'T_nat where
   type ArithRes Or 'T_nat 'T_nat = 'T_nat
-  evalOp _ (CvNat i) (CvNat j) = CvNat (i .|. j)
+  evalOp _ (CvNat i) (CvNat j) = Right $ CvNat (i .|. j)
 instance ArithOp Or 'T_bool 'T_bool where
   type ArithRes Or 'T_bool 'T_bool = 'T_bool
-  evalOp _ (CvBool i) (CvBool j) = CvBool (i .|. j)
+  evalOp _ (CvBool i) (CvBool j) = Right $ CvBool (i .|. j)
 
 instance ArithOp And 'T_int 'T_nat where
   type ArithRes And 'T_int 'T_nat = 'T_int
-  evalOp _ (CvInt i) (CvNat j) = CvInt (i .&. fromIntegral j)
+  evalOp _ (CvInt i) (CvNat j) = Right $ CvInt (i .&. fromIntegral j)
 instance ArithOp And 'T_nat 'T_nat where
   type ArithRes And 'T_nat 'T_nat = 'T_nat
-  evalOp _ (CvNat i) (CvNat j) = CvNat (i .&. j)
+  evalOp _ (CvNat i) (CvNat j) = Right $ CvNat (i .&. j)
 instance ArithOp And 'T_bool 'T_bool where
   type ArithRes And 'T_bool 'T_bool = 'T_bool
-  evalOp _ (CvBool i) (CvBool j) = CvBool (i .&. j)
+  evalOp _ (CvBool i) (CvBool j) = Right $ CvBool (i .&. j)
 
 instance ArithOp Xor 'T_nat 'T_nat where
   type ArithRes Xor 'T_nat 'T_nat = 'T_nat
-  evalOp _ (CvNat i) (CvNat j) = CvNat (i `xor` j)
+  evalOp _ (CvNat i) (CvNat j) = Right $ CvNat (i `xor` j)
 instance ArithOp Xor 'T_bool 'T_bool where
   type ArithRes Xor 'T_bool 'T_bool = 'T_bool
-  evalOp _ (CvBool i) (CvBool j) = CvBool (i `xor` j)
+  evalOp _ (CvBool i) (CvBool j) = Right $ CvBool (i `xor` j)
 
 -- Todo add condition when shift >= 256
 instance ArithOp Lsl 'T_nat 'T_nat where
   type ArithRes Lsl 'T_nat 'T_nat = 'T_nat
   evalOp _ (CvNat i) (CvNat j) =
-    CvNat (fromInteger $ shift (toInteger i) (fromIntegral j))
+    Right $ CvNat (fromInteger $ shift (toInteger i) (fromIntegral j))
 
 instance ArithOp Lsr 'T_nat 'T_nat where
   type ArithRes Lsr 'T_nat 'T_nat = 'T_nat
   evalOp _ (CvNat i) (CvNat j) =
-    CvNat (fromInteger $ shift (toInteger i) (-(fromIntegral j)))
+    Right $ CvNat (fromInteger $ shift (toInteger i) (-(fromIntegral j)))
 
 instance UnaryArithOp Not 'T_int where
   type UnaryArithRes Not 'T_int = 'T_int
@@ -209,40 +220,40 @@ instance UnaryArithOp Not 'T_bool where
 
 instance ArithOp Compare 'T_bool 'T_bool where
   type ArithRes Compare 'T_bool 'T_bool = 'T_int
-  evalOp _ (CvBool i) (CvBool j) = CvInt
-    (toInteger $ fromEnum (compare i j) - 1)
+  evalOp _ (CvBool i) (CvBool j) =
+    Right $ CvInt $ toInteger $ fromEnum (compare i j) - 1
 instance ArithOp Compare 'T_address 'T_address where
   type ArithRes Compare 'T_address 'T_address = 'T_int
-  evalOp _ (CvAddress i) (CvAddress j) = CvInt
-    (toInteger $ fromEnum (compare i j) - 1)
+  evalOp _ (CvAddress i) (CvAddress j) =
+    Right $ CvInt $ toInteger $ fromEnum (compare i j) - 1
 instance ArithOp Compare 'T_nat 'T_nat where
   type ArithRes Compare 'T_nat 'T_nat = 'T_int
-  evalOp _ (CvNat i) (CvNat j) = CvInt
-    (toInteger $ fromEnum (compare i j) - 1)
+  evalOp _ (CvNat i) (CvNat j) =
+    Right $ CvInt $ toInteger $ fromEnum (compare i j) - 1
 instance ArithOp Compare 'T_int 'T_int where
   type ArithRes Compare 'T_int 'T_int = 'T_int
-  evalOp _ (CvInt i) (CvInt j) = CvInt
-    (toInteger $ fromEnum (compare i j) - 1)
+  evalOp _ (CvInt i) (CvInt j) =
+    Right $ CvInt $ toInteger $ fromEnum (compare i j) - 1
 instance ArithOp Compare 'T_string 'T_string where
   type ArithRes Compare 'T_string 'T_string = 'T_int
-  evalOp _ (CvString i) (CvString j) = CvInt
-    (toInteger $ fromEnum (compare i j) - 1)
+  evalOp _ (CvString i) (CvString j) =
+    Right $ CvInt $ toInteger $ fromEnum (compare i j) - 1
 instance ArithOp Compare 'T_bytes 'T_bytes where
   type ArithRes Compare 'T_bytes 'T_bytes = 'T_int
-  evalOp _ (CvBytes i) (CvBytes j) = CvInt
-    (toInteger $ fromEnum (compare i j) - 1)
+  evalOp _ (CvBytes i) (CvBytes j) =
+    Right $ CvInt $ toInteger $ fromEnum (compare i j) - 1
 instance ArithOp Compare 'T_timestamp 'T_timestamp where
   type ArithRes Compare 'T_timestamp 'T_timestamp = 'T_int
-  evalOp _ (CvTimestamp i) (CvTimestamp j) = CvInt
-    (toInteger $ fromEnum (compare i j) - 1)
+  evalOp _ (CvTimestamp i) (CvTimestamp j) =
+    Right $ CvInt $ toInteger $ fromEnum (compare i j) - 1
 instance ArithOp Compare 'T_mutez 'T_mutez where
   type ArithRes Compare 'T_mutez 'T_mutez = 'T_int
-  evalOp _ (CvMutez i) (CvMutez j) = CvInt
-    (toInteger $ fromEnum (compare i j) - 1)
+  evalOp _ (CvMutez i) (CvMutez j) = Right $
+    CvInt $ toInteger $ fromEnum (compare i j) - 1
 instance ArithOp Compare 'T_key_hash 'T_key_hash where
   type ArithRes Compare 'T_key_hash 'T_key_hash = 'T_int
-  evalOp _ (CvKeyHash i) (CvKeyHash j) = CvInt
-    (toInteger $ fromEnum (compare i j) - 1)
+  evalOp _ (CvKeyHash i) (CvKeyHash j) =
+    Right $ CvInt $ toInteger $ fromEnum (compare i j) - 1
 
 instance UnaryArithOp Eq' 'T_int where
   type UnaryArithRes Eq' 'T_int = 'T_bool
@@ -268,3 +279,13 @@ instance UnaryArithOp Le 'T_int where
 instance UnaryArithOp Ge 'T_int where
   type UnaryArithRes Ge 'T_int = 'T_bool
   evalUnaryArithOp _ (CvInt i) = CvBool (i >= 0)
+
+
+instance Buildable ArithErrorType where
+  build AddOverflow = "add overflow"
+  build MulOverflow = "mul overflow"
+  build SubUnderflow = "sub overflow"
+
+instance (Show n, Show m) => Buildable (ArithError n m) where
+  build (MutezArithError errType n m) = "Mutez "
+    <> build errType <> " with " <> show n <> ", " <> show m

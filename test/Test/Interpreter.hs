@@ -18,13 +18,31 @@ spec = describe "Advanced type interpreter tests" $ do
     it "Basic test" $
       interpret contract VUnit (VList [ VC $ CvInt 1 ]) dummyContractEnv
         `shouldSatisfy` isRight
+
   specWithContract "contracts/increment.tz" $ \contract ->
     it "Basic test" $
       interpret contract VUnit (VC $ CvInt 23) dummyContractEnv
         `shouldSatisfy` isRight
+
+  specWithContract "contracts/fail.tz" $ \contract ->
+    it "Fail test" $
+      interpret contract VUnit VUnit dummyContractEnv
+        `shouldSatisfy` isLeft
+
+  specWithContract "contracts/mutez_add_overflow.tz" $ \contract ->
+    it "Mutez add overflow test" $
+      interpret contract VUnit VUnit dummyContractEnv
+        `shouldSatisfy` isLeft
+
+  specWithContract "contracts/mutez_sub_underflow.tz" $ \contract ->
+    it "Mutez sub underflow test" $
+      interpret contract VUnit VUnit dummyContractEnv
+        `shouldSatisfy` isLeft
+
   specWithContract "contracts/basic1.tz" $ \contract -> do
     prop "Random check" $
       contractProp contract validateBasic1 dummyContractEnv
+
   auctionSpec
 
 validateBasic1

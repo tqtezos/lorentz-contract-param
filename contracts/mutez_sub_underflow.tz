@@ -1,0 +1,10 @@
+parameter unit;
+storage unit;
+code {DIP {PUSH mutez 1;
+           PUSH mutez 0;
+           SUB;
+           DROP;
+           };
+
+      CAR; NIL operation; PAIR;
+      };
