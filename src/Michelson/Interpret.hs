@@ -59,7 +59,7 @@ data ContractEnv nop = ContractEnv
 -- value that was on top of the stack when `FAILWITH` was called.
 data MichelsonFailed where
   MichelsonFailedWith :: Val (Instr cp) t -> MichelsonFailed
-  MutezOverflow :: MichelsonFailed
+  MichelsonArithError :: ArithError (CVal n) (CVal m) -> MichelsonFailed
 
 deriving instance Show MichelsonFailed
 
@@ -68,7 +68,7 @@ instance Buildable MichelsonFailed where
     \case
       MichelsonFailedWith v ->
         "Reached FAILWITH instruction with " <> formatValue v
-      MutezOverflow -> "Mutez overflow occurred"
+      MichelsonArithError v -> build v
     where
       formatValue v =
         -- Pass `Bool` as `nop`, because it's not essential and we
@@ -241,20 +241,20 @@ runInstr ISNAT (VC (CvInt i) :& r) =
   if i < 0
   then pure $ VOption Nothing :& r
   else pure $ VOption (Just $ VC (CvNat $ fromInteger i)) :& r
-runInstr ADD (VC l :& VC r :& rest) = pure $ VC (evalOp (Proxy @Add) l r) :& rest
-runInstr SUB (VC l :& VC r :& rest) = pure $ VC (evalOp (Proxy @Sub) l r) :& rest
-runInstr MUL (VC l :& VC r :& rest) = pure $ VC (evalOp (Proxy @Mul) l r) :& rest
+runInstr ADD (VC l :& VC r :& rest) =
+  (:& rest) <$> runArithOp (Proxy @Add) l r
+runInstr SUB (VC l :& VC r :& rest) = (:& rest) <$> runArithOp (Proxy @Sub) l r
+runInstr MUL (VC l :& VC r :& rest) = (:& rest) <$> runArithOp (Proxy @Mul) l r
 runInstr EDIV (VC l :& VC r :& rest) = pure $ evalEDivOp l r :& rest
 runInstr ABS (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Abs) a) :& rest
 runInstr NEG (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Neg) a) :& rest
-runInstr LSL (VC x :& VC s :& rest) = pure $ VC (evalOp (Proxy @Lsl) x s) :& rest
-runInstr LSR (VC x :& VC s :& rest) = pure $ VC (evalOp (Proxy @Lsr) x s) :& rest
-runInstr OR (VC l :& VC r :& rest) = pure $ VC (evalOp (Proxy @Or) l r) :& rest
-runInstr AND (VC l :& VC r :& rest) = pure $ VC (evalOp (Proxy @And) l r) :& rest
-runInstr XOR (VC l :& VC r :& rest) = pure $ VC (evalOp (Proxy @Xor) l r) :& rest
+runInstr LSL (VC x :& VC s :& rest) = (:& rest) <$> runArithOp (Proxy @Lsl) x s
+runInstr LSR (VC x :& VC s :& rest) = (:& rest) <$> runArithOp (Proxy @Lsr) x s
+runInstr OR (VC l :& VC r :& rest) = (:& rest) <$> runArithOp (Proxy @Or) l r
+runInstr AND (VC l :& VC r :& rest) = (:& rest) <$> runArithOp (Proxy @And) l r
+runInstr XOR (VC l :& VC r :& rest) = (:& rest) <$> runArithOp (Proxy @Xor) l r
 runInstr NOT (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Not) a) :& rest
-runInstr COMPARE (VC l :& VC r :& rest) =
-  pure $ VC (evalOp (Proxy @Compare) l r) :& rest
+runInstr COMPARE (VC l :& VC r :& rest) = (:& rest) <$> runArithOp (Proxy @Compare) l r
 runInstr Typed.EQ (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Eq') a) :& rest
 runInstr NEQ (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Neq) a) :& rest
 runInstr Typed.LT (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Lt) a) :& rest
@@ -315,3 +315,15 @@ runInstr SENDER r = do
   ContractEnv{..} <- ask
   pure $ VC (CvAddress ceSender) :& r
 runInstr ADDRESS (VContract a :& r) = pure $ VC (CvAddress a) :& r
+
+
+-- | Evaluates an arithmetic operation and either fails or proceeds.
+runArithOp
+  :: ArithOp aop n m
+  => proxy aop
+  -> CVal n
+  -> CVal m
+  -> EvalOp nop (Val instr ('T_c (ArithRes aop n m)))
+runArithOp op l r = case evalOp op l r of
+  Left  err -> throwError (MichelsonArithError err)
+  Right res -> pure (VC res)
