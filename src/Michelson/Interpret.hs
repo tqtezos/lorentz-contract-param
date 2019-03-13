@@ -1,8 +1,14 @@
+{-# LANGUAGE Rank2Types #-}
+
 -- | Module, containing function to interpret Michelson
 -- instructions against given context and input stack.
 module Michelson.Interpret
   ( ContractEnv (..)
+  , InterpreterEnv (..)
+  , InterpreterState (..)
   , MichelsonFailed (..)
+  , SomeItStack (..)
+  , EvalOp
 
   , interpret
   , ContractReturn
@@ -10,11 +16,13 @@ module Michelson.Interpret
   , interpretUntyped
   , InterpretUntypedError (..)
   , InterpretUntypedResult (..)
+  , runInstr
+  , runInstrNoGas
   ) where
 
 import Prelude hiding (EQ, GT, LT)
 
-import Control.Monad.Except (MonadError, throwError)
+import Control.Monad.Except (throwError)
 import qualified Data.Aeson as Aeson
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -27,9 +35,9 @@ import Michelson.TypeCheck
   (SomeContract(..), SomeVal(..), TCError, TcExtHandler, eqT', runTypeCheckT, typeCheckContract,
   typeCheckVal, ExtC)
 import Michelson.Typed
-  (CVal(..), Contract, CreateAccount(..), CreateContract(..) , Instr(..), Operation(..),
-  SetDelegate(..), Sing(..), T(..), TransferTokens(..), Val(..), fromUType, valToOpOrValue, ConversibleExt)
-import qualified Michelson.Typed as Typed
+  (CVal(..), Contract, Instr(..), Operation(..), SetDelegate(..), Sing(..), T(..),
+  TransferTokens(..), Val(..), fromUType, valToOpOrValue, ConversibleExt, CreateAccount (..), CreateContract (..))
+import qualified Michelson.Typed as T
 import Michelson.Typed.Arith
 import Michelson.Typed.Convert (convertContract, unsafeValToValue)
 import Michelson.Typed.Polymorphic
@@ -63,6 +71,7 @@ data MichelsonFailed where
   MichelsonFailedWith :: Val Instr t -> MichelsonFailed
   MichelsonArithError :: ArithError (CVal n) (CVal m) -> MichelsonFailed
   MichelsonGasExhaustion :: MichelsonFailed
+  MichelsonFailedOther :: Text -> MichelsonFailed
 
 deriving instance Show MichelsonFailed
 
@@ -74,6 +83,7 @@ instance (ConversibleExt, Buildable U.Instr) => Buildable MichelsonFailed where
       MichelsonArithError v -> build v
       MichelsonGasExhaustion ->
         "Gas limit exceeded on contract execution"
+      MichelsonFailedOther t -> build t
     where
       formatValue :: forall t . Val Instr t -> Builder
       formatValue v =
@@ -86,8 +96,8 @@ instance (ConversibleExt, Buildable U.Instr) => Buildable MichelsonFailed where
               OpCreateContract {} -> "CreateContract"
           Right untypedV -> build untypedV
 
-data InterpretUntypedError
-  = RuntimeFailure MichelsonFailed
+data InterpretUntypedError s
+  = RuntimeFailure (MichelsonFailed, s)
   | IllTypedContract TCError
   | IllTypedParam TCError
   | IllTypedStorage TCError
@@ -95,258 +105,298 @@ data InterpretUntypedError
   | UnexpectedStorageType Text
   deriving (Generic)
 
-deriving instance (Show U.InstrExtU, Buildable U.Instr) => Show InterpretUntypedError
+deriving instance (Buildable U.Instr, Show s) => Show (InterpretUntypedError s)
 
-instance (ConversibleExt, Buildable U.Instr) => Buildable InterpretUntypedError where
+instance (ConversibleExt, Buildable U.Instr, Buildable s) => Buildable (InterpretUntypedError s) where
   build = genericF
 
-data InterpretUntypedResult where
+data InterpretUntypedResult s where
   InterpretUntypedResult
     :: ( Typeable st
        , SingI st
        )
     => { iurOps :: [ Operation Instr ]
        , iurNewStorage :: Val Instr st
+       , iurNewState   :: s
        }
-    -> InterpretUntypedResult
+    -> InterpretUntypedResult s
 
 -- | Interpret a contract without performing any side effects.
 interpretUntyped
-  :: (ExtC, Aeson.ToJSON U.InstrExtU, ConversibleExt)
+  :: forall s . (ExtC, Aeson.ToJSON U.InstrExtU, ConversibleExt)
   => TcExtHandler
   -> U.Contract U.Op
   -> U.Value U.Op
   -> U.Value U.Op
-  -> ContractEnv
-  -> Either InterpretUntypedError InterpretUntypedResult
-interpretUntyped nopHandler' U.Contract{..} paramU initStU env = do
+  -> InterpreterEnv s
+  -> s
+  -> Either (InterpretUntypedError s) (InterpretUntypedResult s)
+interpretUntyped typeCheckHandler U.Contract{..} paramU initStU env initState = do
     (SomeContract (instr :: Contract cp st) _ _)
-       <- first IllTypedContract $ typeCheckContract nopHandler'
+       <- first IllTypedContract $ typeCheckContract typeCheckHandler
               (U.Contract para stor (U.unOp <$> code))
     paramV :::: ((_ :: Sing cp1), _)
-       <- first IllTypedParam $ runTypeCheckT nopHandler' para $
+       <- first IllTypedParam $ runTypeCheckT typeCheckHandler para $
             typeCheckVal paramU (fromUType para)
     initStV :::: ((_ :: Sing st1), _)
-       <- first IllTypedStorage $ runTypeCheckT nopHandler' para $
+       <- first IllTypedStorage $ runTypeCheckT typeCheckHandler para $
             typeCheckVal initStU (fromUType stor)
     Refl <- first UnexpectedStorageType $ eqT' @st @st1
     Refl <- first UnexpectedParamType   $ eqT' @cp @cp1
-    fmap (uncurry InterpretUntypedResult) $
-      first RuntimeFailure $
-      interpret instr paramV initStV env
+    bimap RuntimeFailure (uncurry3 InterpretUntypedResult) $
+      toRes $
+        interpret instr paramV initStV env initState
+  where
+    toRes (ei, s) = bimap (,s) (,s) ei
 
-type ContractReturn st =
-  Either MichelsonFailed ([Operation Instr], Val Instr st)
+    uncurry3 f ((a, b), c) = f a b c
+
+type ContractReturn s st =
+  (Either MichelsonFailed ([Operation Instr], Val Instr st), s)
 
 interpret
-  :: (ExtC, Aeson.ToJSON U.InstrExtU, ConversibleExt)
+  :: (ExtC, Aeson.ToJSON U.InstrExtU, ConversibleExt, Typeable cp, Typeable st)
   => Contract cp st
   -> Val Instr cp
   -> Val Instr st
-  -> ContractEnv
-  -> ContractReturn st
-interpret instr param initSt env = fmap toRes $
-  runEvalOp (runInstr instr (VPair (param, initSt) :& RNil)) env (RemainingSteps $ ceMaxSteps env)
+  -> InterpreterEnv s
+  -> s
+  -> ContractReturn s st
+interpret instr param initSt env@InterpreterEnv{..} initState = first (fmap toRes) $
+  runEvalOp
+    (runInstr instr (VPair (param, initSt) :& RNil))
+    env
+    (InterpreterState initState $ RemainingSteps $ ceMaxSteps ieContractEnv)
   where
     toRes
-      :: Rec (Val instr) '[ 'T_pair ('T_list 'T_operation) st ]
+      :: (Rec (Val instr) '[ 'T_pair ('T_list 'T_operation) st ])
       -> ([Operation instr], Val instr st)
     toRes (VPair (VList ops_, newSt) :& RNil) =
       (map (\(VOp op) -> op) ops_, newSt)
 
-newtype RemainingSteps = RemainingSteps Word64 deriving (Num)
+data SomeItStack where
+  SomeItStack :: Typeable inp => Rec (Val Instr) inp -> SomeItStack
 
-newtype EvalOp a = EvalOp
-  { unEvalOp :: ExceptT MichelsonFailed (StateT RemainingSteps (Reader ContractEnv )) a
-  } deriving ( Functor, Applicative, Monad, MonadError MichelsonFailed
-              , MonadState RemainingSteps, MonadReader ContractEnv)
+data InterpreterEnv s = InterpreterEnv
+  { ieContractEnv :: ContractEnv
+  , ieItHandler   :: (T.InstrExtT, SomeItStack) -> EvalOp s ()
+  }
 
-runEvalOp :: EvalOp a -> ContractEnv -> RemainingSteps -> Either MichelsonFailed a
-runEvalOp op env steps = runReader (evalStateT (runExceptT (unEvalOp op)) steps) env
+newtype RemainingSteps = RemainingSteps Word64
+  deriving (Eq, Ord, Num)
+
+data InterpreterState s = InterpreterState
+  { isExtState       :: s
+  , isRemainingSteps :: RemainingSteps
+  }
+
+type EvalOp s a =
+  ExceptT MichelsonFailed
+    (ReaderT (InterpreterEnv s)
+       (State (InterpreterState s))) a
+
+runEvalOp :: EvalOp s a -> InterpreterEnv s -> InterpreterState s -> (Either MichelsonFailed a, s)
+runEvalOp act env initSt = fmap isExtState $ flip runState initSt $ usingReaderT env $ runExceptT act
 
 -- | Function to change amount of remaining steps stored in State monad
 runInstr
-  :: (ExtC, Aeson.ToJSON U.InstrExtU, ConversibleExt)
+  :: (ExtC, Aeson.ToJSON U.InstrExtU, ConversibleExt, Typeable inp)
   => Instr inp out
   -> Rec (Val Instr) inp
-  -> EvalOp (Rec (Val Instr) out)
-runInstr i@(Seq _i1 _i2) r = runInstrImpl i r
-runInstr i@(Nop) r = runInstrImpl i r
+  -> EvalOp state (Rec (Val Instr) out)
+runInstr i@(Seq _i1 _i2) r = runInstrImpl runInstr i r
+runInstr i@Nop r = runInstrImpl runInstr i r
 runInstr i r = do
-  RemainingSteps rs <- get
+  rs <- gets isRemainingSteps
   if rs == 0
   then throwError $ MichelsonGasExhaustion
   else do
-    modify (subtract 1)
-    runInstrImpl i r
+    modify (\s -> s {isRemainingSteps = rs - 1})
+    runInstrImpl runInstr i r
+
+runInstrNoGas
+  :: forall a b state .
+  (ExtC, Aeson.ToJSON U.InstrExtU, ConversibleExt, Typeable a)
+  => T.Instr a b -> Rec (Val T.Instr) a -> EvalOp state (Rec (Val T.Instr) b)
+runInstrNoGas = runInstrImpl runInstrNoGas
 
 -- | Function to interpret Michelson instruction(s) against given stack.
 runInstrImpl
-    :: (ExtC, Aeson.ToJSON U.InstrExtU, ConversibleExt)
-    => Instr inp out
+    :: forall state .
+    (ExtC, Aeson.ToJSON U.InstrExtU, ConversibleExt)
+    => (forall inp1 out1 . Typeable inp1 =>
+      Instr inp1 out1
+    -> Rec (Val Instr) inp1
+    -> EvalOp state (Rec (Val Instr) out1)
+    )
+    -> (forall inp out . Typeable inp =>
+      Instr inp out
     -> Rec (Val Instr) inp
-    -> EvalOp (Rec (Val Instr) out)
-runInstrImpl (Seq i1 i2) r = runInstr i1 r >>= \r' -> runInstr i2 r'
-runInstrImpl Nop r = pure $ r
-runInstrImpl (Ext _) _ = error "not implemented yet"
-runInstrImpl DROP (_ :& r) = pure $ r
-runInstrImpl DUP (a :& r) = pure $ a :& a :& r
-runInstrImpl SWAP (a :& b :& r) = pure $ b :& a :& r
-runInstrImpl (PUSH v) r = pure $ v :& r
-runInstrImpl SOME (a :& r) = pure $ VOption (Just a) :& r
-runInstrImpl NONE r = pure $ VOption Nothing :& r
-runInstrImpl UNIT r = pure $ VUnit :& r
-runInstrImpl (IF_NONE _bNone bJust) (VOption (Just a) :& r) = runInstr bJust (a :& r)
-runInstrImpl (IF_NONE bNone _bJust) (VOption Nothing :& r) = runInstr bNone r
-runInstrImpl PAIR (a :& b :& r) = pure $ VPair (a, b) :& r
-runInstrImpl CAR (VPair (a, _b) :& r) = pure $ a :& r
-runInstrImpl CDR (VPair (_a, b) :& r) = pure $ b :& r
-runInstrImpl LEFT (a :& r) = pure $ (VOr $ Left a) :& r
-runInstrImpl RIGHT (b :& r) = pure $ (VOr $ Right b) :& r
-runInstrImpl (IF_LEFT bLeft _) (VOr (Left a) :& r) = runInstr bLeft (a :& r)
-runInstrImpl (IF_LEFT _ bRight) (VOr (Right a) :& r) = runInstr bRight (a :& r)
-runInstrImpl (IF_RIGHT bRight _) (VOr (Right a) :& r) = runInstr bRight (a :& r)
-runInstrImpl (IF_RIGHT _ bLeft) (VOr (Left a) :& r) = runInstr bLeft (a :& r)
+    -> EvalOp state (Rec (Val Instr) out)
+    )
+runInstrImpl runner (Seq i1 i2) r = runner i1 r >>= \r' -> runner i2 r'
+runInstrImpl _ Nop r = pure $ r
+runInstrImpl _ (Ext nop) r = do
+  handler <- asks ieItHandler
+  r <$ handler (nop, SomeItStack r)
+runInstrImpl _ DROP (_ :& r) = pure $ r
+runInstrImpl _ DUP (a :& r) = pure $ a :& a :& r
+runInstrImpl _ SWAP (a :& b :& r) = pure $ b :& a :& r
+runInstrImpl _ (PUSH v) r = pure $ v :& r
+runInstrImpl _ SOME (a :& r) = pure $ VOption (Just a) :& r
+runInstrImpl _ NONE r = pure $ VOption Nothing :& r
+runInstrImpl _ UNIT r = pure $ VUnit :& r
+runInstrImpl runner (IF_NONE _bNone bJust) (VOption (Just a) :& r) = runner bJust (a :& r)
+runInstrImpl runner (IF_NONE bNone _bJust) (VOption Nothing :& r) = runner bNone r
+runInstrImpl _ PAIR (a :& b :& r) = pure $ VPair (a, b) :& r
+runInstrImpl _ CAR (VPair (a, _b) :& r) = pure $ a :& r
+runInstrImpl _ CDR (VPair (_a, b) :& r) = pure $ b :& r
+runInstrImpl _ LEFT (a :& r) = pure $ (VOr $ Left a) :& r
+runInstrImpl _ RIGHT (b :& r) = pure $ (VOr $ Right b) :& r
+runInstrImpl runner (IF_LEFT bLeft _) (VOr (Left a) :& r) = runner bLeft (a :& r)
+runInstrImpl runner (IF_LEFT _ bRight) (VOr (Right a) :& r) = runner bRight (a :& r)
+runInstrImpl runner (IF_RIGHT bRight _) (VOr (Right a) :& r) = runner bRight (a :& r)
+runInstrImpl runner (IF_RIGHT _ bLeft) (VOr (Left a) :& r) = runner bLeft (a :& r)
 -- More here
-runInstrImpl NIL r = pure $ VList [] :& r
-runInstrImpl CONS (a :& VList l :& r) = pure $ VList (a : l) :& r
-runInstrImpl (IF_CONS _ bNil) (VList [] :& r) = runInstr bNil r
-runInstrImpl (IF_CONS bCons _) (VList (lh : lr) :& r) = runInstr bCons (lh :& VList lr :& r)
-runInstrImpl SIZE (a :& r) = pure $ VC (CvNat $ (fromInteger . toInteger) $ evalSize a) :& r
-runInstrImpl EMPTY_SET r = pure $ VSet Set.empty :& r
-runInstrImpl EMPTY_MAP r = pure $ VMap Map.empty :& r
-runInstrImpl (MAP ops) (a :& r) =
+runInstrImpl _ NIL r = pure $ VList [] :& r
+runInstrImpl _ CONS (a :& VList l :& r) = pure $ VList (a : l) :& r
+runInstrImpl runner (IF_CONS _ bNil) (VList [] :& r) = runner bNil r
+runInstrImpl runner (IF_CONS bCons _) (VList (lh : lr) :& r) = runner bCons (lh :& VList lr :& r)
+runInstrImpl _ SIZE (a :& r) = pure $ VC (CvNat $ (fromInteger . toInteger) $ evalSize a) :& r
+runInstrImpl _ EMPTY_SET r = pure $ VSet Set.empty :& r
+runInstrImpl _ EMPTY_MAP r = pure $ VMap Map.empty :& r
+runInstrImpl runner (MAP ops) (a :& r) =
   case ops of
     (code :: Instr (MapOpInp c ': s) (b ': s)) -> do
       newList <- mapM (\(val :: Val Instr (MapOpInp c)) -> do
-        res <- runInstr code (val :& r)
+        res <- runner code (val :& r)
         case res of
           ((newVal :: Val Instr b) :& _) -> pure newVal)
         $ mapOpToList @c @b a
       pure $ mapOpFromList a newList :& r
-runInstrImpl (ITER ops) (a :& r) =
+runInstrImpl runner (ITER ops) (a :& r) =
   case ops of
     (code :: Instr (IterOpEl c ': s) s) ->
       case iterOpDetachOne @c a of
         (Just x, xs) -> do
-          res <- runInstr code (x :& r)
-          runInstr (ITER code) (xs :& res)
+          res <- runner code (x :& r)
+          runner (ITER code) (xs :& res)
         (Nothing, _) -> pure r
-runInstrImpl MEM (VC a :& b :& r) = pure $ VC (CvBool (evalMem a b)) :& r
-runInstrImpl GET (VC a :& b :& r) = pure $ VOption (evalGet a b) :& r
-runInstrImpl UPDATE (VC a :& b :& c :& r) = pure $ evalUpd a b c :& r
-runInstrImpl (IF bTrue _) (VC (CvBool True) :& r) = runInstr bTrue r
-runInstrImpl (IF _ bFalse) (VC (CvBool False) :& r) = runInstr bFalse r
-runInstrImpl (LOOP _) (VC (CvBool False) :& r) = pure $ r
-runInstrImpl (LOOP ops) (VC (CvBool True) :& r) = do
-  res <- runInstr ops r
-  runInstr (LOOP ops) res
-runInstrImpl (LOOP_LEFT _) (VOr (Right a) :&r) = pure $ a :& r
-runInstrImpl (LOOP_LEFT ops) (VOr (Left a) :& r) = do
-  res <- runInstr ops (a :& r)
-  runInstrImpl (LOOP_LEFT ops) res
-runInstrImpl (LAMBDA lam) r = pure $ lam :& r
-runInstrImpl EXEC (a :& VLam lBody :& r) = do
-  res <- runInstr lBody (a :& RNil)
+runInstrImpl _ MEM (VC a :& b :& r) = pure $ VC (CvBool (evalMem a b)) :& r
+runInstrImpl _ GET (VC a :& b :& r) = pure $ VOption (evalGet a b) :& r
+runInstrImpl _ UPDATE (VC a :& b :& c :& r) = pure $ evalUpd a b c :& r
+runInstrImpl runner (IF bTrue _) (VC (CvBool True) :& r) = runner bTrue r
+runInstrImpl runner (IF _ bFalse) (VC (CvBool False) :& r) = runner bFalse r
+runInstrImpl _ (LOOP _) (VC (CvBool False) :& r) = pure $ r
+runInstrImpl runner (LOOP ops) (VC (CvBool True) :& r) = do
+  res <- runner ops r
+  runner (LOOP ops) res
+runInstrImpl _ (LOOP_LEFT _) (VOr (Right a) :&r) = pure $ a :& r
+runInstrImpl runner (LOOP_LEFT ops) (VOr (Left a) :& r) = do
+  res <- runner ops (a :& r)
+  runner  (LOOP_LEFT ops) res
+runInstrImpl _ (LAMBDA lam) r = pure $ lam :& r
+runInstrImpl runner EXEC (a :& VLam lBody :& r) = do
+  res <- runner lBody (a :& RNil)
   pure $ res <+> r
-runInstrImpl (DIP i) (a :& r) = do
-  res <- runInstr i r
+runInstrImpl runner (DIP i) (a :& r) = do
+  res <- runner i r
   pure $ a :& res
-runInstrImpl FAILWITH (a :& _) = throwError $ MichelsonFailedWith a
-runInstrImpl CAST (a :& r) = pure $ a :& r
-runInstrImpl RENAME (a :& r) = pure $ a :& r
+runInstrImpl _ FAILWITH (a :& _) = throwError $ MichelsonFailedWith a
+runInstrImpl _ CAST (a :& r) = pure $ a :& r
+runInstrImpl _ RENAME (a :& r) = pure $ a :& r
 -- TODO
-runInstrImpl PACK (_ :& _) = error "PACK not implemented yet"
-runInstrImpl UNPACK (_ :& _) = error "UNPACK not implemented yet"
-runInstrImpl CONCAT (a :& b :& r) = pure $ evalConcat a b :& r
-runInstrImpl CONCAT' (VList a :& r) = pure $ evalConcat' a :& r
-runInstrImpl SLICE (VC (CvNat o) :& VC (CvNat l) :& s :& r) =
+runInstrImpl _ PACK (_ :& _) = error "PACK not implemented yet"
+runInstrImpl _ UNPACK (_ :& _) = error "UNPACK not implemented yet"
+runInstrImpl _ CONCAT (a :& b :& r) = pure $ evalConcat a b :& r
+runInstrImpl _ CONCAT' (VList a :& r) = pure $ evalConcat' a :& r
+runInstrImpl _ SLICE (VC (CvNat o) :& VC (CvNat l) :& s :& r) =
   pure $ VOption (evalSlice o l s) :& r
-runInstrImpl ISNAT (VC (CvInt i) :& r) =
+runInstrImpl _ ISNAT (VC (CvInt i) :& r) =
   if i < 0
   then pure $ VOption Nothing :& r
   else pure $ VOption (Just $ VC (CvNat $ fromInteger i)) :& r
-runInstrImpl ADD (VC l :& VC r :& rest) =
+runInstrImpl _ ADD (VC l :& VC r :& rest) =
   (:& rest) <$> runArithOp (Proxy @Add) l r
-runInstrImpl SUB (VC l :& VC r :& rest) = (:& rest) <$> runArithOp (Proxy @Sub) l r
-runInstrImpl MUL (VC l :& VC r :& rest) = (:& rest) <$> runArithOp (Proxy @Mul) l r
-runInstrImpl EDIV (VC l :& VC r :& rest) = pure $ evalEDivOp l r :& rest
-runInstrImpl ABS (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Abs) a) :& rest
-runInstrImpl NEG (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Neg) a) :& rest
-runInstrImpl LSL (VC x :& VC s :& rest) = (:& rest) <$> runArithOp (Proxy @Lsl) x s
-runInstrImpl LSR (VC x :& VC s :& rest) = (:& rest) <$> runArithOp (Proxy @Lsr) x s
-runInstrImpl OR (VC l :& VC r :& rest) = (:& rest) <$> runArithOp (Proxy @Or) l r
-runInstrImpl AND (VC l :& VC r :& rest) = (:& rest) <$> runArithOp (Proxy @And) l r
-runInstrImpl XOR (VC l :& VC r :& rest) = (:& rest) <$> runArithOp (Proxy @Xor) l r
-runInstrImpl NOT (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Not) a) :& rest
-runInstrImpl COMPARE (VC l :& VC r :& rest) = (:& rest) <$> runArithOp (Proxy @Compare) l r
-runInstrImpl Typed.EQ (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Eq') a) :& rest
-runInstrImpl NEQ (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Neq) a) :& rest
-runInstrImpl Typed.LT (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Lt) a) :& rest
-runInstrImpl Typed.GT (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Gt) a) :& rest
-runInstrImpl LE (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Le) a) :& rest
-runInstrImpl GE (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Ge) a) :& rest
-runInstrImpl INT (VC (CvNat n) :& r) = pure $ VC (CvInt $ toInteger n) :& r
-runInstrImpl SELF r = do
-  ContractEnv{..} <- ask
+runInstrImpl _ SUB (VC l :& VC r :& rest) = (:& rest) <$> runArithOp (Proxy @Sub) l r
+runInstrImpl _ MUL (VC l :& VC r :& rest) = (:& rest) <$> runArithOp (Proxy @Mul) l r
+runInstrImpl _ EDIV (VC l :& VC r :& rest) = pure $ evalEDivOp l r :& rest
+runInstrImpl _ ABS (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Abs) a) :& rest
+runInstrImpl _ NEG (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Neg) a) :& rest
+runInstrImpl _ LSL (VC x :& VC s :& rest) = (:& rest) <$> runArithOp (Proxy @Lsl) x s
+runInstrImpl _ LSR (VC x :& VC s :& rest) = (:& rest) <$> runArithOp (Proxy @Lsr) x s
+runInstrImpl _ OR (VC l :& VC r :& rest) = (:& rest) <$> runArithOp (Proxy @Or) l r
+runInstrImpl _ AND (VC l :& VC r :& rest) = (:& rest) <$> runArithOp (Proxy @And) l r
+runInstrImpl _ XOR (VC l :& VC r :& rest) = (:& rest) <$> runArithOp (Proxy @Xor) l r
+runInstrImpl _ NOT (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Not) a) :& rest
+runInstrImpl _ COMPARE (VC l :& VC r :& rest) = (:& rest) <$> runArithOp (Proxy @Compare) l r
+runInstrImpl _ T.EQ (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Eq') a) :& rest
+runInstrImpl _ NEQ (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Neq) a) :& rest
+runInstrImpl _ T.LT (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Lt) a) :& rest
+runInstrImpl _ T.GT (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Gt) a) :& rest
+runInstrImpl _ LE (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Le) a) :& rest
+runInstrImpl _ GE (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Ge) a) :& rest
+runInstrImpl _ INT (VC (CvNat n) :& r) = pure $ VC (CvInt $ toInteger n) :& r
+runInstrImpl _ SELF r = do
+  ContractEnv{..} <- asks ieContractEnv
   pure $ VContract ceSource :& r
-runInstrImpl CONTRACT (VC (CvAddress addr) :& r) = do
-  ContractEnv{..} <- ask
+runInstrImpl _ CONTRACT (VC (CvAddress addr) :& r) = do
+  ContractEnv{..} <- asks ieContractEnv
   if Map.member addr ceContracts
   then pure $ VOption (Just $ VContract addr) :& r
   else pure $ VOption Nothing :& r
-runInstrImpl TRANSFER_TOKENS (p :& VC (CvMutez mutez) :& contract :& r) =
+runInstrImpl _ TRANSFER_TOKENS (p :& VC (CvMutez mutez) :& contract :& r) =
   pure $ VOp (OpTransferTokens $ TransferTokens p mutez contract) :& r
-runInstrImpl SET_DELEGATE (VOption mbKeyHash :& r) =
+runInstrImpl _ SET_DELEGATE (VOption mbKeyHash :& r) =
   case mbKeyHash of
     Just (VC (CvKeyHash k)) -> pure $ VOp (OpSetDelegate $ SetDelegate $ Just k) :& r
     Nothing -> pure $ VOp (OpSetDelegate $ SetDelegate $ Nothing) :& r
-runInstrImpl CREATE_ACCOUNT
+runInstrImpl _ CREATE_ACCOUNT
   (VC (CvKeyHash k) :& VOption mbKeyHash :&
     (VC (CvBool spendable)) :& (VC (CvMutez m)) :& r) =
   pure (VOp (OpCreateAccount $ CreateAccount k (unwrapMbKeyHash mbKeyHash) spendable m)
     :& (VC . CvAddress) (KeyAddress k) :& r)
-runInstrImpl CREATE_CONTRACT
+runInstrImpl _ CREATE_CONTRACT
   (VC (CvKeyHash k) :& VOption mbKeyHash :& (VC (CvBool spendable)) :&
     (VC (CvBool delegetable)) :& (VC (CvMutez m)) :& VLam ops :& g :& r) =
   pure (VOp (OpCreateContract $
     CreateContract k (unwrapMbKeyHash mbKeyHash) spendable delegetable m g ops)
     :& (VC . CvAddress) (U.mkContractAddress $
       createOrigOp k mbKeyHash spendable delegetable m ops g) :& r)
-runInstrImpl (CREATE_CONTRACT2 ops)
+runInstrImpl _ (CREATE_CONTRACT2 ops)
   (VC (CvKeyHash k) :& VOption mbKeyHash :& (VC (CvBool spendable)) :&
     (VC (CvBool delegetable)) :& (VC (CvMutez m)) :& g :& r) =
   pure (VOp (OpCreateContract $
     CreateContract k (unwrapMbKeyHash mbKeyHash) spendable delegetable m g ops)
     :& (VC . CvAddress) (U.mkContractAddress $
       createOrigOp k mbKeyHash spendable delegetable m ops g) :& r)
-runInstrImpl IMPLICIT_ACCOUNT (VC (CvKeyHash k) :& r) =
+runInstrImpl _ IMPLICIT_ACCOUNT (VC (CvKeyHash k) :& r) =
   pure $ VContract (KeyAddress k) :& r
-runInstrImpl NOW r = do
-  ContractEnv{..} <- ask
+runInstrImpl _ NOW r = do
+  ContractEnv{..} <- asks ieContractEnv
   pure $ VC (CvTimestamp ceNow) :& r
-runInstrImpl AMOUNT r = do
-  ContractEnv{..} <- ask
+runInstrImpl _ AMOUNT r = do
+  ContractEnv{..} <- asks ieContractEnv
   pure $ VC (CvMutez ceAmount) :& r
-runInstrImpl BALANCE r = do
-  ContractEnv{..} <- ask
+runInstrImpl _ BALANCE r = do
+  ContractEnv{..} <- asks ieContractEnv
   pure $ VC (CvMutez ceBalance) :& r
-runInstrImpl CHECK_SIGNATURE (VKey k :& VSignature v :&
+runInstrImpl _ CHECK_SIGNATURE (VKey k :& VSignature v :&
   VC (CvBytes b) :& r) = pure $ VC (CvBool $ checkSignature k v b) :& r
-runInstrImpl SHA256 (VC (CvBytes b) :& r) = pure $ VC (CvBytes $ sha256 b) :& r
-runInstrImpl SHA512 (VC (CvBytes b) :& r) = pure $ VC (CvBytes $ sha512 b) :& r
-runInstrImpl BLAKE2B (VC (CvBytes b) :& r) = pure $ VC (CvBytes $ blake2b b) :& r
-runInstrImpl HASH_KEY (VKey k :& r) = pure $ VC (CvKeyHash $ hashKey k) :& r
-runInstrImpl STEPS_TO_QUOTA r = do
-  (RemainingSteps x) <- get
+runInstrImpl _ SHA256 (VC (CvBytes b) :& r) = pure $ VC (CvBytes $ sha256 b) :& r
+runInstrImpl _ SHA512 (VC (CvBytes b) :& r) = pure $ VC (CvBytes $ sha512 b) :& r
+runInstrImpl _ BLAKE2B (VC (CvBytes b) :& r) = pure $ VC (CvBytes $ blake2b b) :& r
+runInstrImpl _ HASH_KEY (VKey k :& r) = pure $ VC (CvKeyHash $ hashKey k) :& r
+runInstrImpl _ STEPS_TO_QUOTA r = do
+  RemainingSteps x <- gets isRemainingSteps
   pure $ VC (CvNat $ (fromInteger . toInteger) x) :& r
-runInstrImpl SOURCE r = do
-  ContractEnv{..} <- ask
+runInstrImpl _ SOURCE r = do
+  ContractEnv{..} <- asks ieContractEnv
   pure $ VC (CvAddress ceSource) :& r
-runInstrImpl SENDER r = do
-  ContractEnv{..} <- ask
+runInstrImpl _ SENDER r = do
+  ContractEnv{..} <- asks ieContractEnv
   pure $ VC (CvAddress ceSender) :& r
-runInstrImpl ADDRESS (VContract a :& r) = pure $ VC (CvAddress a) :& r
+runInstrImpl _ ADDRESS (VContract a :& r) = pure $ VC (CvAddress a) :& r
 
 -- | Evaluates an arithmetic operation and either fails or proceeds.
 runArithOp
@@ -354,7 +404,7 @@ runArithOp
   => proxy aop
   -> CVal n
   -> CVal m
-  -> EvalOp (Val instr ('T_c (ArithRes aop n m)))
+  -> EvalOp s (Val instr ('T_c (ArithRes aop n m)))
 runArithOp op l r = case evalOp op l r of
   Left  err -> throwError (MichelsonArithError err)
   Right res -> pure (VC res)

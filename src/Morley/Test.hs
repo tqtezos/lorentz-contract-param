@@ -24,13 +24,14 @@ import Test.Hspec (Spec, describe, expectationFailure, it, runIO)
 import Test.QuickCheck (Arbitrary(..), choose)
 import Text.Megaparsec (parse)
 
-import Michelson.Interpret (ContractEnv, ContractReturn, interpret)
+import Michelson.Interpret (ContractEnv, ContractReturn)
 import Michelson.TypeCheck (SomeContract(..), TCError)
 import Michelson.Typed (CT(..), CVal(..), Contract, Instr, T(..), Val(..))
 import qualified Michelson.Untyped as U
+import Morley.Ext (interpretMorley, typeCheckMorleyContract)
 import Morley.Macro (expandFlattenContract)
-import Morley.Ext (typeCheckMorleyContract)
 import qualified Morley.Parser as Mo
+import Morley.Types (MorleyLogs)
 import Tezos.Core
   (Mutez(..), Timestamp, timestampFromSeconds, timestampFromUTCTime, timestampToSeconds,
   unsafeMkMutez)
@@ -48,24 +49,25 @@ import Tezos.Core
 -- and might be 'Test.QuickCheck.Property' or 'Test.Hspec.Expectation'
 -- or anything else relevant.
 type ContractPropValidator cp st prop =
-  ContractEnv
-      -> Val Instr cp
-      -> Val Instr st
-      -> ContractReturn st
-      -> prop
+     ContractEnv
+  -> Val Instr cp
+  -> Val Instr st
+  -> ContractReturn MorleyLogs st
+  -> prop
 
 -- | Contract's property tester against given input.
 -- Takes contract environment, initial storage and parameter,
 -- interprets contract on this input and invokes validation function.
 contractProp
-  :: Contract cp st
+  :: (Typeable cp, Typeable st)
+  => Contract cp st
   -> ContractPropValidator cp st prop
   -> ContractEnv
   -> Val Instr cp
   -> Val Instr st
   -> prop
 contractProp instr check env param initSt =
-  check env param initSt $ interpret instr param initSt env
+  check env param initSt $ interpretMorley instr param initSt env
 
 -- | Import contract and use it in the spec.
 --

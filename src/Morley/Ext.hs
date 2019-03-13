@@ -1,21 +1,29 @@
 module Morley.Ext
   ( interpretMorleyUntyped
+  , interpretMorley
   , typeCheckMorleyContract
   , typeCheckHandler
+  , interpretHandler
   ) where
 
 import Control.Monad.Except (liftEither, throwError)
+import Data.Default (def)
 import Data.Map.Lazy (Map, insert, lookup)
 import qualified Data.Map.Lazy as Map
+import Data.Singletons (Sing)
 import qualified Data.Text as T
 import Data.Typeable ((:~:)(..))
+import Data.Vinyl (Rec(..))
 
 import Michelson.Interpret
-  (ContractEnv, InterpretUntypedError, InterpretUntypedResult, interpretUntyped)
+  (ContractEnv, ContractReturn, EvalOp, InterpretUntypedError, InterpretUntypedResult,
+  InterpreterEnv(..), InterpreterState(..), MichelsonFailed(..), SomeItStack(..), interpret,
+  interpretUntyped, runInstrNoGas)
 import Michelson.TypeCheck
 import Michelson.TypeCheck.Helpers (convergeHST, eqT')
 import Michelson.TypeCheck.Types (HST)
-import Michelson.Typed (T(..), converge, extractNotes, mkUType)
+import Michelson.Typed (T(..), Val, converge, extractNotes, mkUType)
+import qualified Michelson.Typed as T
 import Michelson.Untyped (CT(..), InstrAbstract(..))
 import Morley.Types
 
@@ -24,9 +32,19 @@ interpretMorleyUntyped
   -> Value Op
   -> Value Op
   -> ContractEnv
-  -> Either InterpretUntypedError InterpretUntypedResult
+  -> Either (InterpretUntypedError MorleyLogs) (InterpretUntypedResult MorleyLogs)
 interpretMorleyUntyped c v1 v2 cenv =
-  interpretUntyped typeCheckHandler c v1 v2 cenv
+  interpretUntyped typeCheckHandler c v1 v2 (InterpreterEnv cenv interpretHandler) def
+
+interpretMorley
+  :: (Typeable cp, Typeable st)
+  => T.Contract cp st
+  -> Val T.Instr cp
+  -> Val T.Instr st
+  -> ContractEnv
+  -> ContractReturn MorleyLogs st
+interpretMorley c param initSt env =
+  interpret c param initSt (InterpreterEnv env interpretHandler) def
 
 typeCheckMorleyContract :: Contract Instr -> Either TCError SomeContract
 typeCheckMorleyContract = typeCheckContract typeCheckHandler
@@ -42,21 +60,23 @@ typeCheckHandler ext nfs hst@(SomeHST hs) =
       verifyPrint tassComment
       si <- typeCheckList (unOp <$> tassInstrs) hst
       case si of
-        SiFail -> throwError $ TCOtherError "TEST_ASSERT has to return Bool, but it's failed"
-        instr ::: (_ :: HST inp, _ :: HST out) -> do
+        SiFail -> thErr "TEST_ASSERT has to return Bool, but it's failed"
+        instr ::: (_ :: HST inp, ((_ :: (Sing b, T.Notes b, VarAnn)) ::& (_ :: HST out1))) -> do
           Refl <- liftEither $
                     first (const $ TCOtherError "TEST_ASSERT has to return Bool, but returned something else") $
-                      eqT' @out @('[ 'T_c 'T_bool ])
+                      eqT' @b @('T_c 'T_bool)
           pure (nfs, Just $ TEST_ASSERT $ TestAssert tassName tassComment instr)
+        _ -> thErr "TEST_ASSERT has to return Bool, but the stack is empty"
   where
     lhs = lengthHST hs
+    thErr = throwError . TCOtherError
 
     verifyPrint :: PrintComment -> TypeCheckT ()
     verifyPrint (PrintComment pc) = do
       let checkStRef (Left _) = pure ()
           checkStRef (Right (StackRef (fromIntegral -> i)))
-            | i < 0     = throwError $ TCOtherError $ "Stack reference is negative " <> show i
-            | i >= lhs  = throwError $ TCOtherError $ "Stack reference is out of the stack: " <> show i <> " >= " <> show lhs
+            | i < 0     = thErr $ "Stack reference is negative " <> show i
+            | i >= lhs  = thErr $ "Stack reference is out of the stack: " <> show i <> " >= " <> show lhs
             | otherwise = pure ()
       traverse_ checkStRef pc
 
@@ -65,6 +85,22 @@ typeCheckHandler ext nfs hst@(SomeHST hs) =
     safeTail [] = []
 
     fitError = liftEither . first (TCFailedOnInstr (EXT ext) hst . flip uextErrorText hs)
+
+interpretHandler :: (ExtInstr, SomeItStack) -> EvalOp MorleyLogs ()
+interpretHandler (PRINT (PrintComment pc), SomeItStack st) = do
+  let getEl (Left l) = l
+      getEl (Right (StackRef i)) =
+        fromMaybe (error "StackRef " <> show i <> " has to exist in the stack after typechecking, but it doesn't") $
+        rat st (fromIntegral i)
+  modify (\s -> s {isExtState = MorleyLogs $ mconcat (map getEl pc) : unMorleyLogs (isExtState s)})
+interpretHandler (TEST_ASSERT (TestAssert nm pc (instr :: T.Instr inp1 ('T.T_c 'T.T_bool ': out1) )),
+            SomeItStack (st :: Rec (Val T.Instr) inp2)) = do
+  Refl <- liftEither $ first (error "TEST_ASSERT input stack doesn't match") $ eqT' @inp1 @inp2
+  runInstrNoGas instr st >>= \case
+    (T.VC (T.CvBool False) :& RNil) -> do
+      interpretHandler (PRINT pc, SomeItStack st)
+      throwError $ MichelsonFailedOther $ "TEST_ASSERT " <> nm <> " failed"
+    _  -> pass
 
 -- | Various type errors possible when checking a @NopInstr@ with the
 -- @nopHandler@
@@ -167,3 +203,8 @@ eqHST (it :: HST xs) (it' :: HST ys) = do
 lengthHST :: HST xs -> Int
 lengthHST (_ ::& xs) = 1 + lengthHST xs
 lengthHST SNil = 0
+
+rat :: Rec (Val T.Instr) xs -> Int -> Maybe Text
+rat (x :& _) 0 = Just $ show x
+rat (_ :& xs) i = rat xs (i - 1)
+rat RNil _ = Nothing

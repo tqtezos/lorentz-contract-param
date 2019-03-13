@@ -8,7 +8,8 @@ import Michelson.TypeCheck (HST(..), SomeHST(..), runTypeCheckT)
 import Michelson.Typed (extractNotes, fromUType, withSomeSingT)
 import Michelson.Untyped (CT(..), T(..), Type(..), ann, noAnn)
 import Morley.Ext (typeCheckHandler)
-import Morley.Types (StackTypePattern(..), TyVar(..), UExtInstr, UExtInstrAbstract(..))
+import Morley.Types
+  (StackTypePattern(..), TyVar(..), UExtInstr, UExtInstrAbstract(..))
 
 typeCheckHandlerSpec :: Spec
 typeCheckHandlerSpec = describe "typeCheckHandler STACKTYPE tests" $ do

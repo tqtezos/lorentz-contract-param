@@ -67,6 +67,7 @@ module Morley.Types
   , StackTypePattern (..)
   , StackRef(..)
 
+  , MorleyLogs (..)
   --  * Let-block
   , StackFn(..)
   , Var (..)
@@ -215,7 +216,12 @@ instance Buildable Instr where
 ---------------------------------------------------
 
 data TestAssert where
-  TestAssert :: T.Text -> PrintComment -> T.Instr inp '[ 'T.T_c 'T_bool ] -> TestAssert
+  TestAssert
+    :: (Typeable inp, Typeable out)
+    => T.Text
+    -> PrintComment
+    -> T.Instr inp ('T.T_c 'T_bool ': out)
+    -> TestAssert
 
 deriving instance Show TestAssert
 
@@ -229,6 +235,14 @@ instance T.Conversible ExtInstr (UExtInstrAbstract Op) where
     UTEST_ASSERT $ UTestAssert nm pc (instrToOps i)
 
 deriving instance Show ExtInstr
+
+---------------------------------------------------
+
+-- | Morley interpreter state
+newtype MorleyLogs = MorleyLogs
+  { unMorleyLogs :: [T.Text]
+  } deriving stock (Eq, Show)
+    deriving newtype (Default, Buildable)
 
 ---------------------------------------------------
 

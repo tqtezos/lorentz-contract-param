@@ -20,7 +20,7 @@ import Michelson.Typed.Value (ContractInp, ContractOut, Val(..))
 --
 -- One can represent sequence of Michelson opertaions as follows:
 -- @SWAP; DROP; DUP;@ -> @SWAP # DROP # DUP@.
-(#) :: Instr a b -> Instr b c -> Instr a c
+(#) :: Typeable b => Instr a b -> Instr b c -> Instr a c
 (#) = Seq
 
 infixl 0 #
@@ -46,10 +46,14 @@ type InstrExtT = ExtT Instr
 --
 -- Type parameter @out@ states for output stack type or type
 -- of stack that will be left after instruction's execution.
+
+-- pva701: Typeable constraints are added during TM-29.
+-- Maybe it makes sense to think how to eliminate them
+-- if they break something
 data Instr (inp :: [T]) (out :: [T]) where
-  Seq :: Instr a b -> Instr b c -> Instr a c
+  Seq :: Typeable b => Instr a b -> Instr b c -> Instr a c
   Nop :: Instr s s
-  -- ^ Nop operation. Missing in Michelson spec, added to parse construction
+  -- ^ operation. Missing in Michelson spec, added to parse construction
   -- like  `IF {} { SWAP; DROP; }`.
 
   Ext :: ExtT Instr -> Instr s s
@@ -62,31 +66,39 @@ data Instr (inp :: [T]) (out :: [T]) where
   NONE :: forall a s . SingI a => Instr s ('T_option a ': s)
   UNIT :: Instr s ('T_unit ': s)
   IF_NONE
-    :: Instr s s'
+    :: (Typeable a, Typeable s)
+    => Instr s s'
     -> Instr (a ': s) s'
     -> Instr ('T_option a ': s) s'
   PAIR :: Instr (a ': b ': s) ('T_pair a b ': s)
   CAR :: Instr ('T_pair a b ': s) (a ': s)
   CDR :: Instr ('T_pair a b ': s) (b ': s)
   LEFT :: forall a b s . SingI b => Instr (a ': s) ('T_or a b ': s)
-  RIGHT :: forall a b s. SingI a => Instr (b ': s) ('T_or a b ': s)
-  IF_LEFT :: Instr (a ': s) s'
-          -> Instr (b ': s) s'
-          -> Instr ('T_or a b ': s) s'
-  IF_RIGHT :: Instr (b ': s) s'
-          -> Instr (a ': s) s'
-          -> Instr ('T_or a b ': s) s'
+  RIGHT :: forall a b s . SingI a => Instr (b ': s) ('T_or a b ': s)
+  IF_LEFT
+    :: (Typeable s, Typeable a, Typeable b)
+    => Instr (a ': s) s'
+    -> Instr (b ': s) s'
+    -> Instr ('T_or a b ': s) s'
+  IF_RIGHT
+    :: (Typeable s, Typeable b, Typeable a)
+    => Instr (b ': s) s'
+    -> Instr (a ': s) s'
+    -> Instr ('T_or a b ': s) s'
   NIL :: SingI p => Instr s ('T_list p ': s)
   CONS :: Instr (a ': 'T_list a ': s) ('T_list a ': s)
-  IF_CONS :: Instr (a ': 'T_list a ': s) s'
-          -> Instr s s'
-          -> Instr ('T_list a ': s) s'
+  IF_CONS
+    :: (Typeable s, Typeable a)
+    => Instr (a ': 'T_list a ': s) s'
+    -> Instr s s'
+    -> Instr ('T_list a ': s) s'
   SIZE :: SizeOp c => Instr (c ': s) ('T_c 'T_nat ': s)
   EMPTY_SET :: SingI e => Instr s ('T_set e ': s)
   EMPTY_MAP :: (SingI a, SingI b) => Instr s ('T_map a b ': s)
-  MAP :: MapOp c b => Instr (MapOpInp c ': s) (b ': s)
+  MAP :: (Typeable (MapOpInp c ': s), MapOp c b)
+      => Instr (MapOpInp c ': s) (b ': s)
       -> Instr (c ': s) (MapOpRes c b ': s)
-  ITER :: IterOp c => Instr (IterOpEl c ': s) s -> Instr (c ': s) s
+  ITER :: (Typeable (IterOpEl c ': s), IterOp c) => Instr (IterOpEl c ': s) s -> Instr (c ': s) s
   MEM :: MemOp c => Instr ('T_c (MemOpKey c) ': c ': s) ('T_c 'T_bool ': s)
   GET
     :: GetOp c
@@ -94,17 +106,21 @@ data Instr (inp :: [T]) (out :: [T]) where
   UPDATE
     :: UpdOp c
     => Instr ('T_c (UpdOpKey c) ': UpdOpParams c ': c ': s) (c ': s)
-  IF :: Instr s s'
+  IF :: Typeable s
+     => Instr s s'
      -> Instr s s'
      -> Instr ('T_c 'T_bool ': s) s'
-  LOOP :: Instr s ('T_c 'T_bool ': s)
+  LOOP :: Typeable s
+       => Instr s ('T_c 'T_bool ': s)
        -> Instr ('T_c 'T_bool ': s) s
-  LOOP_LEFT :: Instr (a ': s) ('T_or a b ': s)
-            -> Instr ('T_or a b ': s) (b ': s)
-  LAMBDA :: forall i o s. (SingI i, SingI o)
+  LOOP_LEFT
+    :: (Typeable a, Typeable s)
+    => Instr (a ': s) ('T_or a b ': s)
+    -> Instr ('T_or a b ': s) (b ': s)
+  LAMBDA :: forall i o s . (SingI i, SingI o)
          => Val Instr ('T_lambda i o) -> Instr s ('T_lambda i o ': s)
-  EXEC :: Instr (t1 ': 'T_lambda t1 t2 ': s) (t2 ': s)
-  DIP :: Instr a c -> Instr (b ': a) (b ': c)
+  EXEC :: Typeable t1 => Instr (t1 ': 'T_lambda t1 t2 ': s) (t2 ': s)
+  DIP :: Typeable a => Instr a c -> Instr (b ': a) (b ': c)
   FAILWITH :: Instr (a ': s) t
   CAST :: forall a s . SingI a => Instr (a ': s) (a ': s)
   RENAME :: Instr (a ': s) (a ': s)

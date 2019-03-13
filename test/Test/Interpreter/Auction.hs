@@ -37,7 +37,7 @@ auctionSpec = parallel $ do
   specWithContract "contracts/auction.tz" $ \contract -> do
     it "Bid after end of auction triggers failure" $
       contractProp contract
-        (\_ _ _ -> (`shouldSatisfy` isLeft))
+        (\_ _ _ -> flip shouldSatisfy (isLeft . fst))
         (env { ceAmount = unsafeMkMutez 1200 })
         (mkParam keyHash2)
         (toVal (aBitBeforeMidTimestamp, (unsafeMkMutez 1000, keyHash1)))
@@ -111,7 +111,7 @@ validateAuction
 validateAuction env
     (fromVal -> newKeyHash)
     (fromVal -> (endOfAuction, (amount, keyHash :: KeyHash)))
-    resE
+    (resE, _)
 
   | ceNow env > endOfAuction
       = counterexample "Failure didn't trigger on end of auction" $ isLeft resE

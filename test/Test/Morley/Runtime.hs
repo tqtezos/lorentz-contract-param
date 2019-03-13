@@ -14,6 +14,7 @@ import Michelson.Untyped
 import Morley.Ext (interpretMorleyUntyped)
 import Morley.Runtime
 import Morley.Runtime.GState (GState(..), initGState)
+import Morley.Types (MorleyLogs)
 import Test.Util.Interpreter (ContractAux(..), dummyContractEnv, dummyMaxSteps, dummyNow)
 import Tezos.Address (Address(..))
 import Tezos.Core (unsafeMkMutez)
@@ -34,7 +35,7 @@ spec = describe "Morley.Runtime" $ do
 ----------------------------------------------------------------------------
 
 data UnexpectedFailed =
-  UnexpectedFailed InterpretUntypedError
+  UnexpectedFailed (InterpretUntypedError MorleyLogs)
   deriving (Show)
 
 instance Exception UnexpectedFailed
@@ -59,7 +60,7 @@ updatesStorageValue ca = either throwM handleResult $ do
       ]
   (addr,) <$> interpreterPure dummyNow dummyMaxSteps initGState interpreterOps
   where
-    toNewStorage :: InterpretUntypedResult -> Value Op
+    toNewStorage :: InterpretUntypedResult MorleyLogs -> Value Op
     toNewStorage InterpretUntypedResult {..} = unsafeValToValue iurNewStorage
 
     handleResult :: (Address, InterpreterRes) -> Expectation

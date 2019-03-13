@@ -64,7 +64,7 @@ storage unit;
 code { DROP;
        PUSH int 2; 
        PUSH int 10;
-       TEST_ASSERT "Test1" "%[0] + %[1] > 10" {ADD; PUSH int 10; COMPARE;};
+       TEST_ASSERT Test1 "%[0] + %[1] > 10" {ADD; PUSH int 10; COMPARE;LT;};
        DROP; UNIT; NIL operation; PAIR; };
 
 ```
