@@ -18,8 +18,7 @@ module Morley.Runtime
 import Control.Lens (at, makeLenses, (%=), (.=), (<>=))
 import Control.Monad.Except (Except, runExcept, throwError)
 import Data.Default (def)
-import Fmt (blockMapF, pretty, (+|), (|+))
-import Formatting.Buildable (Buildable(build))
+import Fmt (Buildable(build), blockListF, pretty, (+|), (|+))
 
 import Michelson.Interpret (ContractEnv(..), InterpretUntypedError(..), InterpretUntypedResult(..))
 import Michelson.Typed (Operation, unsafeValToValue)
@@ -58,10 +57,8 @@ data InterpreterRes = InterpreterRes
   -- ^ New 'GState'.
   , _irOperations :: [InterpreterOp]
   -- ^ List of operations to be added to the operations queue.
-  , _irUpdatedValues :: [(Address, Value Op)]
-  -- ^ Addresses of all contracts whose storage value was updated and
-  -- corresponding new values themselves.
-  -- We log these values.
+  , _irUpdates :: ![GStateUpdate]
+  -- ^ Updates applied to 'GState'.
   , _irPrintedLogs :: [MorleyLogs]
   -- ^ During execution a contract can print logs,
   -- all logs are kept until all called contracts are executed
@@ -153,8 +150,8 @@ interpreter maybeNow maxSteps verbose dbPath operation = do
   gState <- readGState dbPath
   let eitherRes = interpreterPure now maxSteps gState [operation]
   InterpreterRes {..} <- either throwM pure eitherRes
-  when (verbose && not (null _irUpdatedValues)) $
-    putTextLn $ "Updates: " +| blockMapF _irUpdatedValues
+  when (verbose && not (null _irUpdates)) $
+    putTextLn $ "Updates: " +| blockListF _irUpdates
   forM_ _irPrintedLogs $ \(MorleyLogs logs) -> do
     mapM_ putTextLn logs
     putTextLn "" -- extra break line to separate logs from two sequence contracts
@@ -170,7 +167,7 @@ interpreterPure now maxSteps gState ops =
     initialState = InterpreterRes
       { _irGState = gState
       , _irOperations = ops
-      , _irUpdatedValues = mempty
+      , _irUpdates = mempty
       , _irPrintedLogs = def
       , _irSourceAddress = Nothing
       }
@@ -193,7 +190,7 @@ statefulInterpreter now maxSteps = do
     processIntRes opsTail InterpreterRes {..} = do
       irGState .= _irGState
       irOperations .= opsTail <> _irOperations
-      irUpdatedValues <>= _irUpdatedValues
+      irUpdates <>= _irUpdates
       irPrintedLogs <>= _irPrintedLogs
       irSourceAddress %= (<|> _irSourceAddress)
       statefulInterpreter now maxSteps
@@ -207,13 +204,13 @@ interpretOneOp
   -> InterpreterOp
   -> Either InterpreterError InterpreterRes
 interpretOneOp _ _ _ gs (OriginateOp origination) =
-  case addAccount address account gs of
-    Nothing -> Left (IEAlreadyOriginated address account)
-    Just newGS -> Right $
+  case applyUpdate upd gs of
+    Left _ -> Left (IEAlreadyOriginated address account)
+    Right newGS -> Right $
       InterpreterRes
       { _irGState = newGS
       , _irOperations = mempty
-      , _irUpdatedValues = mempty
+      , _irUpdates = [upd]
       , _irPrintedLogs = def
       , _irSourceAddress = Nothing
       }
@@ -224,6 +221,7 @@ interpretOneOp _ _ _ gs (OriginateOp origination) =
       , accContract = ooContract origination
       }
     address = mkContractAddress origination
+    upd = GSAddAccount address account
 interpretOneOp now maxSteps mSourceAddr gs (TransferOp addr txData) = do
     acc <- maybe (Left (IEUnknownContract addr)) Right (accounts ^. at addr)
     let
@@ -244,9 +242,10 @@ interpretOneOp now maxSteps mSourceAddr gs (TransferOp addr txData) = do
                              (accStorage acc) contractEnv
     let
       newValueU = unsafeValToValue newValue
+      upd = GSSetStorageValue addr newValueU
       _irGState = setStorageValue addr newValueU gs
       _irOperations = foldMap convertOp networkOps
-      _irUpdatedValues = [(addr, newValueU)]
+      _irUpdates = [upd]
       _irPrintedLogs = [newState]
       _irSourceAddress = Just sourceAddr
     pure InterpreterRes {..}

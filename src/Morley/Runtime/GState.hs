@@ -8,6 +8,8 @@ module Morley.Runtime.GState
        , writeGState
 
        -- * Operations on GState
+       , GStateUpdate (..)
+       , applyUpdate
        , addAccount
        , setStorageValue
        ) where
@@ -18,12 +20,12 @@ import Data.Aeson.Options (defaultOptions)
 import Data.Aeson.TH (deriveJSON)
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Map.Strict as Map
-import Fmt (genericF)
+import Fmt (genericF, (+|), (|+))
 import Formatting.Buildable (Buildable(build))
 import System.IO.Error (IOError, isDoesNotExistError)
 
 import Michelson.Untyped
-import Morley.Types (UExtInstr)
+import Morley.Types ()
 import Tezos.Address (Address)
 import Tezos.Core (Mutez)
 
@@ -34,9 +36,7 @@ data Account = Account
   -- ^ Storage value associated with this account.
   , accContract :: !(Contract Op)
   -- ^ Contract of this account.
-  } deriving (Generic)
-
-deriving instance Show UExtInstr => Show Account
+  } deriving (Show, Generic, Eq)
 
 instance Buildable Account where
   build = genericF
@@ -82,6 +82,39 @@ readGState fp = (LBS.readFile fp >>= parseFile) `catch` onExc
 -- | Write 'GState' to a file.
 writeGState :: FilePath -> GState -> IO ()
 writeGState fp gs = LBS.writeFile fp (Aeson.encode gs)
+
+-- | Updates that can be applied to 'GState'.
+data GStateUpdate
+  = GSAddAccount !Address
+                 !Account
+  | GSSetStorageValue Address
+                      (Value Op)
+  deriving (Show, Eq)
+
+instance Buildable GStateUpdate where
+  build =
+    \case
+      GSAddAccount addr acc ->
+        "Add account " +| acc |+ " with address " +| addr |+ ""
+      GSSetStorageValue addr val ->
+        "Set storage value of address " +| addr |+ " to " +| val |+ ""
+
+data GStateUpdateError =
+  GStateAccountExists !Address
+  deriving (Show)
+
+instance Buildable GStateUpdateError where
+  build =
+    \case
+      GStateAccountExists addr -> "Account already exists: " <> build addr
+
+-- | Apply 'GStateUpdate' to 'GState'.
+applyUpdate :: GStateUpdate -> GState -> Either GStateUpdateError GState
+applyUpdate =
+  \case
+    GSAddAccount addr acc ->
+      maybeToRight (GStateAccountExists addr) . addAccount addr acc
+    GSSetStorageValue addr newValue -> Right . setStorageValue addr newValue
 
 -- | Add an account if it hasn't been added before.
 addAccount :: Address -> Account -> GState -> Maybe GState
