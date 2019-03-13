@@ -23,6 +23,7 @@ library
                      , Michelson.Typed
                      , Michelson.Typed.Value
                      , Michelson.Untyped
+                     , Morley.Aliases
                      , Morley.Default
                      , Morley.Lexer
                      , Morley.Macro
