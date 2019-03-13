@@ -3,6 +3,7 @@
 module Tezos.Address
   ( Address (..)
   , mkKeyAddress
+  , mkContractAddressRaw
 
   -- * Formatting
   , formatAddress
@@ -33,6 +34,21 @@ data Address
 -- | Smart constructor for 'KeyAddress'.
 mkKeyAddress :: PublicKey -> Address
 mkKeyAddress = KeyAddress . hashKey
+
+-- | Smart constructor for 'ContractAddress'. Its argument is
+-- serialized origination operation.
+--
+-- Note: it's quite unsafe to pass 'ByteString', because we can pass
+-- some garbage which is not a serialized origination operation, but
+-- this operation includes contract itself and necessary types are
+-- defined in 'Michelson.*'. So we have to serialize this data outside
+-- this module and pass it here as a 'ByteString'. Alternatively we
+-- could add some constraint, but it would be almost as unsafe as
+-- passing a 'ByteString'. For this reason we add `Raw` suffix to this
+-- function and provide a safer function in 'Michelson.Untyped.Instr'.
+-- We may reconsider it later.
+mkContractAddressRaw :: ByteString -> Address
+mkContractAddressRaw = ContractAddress . blake2b160 . blake2b160
 
 ----------------------------------------------------------------------------
 -- Formatting/parsing

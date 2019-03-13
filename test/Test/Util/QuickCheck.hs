@@ -32,14 +32,19 @@ module Test.Util.QuickCheck
 
   -- * 'Property' helpers
   , failedProp
+
+  -- * 'Gen' helpers
+  , runGen
   ) where
 
 import Formatting (build, formatToString)
 import Formatting.Buildable (Buildable)
-import Test.QuickCheck (Arbitrary)
-import Test.QuickCheck.Property (Result(..), failed, property)
-import Text.Show (show)
 import Prelude hiding (show)
+import Test.QuickCheck (Arbitrary)
+import Test.QuickCheck.Gen (Gen, unGen)
+import Test.QuickCheck.Property (Result(..), failed, property)
+import Test.QuickCheck.Random (mkQCGen)
+import Text.Show (show)
 
 import Data.Aeson (FromJSON(..), ToJSON(..))
 import qualified Data.Aeson as Aeson
@@ -90,3 +95,11 @@ aesonRoundtrip =
 -- | A 'Property' that always failes with given message.
 failedProp :: Text -> Property
 failedProp r = property $ failed { reason = toString r }
+
+----------------------------------------------------------------------------
+-- Gen
+----------------------------------------------------------------------------
+
+-- | Get something out of a quickcheck 'Gen' without having to do IO
+runGen :: Gen a -> a
+runGen g = unGen g (mkQCGen 31415926) 30

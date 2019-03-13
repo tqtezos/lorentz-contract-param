@@ -3,7 +3,6 @@
 module Morley.Runtime
        ( originateContract
        , runContract
-       , contractAddress
 
        -- * Re-exports
        , Account (..)
@@ -23,13 +22,14 @@ import Formatting.Buildable (Buildable(build))
 
 import Michelson.Interpret (ContractEnv(..), InterpretUntypedError(..), InterpretUntypedResult(..))
 import Michelson.Typed (Operation, unsafeValToValue)
-import Michelson.Untyped (Contract(..), Op, Value)
+import Michelson.Untyped (Contract(..), Op, OriginationOperation(..), Value, mkContractAddress)
 import Morley.Nop (interpretMorleyUntyped)
 import Morley.Runtime.GState
 import Morley.Runtime.TxData
 import Morley.Types (NopInstr)
 import Tezos.Address (Address(..))
 import Tezos.Core (Timestamp(..), getCurrentTime, unsafeMkMutez)
+import Tezos.Crypto (parseKeyHash)
 
 ----------------------------------------------------------------------------
 -- Auxiliary types
@@ -43,13 +43,13 @@ import Tezos.Core (Timestamp(..), getCurrentTime, unsafeMkMutez)
 -- supposed to be provided by the user, while 'Address' can be
 -- computed by our code.
 data InterpreterOp
-    = OriginateOp Account
-    -- ^ Originate a contract.
-    | TransferOp Address
-                 TxData
-    -- ^ Send a transaction to given address which is assumed to be the
-    -- address of an originated contract.
-    deriving (Show)
+  = OriginateOp !(OriginationOperation NopInstr)
+  -- ^ Originate a contract.
+  | TransferOp Address
+               TxData
+  -- ^ Send a transaction to given address which is assumed to be the
+  -- address of an originated contract.
+  deriving (Show)
 
 -- | Result of a single execution of interpreter.
 data InterpreterRes = InterpreterRes
@@ -70,11 +70,13 @@ makeLenses ''InterpreterRes
 
 -- | Errors that can happen during contract interpreting.
 data InterpreterError
-  = IEUnknownContract Address
+  = IEUnknownContract !Address
   -- ^ The interpreted contract hasn't been originated.
-  | IEInterpreterFailed (Contract (Op NopInstr)) (InterpretUntypedError NopInstr)
+  | IEInterpreterFailed !(Contract (Op NopInstr))
+                        !(InterpretUntypedError NopInstr)
   -- ^ Interpretation of Michelson contract failed.
-  | IEAlreadyOriginated Account
+  | IEAlreadyOriginated !Address
+                        !Account
   -- ^ A contract is already originated
   deriving (Show)
 
@@ -83,8 +85,9 @@ instance Buildable InterpreterError where
     \case
       IEUnknownContract addr -> "The contract is not originated " +| addr |+ ""
       IEInterpreterFailed _ err -> "Michelson interpreter failed: " +| err |+ ""
-      IEAlreadyOriginated acc ->
-        "The following account is already originated: " +| acc |+ ""
+      IEAlreadyOriginated addr acc ->
+        "The following account is already originated: " +| addr |+
+        ", " +| acc |+ ""
 
 instance Exception InterpreterError where
   displayException = pretty
@@ -93,19 +96,12 @@ instance Exception InterpreterError where
 -- Interface
 ----------------------------------------------------------------------------
 
--- TODO [TM-17] I guess it's possible to compute address of a contract, but I
--- don't know how do it (yet). Maybe it requires more data. In the
--- worst case we can store such map in GState. Maybe we'll have to
--- move this function to Morley.
-contractAddress :: Contract (Op nop) -> Address
-contractAddress _ = ContractAddress "dummy-address"
-
 -- | Originate a contract. Returns the address of the originated
 -- contract.
-originateContract :: Bool -> FilePath -> Account -> IO Address
-originateContract verbose dbPath account =
-  contractAddress (accContract account) <$
-  interpreter Nothing 100500 verbose dbPath (OriginateOp account)
+originateContract :: Bool -> FilePath -> OriginationOperation NopInstr -> IO Address
+originateContract verbose dbPath origination =
+  mkContractAddress origination <$
+  interpreter Nothing 100500 verbose dbPath (OriginateOp origination)
 
 -- | Run a contract. The contract is originated first (if it's not
 -- already) and then we pretend that we send a transaction to it.
@@ -119,19 +115,26 @@ runContract
     -> TxData
     -> IO ()
 runContract maybeNow maxSteps verbose dbPath storageValue contract txData = do
-  addr <- originateContract verbose dbPath acc
+  addr <- originateContract verbose dbPath origination
     `catch` ignoreAlreadyOriginated
   interpreter maybeNow maxSteps verbose dbPath (TransferOp addr txData)
   where
+    defaultManager =
+      either (error "defaultManager: failed to parse") id $
+      parseKeyHash "tz1faswCTDciRzE4oJ9jn2Vm2dvjeyA9fUzU"
     defaultBalance = unsafeMkMutez 4000000000
-    acc = Account
-      { accBalance = defaultBalance
-      , accStorage = storageValue
-      , accContract = contract
+    origination = OriginationOperation
+      { ooManager = defaultManager
+      , ooDelegate = Nothing
+      , ooSpendable = False
+      , ooDelegatable = False
+      , ooBalance = defaultBalance
+      , ooStorage = storageValue
+      , ooContract = contract
       }
     ignoreAlreadyOriginated :: InterpreterError -> IO Address
     ignoreAlreadyOriginated =
-      \case IEAlreadyOriginated _ -> pure (contractAddress contract)
+      \case IEAlreadyOriginated addr _ -> pure addr
             err -> throwM err
 
 ----------------------------------------------------------------------------
@@ -195,9 +198,9 @@ interpretOneOp
   -> GState
   -> InterpreterOp
   -> Either InterpreterError InterpreterRes
-interpretOneOp _ _ _ gs (OriginateOp account) =
-  case addAccount (contractAddress contract) account gs of
-    Nothing -> Left (IEAlreadyOriginated account)
+interpretOneOp _ _ _ gs (OriginateOp origination) =
+  case addAccount address account gs of
+    Nothing -> Left (IEAlreadyOriginated address account)
     Just newGS -> Right $
       InterpreterRes
       { _irGState = newGS
@@ -206,7 +209,12 @@ interpretOneOp _ _ _ gs (OriginateOp account) =
       , _irSourceAddress = Nothing
       }
   where
-    contract = accContract account
+    account = Account
+      { accBalance = ooBalance origination
+      , accStorage = ooStorage origination
+      , accContract = ooContract origination
+      }
+    address = mkContractAddress origination
 interpretOneOp now maxSteps mSourceAddr gs (TransferOp addr txData) = do
     acc <- maybe (Left (IEUnknownContract addr)) Right (accounts ^. at addr)
     let

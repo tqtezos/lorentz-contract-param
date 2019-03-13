@@ -12,14 +12,16 @@ import qualified Options.Applicative as Opt
 import Text.Megaparsec (parse)
 import Text.Pretty.Simple (pPrint)
 
-import Michelson.Untyped
+import Michelson.Untyped hiding (OriginationOperation(..))
+import qualified Michelson.Untyped as Un
 import Morley.Macro (expandFlattenContract, expandValue)
 import Morley.Nop (typeCheckMorleyContract)
 import qualified Morley.Parser as P
-import Morley.Runtime (Account(..), TxData(..), originateContract, runContract)
+import Morley.Runtime (TxData(..), originateContract, runContract)
 import Morley.Types
 import Tezos.Address (Address, parseAddress)
 import Tezos.Core (Mutez, Timestamp(..), mkMutez, parseTimestamp, timestampFromSeconds)
+import Tezos.Crypto
 
 data CmdLnArgs
   = Parse (Maybe FilePath) Bool
@@ -40,6 +42,10 @@ data RunOptions = RunOptions
 data OriginateOptions = OriginateOptions
   { ooContractFile :: !(Maybe FilePath)
   , ooDBPath :: !FilePath
+  , ooManager :: !KeyHash
+  , ooDelegate :: !(Maybe KeyHash)
+  , ooSpendable :: !Bool
+  , ooDelegatable :: !Bool
   , ooStorageValue :: !(Value (Op NopInstr))
   , ooBalance :: !Mutez
   , ooVerbose :: !Bool
@@ -101,6 +107,12 @@ argParser = subparser $
       OriginateOptions
         <$> contractFileOption
         <*> dbPathOption
+        <*> keyHashOption "manager" "Contract's manager"
+        <*> optional (keyHashOption "manager" "Contract's optional delegate")
+        <*> switch (long "spendable" <>
+                    help "Whether the contract is spendable")
+        <*> switch (long "delegatable" <>
+                    help "Whether the contract is delegatable")
         <*> valueOption "storage" "Initial storage of an originating contract"
         <*> mutezOption "balance" "Initial balance of an originating contract"
         <*> verboseFlag
@@ -134,6 +146,12 @@ dbPathOption = strOption $
   metavar "FILEPATH" <>
   value "db.json" <>
   help "Path to DB with data which is used instead of real blockchain data"
+
+keyHashOption :: String -> String -> Opt.Parser KeyHash
+keyHashOption name hInfo =
+  option (eitherReader (first pretty . parseKeyHash . toText)) $
+  long name <>
+  help hInfo
 
 valueOption :: String -> String -> Opt.Parser (Value (Op NopInstr))
 valueOption name hInfo = option (eitherReader parseValue) $
@@ -198,12 +216,16 @@ main = do
         runContract roNow roMaxSteps roVerbose roDBPath roStorageValue michelsonContract roTxData
       Originate OriginateOptions {..} -> do
         michelsonContract <- prepareContract ooContractFile
-        let acc = Account
-              { accBalance = ooBalance
-              , accStorage = ooStorageValue
-              , accContract = michelsonContract
+        let origination = Un.OriginationOperation
+              { Un.ooManager = ooManager
+              , Un.ooDelegate = ooDelegate
+              , Un.ooSpendable = ooSpendable
+              , Un.ooDelegatable = ooDelegatable
+              , Un.ooStorage = ooStorageValue
+              , Un.ooBalance = ooBalance
+              , Un.ooContract = michelsonContract
               }
-        addr <- originateContract ooVerbose ooDBPath acc
+        addr <- originateContract ooVerbose ooDBPath origination
         putTextLn $ "Originated contract " <> pretty addr
 
     readCode :: Maybe FilePath -> IO Text
