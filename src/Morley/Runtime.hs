@@ -21,7 +21,9 @@ import Data.Default (def)
 import Fmt (Buildable(build), blockListF, pretty, (+|), (|+))
 
 import Michelson.Interpret (ContractEnv(..), InterpretUntypedError(..), InterpretUntypedResult(..))
-import Michelson.Typed (Operation, unsafeValToValue)
+import Michelson.Typed
+  (CreateContract(..), Instr, Operation(..), TransferTokens(..), Val(..), convertContract,
+  unsafeValToValue)
 import Michelson.Untyped (Contract(..), Op, OriginationOperation(..), Value, mkContractAddress)
 import Morley.Ext (interpretMorleyUntyped)
 import Morley.Runtime.GState
@@ -36,8 +38,8 @@ import Tezos.Crypto (parseKeyHash)
 ----------------------------------------------------------------------------
 
 -- | Operations executed by interpreter.
--- In our model one network operation (`operation` type in Michelson)
--- corresponds to a list (possibly empty) of interpreter operations.
+-- In our model one Michelson's operation (`operation` type in Michelson)
+-- corresponds to 0 or 1 interpreter operation.
 --
 -- Note: 'Address' is not part of 'TxData', because 'TxData' is
 -- supposed to be provided by the user, while 'Address' can be
@@ -237,7 +239,7 @@ interpretOneOp now maxSteps mSourceAddr gs (TransferOp addr txData) = do
         , ceSender = tdSenderAddress txData
         , ceAmount = tdAmount txData
         }
-    InterpretUntypedResult networkOps newValue newState
+    InterpretUntypedResult sideEffects newValue newState
       <- first (IEInterpreterFailed contract) $
             interpretMorleyUntyped contract (tdParameter txData)
                              (accStorage acc) contractEnv
@@ -245,7 +247,7 @@ interpretOneOp now maxSteps mSourceAddr gs (TransferOp addr txData) = do
       newValueU = unsafeValToValue newValue
       upd = GSSetStorageValue addr newValueU
       _irGState = setStorageValue addr newValueU gs
-      _irOperations = foldMap convertOp networkOps
+      _irOperations = mapMaybe (convertOp addr) sideEffects
       _irUpdates = [upd]
       _irPrintedLogs = [newState]
       _irSourceAddress = Just sourceAddr
@@ -257,5 +259,29 @@ interpretOneOp now maxSteps mSourceAddr gs (TransferOp addr txData) = do
 -- Simple helpers
 ----------------------------------------------------------------------------
 
-convertOp :: Operation instr -> [InterpreterOp]
-convertOp = const []
+-- The argument is the address of the contract that generation this operation.
+convertOp :: Address -> Operation Instr -> Maybe InterpreterOp
+convertOp interpretedAddr =
+  \case
+    OpTransferTokens tt ->
+      let txData =
+            TxData
+              { tdSenderAddress = interpretedAddr
+              , tdParameter = unsafeValToValue (ttContractParameter tt)
+              , tdAmount = ttAmount tt
+              }
+          VContract destAddress = ttContract tt
+       in Just (TransferOp destAddress txData)
+    OpSetDelegate {} -> Nothing
+    OpCreateAccount {} -> Nothing
+    OpCreateContract cc ->
+      let origination = OriginationOperation
+            { ooManager = ccManager cc
+            , ooDelegate = ccDelegate cc
+            , ooSpendable = ccSpendable cc
+            , ooDelegatable = ccDelegatable cc
+            , ooBalance = ccBalance cc
+            , ooStorage = unsafeValToValue (ccStorageVal cc)
+            , ooContract = convertContract (ccContractCode cc)
+            }
+       in Just (OriginateOp origination)

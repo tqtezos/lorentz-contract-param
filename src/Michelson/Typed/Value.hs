@@ -18,6 +18,7 @@ module Michelson.Typed.Value
 
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
+import Data.Singletons (SingI)
 
 import Michelson.Typed.CValue (CVal(..), FromCVal, ToCVal, fromCVal, toCVal)
 import Michelson.Typed.T (T(..), ToT)
@@ -34,8 +35,10 @@ data Operation instr where
   OpTransferTokens :: TransferTokens instr p -> Operation instr
   OpSetDelegate :: SetDelegate -> Operation instr
   OpCreateAccount :: CreateAccount -> Operation instr
-  OpCreateContract :: Show (instr (ContractInp cp st) (ContractOut st))
-                   => CreateContract instr t cp st -> Operation instr
+  OpCreateContract
+    :: (Show (instr (ContractInp cp st) (ContractOut st)), SingI cp, SingI st)
+    => CreateContract instr t cp st
+    -> Operation instr
 
 deriving instance Show (Operation instr)
 
