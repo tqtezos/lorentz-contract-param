@@ -10,7 +10,7 @@ import Test.QuickCheck.Property (forAll, withMaxSuccess)
 
 import Michelson.Interpret (MichelsonFailed)
 import Michelson.Typed (ToT, Val(..), fromVal, toVal)
-import Morley.Test (contractProp, specWithContract)
+import Morley.Test (contractProp, specWithTypedContract)
 import Morley.Types (MorleyLogs)
 import Test.Util.Interpreter (dummyContractEnv)
 import Test.Util.QuickCheck (failedProp)
@@ -24,7 +24,7 @@ type ContractResult x instr = (Either MichelsonFailed ([x], ContractStorage inst
 compareSpec :: Spec
 compareSpec = parallel $ do
 
-  specWithContract "contracts/compare.tz" $ \contract -> do
+  specWithTypedContract "contracts/compare.tz" $ \contract -> do
     it "success test" $
       contractProp' contract (unsafeMkMutez 10, unsafeMkMutez 11)
 

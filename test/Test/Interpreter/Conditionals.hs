@@ -10,7 +10,7 @@ import Test.QuickCheck.Property (forAll, withMaxSuccess)
 
 import Michelson.Interpret (MichelsonFailed)
 import Michelson.Typed (CVal(..), ToT, Val(..), toVal)
-import Morley.Test (contractProp, specWithContract)
+import Morley.Test (contractProp, specWithTypedContract)
 import Morley.Types (MorleyLogs)
 import Test.Util.Interpreter (dummyContractEnv)
 import Test.Util.QuickCheck (failedProp, qcIsLeft, qcIsRight)
@@ -24,7 +24,7 @@ type ContractResult x instr = (Either MichelsonFailed ([x], ContractStorage inst
 conditionalsSpec :: Spec
 conditionalsSpec = parallel $ do
 
-  specWithContract "contracts/conditionals.tz" $ \contract -> do
+  specWithTypedContract "contracts/conditionals.tz" $ \contract -> do
     it "success 1 test" $
       contractProp' contract $ Left "abc"
 

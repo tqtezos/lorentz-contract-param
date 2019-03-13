@@ -4,13 +4,18 @@ module Test.Util.Interpreter
   , dummyMaxSteps
   , dummyNow
   , dummyKeyHash
+  , dummyContractAddress
   , dummyOrigination
+  , simplerIntegrationalTest
   ) where
 
+import Test.Hspec (Expectation)
 import Test.QuickCheck (arbitrary)
 
 import Michelson.Interpret (ContractEnv(..))
 import Michelson.Untyped
+import Morley.Runtime (InterpreterOp)
+import Morley.Test.Integrational (UpdatesValidator, integrationalTest)
 import Tezos.Address (Address(..), mkContractAddressRaw)
 import Tezos.Core (Timestamp(..), unsafeMkMutez)
 import Tezos.Crypto (KeyHash)
@@ -54,6 +59,10 @@ dummyOrigination storage contract = OriginationOperation
   , ooStorage = storage
   , ooContract = contract
   }
+
+-- | 'integrationalTest' which uses dummy now and max steps.
+simplerIntegrationalTest :: [InterpreterOp] -> UpdatesValidator -> Expectation
+simplerIntegrationalTest = integrationalTest dummyNow dummyMaxSteps
 
 -- | Data type, that containts contract and its auxiliary data.
 --

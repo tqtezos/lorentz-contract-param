@@ -10,13 +10,14 @@ import Michelson.Typed (CVal(..), Instr, Val(..), extractNotes, fromUType, withS
 import qualified Michelson.Typed as T
 import Michelson.Untyped (CT(..), T(..), Type(..), ann, noAnn)
 import Morley.Ext (interpretMorley, typeCheckHandler)
-import Morley.Test (specWithContract)
-import Morley.Types (MorleyLogs(..), StackTypePattern(..), TyVar(..), UExtInstr, UExtInstrAbstract(..))
+import Morley.Test (specWithTypedContract)
+import Morley.Types
+  (MorleyLogs(..), StackTypePattern(..), TyVar(..), UExtInstr, UExtInstrAbstract(..))
 import Test.Util.Interpreter (dummyContractEnv)
 
 interpretHandlerSpec :: Spec
 interpretHandlerSpec = describe "interpretHandler PRINT/TEST_ASSERT tests" $
-  specWithContract "contracts/testassert_square.tz" $ \c -> do
+  specWithTypedContract "contracts/testassert_square.tz" $ \c -> do
     it "TEST_ASSERT assertion passed" $ do
       runTest True c 100 100
       runTest True c 1 1

@@ -34,6 +34,7 @@ library
                      , Morley.Runtime.GState
                      , Morley.Runtime.TxData
                      , Morley.Test
+                     , Morley.Test.Integrational
                      , Morley.Types
                      , Tezos.Address
                      , Tezos.Core
@@ -203,6 +204,7 @@ test-suite morley-test
                      , Test.Interpreter.Auction
                      , Test.Interpreter.Compare
                      , Test.Interpreter.Conditionals
+                     , Test.Interpreter.StringCaller
                      , Test.Macro
                      , Test.Ext
                      , Test.Morley.Runtime

@@ -7,6 +7,7 @@ module Morley.Test
   , ContractPropValidator
   , contractProp
   , specWithContract
+  , specWithTypedContract
   , importContract
   , ImportContractError (..)
 
@@ -29,6 +30,7 @@ import Michelson.Interpret (ContractEnv, ContractReturn)
 import Michelson.TypeCheck (SomeContract(..), TCError)
 import Michelson.Typed (CT(..), CVal(..), Contract, Instr, T(..), Val(..))
 import qualified Michelson.Untyped as U
+import Morley.Aliases (UntypedContract)
 import Morley.Ext (interpretMorley, typeCheckMorleyContract)
 import Morley.Macro (expandFlattenContract)
 import qualified Morley.Parser as Mo
@@ -70,14 +72,15 @@ contractProp
 contractProp instr check env param initSt =
   check env param initSt $ interpretMorley instr param initSt env
 
--- | Import contract and use it in the spec.
+-- | Import contract and use it in the spec. Both versions of contract are
+-- passed to the callback function (untyped and typed).
 --
 -- If contract's import failed, a spec with single failing expectation
 -- will be generated (so tests will run unexceptionally, but a failing
 -- result will notify about problem).
 specWithContract
   :: (Typeable cp, Typeable st)
-  => FilePath -> (Contract cp st -> Spec) -> Spec
+  => FilePath -> ((UntypedContract, Contract cp st) -> Spec) -> Spec
 specWithContract file execSpec =
   either errorSpec (describe ("Test contract " <> file) . execSpec)
     =<< runIO
@@ -87,6 +90,13 @@ specWithContract file execSpec =
   where
     errorSpec = it ("Type check contract " <> file) . expectationFailure
 
+-- | A version of 'specWithContract' which passes only the typed
+-- representation of the contract.
+specWithTypedContract
+  :: (Typeable cp, Typeable st)
+  => FilePath -> (Contract cp st -> Spec) -> Spec
+specWithTypedContract file execSpec = specWithContract file (execSpec . snd)
+
 -- | Import contract from a given file path.
 --
 -- This function reads file, parses and type checks contract.
@@ -95,15 +105,16 @@ specWithContract file execSpec =
 importContract
   :: forall cp st .
     (Typeable cp, Typeable st)
-  => FilePath -> IO (Contract cp st)
+  => FilePath -> IO (UntypedContract, Contract cp st)
 importContract file = do
   contract <- assertEither (ICEParse . ParserException) $
                   parse Mo.program file <$> readFile file
+  let expandedAndFlattened = expandFlattenContract contract
   SomeContract (instr :: Contract cp' st') _ _
     <- assertEither ICETypeCheck $ pure $ typeCheckMorleyContract $
-        U.unOp <$> expandFlattenContract contract
+        U.unOp <$> expandedAndFlattened
   case (eqT @cp @cp', eqT @st @st') of
-    (Just Refl, Just Refl) -> pure instr
+    (Just Refl, Just Refl) -> pure (expandedAndFlattened, instr)
     (Nothing, _) -> throwM $
       ICEUnexpectedParamType (U.para contract) (typeRep (Proxy @cp))
     _ -> throwM (ICEUnexpectedStorageType (U.stor contract) (typeRep (Proxy @st)))
