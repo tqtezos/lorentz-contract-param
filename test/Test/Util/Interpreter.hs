@@ -40,6 +40,7 @@ dummyContractEnv = ContractEnv
   , ceMaxSteps = dummyMaxSteps
   , ceBalance = unsafeMkMutez 100
   , ceContracts = mempty
+  , ceSelf = dummyContractAddress
   , ceSource = dummyContractAddress
   , ceSender = dummyContractAddress
   , ceAmount = unsafeMkMutez 100

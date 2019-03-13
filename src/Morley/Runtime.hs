@@ -232,6 +232,7 @@ interpretOneOp now maxSteps mSourceAddr gs (TransferOp addr txData) = do
         , ceMaxSteps = maxSteps
         , ceBalance = accBalance acc
         , ceContracts = accContract <$> accounts
+        , ceSelf = addr
         , ceSource = sourceAddr
         , ceSender = tdSenderAddress txData
         , ceAmount = tdAmount txData

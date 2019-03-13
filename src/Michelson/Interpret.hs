@@ -29,14 +29,15 @@ import qualified Data.Set as Set
 import Data.Singletons (SingI(..))
 import Data.Typeable ((:~:)(..))
 import Data.Vinyl (Rec(..), (<+>))
-import Fmt (Buildable(build), genericF, Builder)
+import Fmt (Buildable(build), Builder, genericF)
 
 import Michelson.TypeCheck
-  (SomeContract(..), SomeVal(..), TCError, TcExtHandler, eqT', runTypeCheckT, typeCheckContract,
-  typeCheckVal, ExtC)
+  (ExtC, SomeContract(..), SomeVal(..), TCError, TcExtHandler, eqT', runTypeCheckT,
+  typeCheckContract, typeCheckVal)
 import Michelson.Typed
-  (CVal(..), Contract, Instr(..), Operation(..), SetDelegate(..), Sing(..), T(..),
-  TransferTokens(..), Val(..), fromUType, valToOpOrValue, ConversibleExt, CreateAccount (..), CreateContract (..))
+  (CVal(..), Contract, ConversibleExt, CreateAccount(..), CreateContract(..), Instr(..),
+  Operation(..), SetDelegate(..), Sing(..), T(..), TransferTokens(..), Val(..), fromUType,
+  valToOpOrValue)
 import qualified Michelson.Typed as T
 import Michelson.Typed.Arith
 import Michelson.Typed.Convert (convertContract, unsafeValToValue)
@@ -57,6 +58,8 @@ data ContractEnv = ContractEnv
   , ceContracts :: Map Address (U.Contract U.Op)
   -- ^ Mapping from existing contracts' addresses to their executable
   -- representation.
+  , ceSelf :: !Address
+  -- ^ Address of the interpreted contract.
   , ceSource :: !Address
   -- ^ The contract that initiated the current transaction.
   , ceSender :: !Address
@@ -334,7 +337,7 @@ runInstrImpl _ GE (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Ge) a) :&
 runInstrImpl _ INT (VC (CvNat n) :& r) = pure $ VC (CvInt $ toInteger n) :& r
 runInstrImpl _ SELF r = do
   ContractEnv{..} <- asks ieContractEnv
-  pure $ VContract ceSource :& r
+  pure $ VContract ceSelf :& r
 runInstrImpl _ CONTRACT (VC (CvAddress addr) :& r) = do
   ContractEnv{..} <- asks ieContractEnv
   if Map.member addr ceContracts
