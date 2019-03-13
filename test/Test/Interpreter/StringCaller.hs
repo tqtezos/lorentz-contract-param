@@ -5,17 +5,20 @@ module Test.Interpreter.StringCaller
   ) where
 
 import Test.Hspec (Spec, it, parallel)
+import Test.Hspec.QuickCheck (modifyMaxSuccess, prop)
+import Test.QuickCheck (arbitrary, forAll)
 
 import Michelson.Typed
 import Michelson.Untyped (OriginationOperation(..), mkContractAddress)
 import qualified Michelson.Untyped as Untyped
-import Morley.Aliases (UntypedContract)
+import Morley.Aliases (UntypedContract, UntypedValue)
 import Morley.Runtime (InterpreterOp(..), TxData(..))
 import Morley.Runtime.GState
 import Morley.Test (specWithContract)
 import Morley.Test.Integrational (expectStorageConstant)
 import Tezos.Address (formatAddress)
 
+import Test.Arbitrary ()
 import Test.Util.Interpreter
 
 stringCallerSpec :: Spec
@@ -29,10 +32,22 @@ specImpl ::
      (UntypedContract, Contract ('T_c 'T_string) ('T_c 'T_address))
   -> (UntypedContract, Contract ('T_c 'T_string) ('T_c 'T_string))
   -> Spec
-specImpl (uStringCaller, _stringCaller) (uIdString, _idString) =
-  it "stringCaller calls idString and updates its storage" $
-    simplerIntegrationalTest operations (Right updatesValidator)
+specImpl (uStringCaller, _stringCaller) (uIdString, _idString) = do
+  it "stringCaller calls idString and updates its storage with a constant" $
+    simplerIntegrationalTestExpectation
+      (operations newValueConstant)
+      (Right (updatesValidator newValueConstant))
+
+  -- The test is trivial, so it's kinda useless to run it many times
+  modifyMaxSuccess (const 2) $
+    prop "stringCaller calls idString and updates its storage with an arbitrary value" $
+    forAll arbitrary $ \(Untyped.ValueString -> newValue) ->
+      simplerIntegrationalTestProperty
+        (operations newValue)
+        (Right (updatesValidator newValue))
   where
+    newValueConstant = Untyped.ValueString "caller"
+
     idStringOrigination :: OriginationOperation
     idStringOrigination =
       dummyOrigination (Untyped.ValueString "hello") uIdString
@@ -46,21 +61,21 @@ specImpl (uStringCaller, _stringCaller) (uIdString, _idString) =
     originateStringCaller = OriginateOp stringCallerOrigination
     stringCallerAddress = mkContractAddress stringCallerOrigination
 
-    newValue = Untyped.ValueString "caller"
-    txData :: TxData
-    txData = TxData
+    txData :: UntypedValue -> TxData
+    txData newValue = TxData
       { tdSenderAddress = dummyContractAddress
       , tdParameter = newValue
       , tdAmount = minBound
       }
-    transferToStringCaller = TransferOp stringCallerAddress txData
+    transferToStringCaller newValue =
+      TransferOp stringCallerAddress (txData newValue)
 
-    operations =
+    operations newValue =
       [ originateIdString
       , originateStringCaller
-      , transferToStringCaller
+      , transferToStringCaller newValue
       ]
 
-    updatesValidator :: [GStateUpdate] -> Either Text ()
-    updatesValidator updates =
+    updatesValidator :: UntypedValue -> [GStateUpdate] -> Either Text ()
+    updatesValidator newValue updates =
       expectStorageConstant updates idStringAddress newValue

@@ -16,12 +16,12 @@ import Michelson.Interpret (ContractEnv(..))
 import Michelson.Typed
   (CT(..), CVal(..), Operation(..), ToT, TransferTokens(..), Val(..), fromVal, toVal)
 import Morley.Test (ContractPropValidator, contractProp, midTimestamp, specWithTypedContract)
+import Morley.Test.Util (failedProp)
 import Tezos.Address (Address(..))
 import Tezos.Core (Mutez, Timestamp, timestampPlusSeconds, unMutez, unsafeMkMutez, unsafeSubMutez)
 import Tezos.Crypto (KeyHash)
 
 import Test.Util.Interpreter (dummyContractEnv)
-import Test.Util.QuickCheck (failedProp)
 
 type Storage = (Timestamp, (Mutez, KeyHash))
 type Param = KeyHash

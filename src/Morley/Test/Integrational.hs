@@ -2,7 +2,8 @@
 
 module Morley.Test.Integrational
   ( UpdatesValidator
-  , integrationalTest
+  , integrationalTestExpectation
+  , integrationalTestProperty
   , expectStorageValue
   , expectStorageConstant
   ) where
@@ -10,10 +11,12 @@ module Morley.Test.Integrational
 import qualified Data.List as List
 import Fmt (blockListF, pretty, (+|), (|+))
 import Test.Hspec (Expectation, expectationFailure)
+import Test.QuickCheck (Property)
 
 import Morley.Aliases (UntypedValue)
 import Morley.Runtime (InterpreterError, InterpreterOp(..), InterpreterRes(..), interpreterPure)
 import Morley.Runtime.GState
+import Morley.Test.Util (failedProp, succeededProp)
 import Tezos.Address (Address)
 import Tezos.Core (Timestamp)
 
@@ -23,29 +26,50 @@ import Tezos.Core (Timestamp)
 type UpdatesValidator =
   Either (InterpreterError -> Bool) ([GStateUpdate] -> Either Text ())
 
-integrationalTest ::
+integrationalTestExpectation ::
   Timestamp -> Word64 -> [InterpreterOp] -> UpdatesValidator -> Expectation
-integrationalTest now maxSteps operations validator =
-  validateResult validator (interpreterPure now maxSteps initGState operations)
+integrationalTestExpectation =
+  integrationalTest (maybe pass (expectationFailure . toString))
+
+integrationalTestProperty ::
+  Timestamp -> Word64 -> [InterpreterOp] -> UpdatesValidator -> Property
+integrationalTestProperty = integrationalTest (maybe succeededProp failedProp)
+
+integrationalTest ::
+     (Maybe Text -> res)
+  -> Timestamp
+  -> Word64
+  -> [InterpreterOp]
+  -> UpdatesValidator
+  -> res
+integrationalTest howToFail now maxSteps operations validator =
+  validateResult
+    howToFail
+    validator
+    (interpreterPure now maxSteps initGState operations)
 
 validateResult ::
-     UpdatesValidator
+     (Maybe Text -> res)
+  -> UpdatesValidator
   -> Either InterpreterError InterpreterRes
-  -> Expectation
-validateResult validator result =
+  -> res
+validateResult howToFail validator result =
   case (validator, result) of
     (Left validateError, Left err)
-      | validateError err -> pass
+      | validateError err -> doNotFail
     (_, Left err) ->
-      expectationFailure $ "Unexpected interpreter error: " <> pretty err
+      doFail $ "Unexpected interpreter error: " <> pretty err
     (Left _, Right _) ->
-      expectationFailure $ "Interpreter unexpectedly didn't fail"
+      doFail $ "Interpreter unexpectedly didn't fail"
     (Right validateUpdates, Right (_irUpdates -> updates))
       | Left bad <- validateUpdates updates ->
-        expectationFailure $
+        doFail $
         "Updates are incorrect: " +| bad |+ ". Updates are: \n" +|
         blockListF updates |+ ""
-      | otherwise -> pass
+      | otherwise -> doNotFail
+  where
+    doNotFail = howToFail Nothing
+    doFail = howToFail . Just
 
 ----------------------------------------------------------------------------
 -- Validators to be used within 'UpdatesValidator'

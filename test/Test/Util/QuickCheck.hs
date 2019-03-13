@@ -32,7 +32,6 @@ module Test.Util.QuickCheck
   , aesonRoundtrip
 
   -- * 'Property' helpers
-  , failedProp
   , qcIsLeft
   , qcIsRight
 
@@ -48,9 +47,11 @@ import Test.Hspec (Spec)
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck (Arbitrary, Property, (===))
 import Test.QuickCheck.Gen (Gen, unGen)
-import Test.QuickCheck.Property (Result(..), failed, property)
+import Test.QuickCheck.Property (property)
 import Test.QuickCheck.Random (mkQCGen)
 import qualified Text.Show (show)
+
+import Morley.Test.Util (failedProp)
 
 ----------------------------------------------------------------------------
 -- 'Show'ing a value though 'Buildable' type class.
@@ -115,10 +116,6 @@ aesonRoundtrip = roundtripSpecSTB (Aeson.encode @x) Aeson.eitherDecode
 ----------------------------------------------------------------------------
 -- Property
 ----------------------------------------------------------------------------
-
--- | A 'Property' that always failes with given message.
-failedProp :: Text -> Property
-failedProp r = property $ failed { reason = toString r }
 
 -- | The 'Property' holds on `Left a`.
 qcIsLeft :: Show b => Either a b -> Property

@@ -35,6 +35,7 @@ library
                      , Morley.Runtime.TxData
                      , Morley.Test
                      , Morley.Test.Integrational
+                     , Morley.Test.Util
                      , Morley.Types
                      , Tezos.Address
                      , Tezos.Core

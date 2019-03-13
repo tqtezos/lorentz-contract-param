@@ -11,10 +11,11 @@ import Test.QuickCheck.Property (forAll, withMaxSuccess)
 import Michelson.Interpret (MichelsonFailed)
 import Michelson.Typed (ToT, Val(..), fromVal, toVal)
 import Morley.Test (contractProp, specWithTypedContract)
+import Morley.Test.Util (failedProp)
 import Morley.Types (MorleyLogs)
-import Test.Util.Interpreter (dummyContractEnv)
-import Test.Util.QuickCheck (failedProp)
 import Tezos.Core (Mutez, unsafeMkMutez)
+
+import Test.Util.Interpreter (dummyContractEnv)
 
 type Param = (Mutez, Mutez)
 type ContractStorage instr = Val instr (ToT [Bool])
