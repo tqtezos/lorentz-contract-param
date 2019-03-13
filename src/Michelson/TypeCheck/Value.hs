@@ -7,7 +7,6 @@ import Control.Monad.Except (liftEither, throwError)
 import Data.Default (def)
 import qualified Data.Map as M
 import qualified Data.Set as S
-import Data.Singletons (SingI)
 import Data.Typeable ((:~:)(..))
 import Prelude hiding (EQ, GT, LT)
 
@@ -64,17 +63,17 @@ typeCheckCVals mvs t = traverse check mvs
 -- As a third argument, @typeCheckValImpl@ accepts expected type of value.
 --
 -- Type checking algorithm pattern-matches on parse value representation,
--- expected type @t@ and constructs @Val cp t@ value.
+-- expected type @t@ and constructs @Val t@ value.
 --
 -- If there was no match on a given pair of value and expected type,
 -- that is interpreted as input of wrong type and type check finishes with
 -- error.
 typeCheckValImpl
-  :: forall cp nop . (Typeable cp, SingI cp)
-  => TcInstrHandler cp nop
+  :: forall nop .
+     TcInstrHandler nop
   -> Un.Value (Un.Op nop)
   -> T
-  -> TypeCheckT cp nop (SomeVal cp)
+  -> TypeCheckT nop SomeVal
 typeCheckValImpl _ mv t@(T_c ct) =
   maybe (throwError $ TCFailedOnValue mv t "")
         (\(v :--: cst) -> pure $ VC v :::: (ST_c cst, NStar))
@@ -161,14 +160,11 @@ typeCheckValImpl tcDo v@(Un.ValueLambda (fmap Un.unOp -> mp)) t@(T_lambda mi mo)
 typeCheckValImpl _ v t = throwError $ TCFailedOnValue v t ""
 
 typeCheckValsImpl
-  :: forall t cp nop .
-    ( Typeable t
-    , Typeable cp, SingI cp
-    )
-  => TcInstrHandler cp nop
+  :: forall t nop . Typeable t
+  => TcInstrHandler nop
   -> [Un.Value (Un.Op nop)]
   -> T
-  -> TypeCheckT cp nop ([Val (Instr cp) t], Notes t)
+  -> TypeCheckT nop ([Val Instr t], Notes t)
 typeCheckValsImpl tcDo mvs t = foldM check ([], NStar) mvs
   where
     check (res, ns) mv = do

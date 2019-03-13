@@ -1,6 +1,5 @@
 module Michelson.TypeCheck.Types
-    (
-      HST (..)
+    ( HST (..)
     , SomeHST (..)
     , SomeInstr (..)
     , SomeVal (..)
@@ -33,7 +32,7 @@ import Michelson.Untyped.Annotation (VarAnn)
 -- This data type is used along with instruction data type @Instr@
 -- to carry information about its input and output stack types.
 --
--- That is, if there is value @instr :: Instr cp inp out@, along with this
+-- That is, if there is value @instr :: Instr inp out@, along with this
 -- @instr@ one may carry @inpHST :: HST inp@ and @outHST :: HST out@ which will
 -- contain whole information about input and output stack types for @instr@.
 --
@@ -82,27 +81,27 @@ deriving instance Show SomeHST
 --
 -- Intput and output stack types are wrapped inside the type and @Typeable@
 -- constraints are provided to allow convenient unwrapping.
-data SomeInstr cp where
+data SomeInstr where
   (:::) :: (Typeable inp, Typeable out)
-        => Instr cp inp out
+        => Instr inp out
         -> (HST inp, HST out)
-        -> SomeInstr cp
-  SiFail :: SomeInstr cp
+        -> SomeInstr
+  SiFail :: SomeInstr
 
   -- TODO use this constructor (to have closer reflection of expression)
   -- SiFail :: Typeable inp => Instr cp inp out -> HST inp -> SomeInstr cp
 
-instance Show (SomeInstr cp) where
+instance Show SomeInstr where
   show (i ::: (inp, out)) = show i <> " :: " <> show inp <> " -> " <> show out
   show SiFail = "failed"
 
 -- | Data type, holding strictly-typed Michelson value along with its
 -- type singleton.
-data SomeVal cp where
+data SomeVal where
     (::::) :: (SingI t, Typeable t)
-           => Val (Instr cp) t
+           => Val Instr t
            -> (Sing t, Notes t)
-           -> SomeVal cp
+           -> SomeVal
 
 -- | Data type, holding strictly-typed Michelson value along with its
 -- type singleton.
@@ -112,7 +111,7 @@ data SomeValC where
 
 data SomeContract where
   SomeContract
-    :: (Typeable st, Typeable cp, SingI cp, SingI st)
+    :: (Typeable st, SingI st, SingI cp, Typeable cp)
     => Contract cp st
     -> HST (ContractInp cp st)
     -> HST (ContractOut st)
@@ -155,17 +154,17 @@ type TcNopFrames nop = [(nop, SomeHST)]
 data TypeCheckEnv nop = TypeCheckEnv
   { tcNopHandler :: TcNopHandler nop
   , tcNopFrames :: TcNopFrames nop
--- TODO should be probably filled with other fields
+  , tcContractParam :: Untyped.Type
   }
 
-type TypeCheckT cp nop a =
+type TypeCheckT nop a =
   ExceptT (TCError nop)
     (State (TypeCheckEnv nop)) a
 
-runTypeCheckT :: TcNopHandler nop -> TypeCheckT cp nop a -> Either (TCError nop) a
-runTypeCheckT nh act = evaluatingState (TypeCheckEnv nh []) $ runExceptT act
+runTypeCheckT :: TcNopHandler nop -> Untyped.Type -> TypeCheckT nop a -> Either (TCError nop) a
+runTypeCheckT nh param act = evaluatingState (TypeCheckEnv nh [] param) $ runExceptT act
 
-type TcInstrHandler cp nop
+type TcInstrHandler nop
    = Untyped.Instr nop
     -> SomeHST
-      -> TypeCheckT cp nop (SomeInstr cp)
+      -> TypeCheckT nop SomeInstr

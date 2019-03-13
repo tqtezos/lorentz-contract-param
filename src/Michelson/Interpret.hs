@@ -58,7 +58,7 @@ data ContractEnv nop = ContractEnv
 -- | Represents `[FAILED]` state of a Michelson program. Contains
 -- value that was on top of the stack when `FAILWITH` was called.
 data MichelsonFailed where
-  MichelsonFailedWith :: Val (Instr cp) t -> MichelsonFailed
+  MichelsonFailedWith :: Val Instr t -> MichelsonFailed
   MichelsonArithError :: ArithError (CVal n) (CVal m) -> MichelsonFailed
 
 deriving instance Show MichelsonFailed
@@ -73,7 +73,7 @@ instance Buildable MichelsonFailed where
       formatValue v =
         -- Pass `Bool` as `nop`, because it's not essential and we
         -- need 'Buildable' for 'nop'.
-        case valToOpOrValue @_ @_ @Bool v of
+        case valToOpOrValue @_ @Bool v of
           Left op ->
             case op of
               OpTransferTokens {} -> "TransferTokens"
@@ -95,13 +95,11 @@ instance Buildable nop => Buildable (InterpretUntypedError nop) where
 
 data InterpretUntypedResult where
   InterpretUntypedResult
-    :: ( Typeable cp
-       , Typeable st
-       , SingI cp
+    :: ( Typeable st
        , SingI st
        )
-    => { iurOps :: [ Operation (Instr cp) ]
-       , iurNewStorage :: Val (Instr cp) st
+    => { iurOps :: [ Operation Instr ]
+       , iurNewStorage :: Val Instr st
        }
     -> InterpretUntypedResult
 
@@ -119,11 +117,11 @@ interpretUntyped nopHandler' U.Contract{..} paramU initStU env = do
        <- first IllTypedContract $ typeCheckContract nopHandler'
               (U.Contract para stor (U.unOp <$> code))
     paramV :::: ((_ :: Sing cp1), _)
-       <- first IllTypedParam $ runTypeCheckT nopHandler' $
-            typeCheckVal @cp paramU (fromUType para)
+       <- first IllTypedParam $ runTypeCheckT nopHandler' para $
+            typeCheckVal paramU (fromUType para)
     initStV :::: ((_ :: Sing st1), _)
-       <- first IllTypedStorage $ runTypeCheckT nopHandler' $
-            typeCheckVal @cp initStU (fromUType stor)
+       <- first IllTypedStorage $ runTypeCheckT nopHandler' para $
+            typeCheckVal initStU (fromUType stor)
     Refl <- first UnexpectedStorageType $ eqT' @st @st1
     Refl <- first UnexpectedParamType   $ eqT' @cp @cp1
     fmap (uncurry InterpretUntypedResult) $
@@ -132,10 +130,10 @@ interpretUntyped nopHandler' U.Contract{..} paramU initStU env = do
 
 interpret
   :: Contract cp st
-  -> Val (Instr cp) cp
-  -> Val (Instr cp) st
+  -> Val Instr cp
+  -> Val Instr st
   -> ContractEnv nop
-  -> ContractReturn cp st
+  -> ContractReturn st
 interpret instr param initSt env = fmap toRes $
   runEvalOp (runInstr instr (VPair (param, initSt) :& RNil)) env
   where
@@ -145,8 +143,8 @@ interpret instr param initSt env = fmap toRes $
     toRes (VPair (VList ops_, newSt) :& RNil) =
       (map (\(VOp op) -> op) ops_, newSt)
 
-type ContractReturn cp st =
-  Either MichelsonFailed ([Operation $ Instr cp], Val (Instr cp) st)
+type ContractReturn st =
+  Either MichelsonFailed ([Operation Instr], Val Instr st)
 
 newtype EvalOp nop a = EvalOp
   { unEvalOp :: ExceptT MichelsonFailed (Reader (ContractEnv nop)) a
@@ -158,9 +156,9 @@ runEvalOp = runReader . runExceptT . unEvalOp
 
 -- | Function to interpret Michelson instruction(s) against given stack.
 runInstr
-    :: Instr cp inp out
-    -> Rec (Val (Instr cp)) inp
-    -> EvalOp nop (Rec (Val (Instr cp)) out)
+    :: Instr inp out
+    -> Rec (Val Instr) inp
+    -> EvalOp nop (Rec (Val Instr) out)
 runInstr (Seq i1 i2) r = runInstr i1 r >>= \r' -> runInstr i2 r'
 runInstr Nop r = pure $ r
 runInstr DROP (_ :& r) = pure $ r
@@ -191,16 +189,16 @@ runInstr EMPTY_SET r = pure $ VSet Set.empty :& r
 runInstr EMPTY_MAP r = pure $ VMap Map.empty :& r
 runInstr (MAP ops) (a :& r) =
   case ops of
-    (code :: Instr cp (MapOpInp c ': s) (b ': s)) -> do
-      newList <- mapM (\(val :: Val (Instr cp) (MapOpInp c)) -> do
+    (code :: Instr (MapOpInp c ': s) (b ': s)) -> do
+      newList <- mapM (\(val :: Val Instr (MapOpInp c)) -> do
         res <- runInstr code (val :& r)
         case res of
-          ((newVal :: Val (Instr cp) b) :& _) -> pure newVal)
+          ((newVal :: Val Instr b) :& _) -> pure newVal)
         $ mapOpToList @c @b a
       pure $ mapOpFromList a newList :& r
 runInstr (ITER ops) (a :& r) =
   case ops of
-    (code :: Instr cp (IterOpEl c ': s) s) ->
+    (code :: Instr (IterOpEl c ': s) s) ->
       case iterOpDetachOne @c a of
         (Just x, xs) -> do
           res <- runInstr code (x :& r)
