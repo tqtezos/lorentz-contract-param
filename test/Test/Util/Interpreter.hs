@@ -3,26 +3,22 @@ module Test.Util.Interpreter
   , dummyContractEnv
   , dummyMaxSteps
   , dummyNow
-  , dummyKeyHash
-  , dummyContractAddress
   , dummyOrigination
   , simplerIntegrationalTestExpectation
   , simplerIntegrationalTestProperty
   ) where
 
 import Test.Hspec (Expectation)
-import Test.QuickCheck (Property, arbitrary)
+import Test.QuickCheck (Property)
 
 import Michelson.Interpret (ContractEnv(..))
 import Michelson.Untyped
 import Morley.Runtime (InterpreterOp)
+import Morley.Runtime.GState (genesisAddress, genesisKeyHash)
 import Morley.Test.Integrational
   (UpdatesValidator, integrationalTestExpectation, integrationalTestProperty)
 import Tezos.Address (Address(..), mkContractAddressRaw)
 import Tezos.Core (Timestamp(..), unsafeMkMutez)
-import Tezos.Crypto (KeyHash)
-
-import Test.Util.QuickCheck (runGen)
 
 dummyNow :: Timestamp
 dummyNow = Timestamp 100
@@ -30,31 +26,24 @@ dummyNow = Timestamp 100
 dummyMaxSteps :: Word64
 dummyMaxSteps = 100500
 
--- We cheat here, but it's not important in tests
-dummyContractAddress :: Address
-dummyContractAddress = mkContractAddressRaw ""
-
 dummyContractEnv :: ContractEnv
 dummyContractEnv = ContractEnv
   { ceNow = dummyNow
   , ceMaxSteps = dummyMaxSteps
   , ceBalance = unsafeMkMutez 100
   , ceContracts = mempty
-  , ceSelf = dummyContractAddress
-  , ceSource = dummyContractAddress
-  , ceSender = dummyContractAddress
+  , ceSelf = genesisAddress
+  , ceSource = genesisAddress
+  , ceSender = genesisAddress
   , ceAmount = unsafeMkMutez 100
   }
-
-dummyKeyHash :: KeyHash
-dummyKeyHash = runGen arbitrary
 
 dummyOrigination ::
      Value Op
   -> Contract Op
   -> OriginationOperation
 dummyOrigination storage contract = OriginationOperation
-  { ooManager = dummyKeyHash
+  { ooManager = genesisKeyHash
   , ooDelegate = Nothing
   , ooSpendable = False
   , ooDelegatable = False

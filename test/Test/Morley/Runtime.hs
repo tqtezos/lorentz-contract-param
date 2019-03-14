@@ -5,8 +5,10 @@ module Test.Morley.Runtime
   ) where
 
 import Control.Lens (at)
+import Fmt (pretty)
 import Test.Hspec
-  (Expectation, Spec, context, describe, it, parallel, shouldBe, shouldSatisfy, specify)
+  (Expectation, Spec, context, describe, expectationFailure, it, parallel, shouldBe, shouldSatisfy,
+  specify)
 
 import Michelson.Interpret (ContractEnv(..), InterpretUntypedError(..), InterpretUntypedResult(..))
 import Michelson.Typed (unsafeValToValue)
@@ -69,8 +71,10 @@ updatesStorageValue ca = either throwM handleResult $ do
         either (throwM . UnexpectedFailed) (pure . toNewStorage) $
         interpretMorleyUntyped
                   (caContract ca) (caParameter ca) (caStorage ca) (caEnv ca)
-      accStorage <$> (gsAccounts (_irGState ir) ^. at addr) `shouldBe`
-        Just expectedValue
+      case gsAddresses (_irGState ir) ^. at addr of
+        Nothing -> expectationFailure $ "Address not found: " <> pretty addr
+        Just (ASContract cs) -> csStorage cs `shouldBe` expectedValue
+        Just _ -> expectationFailure $ "Address has unexpected state " <> pretty addr
 
 failsToOriginateTwice :: Expectation
 failsToOriginateTwice =

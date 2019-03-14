@@ -63,7 +63,7 @@ specImpl (uStringCaller, _stringCaller) (uIdString, _idString) = do
 
     txData :: UntypedValue -> TxData
     txData newValue = TxData
-      { tdSenderAddress = dummyContractAddress
+      { tdSenderAddress = genesisAddress
       , tdParameter = newValue
       , tdAmount = minBound
       }

@@ -5,7 +5,8 @@ module Morley.Runtime
        , runContract
 
        -- * Re-exports
-       , Account (..)
+       , ContractState (..)
+       , AddressState (..)
        , TxData (..)
 
        -- * For testing
@@ -18,20 +19,22 @@ module Morley.Runtime
 import Control.Lens (at, makeLenses, (%=), (.=), (<>=))
 import Control.Monad.Except (Except, runExcept, throwError)
 import Data.Default (def)
-import Fmt (Buildable(build), blockListF, pretty, (+|), (|+))
+import qualified Data.Map.Strict as Map
+import Fmt (Buildable(build), blockListF, fmtLn, nameF, pretty, (+|), (|+))
 
 import Michelson.Interpret (ContractEnv(..), InterpretUntypedError(..), InterpretUntypedResult(..))
 import Michelson.Typed
   (CreateContract(..), Instr, Operation(..), TransferTokens(..), Val(..), convertContract,
   unsafeValToValue)
 import Michelson.Untyped (Contract(..), Op, OriginationOperation(..), Value, mkContractAddress)
+import Morley.Aliases (UntypedContract)
 import Morley.Ext (interpretMorleyUntyped)
 import Morley.Runtime.GState
 import Morley.Runtime.TxData
-import Morley.Types (MorleyLogs(..))
+import Morley.Types (MorleyLogs(..), noMorleyLogs)
 import Tezos.Address (Address(..))
-import Tezos.Core (Timestamp(..), getCurrentTime, unsafeMkMutez)
-import Tezos.Crypto (parseKeyHash)
+import Tezos.Core
+  (Mutez, Timestamp(..), getCurrentTime, unsafeAddMutez, unsafeMkMutez, unsafeSubMutez)
 
 ----------------------------------------------------------------------------
 -- Auxiliary types
@@ -79,8 +82,16 @@ data InterpreterError
                         !(InterpretUntypedError MorleyLogs)
   -- ^ Interpretation of Michelson contract failed.
   | IEAlreadyOriginated !Address
-                        !Account
-  -- ^ A contract is already originated
+                        !ContractState
+  -- ^ A contract is already originated.
+  | IEUnknownSender !Address
+  -- ^ Sender address is unknown.
+  | IEUnknownManager !Address
+  -- ^ Manager address is unknown.
+  | IENotEnoughFunds !Address !Mutez
+  -- ^ Sender doesn't have enough funds.
+  | IEFailedToApplyUpdates !GStateUpdateError
+  -- ^ Failed to apply updates to GState.
   deriving (Show)
 
 instance Buildable InterpreterError where
@@ -88,9 +99,15 @@ instance Buildable InterpreterError where
     \case
       IEUnknownContract addr -> "The contract is not originated " +| addr |+ ""
       IEInterpreterFailed _ err -> "Michelson interpreter failed: " +| err |+ ""
-      IEAlreadyOriginated addr acc ->
-        "The following account is already originated: " +| addr |+
-        ", " +| acc |+ ""
+      IEAlreadyOriginated addr cs ->
+        "The following contract is already originated: " +| addr |+
+        ", " +| cs |+ ""
+      IEUnknownSender addr -> "The sender address is unknown " +| addr |+ ""
+      IEUnknownManager addr -> "The manager address is unknown " +| addr |+ ""
+      IENotEnoughFunds addr amount ->
+        "The sender (" +| addr |+
+        ") doesn't  have enough funds (has only " +| amount |+ ")"
+      IEFailedToApplyUpdates err -> "Failed to update GState: " +| err |+ ""
 
 instance Exception InterpreterError where
   displayException = pretty
@@ -122,12 +139,9 @@ runContract maybeNow maxSteps verbose dbPath storageValue contract txData = do
     `catch` ignoreAlreadyOriginated
   interpreter maybeNow maxSteps verbose dbPath (TransferOp addr txData)
   where
-    defaultManager =
-      either (error "defaultManager: failed to parse") id $
-      parseKeyHash "tz1faswCTDciRzE4oJ9jn2Vm2dvjeyA9fUzU"
     defaultBalance = unsafeMkMutez 4000000000
     origination = OriginationOperation
-      { ooManager = defaultManager
+      { ooManager = genesisKeyHash
       , ooDelegate = Nothing
       , ooSpendable = False
       , ooDelegatable = False
@@ -153,7 +167,7 @@ interpreter maybeNow maxSteps verbose dbPath operation = do
   let eitherRes = interpreterPure now maxSteps gState [operation]
   InterpreterRes {..} <- either throwM pure eitherRes
   when (verbose && not (null _irUpdates)) $
-    putTextLn $ "Updates: " +| blockListF _irUpdates
+    fmtLn $ nameF "Updates:" (blockListF _irUpdates)
   forM_ _irPrintedLogs $ \(MorleyLogs logs) -> do
     mapM_ putTextLn logs
     putTextLn "" -- extra break line to separate logs from two sequence contracts
@@ -205,55 +219,117 @@ interpretOneOp
   -> GState
   -> InterpreterOp
   -> Either InterpreterError InterpreterRes
-interpretOneOp _ _ _ gs (OriginateOp origination) =
-  case applyUpdate upd gs of
-    Left _ -> Left (IEAlreadyOriginated address account)
+interpretOneOp _ _ _ gs (OriginateOp origination) = do
+  let originatorAddress = KeyAddress (ooManager origination)
+  originatorBalance <- case gsAddresses gs ^. at (originatorAddress) of
+    Nothing -> Left (IEUnknownManager originatorAddress)
+    Just (asBalance -> oldBalance)
+      | oldBalance < ooBalance origination ->
+        Left (IENotEnoughFunds originatorAddress oldBalance)
+      | otherwise ->
+        -- Subtraction is safe because we have checked its
+        -- precondition in guard.
+        Right (oldBalance `unsafeSubMutez` ooBalance origination)
+  let
+    updates =
+      [ GSAddAddress address (ASContract contractState)
+      , GSSetBalance originatorAddress originatorBalance
+      ]
+  case applyUpdates updates gs of
+    Left _ -> Left (IEAlreadyOriginated address contractState)
     Right newGS -> Right $
       InterpreterRes
       { _irGState = newGS
       , _irOperations = mempty
-      , _irUpdates = [upd]
+      , _irUpdates = updates
       , _irPrintedLogs = def
       , _irSourceAddress = Nothing
       }
   where
-    account = Account
-      { accBalance = ooBalance origination
-      , accStorage = ooStorage origination
-      , accContract = ooContract origination
+    contractState = ContractState
+      { csBalance = ooBalance origination
+      , csStorage = ooStorage origination
+      , csContract = ooContract origination
       }
     address = mkContractAddress origination
-    upd = GSAddAccount address account
 interpretOneOp now maxSteps mSourceAddr gs (TransferOp addr txData) = do
-    acc <- maybe (Left (IEUnknownContract addr)) Right (accounts ^. at addr)
+    let sourceAddr = fromMaybe (tdSenderAddress txData) mSourceAddr
+    let senderAddr = tdSenderAddress txData
+    decreaseSenderBalance <- case addresses ^. at senderAddr of
+      Nothing -> Left (IEUnknownSender senderAddr)
+      Just (asBalance -> balance)
+        | balance < tdAmount txData ->
+          Left (IENotEnoughFunds senderAddr balance)
+        | otherwise ->
+          -- Subtraction is safe because we have checked its
+          -- precondition in guard.
+          Right (GSSetBalance senderAddr (balance `unsafeSubMutez` tdAmount txData))
+    let onlyUpdates updates = Right (updates, [], noMorleyLogs)
+    (otherUpdates, sideEffects, logs) <- case (addresses ^. at addr, addr) of
+      (Nothing, ContractAddress _) ->
+        Left (IEUnknownContract addr)
+      (Nothing, KeyAddress _) -> do
+        let
+          addrState = ASSimple (tdAmount txData)
+          upd = GSAddAddress addr addrState
+        onlyUpdates [upd]
+      (Just (ASSimple oldBalance), _) -> do
+        -- can't overflow if global state is correct (because we can't
+        -- create money out of nowhere)
+        let
+          newBalance = oldBalance `unsafeAddMutez` tdAmount txData
+          upd = GSSetBalance addr newBalance
+        onlyUpdates [upd]
+      (Just (ASContract cs), _) -> do
+        let
+          contract = csContract cs
+          contractEnv = ContractEnv
+            { ceNow = now
+            , ceMaxSteps = maxSteps
+            , ceBalance = csBalance cs
+            , ceContracts = Map.mapMaybe extractContract addresses
+            , ceSelf = addr
+            , ceSource = sourceAddr
+            , ceSender = senderAddr
+            , ceAmount = tdAmount txData
+            }
+        InterpretUntypedResult sideEffects newValue printedLogs
+          <- first (IEInterpreterFailed contract) $
+                interpretMorleyUntyped contract (tdParameter txData)
+                                 (csStorage cs) contractEnv
+        let
+          newValueU = unsafeValToValue newValue
+          -- can't overflow if global state is correct (because we can't
+          -- create money out of nowhere)
+          newBalance = csBalance cs `unsafeAddMutez` tdAmount txData
+          updBalance = GSSetBalance addr newBalance
+          updStorage = GSSetStorageValue addr newValueU
+          updates =
+            [ updBalance
+            , updStorage
+            ]
+        Right (updates, sideEffects, printedLogs)
+
     let
-      sourceAddr = fromMaybe (tdSenderAddress txData) mSourceAddr
-      contract = accContract acc
-      contractEnv = ContractEnv
-        { ceNow = now
-        , ceMaxSteps = maxSteps
-        , ceBalance = accBalance acc
-        , ceContracts = accContract <$> accounts
-        , ceSelf = addr
-        , ceSource = sourceAddr
-        , ceSender = tdSenderAddress txData
-        , ceAmount = tdAmount txData
-        }
-    InterpretUntypedResult sideEffects newValue newState
-      <- first (IEInterpreterFailed contract) $
-            interpretMorleyUntyped contract (tdParameter txData)
-                             (accStorage acc) contractEnv
-    let
-      newValueU = unsafeValToValue newValue
-      upd = GSSetStorageValue addr newValueU
-      _irGState = setStorageValue addr newValueU gs
-      _irOperations = mapMaybe (convertOp addr) sideEffects
-      _irUpdates = [upd]
-      _irPrintedLogs = [newState]
-      _irSourceAddress = Just sourceAddr
-    pure InterpreterRes {..}
+      updates = decreaseSenderBalance:otherUpdates
+
+    newGState <- first IEFailedToApplyUpdates $ applyUpdates updates gs
+
+    return InterpreterRes
+      { _irGState = newGState
+      , _irOperations = mapMaybe (convertOp addr) sideEffects
+      , _irUpdates = updates
+      , _irPrintedLogs = [logs]
+      , _irSourceAddress = Just sourceAddr
+      }
   where
-    accounts = gsAccounts gs
+    addresses :: Map Address AddressState
+    addresses = gsAddresses gs
+
+    extractContract :: AddressState -> Maybe UntypedContract
+    extractContract =
+      \case ASSimple {} -> Nothing
+            ASContract cs -> Just (csContract cs)
 
 ----------------------------------------------------------------------------
 -- Simple helpers

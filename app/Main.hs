@@ -18,6 +18,7 @@ import Morley.Macro (expandFlattenContract, expandValue)
 import Morley.Ext (typeCheckMorleyContract)
 import qualified Morley.Parser as P
 import Morley.Runtime (TxData(..), originateContract, runContract)
+import Morley.Runtime.GState (genesisAddress, genesisKeyHash)
 import Morley.Types
 import Tezos.Address (Address, parseAddress)
 import Tezos.Core (Mutez, Timestamp(..), mkMutez, parseTimestamp, timestampFromSeconds)
@@ -107,8 +108,9 @@ argParser = subparser $
       OriginateOptions
         <$> contractFileOption
         <*> dbPathOption
-        <*> keyHashOption "manager" "Contract's manager"
-        <*> optional (keyHashOption "manager" "Contract's optional delegate")
+        <*> keyHashOption (Just genesisKeyHash) "manager" "Contract's manager"
+        <*> optional
+            (keyHashOption Nothing "manager" "Contract's optional delegate")
         <*> switch (long "spendable" <>
                     help "Whether the contract is spendable")
         <*> switch (long "delegatable" <>
@@ -147,10 +149,11 @@ dbPathOption = strOption $
   value "db.json" <>
   help "Path to DB with data which is used instead of real blockchain data"
 
-keyHashOption :: String -> String -> Opt.Parser KeyHash
-keyHashOption name hInfo =
+keyHashOption :: Maybe KeyHash -> String -> String -> Opt.Parser KeyHash
+keyHashOption defaultValue name hInfo =
   option (eitherReader (first pretty . parseKeyHash . toText)) $
   long name <>
+  maybe mempty value defaultValue <>
   help hInfo
 
 valueOption :: String -> String -> Opt.Parser (Value Op)
@@ -181,6 +184,7 @@ txData =
     sender = option (eitherReader parseAddrDo) $
       long "sender" <>
       metavar "ADDRESS" <>
+      value genesisAddress <>
       help "Sender address"
     parseAddrDo addr =
       either (Left . mappend "Failed to parse address: " . pretty) Right $

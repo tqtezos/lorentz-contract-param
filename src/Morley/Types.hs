@@ -68,6 +68,7 @@ module Morley.Types
   , StackRef(..)
 
   , MorleyLogs (..)
+  , noMorleyLogs
   --  * Let-block
   , StackFn(..)
   , Var (..)
@@ -247,6 +248,9 @@ newtype MorleyLogs = MorleyLogs
   { unMorleyLogs :: [T.Text]
   } deriving stock (Eq, Show)
     deriving newtype (Default, Buildable)
+
+noMorleyLogs :: MorleyLogs
+noMorleyLogs = MorleyLogs []
 
 ---------------------------------------------------
 
