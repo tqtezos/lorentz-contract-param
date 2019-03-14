@@ -29,9 +29,8 @@ import Michelson.TypeCheck (SomeContract(..), TCError)
 import Michelson.Typed (CT(..), CVal(..), Contract, Instr, T(..), Val(..))
 import qualified Michelson.Untyped as U
 import Morley.Macro (expandFlattenContract)
-import Morley.Nop (typeCheckMorleyContract)
+import Morley.Ext (typeCheckMorleyContract)
 import qualified Morley.Parser as Mo
-import Morley.Types (NopInstr)
 import Tezos.Core
   (Mutez(..), Timestamp, timestampFromSeconds, timestampFromUTCTime, timestampToSeconds,
   unsafeMkMutez)
@@ -49,7 +48,7 @@ import Tezos.Core
 -- and might be 'Test.QuickCheck.Property' or 'Test.Hspec.Expectation'
 -- or anything else relevant.
 type ContractPropValidator cp st prop =
-  ContractEnv NopInstr
+  ContractEnv
       -> Val Instr cp
       -> Val Instr st
       -> ContractReturn st
@@ -61,7 +60,7 @@ type ContractPropValidator cp st prop =
 contractProp
   :: Contract cp st
   -> ContractPropValidator cp st prop
-  -> ContractEnv NopInstr
+  -> ContractEnv
   -> Val Instr cp
   -> Val Instr st
   -> prop
@@ -112,7 +111,7 @@ data ImportContractError
   = ICEUnexpectedParamType
   | ICEUnexpectedStorageType
   | ICEParse Text
-  | ICETypeCheck (TCError NopInstr)
+  | ICETypeCheck TCError
   deriving Show
 
 instance Exception ImportContractError

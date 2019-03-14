@@ -15,7 +15,7 @@ import Text.Pretty.Simple (pPrint)
 import Michelson.Untyped hiding (OriginationOperation(..))
 import qualified Michelson.Untyped as Un
 import Morley.Macro (expandFlattenContract, expandValue)
-import Morley.Nop (typeCheckMorleyContract)
+import Morley.Ext (typeCheckMorleyContract)
 import qualified Morley.Parser as P
 import Morley.Runtime (TxData(..), originateContract, runContract)
 import Morley.Types
@@ -32,7 +32,7 @@ data CmdLnArgs
 data RunOptions = RunOptions
   { roContractFile :: !(Maybe FilePath)
   , roDBPath :: !FilePath
-  , roStorageValue :: !(Value (Op NopInstr))
+  , roStorageValue :: !(Value Op)
   , roTxData :: !TxData
   , roVerbose :: !Bool
   , roNow :: !(Maybe Timestamp)
@@ -46,7 +46,7 @@ data OriginateOptions = OriginateOptions
   , ooDelegate :: !(Maybe KeyHash)
   , ooSpendable :: !Bool
   , ooDelegatable :: !Bool
-  , ooStorageValue :: !(Value (Op NopInstr))
+  , ooStorageValue :: !(Value Op)
   , ooBalance :: !Mutez
   , ooVerbose :: !Bool
   }
@@ -133,7 +133,7 @@ nowOption = optional $ option parser $
       (timestampFromSeconds @Integer <$> auto) <|>
       maybeReader (parseTimestamp . toText)
 
-maxStepsOption :: Opt.Parser (Word64)
+maxStepsOption :: Opt.Parser Word64
 maxStepsOption = option auto $
   value 100500 <>
   long "max steps" <>
@@ -153,12 +153,12 @@ keyHashOption name hInfo =
   long name <>
   help hInfo
 
-valueOption :: String -> String -> Opt.Parser (Value (Op NopInstr))
+valueOption :: String -> String -> Opt.Parser (Value Op)
 valueOption name hInfo = option (eitherReader parseValue) $
   long name <>
   help hInfo
   where
-    parseValue :: String -> Either String (Value (Op NopInstr))
+    parseValue :: String -> Either String (Value Op)
     parseValue s =
       either (Left . mappend "Failed to parse value: " . show)
              (Right . expandValue)
@@ -185,7 +185,7 @@ txData =
     parseAddrDo addr =
       either (Left . mappend "Failed to parse address: " . pretty) Right $
         parseAddress $ toText addr
-    mkTxData :: Address -> Value (Op NopInstr) -> Mutez -> TxData
+    mkTxData :: Address -> Value Op -> Mutez -> TxData
     mkTxData addr param amount =
       TxData
         { tdSenderAddress = addr
@@ -240,6 +240,6 @@ main = do
 
     -- Read and parse the contract, expand and type check.
     prepareContract
-      :: Maybe FilePath -> IO (Contract (Op NopInstr))
+      :: Maybe FilePath -> IO (Contract Op)
     prepareContract mFile =
       expandFlattenContract <$> readAndParseContract mFile

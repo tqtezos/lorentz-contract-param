@@ -1,17 +1,17 @@
-module Test.Nop
-  ( nopHandlerSpec
+module Test.Ext
+  ( typeCheckHandlerSpec
   ) where
 
 import Test.Hspec (Expectation, Spec, describe, expectationFailure, it)
 
-import Michelson.TypeCheck (HST(..), SomeHST(..))
+import Michelson.TypeCheck (HST(..), SomeHST(..), runTypeCheckT)
 import Michelson.Typed (extractNotes, fromUType, withSomeSingT)
 import Michelson.Untyped (CT(..), T(..), Type(..), ann, noAnn)
-import Morley.Nop (nopHandler)
-import Morley.Types (NopInstr(..), StackTypePattern(..), TyVar(..))
+import Morley.Ext (typeCheckHandler)
+import Morley.Types (StackTypePattern(..), TyVar(..), UExtInstr, UExtInstrAbstract(..))
 
-nopHandlerSpec :: Spec
-nopHandlerSpec = describe "nopHandler STACKTYPE tests" $ do
+typeCheckHandlerSpec :: Spec
+typeCheckHandlerSpec = describe "typeCheckHandler STACKTYPE tests" $ do
   it "Correct test on [] pattern" $ runNopTest test1 True
   it "Correct test on [a, b] pattern" $ runNopTest test2 True
   it "Correct test on [a, b, ...] pattern" $ runNopTest test3 True
@@ -48,8 +48,10 @@ nopHandlerSpec = describe "nopHandler STACKTYPE tests" $ do
       case convertToHST ts of
         SomeHST is -> SomeHST ((sing, nt, noAnn) ::& is)
 
-    runNopTest :: (NopInstr, SomeHST) -> Bool -> Expectation
-    runNopTest (ni, si) correct = case (nopHandler ni [] si, correct) of
+    nh (ni, si) = runTypeCheckT typeCheckHandler (Type T_key noAnn) $ typeCheckHandler ni [] si
+
+    runNopTest :: (UExtInstr, SomeHST) -> Bool -> Expectation
+    runNopTest tcase correct = case (nh tcase, correct) of
       (Right _, False) -> expectationFailure $ "Test expected to fail but it passed"
       (Left e, True)   -> expectationFailure $ "Test expected to pass but it failed with error: " <> show e
       _                -> pass

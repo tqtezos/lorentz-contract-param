@@ -23,18 +23,20 @@ import Formatting.Buildable (Buildable(build))
 import System.IO.Error (IOError, isDoesNotExistError)
 
 import Michelson.Untyped
-import Morley.Types (NopInstr)
+import Morley.Types (UExtInstr)
 import Tezos.Address (Address)
 import Tezos.Core (Mutez)
 
 data Account = Account
   { accBalance :: !Mutez
   -- ^ Amount of mutez owned by this account.
-  , accStorage :: !(Value (Op NopInstr))
+  , accStorage :: !(Value Op)
   -- ^ Storage value associated with this account.
-  , accContract :: !(Contract (Op NopInstr))
+  , accContract :: !(Contract Op)
   -- ^ Contract of this account.
-  } deriving (Show, Generic)
+  } deriving (Generic)
+
+deriving instance Show UExtInstr => Show Account
 
 instance Buildable Account where
   build = genericF
@@ -91,7 +93,7 @@ addAccount addr acc gs
 
 -- | Updare storage value associated with given address. Does nothing
 -- if the address is unknown.
-setStorageValue :: Address -> Value (Op NopInstr) -> GState -> GState
+setStorageValue :: Address -> Value Op -> GState -> GState
 setStorageValue addr newValue gs =
   gs {gsAccounts = gsAccounts gs & at addr %~ fmap setAccountValue}
   where

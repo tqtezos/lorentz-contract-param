@@ -23,10 +23,9 @@ import Formatting.Buildable (Buildable(build))
 import Michelson.Interpret (ContractEnv(..), InterpretUntypedError(..), InterpretUntypedResult(..))
 import Michelson.Typed (Operation, unsafeValToValue)
 import Michelson.Untyped (Contract(..), Op, OriginationOperation(..), Value, mkContractAddress)
-import Morley.Nop (interpretMorleyUntyped)
+import Morley.Ext (interpretMorleyUntyped)
 import Morley.Runtime.GState
 import Morley.Runtime.TxData
-import Morley.Types (NopInstr)
 import Tezos.Address (Address(..))
 import Tezos.Core (Timestamp(..), getCurrentTime, unsafeMkMutez)
 import Tezos.Crypto (parseKeyHash)
@@ -43,7 +42,7 @@ import Tezos.Crypto (parseKeyHash)
 -- supposed to be provided by the user, while 'Address' can be
 -- computed by our code.
 data InterpreterOp
-  = OriginateOp !(OriginationOperation NopInstr)
+  = OriginateOp !OriginationOperation
   -- ^ Originate a contract.
   | TransferOp Address
                TxData
@@ -57,7 +56,7 @@ data InterpreterRes = InterpreterRes
   -- ^ New 'GState'.
   , _irOperations :: [InterpreterOp]
   -- ^ List of operations to be added to the operations queue.
-  , _irUpdatedValues :: [(Address, Value (Op NopInstr))]
+  , _irUpdatedValues :: [(Address, Value Op)]
   -- ^ Addresses of all contracts whose storage value was updated and
   -- corresponding new values themselves.
   -- We log these values.
@@ -72,8 +71,8 @@ makeLenses ''InterpreterRes
 data InterpreterError
   = IEUnknownContract !Address
   -- ^ The interpreted contract hasn't been originated.
-  | IEInterpreterFailed !(Contract (Op NopInstr))
-                        !(InterpretUntypedError NopInstr)
+  | IEInterpreterFailed !(Contract Op)
+                        !InterpretUntypedError
   -- ^ Interpretation of Michelson contract failed.
   | IEAlreadyOriginated !Address
                         !Account
@@ -98,7 +97,7 @@ instance Exception InterpreterError where
 
 -- | Originate a contract. Returns the address of the originated
 -- contract.
-originateContract :: Bool -> FilePath -> OriginationOperation NopInstr -> IO Address
+originateContract :: Bool -> FilePath -> OriginationOperation -> IO Address
 originateContract verbose dbPath origination =
   mkContractAddress origination <$
   interpreter Nothing 100500 verbose dbPath (OriginateOp origination)
@@ -110,8 +109,8 @@ runContract
     -> Word64
     -> Bool
     -> FilePath
-    -> Value (Op NopInstr)
-    -> Contract (Op NopInstr)
+    -> Value Op
+    -> Contract Op
     -> TxData
     -> IO ()
 runContract maybeNow maxSteps verbose dbPath storageValue contract txData = do

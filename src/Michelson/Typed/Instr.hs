@@ -4,9 +4,12 @@ module Michelson.Typed.Instr
   ( Instr (..)
   , (#)
   , Contract
+  , ExtT
+  , InstrExtT
   ) where
 
 import Data.Singletons (SingI)
+import Data.Kind (Type)
 
 import Michelson.Typed.Arith
 import Michelson.Typed.Polymorphic
@@ -21,6 +24,11 @@ import Michelson.Typed.Value (ContractInp, ContractOut, Val(..))
 (#) = Seq
 
 infixl 0 #
+
+-- | ExtT is extension of Instr by Morley instructions
+type family ExtT (instr :: [T] -> [T] -> Type) :: Type
+
+type InstrExtT = ExtT Instr
 
 -- | Representation of Michelson instruction or sequence
 -- of instructions.
@@ -43,6 +51,8 @@ data Instr (inp :: [T]) (out :: [T]) where
   Nop :: Instr s s
   -- ^ Nop operation. Missing in Michelson spec, added to parse construction
   -- like  `IF {} { SWAP; DROP; }`.
+
+  Ext :: ExtT Instr -> Instr s s
 
   DROP :: Instr (a ': s) s
   DUP  :: Instr (a ': s) (a ': a ': s)
@@ -216,6 +226,6 @@ data Instr (inp :: [T]) (out :: [T]) where
   SENDER :: Instr s ('T_c 'T_address ': s)
   ADDRESS :: Instr ('T_contract a ': s) ('T_c 'T_address ': s)
 
-deriving instance Show (Instr inp out)
+deriving instance Show (ExtT Instr) => Show (Instr inp out)
 
 type Contract cp st = Instr (ContractInp cp st) (ContractOut st)

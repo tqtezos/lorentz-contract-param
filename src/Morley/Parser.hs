@@ -100,7 +100,7 @@ type_ = (ti <|> parens ti) <|> (customFailure UnknownTypeException)
 ops :: Parser [Mo.ParsedOp]
 ops = do
   lms <- asks Mo.letMacros
-  let op' = choice [ (Mo.PRIM . Mo.NOP) <$> nopInstr
+  let op' = choice [ (Mo.PRIM . Mo.EXT) <$> nopInstr
                    , Mo.LMAC <$> mkLetMac lms
                    , Mo.PRIM <$> prim
                    , Mo.MAC <$> macro
@@ -876,24 +876,24 @@ primOrMac = ((Mo.MAC <$> ifCmpMac) <|> ifOrIfX)
 -- Morley Instructions
 -------------------------------------------------------------------------------
 
-nopInstr :: Parser Mo.NopInstr
+nopInstr :: Parser Mo.ParsedUExtInstr
 nopInstr = choice [stackOp, testAssertOp, printOp]
 
-stackOp :: Parser Mo.NopInstr
+stackOp :: Parser Mo.ParsedUExtInstr
 stackOp = symbol' "STACKTYPE" >> Mo.STACKTYPE <$> stackType
 
-testAssertOp :: Parser Mo.NopInstr
-testAssertOp = symbol' "TEST_ASSERT" >> Mo.TEST_ASSERT <$> testAssert
+testAssertOp :: Parser Mo.ParsedUExtInstr
+testAssertOp = symbol' "TEST_ASSERT" >> Mo.UTEST_ASSERT <$> testAssert
 
-printOp :: Parser Mo.NopInstr
-printOp = symbol' "PRINT" >> Mo.PRINT <$> printComment
+printOp :: Parser Mo.ParsedUExtInstr
+printOp = symbol' "PRINT" >> Mo.UPRINT <$> printComment
 
-testAssert :: Parser Mo.TestAssert
+testAssert :: Parser Mo.ParsedUTestAssert
 testAssert = do
   n <- lexeme (T.pack <$> some alphaNumChar)
   c <- printComment
   o <- ops
-  return $ Mo.TestAssert n c o
+  return $ Mo.UTestAssert n c o
 
 printComment :: Parser Mo.PrintComment
 printComment = do

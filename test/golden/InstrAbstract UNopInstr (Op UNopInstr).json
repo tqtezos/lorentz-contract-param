@@ -1,0 +1,40 @@
+{
+    "seed": 3732001315691441256,
+    "samples": [
+        {
+            "tag": "CAST",
+            "contents": [
+                "\u0013򩵐J𓟀o(d񰭴\\n\"񿰼񤆖CL󭑫򖸠򇊧^m򳦝(#go",
+                [
+                    {
+                        "tag": "T_signature"
+                    },
+                    "/\n"
+                ]
+            ]
+        },
+        {
+            "tag": "EMPTY_SET",
+            "contents": [
+                "󐑖wZfm\r[g򢸿`򪂞y'@\u0001\u000f",
+                "&5𝧬񵥡tUVLf,O񆫯L򠤔?",
+                [
+                    "T_string",
+                    "򆩛\u0018􀱷HW;N\u0003\u0005𭖎񆂋o𛋸󬐻u9\u0003󙴗 Q񇎓󓈽\n򪏚\u001b"
+                ]
+            ]
+        },
+        {
+            "tag": "SIZE",
+            "contents": "󍋿񓰚񃽽bh񠛚U񧤗@J𖱣x񳳹_\u0011*Vn!J񊫢񺟙i=򻡼\u000e'"
+        },
+        {
+            "tag": "DIP",
+            "contents": []
+        },
+        {
+            "tag": "TRANSFER_TOKENS",
+            "contents": "󽝥\u000e.xQ6eK5D\u0004򳷚d􃝿rV5|񣉲H\"Q򋓏\tJ񾅻V#\u000b"
+        }
+    ]
+}

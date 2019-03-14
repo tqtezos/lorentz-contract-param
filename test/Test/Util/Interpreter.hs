@@ -11,7 +11,6 @@ import Test.QuickCheck (arbitrary)
 
 import Michelson.Interpret (ContractEnv(..))
 import Michelson.Untyped
-import Morley.Types (NopInstr)
 import Tezos.Address (Address(..), mkContractAddressRaw)
 import Tezos.Core (Timestamp(..), unsafeMkMutez)
 import Tezos.Crypto (KeyHash)
@@ -28,7 +27,7 @@ dummyMaxSteps = 100500
 dummyContractAddress :: Address
 dummyContractAddress = mkContractAddressRaw ""
 
-dummyContractEnv :: ContractEnv NopInstr
+dummyContractEnv :: ContractEnv
 dummyContractEnv = ContractEnv
   { ceNow = dummyNow
   , ceMaxSteps = dummyMaxSteps
@@ -43,9 +42,9 @@ dummyKeyHash :: KeyHash
 dummyKeyHash = runGen arbitrary
 
 dummyOrigination ::
-     Value (Op NopInstr)
-  -> Contract (Op NopInstr)
-  -> OriginationOperation NopInstr
+     Value Op
+  -> Contract Op
+  -> OriginationOperation
 dummyOrigination storage contract = OriginationOperation
   { ooManager = dummyKeyHash
   , ooDelegate = Nothing
@@ -60,8 +59,8 @@ dummyOrigination storage contract = OriginationOperation
 --
 -- This type is mostly used for testing purposes.
 data ContractAux = ContractAux
-  { caContract :: !(Contract (Op NopInstr))
-  , caEnv :: !(ContractEnv NopInstr)
-  , caStorage :: !(Value (Op NopInstr))
-  , caParameter :: !(Value (Op NopInstr))
+  { caContract :: !(Contract Op)
+  , caEnv :: !ContractEnv
+  , caStorage :: !(Value Op)
+  , caParameter :: !(Value Op)
   }

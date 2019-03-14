@@ -1,0 +1,42 @@
+{
+    "seed": -1588772332389040446,
+    "samples": [
+        {
+            "tag": "ValueSeq",
+            "contents": [
+                {
+                    "tag": "ValueLambda",
+                    "contents": [
+                        {
+                            "unOp": {
+                                "tag": "TRANSFER_TOKENS",
+                                "contents": "􎲉<<%pB\u0008"
+                            }
+                        },
+                        {
+                            "unOp": {
+                                "tag": "GET",
+                                "contents": "6qY\u001d:W򝄫\u001e"
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "tag": "ValueBytes",
+            "contents": "{󒽀\u000b\u0003𪙩𛅻𲉢0b𪹗𫥋CU2\u001c.\u001f􌍑o)"
+        },
+        {
+            "tag": "ValueInt",
+            "contents": 8
+        },
+        {
+            "tag": "ValueLambda",
+            "contents": []
+        },
+        {
+            "tag": "ValueFalse"
+        }
+    ]
+}

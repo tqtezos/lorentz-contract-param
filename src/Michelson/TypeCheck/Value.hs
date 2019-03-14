@@ -14,7 +14,7 @@ import Michelson.TypeCheck.Helpers
 import Michelson.TypeCheck.Types
 import Michelson.Typed
   (CT(..), Instr(..), Notes(..), Notes'(..), Sing(..), T(..), converge, mkNotes, withSomeSingCT,
-  withSomeSingT)
+  withSomeSingT, InstrExtT)
 import Michelson.Typed.Value (CVal(..), Val(..))
 import qualified Michelson.Untyped as Un
 import Tezos.Address (parseAddress)
@@ -69,11 +69,11 @@ typeCheckCVals mvs t = traverse check mvs
 -- that is interpreted as input of wrong type and type check finishes with
 -- error.
 typeCheckValImpl
-  :: forall nop .
-     TcInstrHandler nop
-  -> Un.Value (Un.Op nop)
+  :: Show InstrExtT
+  => TcInstrHandler
+  -> Un.Value Un.Op
   -> T
-  -> TypeCheckT nop SomeVal
+  -> TypeCheckT SomeVal
 typeCheckValImpl _ mv t@(T_c ct) =
   maybe (throwError $ TCFailedOnValue mv t "")
         (\(v :--: cst) -> pure $ VC v :::: (ST_c cst, NStar))
@@ -160,11 +160,11 @@ typeCheckValImpl tcDo v@(Un.ValueLambda (fmap Un.unOp -> mp)) t@(T_lambda mi mo)
 typeCheckValImpl _ v t = throwError $ TCFailedOnValue v t ""
 
 typeCheckValsImpl
-  :: forall t nop . Typeable t
-  => TcInstrHandler nop
-  -> [Un.Value (Un.Op nop)]
+  :: forall t . (Typeable t, Show InstrExtT)
+  => TcInstrHandler
+  -> [Un.Value Un.Op]
   -> T
-  -> TypeCheckT nop ([Val Instr t], Notes t)
+  -> TypeCheckT ([Val Instr t], Notes t)
 typeCheckValsImpl tcDo mvs t = foldM check ([], NStar) mvs
   where
     check (res, ns) mv = do

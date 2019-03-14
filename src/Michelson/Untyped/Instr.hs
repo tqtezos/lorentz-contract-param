@@ -6,6 +6,8 @@ module Michelson.Untyped.Instr
   ( InstrAbstract (..)
   , Instr
   , Op (..)
+  , ExtU
+  , InstrExtU
 
   -- * Contract's address
   , OriginationOperation (..)
@@ -13,11 +15,10 @@ module Michelson.Untyped.Instr
   ) where
 
 import qualified Data.Aeson as Aeson
-import Data.Aeson.TH (defaultOptions, deriveJSON)
 import qualified Data.ByteString.Lazy as BSL
 import Data.Data (Data(..))
-import Fmt (genericF)
-import Formatting.Buildable (Buildable(build))
+import qualified Data.Kind as K
+import Formatting.Buildable (Buildable)
 
 import Michelson.Untyped.Annotation (FieldAnn, TypeAnn, VarAnn)
 import Michelson.Untyped.Contract (Contract)
@@ -30,22 +31,29 @@ import Tezos.Crypto (KeyHash)
 -------------------------------------
 -- Flattened types after macroexpander
 -------------------------------------
-type Instr nop = InstrAbstract nop (Op nop)
-newtype Op nop = Op {unOp :: Instr nop}
-  deriving stock (Eq, Show, Generic)
-  deriving newtype (Buildable)
+type InstrExtU = ExtU InstrAbstract Op
+type Instr = InstrAbstract Op
+newtype Op = Op {unOp :: Instr}
+  deriving stock (Generic)
+
+deriving instance Eq (ExtU InstrAbstract Op) => Eq Op
+deriving instance Show (ExtU InstrAbstract Op) => Show Op
+deriving instance Buildable Instr => Buildable Op
 
 -------------------------------------
 -- Abstract instruction
 -------------------------------------
+
+-- | ExtU is extension of InstrAbstract by Morley instructions
+type family ExtU (instr :: K.Type -> K.Type) :: K.Type -> K.Type
 
 -- | Michelson instruction with abstract parameter `op`.  This
 -- parameter is necessary, because at different stages of our pipeline
 -- it will be different. Initially it can contain macros and
 -- non-flattened instructions, but then it contains only vanilla
 -- Michelson instructions.
-data InstrAbstract nop op
-  = NOP nop
+data InstrAbstract op
+  = EXT               (ExtU InstrAbstract op)
   | DROP
   | DUP               VarAnn
   | SWAP
@@ -128,10 +136,16 @@ data InstrAbstract nop op
   | SOURCE            VarAnn
   | SENDER            VarAnn
   | ADDRESS           VarAnn
-  deriving (Eq, Show, Functor, Data, Generic)
+  deriving (Generic)
 
-instance (Buildable nop, Buildable op) => Buildable (InstrAbstract nop op) where
-  build = genericF
+deriving instance (Eq op, Eq (ExtU InstrAbstract op)) => Eq (InstrAbstract op)
+deriving instance (Show op, Show (ExtU InstrAbstract op)) => Show (InstrAbstract op)
+deriving instance Functor (ExtU InstrAbstract) => Functor InstrAbstract
+deriving instance (Data op, Data (ExtU InstrAbstract op)) => Data (InstrAbstract op)
+
+-- deriving instance (Buildable op, Buildable (ExtU InstrAbstract op)) => Buildable (InstrAbstract op)
+-- instance Buildable op => Buildable (InstrAbstract op) where
+--   build = genericF
 
 ----------------------------------------------------------------------------
 -- Contract's address computation
@@ -142,7 +156,7 @@ instance (Buildable nop, Buildable op) => Buildable (InstrAbstract nop op) where
 ----------------------------------------------------------------------------
 
 -- | Data necessary to originate a contract.
-data OriginationOperation nop = OriginationOperation
+data OriginationOperation = OriginationOperation
   { ooManager :: !KeyHash
   -- ^ Manager of the contract.
   , ooDelegate :: !(Maybe KeyHash)
@@ -153,24 +167,29 @@ data OriginationOperation nop = OriginationOperation
   -- ^ Whether the contract is delegatable.
   , ooBalance :: !Mutez
   -- ^ Initial balance of the contract.
-  , ooStorage :: !(Value (Op nop))
+  , ooStorage :: !(Value Op)
   -- ^ Initial storage value of the contract.
-  , ooContract :: !(Contract (Op nop))
+  , ooContract :: !(Contract Op)
   -- ^ The contract itself.
-  } deriving (Show)
+  } deriving (Generic)
+
+deriving instance Show (ExtU InstrAbstract Op) => Show OriginationOperation
 
 -- | Compute address of a contract from its origination operation.
 --
 -- TODO [TM-62] It's certainly imprecise, real Tezos implementation doesn't
 -- use JSON, but we don't need precise format yet, so we just use some
 -- serialization format (JSON because we have necessary instances already).
-mkContractAddress :: Aeson.ToJSON nop => OriginationOperation nop -> Address
+mkContractAddress :: Aeson.ToJSON InstrExtU => OriginationOperation -> Address
 mkContractAddress = mkContractAddressRaw . BSL.toStrict . Aeson.encode
 
 ----------------------------------------------------------------------------
 -- JSON serialization
 ----------------------------------------------------------------------------
 
-deriveJSON defaultOptions ''Op
-deriveJSON defaultOptions ''InstrAbstract
-deriveJSON defaultOptions ''OriginationOperation
+instance Aeson.ToJSON Instr => Aeson.ToJSON Op
+instance Aeson.FromJSON Instr => Aeson.FromJSON Op
+instance (Aeson.ToJSON op, Aeson.ToJSON (ExtU InstrAbstract op)) => Aeson.ToJSON (InstrAbstract op)
+instance (Aeson.FromJSON op, Aeson.FromJSON (ExtU InstrAbstract op)) => Aeson.FromJSON (InstrAbstract op)
+instance Aeson.FromJSON Op => Aeson.FromJSON OriginationOperation
+instance Aeson.ToJSON Op => Aeson.ToJSON OriginationOperation
