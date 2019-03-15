@@ -7,7 +7,7 @@ STACK_BUILD_MORE_OPTIONS = --test --bench --no-run-tests --no-run-benchmarks
 
 # Build everything (including tests and benchmarks) with development options.
 dev:
-	stack build $(STACK_DEV_OPTIONS) $(STACK_BUILD_MORE_OPTIONS) .
+	stack build $(STACK_DEV_OPTIONS) $(STACK_BUILD_MORE_OPTIONS) morley
 
 # Run tests in all packages which have them.
 test:
@@ -15,11 +15,11 @@ test:
 
 # Run haddock for all packages.
 haddock:
-	stack haddock
+	stack haddock morley
 
 # Run haddock for all our packages, but not for dependencies.
 haddock-no-deps:
-	stack haddock --no-haddock-deps
+	stack haddock morley --no-haddock-deps
 
 stylish:
 	stylish-haskell -i `find src -iname '*.hs'`
