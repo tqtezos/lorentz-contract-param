@@ -196,8 +196,11 @@ test-suite morley-test
   default-language:    Haskell2010
   type:                exitcode-stdio-1.0
   other-modules:       Test.Arbitrary
+                     , Test.CValConversion
                      , Test.Interpreter
                      , Test.Interpreter.Auction
+                     , Test.Interpreter.Compare
+                     , Test.Interpreter.Conditionals
                      , Test.Macro
                      , Test.Nop
                      , Test.Morley.Runtime
@@ -209,6 +212,7 @@ test-suite morley-test
                      , Test.Util.Contracts
                      , Test.Util.Interpreter
                      , Test.Util.QuickCheck
+                     , Test.ValConversion
   build-depends:
                        aeson
                      , base-noprelude >= 4.7 && < 5

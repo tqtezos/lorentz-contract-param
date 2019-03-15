@@ -62,7 +62,7 @@ mkMutez n
 -- the argument must not exceed the maximal 'Mutez' value.
 unsafeMkMutez :: HasCallStack => Word64 -> Mutez
 unsafeMkMutez n =
-  fromMaybe (error $ "mkMutez: overflow (" <> show n) (mkMutez n)
+  fromMaybe (error $ "mkMutez: overflow (" <> show n <> ")") (mkMutez n)
 {-# INLINE unsafeMkMutez #-}
 
 -- | Addition of 'Mutez' values. Returns 'Nothing' in case of overflow.

@@ -8,7 +8,7 @@ import Test.Hspec (Spec, describe, it, shouldSatisfy)
 
 import Tezos.Address (Address, formatAddress, parseAddress)
 
-import Test.Util.QuickCheck (ShowThroughBuild(..), aesonRoundtrip, formattingRoundtrip)
+import Test.Util.QuickCheck (ShowThroughBuild(..), aesonRoundtrip, roundtripSpecSTB)
 
 spec :: Spec
 spec = describe "Tezos.Address" $ do
@@ -19,7 +19,7 @@ spec = describe "Tezos.Address" $ do
       forM_ invalidAddresses (\a -> bimap STB STB (parseAddress a) `shouldSatisfy` isLeft)
     describe "Formatting" $ do
       describe "Roundtrip (parse . format ≡ pure)" $ do
-        formattingRoundtrip formatAddress parseAddress
+        roundtripSpecSTB formatAddress parseAddress
       describe "Roundtrip (JSON encoding/deconding)" $ do
         aesonRoundtrip @Address
   where

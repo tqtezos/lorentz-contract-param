@@ -169,4 +169,4 @@ instance Arbitrary (CVal 'T_timestamp) where
     choose (timestampToSeconds minTimestamp, timestampToSeconds maxTimestamp)
 
 instance Arbitrary Mutez where
-  arbitrary = unsafeMkMutez <$> choose (0, unMutez maxBound)
+  arbitrary = unsafeMkMutez <$> choose (unMutez minBound, unMutez maxBound)
