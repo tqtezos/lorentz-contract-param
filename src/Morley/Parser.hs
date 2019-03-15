@@ -897,7 +897,7 @@ testAssert = do
 
 printComment :: Parser Mo.PrintComment
 printComment = do
-  symbol "\""
+  string "\""
   let validChar = T.pack <$> some (satisfy (\x -> x /= '%' && x /= '"'))
   c <- many (Right <$> stackRef <|> Left <$> validChar)
   symbol "\""
@@ -905,8 +905,8 @@ printComment = do
 
 stackRef :: Parser Mo.StackRef
 stackRef = do
-  symbol "%"
-  n <- brackets L.decimal
+  string "%"
+  n <- brackets' L.decimal
   return $ Mo.StackRef n
 
 stackType :: Parser Mo.StackTypePattern

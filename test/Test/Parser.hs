@@ -24,6 +24,7 @@ spec = describe "Parser tests" $ do
   it "set type parser test" setTypeParserTest
   it "pair constructor test" pairTest
   it "value parser test" valueParserTest
+  it "printComment parser test" printCommentParserTest
 
 parseContractsTest :: Expectation
 parseContractsTest = do
@@ -133,3 +134,18 @@ pairTest = do
   where
     unitPair :: Mo.Value Mo.ParsedOp
     unitPair = Mo.ValuePair Mo.ValueUnit Mo.ValueUnit
+
+printCommentParserTest :: Expectation
+printCommentParserTest = do
+  P.parseNoEnv P.printComment "" "\"Sides are %[0] x %[1]\"" `shouldBe`
+    Right (PrintComment [Left "Sides are ", Right (StackRef 0), Left " x ", Right (StackRef 1)])
+  P.parseNoEnv P.printComment "" "\"%[0] x\"" `shouldBe`
+    Right (PrintComment [Right (StackRef 0), Left " x"])
+  P.parseNoEnv P.printComment "" "\"%[0]x%[1]\"" `shouldBe`
+    Right (PrintComment [Right (StackRef 0), Left "x", Right (StackRef 1)])
+  P.parseNoEnv P.printComment "" "\"%[0]%[1]\"" `shouldBe`
+    Right (PrintComment [Right (StackRef 0), Right (StackRef 1)])
+  P.parseNoEnv P.printComment "" "\"xxx\"" `shouldBe`
+    Right (PrintComment [Left "xxx"])
+  P.parseNoEnv P.printComment "" "\"\"" `shouldBe`
+    Right (PrintComment [])

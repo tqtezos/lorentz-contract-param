@@ -30,8 +30,7 @@ interpretHandlerSpec = describe "interpretHandler PRINT/TEST_ASSERT tests" $
       let area' = VC $ CvInt $ x * y :: Val Instr ('T.T_c 'T.T_int)
       let check (a, s) =
             if corr then isRight a && s == MorleyLogs ["Area is " <> show area']
-            else isLeft a && s == MorleyLogs ["Sides are " <> show x' <> "x " <> show y']
-                                                                  --- ^ Put a space here after TM-69 is resolved
+            else isLeft a && s == MorleyLogs ["Sides are " <> show x' <> " x " <> show y']
       interpretMorley contract (VPair (x', y')) VUnit dummyContractEnv `shouldSatisfy` check
 
 typeCheckHandlerSpec :: Spec
