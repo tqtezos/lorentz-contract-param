@@ -9,6 +9,7 @@ module Michelson.Untyped.Type
   , typeToComp
   , T (..)
   , CT (..)
+  , ToCT
   , pattern Tint
   , pattern Tnat
   , pattern Tstring
@@ -49,6 +50,9 @@ import Fmt ((+|), (|+))
 import Formatting.Buildable (Buildable(build))
 
 import Michelson.Untyped.Annotation
+import Tezos.Address (Address)
+import Tezos.Core (Mutez, Timestamp)
+import Tezos.Crypto (KeyHash)
 
 -- Annotated type
 data Type = Type T TypeAnn
@@ -129,6 +133,21 @@ data CT =
   | T_timestamp
   | T_address
   deriving (Eq, Ord, Show, Data, Enum, Bounded, Generic)
+
+-- | Type function that converts a regular Haskell type into a comparable type
+-- (which has kind @CT@)
+type family ToCT a :: CT where
+  ToCT Integer = 'T_int
+  ToCT Int = 'T_int
+  ToCT Natural = 'T_nat
+  ToCT Word64 = 'T_nat
+  ToCT Text = 'T_string
+  ToCT Bool = 'T_bool
+  ToCT ByteString = 'T_bytes
+  ToCT Mutez = 'T_mutez
+  ToCT Address = 'T_address
+  ToCT KeyHash = 'T_key_hash
+  ToCT Timestamp = 'T_timestamp
 
 instance Buildable CT where
   build =

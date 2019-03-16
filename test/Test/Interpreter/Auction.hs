@@ -8,18 +8,24 @@ module Test.Interpreter.Auction
 import Test.Hspec (Spec, it, parallel, shouldSatisfy)
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck (Property, arbitrary, choose, counterexample, (.&&.), (===))
-import Test.QuickCheck.Gen (Gen, unGen)
+import Test.QuickCheck.Gen (unGen)
 import Test.QuickCheck.Property (expectFailure, forAll, withMaxSuccess)
 import Test.QuickCheck.Random (mkQCGen)
 
 import Michelson.Interpret (ContractEnv(..))
-import Michelson.Typed (CT(..), CVal(..), Operation(..), T(..), TransferTokens(..), Val(..))
+import Michelson.Typed
+  (CT(..), CVal(..), Operation(..), ToT, TransferTokens(..), Val(..), fromVal, toVal)
 import Morley.Test (ContractPropValidator, contractProp, midTimestamp, specWithContract)
 import Test.Util.Interpreter (dummyContractEnv)
 import Test.Util.QuickCheck (failedProp)
 import Tezos.Address (Address(..))
-import Tezos.Core (timestampPlusSeconds, unMutez, unsafeMkMutez, unsafeSubMutez)
+import Tezos.Core (Mutez, Timestamp, timestampPlusSeconds, unMutez, unsafeMkMutez, unsafeSubMutez)
 import Tezos.Crypto (KeyHash)
+
+type Storage = (Timestamp, (Mutez, KeyHash))
+type Param = KeyHash
+type ContractParam instr = Val instr (ToT Param)
+type ContractStorage instr = Val instr (ToT Storage)
 
 -- | Spec to test auction.tz contract.
 --
@@ -31,14 +37,17 @@ auctionSpec = parallel $ do
   specWithContract "contracts/auction.tz" $ \contract -> do
     it "Bid after end of auction triggers failure" $
       contractProp contract
-        (\_ _ _ -> flip shouldSatisfy isLeft)
+        (\_ _ _ -> (`shouldSatisfy` isLeft))
         (env { ceAmount = unsafeMkMutez 1200 })
         (mkParam keyHash2)
-        (mkStorage aBitBeforeMidTimestamp 1000 keyHash1)
+        (toVal (aBitBeforeMidTimestamp, (unsafeMkMutez 1000, keyHash1)))
+
     prop "Random check (sparse distribution)" $ withMaxSuccess 200 $
-      qcProp contract arbitrary arbitraryAmount
+      qcProp contract arbitrary arbitrary
+
     prop "Random check (dense end of auction)" $
-      qcProp contract denseTime arbitraryAmount
+      qcProp contract denseTime arbitrary
+
     prop "Random check (dense amount)" $
       qcProp contract arbitrary denseAmount
 
@@ -47,46 +56,41 @@ auctionSpec = parallel $ do
   -- enough to filter common mistakes.
   specWithContract "contracts/auction-buggy.tz" $ \contract -> do
     prop "Random check (dense end of auction)" $
-      expectFailure $ qcProp contract denseTime arbitraryAmount
+      expectFailure $ qcProp contract denseTime arbitrary
+
     prop "Random check (dense amount)" $
       expectFailure $ qcProp contract arbitrary denseAmount
 
   where
     qcProp contract eoaGen amountGen =
-      forAll (mkStorage <$> eoaGen <*> amountGen <*> arbitrary) $
-        flip $ contractProp contract validateAuction env
+      forAll ((,) <$> eoaGen <*> ((,) <$> amountGen <*> arbitrary)) $
+        \s' p' ->
+          contractProp contract validateAuction env (mkParam p') (mkStorage s')
 
-    aBitBeforeMidTimestamp =
-      CvTimestamp $ midTimestamp `timestampPlusSeconds` -1
+    aBitBeforeMidTimestamp = midTimestamp `timestampPlusSeconds` -1
     -- ^ 1s before NOW
 
-    denseTime =
-      CvTimestamp . (timestampPlusSeconds midTimestamp) <$> choose (-4, 4)
-    denseAmount = (midAmount +) . fromInteger <$> choose (-4, 4)
-
-    arbitraryAmount :: Gen Word64
-    arbitraryAmount = unMutez <$> arbitrary
+    -- N.B.: using Gen (CVal 'T_timestamp) from Morley.Test.
+    denseTime = CvTimestamp . (timestampPlusSeconds midTimestamp) <$> choose (-4, 4)
+    denseAmount = unsafeMkMutez . (midAmount +) . fromInteger <$> choose (-4, 4)
 
     env = dummyContractEnv
             { ceNow = midTimestamp
             , ceAmount = unsafeMkMutez midAmount
             }
     midAmount = unMutez (maxBound `unsafeSubMutez` minBound) `div` 2
-    mkParam = VC . CvKeyHash
 
-    mkStorage endOfAuction lastBidAmount lastBidKH =
-        (VPair (VC endOfAuction,
-                VPair (VC $ CvMutez (unsafeMkMutez lastBidAmount),
-                       VC $ CvKeyHash lastBidKH)))
+    mkParam :: Param -> ContractParam instr
+    mkParam = toVal
+
+    mkStorage :: (CVal 'T_timestamp, (Mutez, KeyHash)) -> ContractStorage instr
+    mkStorage (CvTimestamp t, b) = toVal (t, b)
 
 keyHash1 :: KeyHash
 keyHash1 = unGen arbitrary (mkQCGen 300406) 0
 
 keyHash2 :: KeyHash
 keyHash2 = unGen arbitrary (mkQCGen 142917) 0
-
-type AuctionStorageType =
-  ('T_pair ('T_c 'T_timestamp) ('T_pair ('T_c 'T_mutez) ('T_c 'T_key_hash)))
 
 -- | This validator checks the result of auction.tz execution.
 --
@@ -103,11 +107,10 @@ type AuctionStorageType =
 -- * Script returned exactly one operation, @TransferTokens@, which
 --   returns money back to the previous bidder
 validateAuction
-  :: ContractPropValidator ('T_c 'T_key_hash) AuctionStorageType Property
+  :: ContractPropValidator (ToT Param) (ToT Storage) Property
 validateAuction env
-    (VC (CvKeyHash newKeyHash))
-    (VPair ( VC (CvTimestamp endOfAuction)
-           , VPair (VC (CvMutez amount), VC (CvKeyHash keyHash))))
+    (fromVal -> newKeyHash)
+    (fromVal -> (endOfAuction, (amount, keyHash :: KeyHash)))
     resE
 
   | ceNow env > endOfAuction

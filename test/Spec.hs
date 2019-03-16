@@ -4,6 +4,7 @@ module Main
 
 import Test.Hspec (hspec)
 
+import qualified Test.CValConversion as CVal
 import qualified Test.Interpreter as Interpreter
 import qualified Test.Macro as Macro
 import qualified Test.Morley.Runtime as Morley.Runtime
@@ -13,6 +14,7 @@ import qualified Test.Serialization.Aeson as Serialization.Aeson
 import qualified Test.Tezos.Address as Tezos.Address
 import qualified Test.Tezos.Crypto as Tezos.Crypto
 import qualified Test.Typecheck as Typecheck
+import qualified Test.ValConversion as Val
 
 main :: IO ()
 main = hspec $ do
@@ -26,3 +28,5 @@ main = hspec $ do
   Morley.Runtime.spec
   Serialization.Aeson.spec
   Interpreter.spec
+  Val.spec
+  CVal.spec

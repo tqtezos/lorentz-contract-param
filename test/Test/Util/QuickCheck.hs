@@ -26,32 +26,31 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 module Test.Util.QuickCheck
   ( ShowThroughBuild (..)
 
-  -- * Formatting/parsing properties
-  , formattingRoundtrip
+  -- * Roundtrip properties
+  , roundtripSpec
+  , roundtripSpecSTB
   , aesonRoundtrip
 
   -- * 'Property' helpers
   , failedProp
+  , qcIsLeft
+  , qcIsRight
 
   -- * 'Gen' helpers
   , runGen
   ) where
 
-import Formatting (build, formatToString)
-import Formatting.Buildable (Buildable)
-import Prelude hiding (show)
-import Test.QuickCheck (Arbitrary)
-import Test.QuickCheck.Gen (Gen, unGen)
-import Test.QuickCheck.Property (Result(..), failed, property)
-import Test.QuickCheck.Random (mkQCGen)
-import Text.Show (show)
-
 import Data.Aeson (FromJSON(..), ToJSON(..))
 import qualified Data.Aeson as Aeson
 import Data.Typeable (typeRep)
+import Fmt (Buildable, pretty)
 import Test.Hspec (Spec)
 import Test.Hspec.QuickCheck (prop)
-import Test.QuickCheck (Property, (===))
+import Test.QuickCheck (Arbitrary, Property, (===))
+import Test.QuickCheck.Gen (Gen, unGen)
+import Test.QuickCheck.Property (Result(..), failed, property)
+import Test.QuickCheck.Random (mkQCGen)
+import qualified Text.Show (show)
 
 ----------------------------------------------------------------------------
 -- 'Show'ing a value though 'Buildable' type class.
@@ -62,31 +61,56 @@ newtype ShowThroughBuild a = STB
   { unSTB :: a
   } deriving (Eq, Ord, Arbitrary)
 
-instance Buildable a => Show (ShowThroughBuild a) where
-  show = formatToString build . unSTB
+instance {-# OVERLAPPABLE #-} Buildable a => Show (ShowThroughBuild a) where
+  show = pretty . unSTB
+
+instance Show (ShowThroughBuild ByteString) where
+  show = show . unSTB
 
 ----------------------------------------------------------------------------
 -- Formatting
 ----------------------------------------------------------------------------
 
-formattingRoundtrip ::
-     forall x err. (Buildable x, Typeable x, Arbitrary x, Buildable err, Eq x, Eq err)
-  => (x -> Text)
-  -> (Text -> Either err x)
+-- | This 'Spec' contains a property based test for conversion from
+-- some @x@ to some @y@ and back to @x@ (it should successfully return
+-- the initial @x@).
+roundtripSpec ::
+     forall x y err.
+     ( Show x
+     , Typeable x
+     , Arbitrary x
+     , Eq x
+     , Show err
+     , Eq err
+     )
+  => (x -> y)
+  -> (y -> Either err x)
   -> Spec
-formattingRoundtrip format parse = prop typeName check
+roundtripSpec xToY yToX = prop typeName check
   where
     typeName = show $ typeRep (Proxy @x)
-    check :: ShowThroughBuild x -> Property
-    check (STB x) = bimap STB STB (parse (format x)) === Right (STB x)
+    check :: x -> Property
+    check x = yToX (xToY x) === Right x
+
+-- | Version of 'roundtripSpec' which shows values using 'Buildable' instance.
+roundtripSpecSTB ::
+     forall x y err.
+     ( Show (ShowThroughBuild x)
+     , Typeable x
+     , Arbitrary x
+     , Eq x
+     , Show (ShowThroughBuild err)
+     , Eq err
+     )
+  => (x -> y)
+  -> (y -> Either err x)
+  -> Spec
+roundtripSpecSTB xToY yToX = roundtripSpec (xToY . unSTB) (bimap STB STB . yToX)
 
 aesonRoundtrip ::
-     forall x. (Buildable x, ToJSON x, FromJSON x, Typeable x, Arbitrary x, Eq x)
+     forall x. (Show (ShowThroughBuild x), ToJSON x, FromJSON x, Typeable x, Arbitrary x, Eq x)
   => Spec
-aesonRoundtrip =
-  formattingRoundtrip
-    (decodeUtf8 . Aeson.encode @x)
-    (Aeson.eitherDecode . encodeUtf8)
+aesonRoundtrip = roundtripSpecSTB (Aeson.encode @x) Aeson.eitherDecode
 
 ----------------------------------------------------------------------------
 -- Property
@@ -95,6 +119,16 @@ aesonRoundtrip =
 -- | A 'Property' that always failes with given message.
 failedProp :: Text -> Property
 failedProp r = property $ failed { reason = toString r }
+
+-- | The 'Property' holds on `Left a`.
+qcIsLeft :: Show b => Either a b -> Property
+qcIsLeft (Left _)  = property True
+qcIsLeft (Right x) = failedProp $ "expected Left, got Right (" <> show x <> ")"
+
+-- | The 'Property' holds on `Right b`.
+qcIsRight :: Show a => Either a b -> Property
+qcIsRight (Right _) = property True
+qcIsRight (Left x)  = failedProp $ "expected Right, got Left (" <> show x <> ")"
 
 ----------------------------------------------------------------------------
 -- Gen

@@ -1,3 +1,11 @@
+# Accepts a pair of values of type Mutez (Pair a b).
+# Returns a bool list:
+# [ a == b?
+# , a >  b?
+# , a <  b?
+# , a >= b?
+# ] a <= b?
+
 parameter (pair mutez mutez);
 storage (list bool);
 code {CAR; DUP; DUP; DUP; DUP; DIIIIIP {NIL bool};

@@ -9,7 +9,7 @@ import Test.Hspec (Expectation, Spec, describe, it, shouldBe, shouldSatisfy)
 
 import Tezos.Crypto
 
-import Test.Util.QuickCheck (aesonRoundtrip, formattingRoundtrip)
+import Test.Util.QuickCheck (aesonRoundtrip, roundtripSpecSTB)
 
 spec :: Spec
 spec = describe "Tezos.Crypto" $ do
@@ -34,10 +34,10 @@ spec = describe "Tezos.Crypto" $ do
           parseSignatureInvalid
             "edsigtrs8bK7vNfiR4Kd9dWasVa1bAWaQSu2ipnmLGZuwQa8ktCEMYVKqbWsbJ7zTS8dgYT9tiSUKorWCPFHosL5zPsiDwBQ6vB"
       describe "Roundtrip (parse . format ≡ pure)" $ do
-        formattingRoundtrip formatPublicKey parsePublicKey
-        formattingRoundtrip formatSecretKey parseSecretKey
-        formattingRoundtrip formatSignature parseSignature
-        formattingRoundtrip formatKeyHash parseKeyHash
+        roundtripSpecSTB formatPublicKey parsePublicKey
+        roundtripSpecSTB formatSecretKey parseSecretKey
+        roundtripSpecSTB formatSignature parseSignature
+        roundtripSpecSTB formatKeyHash parseKeyHash
       describe "Roundtrip (JSON encoding/deconding)" $ do
         aesonRoundtrip @PublicKey
         aesonRoundtrip @Signature

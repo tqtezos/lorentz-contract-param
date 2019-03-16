@@ -10,6 +10,8 @@ import Michelson.Interpret (interpret)
 import Michelson.Typed (CT(..), CVal(..), Instr(..), T(..), Val(..), ( # ))
 import Morley.Test (ContractPropValidator, contractProp, specWithContract)
 import Test.Interpreter.Auction (auctionSpec)
+import Test.Interpreter.Compare (compareSpec)
+import Test.Interpreter.Conditionals (conditionalsSpec)
 import Test.Util.Interpreter (dummyContractEnv)
 
 spec :: Spec
@@ -44,6 +46,8 @@ spec = describe "Advanced type interpreter tests" $ do
       contractProp contract validateBasic1 dummyContractEnv
 
   auctionSpec
+  compareSpec
+  conditionalsSpec
 
 validateBasic1
   :: ContractPropValidator 'T_unit ('T_list ('T_c 'T_int)) Property
