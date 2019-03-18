@@ -47,9 +47,10 @@ unsafeValToValue = either (error err) id . valToOpOrValue
     err =
       "unexpected unsafeValToValue call trying to convert VOp to untyped Value"
 
--- | Convert a typed 'Val' to an untyped 'Value' or an operation.
-valToOpOrValue
-  :: forall t . ConversibleExt
+-- | Convert a typed 'Val' to an untyped 'Value', or fail if it contains operations
+-- which are unrepresentable there.
+valToOpOrValue ::
+     forall t . ConversibleExt
   => Val Instr t
   -> Either (Operation Instr) (Un.Value Un.Op)
 valToOpOrValue = \case
@@ -57,23 +58,22 @@ valToOpOrValue = \case
   VKey b -> Right $ Un.ValueString $ formatPublicKey b
   VUnit -> Right $ Un.ValueUnit
   VSignature b -> Right $ Un.ValueString $ formatSignature b
-  VOption (Just x) -> Right $ Un.ValueSome $ unsafeValToValue x
+  VOption (Just x) -> Un.ValueSome <$> valToOpOrValue x
   VOption Nothing -> Right $ Un.ValueNone
-  VList l -> Right $ Un.ValueSeq $ map unsafeValToValue l
+  VList l -> Un.ValueSeq <$> mapM valToOpOrValue l
   VSet s -> Right $ Un.ValueSeq $ map cValToValue $ toList s
   VOp op -> Left op
   VContract b -> Right $ Un.ValueString $ formatAddress b
-  VPair (l, r) ->
-    Right $ Un.ValuePair (unsafeValToValue l) (unsafeValToValue r)
-  VOr (Left x) -> Right $ Un.ValueLeft $ unsafeValToValue x
-  VOr (Right x) -> Right $ Un.ValueRight $ unsafeValToValue x
+  VPair (l, r) -> Un.ValuePair <$> valToOpOrValue l <*> valToOpOrValue r
+  VOr (Left x) -> Un.ValueLeft <$> valToOpOrValue x
+  VOr (Right x) -> Un.ValueRight <$> valToOpOrValue x
   VLam ops -> Right $ Un.ValueLambda $ instrToOps ops
   VMap m ->
-    Right $ Un.ValueMap
-    (map (\(k, v) -> Un.Elt (cValToValue k) (unsafeValToValue v)) (Map.toList m))
+    fmap Un.ValueMap . forM (Map.toList m) $ \(k, v) ->
+      Un.Elt (cValToValue k) <$> valToOpOrValue v
   VBigMap m ->
-    Right $ Un.ValueMap
-    (map (\(k, v) -> Un.Elt (cValToValue k) (unsafeValToValue v)) (Map.toList m))
+    fmap Un.ValueMap . forM (Map.toList m) $ \(k, v) ->
+      Un.Elt (cValToValue k) <$> valToOpOrValue v
 
 cValToValue :: CVal t -> Un.Value Un.Op
 cValToValue cVal = case cVal of
@@ -102,7 +102,9 @@ instrToOps instr = Un.Op <$> handleInstr instr
       where
         handle :: Instr inp1 (t ': s) -> [Un.Instr]
         handle (PUSH _ :: Instr inp1 (t ': s)) =
-          [Un.PUSH Un.noAnn (toUType $ fromSingT (sing @t)) (unsafeValToValue val)]
+          let value = unsafeValToValue val
+              --- ^ safe because PUSH cannot have operation as argument
+          in [Un.PUSH Un.noAnn (toUType $ fromSingT (sing @t)) value]
         handle _ = error "unexcepted call"
     handleInstr i@NONE = handle i
       where
