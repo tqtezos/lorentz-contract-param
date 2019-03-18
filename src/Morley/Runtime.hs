@@ -188,7 +188,6 @@ interpreterPure now maxSteps gState ops =
       , _irSourceAddress = Nothing
       }
 
--- TODO: do we want to update anything in case of error?
 statefulInterpreter
   :: Timestamp
   -> Word64
@@ -199,7 +198,6 @@ statefulInterpreter now maxSteps = do
   use irOperations >>= \case
     [] -> pass
     (op:opsTail) ->
-      -- TODO: is it correct to pass latest GState?
       either throwError (processIntRes opsTail) $
       interpretOneOp now maxSteps mSourceAddr curGState op
   where
