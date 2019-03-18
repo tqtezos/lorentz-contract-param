@@ -213,3 +213,66 @@ Also sample public key (`edpktieBMrR9Df3dqzZAJpDZBXb1h188fyrQyRJcm5RH2WpbvMVR8b`
 All three byte values were invalud for type `key`.
 
 Conclusion: most likely values of these types (and e. g. `signature`) can be represented only as strings.
+
+## Calling a contract from another contract
+
+There are some questions about situation when a contract calls another contract (using `TRANSFER_TOKENS` operation):
+1. Should the state of a contract be updated immediately after it returns `([operation], storage)` or after all operations are executed? It's important because there can be a chain of calls which will call the contract again.
+2. Should the state of a contract be updated if one of operations it returns fails?
+
+### Experiment 1
+
+Originate this contract: https://alphanet.tzscan.io/KT1NpAYj8nuq3vpgUvXxafrYAAgPMyZZDnMX
+Its code can be viewed in explorer.
+
+It calls self `p` times where `p` is parameter and updates increases its storage by one every time.
+It was originated with storage 0 and after 3 calls its storage is 3, so each subsequent call saw new storage value.
+So the answer to the first question is that the state should be updated immediately.
+
+### Experiment 2
+
+Originate this contract: https://alphanet.tzscan.io/KT1WWcEJVBp8i3bhH5DJCJWNANgXw4LW8MNr with value `False`.
+
+It calls the contract passed as parameter and sets its storage value to `True`.
+
+Also originate a contract which always fails: https://alphanet.tzscan.io/KT1QARWYgdmjfYzmrucZ38S9XhQN3KhbJ7Wa
+And pass it as parameter.
+
+This is what happens in this case
+
+```
+This simulation failed:
+  Manager signed operations:
+    From: tz1NaZzLvdDBLfV2LWC6F4SJfNV2jHdZJXkJ
+    Fee to the baker: ꜩ0
+    Expected counter: 26602
+    Gas limit: 400000
+    Storage limit: 60000 bytes
+    Transaction:
+      Amount: ꜩ0
+      From: tz1NaZzLvdDBLfV2LWC6F4SJfNV2jHdZJXkJ
+      To: KT1WWcEJVBp8i3bhH5DJCJWNANgXw4LW8MNr
+      Parameter: "KT1QARWYgdmjfYzmrucZ38S9XhQN3KhbJ7Wa"
+      This transaction was BACKTRACKED, its expected effects (as follow) were NOT applied.
+      Updated storage: True
+      Storage size: 62 bytes
+      Consumed gas: 12688
+    Internal operations:
+      Transaction:
+        Amount: ꜩ0.000001
+        From: KT1WWcEJVBp8i3bhH5DJCJWNANgXw4LW8MNr
+        To: KT1QARWYgdmjfYzmrucZ38S9XhQN3KhbJ7Wa
+        Parameter: Unit
+        This operation FAILED.
+
+Runtime error in contract KT1QARWYgdmjfYzmrucZ38S9XhQN3KhbJ7Wa:
+  1: { parameter unit ; storage unit ; code { FAIL } }
+At line 1 characters 41 to 45,
+script reached FAILWITH instruction
+with Unit
+Fatal error:
+  transfer simulation failed
+```
+
+As you can see the whole transaction was backtracked and its expected effects were not applied.
+It answers the second question.
