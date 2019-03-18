@@ -34,7 +34,6 @@ library
                      , Morley.Runtime.TxData
                      , Morley.Test
                      , Morley.Types
-                     , Prelude
                      , Tezos.Address
                      , Tezos.Core
                      , Tezos.Crypto
@@ -73,6 +72,7 @@ library
                      , lens
                      , megaparsec >= 7.0.0
                      , memory
+                     , morley-prelude
                      , natural-numbers
                      , QuickCheck
                      , text
@@ -83,7 +83,6 @@ library
                      , singletons
                      , syb
                      , mtl
-                     , universum
                      , vinyl
   ghc-options:        -Weverything
                       -Wno-missing-exported-signatures
@@ -144,6 +143,7 @@ executable morley
                      , optparse-applicative
                      , text
                      , morley
+                     , morley-prelude
   ghc-options:        -Weverything
                       -Wno-missing-exported-signatures
                       -Wno-missing-import-lists
@@ -228,6 +228,7 @@ test-suite morley-test
                      , lens
                      , megaparsec >= 7.0.0
                      , morley
+                     , morley-prelude
                      , QuickCheck
                      , quickcheck-arbitrary-adt
                      , text
