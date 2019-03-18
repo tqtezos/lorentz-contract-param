@@ -7,7 +7,7 @@ code { DUP;
        IF_NONE {DROP; NIL operation }
                {SWAP;
                 CAR;
-                DIP {PUSH mutez 0};
+                DIP {PUSH mutez 2};
                 TRANSFER_TOKENS;
                 DIP {NIL operation;};
                 CONS;

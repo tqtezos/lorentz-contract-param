@@ -1,13 +1,17 @@
 -- | Utilities for integrational testing.
 
 module Morley.Test.Integrational
-  ( UpdatesValidator
+  ( IntegrationalValidator
+  , SuccessValidator
   , integrationalTestExpectation
   , integrationalTestProperty
   , expectStorageValue
   , expectStorageConstant
+  , expectBalance
+  , composeValidators
   ) where
 
+import Control.Lens (at)
 import qualified Data.List as List
 import Fmt (blockListF, pretty, (+|), (|+))
 import Test.Hspec (Expectation, expectationFailure)
@@ -18,21 +22,22 @@ import Morley.Runtime (InterpreterError, InterpreterOp(..), InterpreterRes(..), 
 import Morley.Runtime.GState
 import Morley.Test.Util (failedProp, succeededProp)
 import Tezos.Address (Address)
-import Tezos.Core (Timestamp)
+import Tezos.Core (Mutez, Timestamp)
 
 -- | Validator for integrational testing.
 -- If an error is expected, it should be 'Left' with validator for errors.
--- Otherwise it should check updates of the global state.
-type UpdatesValidator =
-  Either (InterpreterError -> Bool) ([GStateUpdate] -> Either Text ())
+-- Otherwise it should check final global state and its updates.
+type IntegrationalValidator = Either (InterpreterError -> Bool) SuccessValidator
+
+type SuccessValidator = (GState -> [GStateUpdate] -> Either Text ())
 
 integrationalTestExpectation ::
-  Timestamp -> Word64 -> [InterpreterOp] -> UpdatesValidator -> Expectation
+  Timestamp -> Word64 -> [InterpreterOp] -> IntegrationalValidator -> Expectation
 integrationalTestExpectation =
   integrationalTest (maybe pass (expectationFailure . toString))
 
 integrationalTestProperty ::
-  Timestamp -> Word64 -> [InterpreterOp] -> UpdatesValidator -> Property
+  Timestamp -> Word64 -> [InterpreterOp] -> IntegrationalValidator -> Property
 integrationalTestProperty = integrationalTest (maybe succeededProp failedProp)
 
 integrationalTest ::
@@ -40,7 +45,7 @@ integrationalTest ::
   -> Timestamp
   -> Word64
   -> [InterpreterOp]
-  -> UpdatesValidator
+  -> IntegrationalValidator
   -> res
 integrationalTest howToFail now maxSteps operations validator =
   validateResult
@@ -50,7 +55,7 @@ integrationalTest howToFail now maxSteps operations validator =
 
 validateResult ::
      (Maybe Text -> res)
-  -> UpdatesValidator
+  -> IntegrationalValidator
   -> Either InterpreterError InterpreterRes
   -> res
 validateResult howToFail validator result =
@@ -61,18 +66,18 @@ validateResult howToFail validator result =
       doFail $ "Unexpected interpreter error: " <> pretty err
     (Left _, Right _) ->
       doFail $ "Interpreter unexpectedly didn't fail"
-    (Right validateUpdates, Right (_irUpdates -> updates))
-      | Left bad <- validateUpdates updates ->
+    (Right validateUpdates, Right ir)
+      | Left bad <- validateUpdates (_irGState ir) (_irUpdates ir) ->
         doFail $
         "Updates are incorrect: " +| bad |+ ". Updates are: \n" +|
-        blockListF updates |+ ""
+        blockListF (_irUpdates ir) |+ ""
       | otherwise -> doNotFail
   where
     doNotFail = howToFail Nothing
     doFail = howToFail . Just
 
 ----------------------------------------------------------------------------
--- Validators to be used within 'UpdatesValidator'
+-- Validators to be used within 'IntegrationalValidator'
 ----------------------------------------------------------------------------
 
 -- | Check that storage value is updated for given address. Takes a
@@ -81,11 +86,10 @@ validateResult howToFail validator result =
 -- It works even if updates are not filtered (i. e. a value can be
 -- updated more than once).
 expectStorageValue ::
-     [GStateUpdate]
-  -> Address
+     Address
   -> (UntypedValue -> Either Text ())
-  -> Either Text ()
-expectStorageValue updates addr predicate =
+  -> SuccessValidator
+expectStorageValue addr predicate _ updates =
   case List.find checkAddr (reverse updates) of
     Nothing -> Left $ "Storage of " +| addr |+ " is not updated"
     Just (GSSetStorageValue _ val) ->
@@ -99,13 +103,40 @@ expectStorageValue updates addr predicate =
 
 -- | Like 'expectStorageValue', but expects a constant.
 expectStorageConstant ::
-     [GStateUpdate]
-  -> Address
+     Address
   -> UntypedValue
-  -> Either Text ()
-expectStorageConstant updates addr expected =
-  expectStorageValue updates addr predicate
+  -> SuccessValidator
+expectStorageConstant addr expected =
+  expectStorageValue addr predicate
   where
     predicate val
       | val == expected = pass
       | otherwise = Left $ "expected " +| expected |+ ""
+
+-- | Check that eventually address has some particular balance.
+expectBalance :: Address -> Mutez -> SuccessValidator
+expectBalance addr balance gs _ =
+  case gsAddresses gs ^. at addr of
+    Nothing ->
+      Left $
+      "Expected " +| addr |+ " to have balance " +| balance |+
+      ", but it's unknown"
+    Just (asBalance -> realBalance)
+      | realBalance == balance -> pass
+      | otherwise ->
+        Left $
+        "Expected " +| addr |+ " to have balance " +| balance |+
+        ", but its balance is " +| realBalance |+ ""
+
+-- | Compose two success validators.
+--
+-- For example:
+--
+-- expectBalance bal addr `composeValidators`
+-- expectStorageConstant addr2 ValueUnit
+composeValidators ::
+     SuccessValidator
+  -> SuccessValidator
+  -> SuccessValidator
+composeValidators val1 val2 gState updates =
+  val1 gState updates >> val2 gState updates

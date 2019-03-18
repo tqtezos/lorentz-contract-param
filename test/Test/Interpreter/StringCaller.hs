@@ -15,8 +15,10 @@ import Morley.Aliases (UntypedContract, UntypedValue)
 import Morley.Runtime (InterpreterOp(..), TxData(..))
 import Morley.Runtime.GState
 import Morley.Test (specWithContract)
-import Morley.Test.Integrational (expectStorageConstant)
+import Morley.Test.Integrational
+  (SuccessValidator, composeValidators, expectBalance, expectStorageConstant)
 import Tezos.Address (formatAddress)
+import Tezos.Core
 
 import Test.Arbitrary ()
 import Test.Util.Interpreter
@@ -76,6 +78,11 @@ specImpl (uStringCaller, _stringCaller) (uIdString, _idString) = do
       , transferToStringCaller newValue
       ]
 
-    updatesValidator :: UntypedValue -> [GStateUpdate] -> Either Text ()
-    updatesValidator newValue updates =
-      expectStorageConstant updates idStringAddress newValue
+    -- `stringCaller.tz` transfers 2 mutez.
+    expectedIdStringBalance =
+      ooBalance idStringOrigination `unsafeAddMutez` unsafeMkMutez 2
+
+    updatesValidator :: UntypedValue -> SuccessValidator
+    updatesValidator newValue =
+      expectStorageConstant idStringAddress newValue `composeValidators`
+      expectBalance idStringAddress expectedIdStringBalance

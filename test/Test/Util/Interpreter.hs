@@ -16,8 +16,7 @@ import Michelson.Untyped
 import Morley.Runtime (InterpreterOp)
 import Morley.Runtime.GState (genesisAddress, genesisKeyHash)
 import Morley.Test.Integrational
-  (UpdatesValidator, integrationalTestExpectation, integrationalTestProperty)
-import Tezos.Address (Address(..), mkContractAddressRaw)
+  (IntegrationalValidator, integrationalTestExpectation, integrationalTestProperty)
 import Tezos.Core (Timestamp(..), unsafeMkMutez)
 
 dummyNow :: Timestamp
@@ -53,12 +52,12 @@ dummyOrigination storage contract = OriginationOperation
   }
 
 -- | 'integrationalTestExpectation' which uses dummy now and max steps.
-simplerIntegrationalTestExpectation :: [InterpreterOp] -> UpdatesValidator -> Expectation
+simplerIntegrationalTestExpectation :: [InterpreterOp] -> IntegrationalValidator -> Expectation
 simplerIntegrationalTestExpectation =
   integrationalTestExpectation dummyNow dummyMaxSteps
 
 -- | 'integrationalTestProperty' which uses dummy now and max steps.
-simplerIntegrationalTestProperty :: [InterpreterOp] -> UpdatesValidator -> Property
+simplerIntegrationalTestProperty :: [InterpreterOp] -> IntegrationalValidator -> Property
 simplerIntegrationalTestProperty =
   integrationalTestProperty dummyNow dummyMaxSteps
 
