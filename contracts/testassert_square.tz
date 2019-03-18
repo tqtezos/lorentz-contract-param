@@ -1,0 +1,21 @@
+parameter (pair int int);
+storage unit;
+code {
+  car;
+  unpair;
+  test_assert
+    CheckSides
+    "Sides are %[0] x %[1]"
+    { dup;
+      gt;
+      dip {push int 101; cmpgt;};
+      diip {dup; gt; dip {push int 101; cmpgt;};};
+      and; and; and;
+    };
+  mul;
+  print "Area is %[0]";
+  drop;
+  unit;
+  nil operation;
+  pair;
+}

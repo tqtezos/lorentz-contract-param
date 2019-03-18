@@ -1,0 +1,12 @@
+parameter (pair int int);
+storage unit;
+code {
+  car;
+  unpair;
+  print "Unexisting element of the stack %[2]";
+  drop;
+  drop;
+  unit;
+  nil operation;
+  pair;
+};

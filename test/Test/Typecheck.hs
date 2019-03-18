@@ -42,7 +42,7 @@ checkFile doTypeCheck wellTyped file = do
         Right _
           | not wellTyped ->
             expectationFailure $
-            "Typechecker unexpectedly considered " <> show file <> "well-typed."
+            "Typechecker unexpectedly considered " <> show file <> " well-typed."
           | otherwise ->
             pass
     Left e -> expectationFailure $ "Parser error: " <> show e

@@ -1,15 +1,38 @@
 module Test.Ext
   ( typeCheckHandlerSpec
+  , interpretHandlerSpec
   ) where
 
-import Test.Hspec (Expectation, Spec, describe, expectationFailure, it)
+import Test.Hspec (Expectation, Spec, describe, expectationFailure, it, shouldSatisfy)
 
 import Michelson.TypeCheck (HST(..), SomeHST(..), runTypeCheckT)
-import Michelson.Typed (extractNotes, fromUType, withSomeSingT)
+import Michelson.Typed (CVal(..), Instr, Val(..), extractNotes, fromUType, withSomeSingT)
+import qualified Michelson.Typed as T
 import Michelson.Untyped (CT(..), T(..), Type(..), ann, noAnn)
-import Morley.Ext (typeCheckHandler)
-import Morley.Types
-  (StackTypePattern(..), TyVar(..), UExtInstr, UExtInstrAbstract(..))
+import Morley.Ext (interpretMorley, typeCheckHandler)
+import Morley.Test (specWithContract)
+import Morley.Types (MorleyLogs(..), StackTypePattern(..), TyVar(..), UExtInstr, UExtInstrAbstract(..))
+import Test.Util.Interpreter (dummyContractEnv)
+
+interpretHandlerSpec :: Spec
+interpretHandlerSpec = describe "interpretHandler PRINT/TEST_ASSERT tests" $
+  specWithContract "contracts/testassert_square.tz" $ \c -> do
+    it "TEST_ASSERT assertion passed" $ do
+      runTest True c 100 100
+      runTest True c 1 1
+    it "TEST_ASSERT assertion failed" $ do
+      runTest False c 0 100
+      runTest False c -1 -2
+  where
+    runTest corr contract x y = do
+      let x' = VC $ CvInt x :: Val Instr ('T.T_c 'T.T_int)
+      let y' = VC $ CvInt y :: Val Instr ('T.T_c 'T.T_int)
+      let area' = VC $ CvInt $ x * y :: Val Instr ('T.T_c 'T.T_int)
+      let check (a, s) =
+            if corr then isRight a && s == MorleyLogs ["Area is " <> show area']
+            else isLeft a && s == MorleyLogs ["Sides are " <> show x' <> "x " <> show y']
+                                                                  --- ^ Put a space here after TM-69 is resolved
+      interpretMorley contract (VPair (x', y')) VUnit dummyContractEnv `shouldSatisfy` check
 
 typeCheckHandlerSpec :: Spec
 typeCheckHandlerSpec = describe "typeCheckHandler STACKTYPE tests" $ do

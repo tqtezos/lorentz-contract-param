@@ -22,6 +22,7 @@ main = hspec $ do
   Macro.spec
   Typecheck.typeCheckSpec
   Ext.typeCheckHandlerSpec
+  Ext.interpretHandlerSpec
   Interpreter.spec
   Tezos.Crypto.spec
   Tezos.Address.spec

@@ -1,0 +1,13 @@
+parameter (pair int int);
+storage unit;
+code {
+  car;
+  unpair;
+  test_assert InvalidStack "Refer to %[1]"
+    {drop;};
+  drop;
+  drop;
+  unit;
+  nil operation;
+  pair;
+};
