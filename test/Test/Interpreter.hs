@@ -2,11 +2,11 @@ module Test.Interpreter
   ( spec
   ) where
 
-import Test.Hspec (Spec, describe, it, shouldSatisfy)
+import Test.Hspec (Expectation, Spec, describe, expectationFailure, it, shouldBe, shouldSatisfy)
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck (Property, label, (.&&.), (===))
 
-import Michelson.Interpret (interpret)
+import Michelson.Interpret (ContractEnv(..), ContractReturn, MichelsonFailed(..), interpret)
 import Michelson.Typed (CT(..), CVal(..), Instr(..), T(..), Val(..), ( # ))
 import Morley.Test (ContractPropValidator, contractProp, specWithContract)
 import Test.Interpreter.Auction (auctionSpec)
@@ -49,6 +49,23 @@ spec = describe "Advanced type interpreter tests" $ do
   compareSpec
   conditionalsSpec
 
+  specWithContract "contracts/steps_to_quota_test1.tz" $ \contract -> do
+    it "Amount of steps should reduce" $ do
+      validateStepsToQuotaTest
+        (interpret contract VUnit (VC (CvNat 0)) dummyContractEnv) 4
+
+  specWithContract "contracts/steps_to_quota_test2.tz" $ \contract -> do
+    it "Amount of steps should reduce" $ do
+      validateStepsToQuotaTest
+        (interpret contract VUnit (VC (CvNat 0)) dummyContractEnv) 8
+
+  specWithContract "contracts/gas_exhaustion.tz" $ \contract -> do
+    it "Contract should fail due to gas exhaustion" $ do
+      case interpret contract (VC (CvString "x")) (VC (CvString "x")) dummyContractEnv of
+        Right _ -> expectationFailure "expecting contract to fail"
+        Left MichelsonGasExhaustion -> pass
+        Left _ -> expectationFailure "expecting another failure reason"
+
 validateBasic1
   :: ContractPropValidator 'T_unit ('T_list ('T_c 'T_int)) Property
 validateBasic1 _env _param input (Right (ops, res)) =
@@ -63,6 +80,13 @@ validateBasic1 _env _param input (Right (ops, res)) =
     trToList (VList l) = map (\(VC (CvInt i)) -> i) l
 
 validateBasic1 _ _ _ (Left e) = error $ show e
+
+validateStepsToQuotaTest :: ContractReturn ('T_c 'T_nat) -> Word64 -> Expectation
+validateStepsToQuotaTest res numOfSteps =
+  case res of
+    (Right ([], VC (CvNat x))) ->
+      (fromInteger . toInteger) x `shouldBe` ceMaxSteps dummyContractEnv - numOfSteps
+    _ -> expectationFailure "unexpected contract result"
 
 --------------------
 -- Examples

@@ -38,25 +38,25 @@ data instance Sing :: CT -> Type where
 -- Custom instance is implemented in order to inject 'Typeable'
 -- constraint for some of constructors.
 data instance Sing :: T -> Type where
-  ST_c :: Typeable a => Sing a -> Sing ( 'T_c a)
+  ST_c :: (SingI a, Typeable a) => Sing a -> Sing ( 'T_c a)
   ST_key :: Sing  'T_key
   ST_unit :: Sing  'T_unit
   ST_signature :: Sing  'T_signature
-  ST_option :: (Typeable a) => Sing a -> Sing ( 'T_option a)
-  ST_list :: (Typeable a) => Sing a -> Sing ( 'T_list a )
-  ST_set :: Typeable a => Sing a -> Sing ( 'T_set a )
+  ST_option :: (SingI a, Typeable a) => Sing a -> Sing ( 'T_option a)
+  ST_list :: (SingI a, Typeable a) => Sing a -> Sing ( 'T_list a )
+  ST_set :: (SingI a, Typeable a) => Sing a -> Sing ( 'T_set a )
   ST_operation  :: Sing 'T_operation
-  ST_contract   :: (Typeable a)
+  ST_contract   :: (SingI a, Typeable a)
                 => Sing a -> Sing ( 'T_contract a )
-  ST_pair       :: (Typeable a, Typeable b)
+  ST_pair       :: (SingI a, SingI b, Typeable a, Typeable b)
                 => Sing a -> Sing b -> Sing ('T_pair a b)
-  ST_or         :: (Typeable a, Typeable b)
+  ST_or         :: (SingI a, SingI b, Typeable a, Typeable b)
                 => Sing a -> Sing b -> Sing ('T_or a b)
-  ST_lambda     :: (Typeable a, Typeable b)
+  ST_lambda     :: (SingI a, SingI b, Typeable a, Typeable b)
                 => Sing a -> Sing b -> Sing ('T_lambda a b)
-  ST_map        :: (Typeable a, Typeable b)
+  ST_map        :: (SingI a, SingI b, Typeable a, Typeable b)
                 => Sing a -> Sing b -> Sing ('T_map a b)
-  ST_big_map    :: (Typeable a, Typeable b)
+  ST_big_map    :: (SingI a, SingI b, Typeable a, Typeable b)
                 => Sing a -> Sing b -> Sing ('T_big_map a b)
 
 ---------------------------------------------

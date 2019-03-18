@@ -2,7 +2,10 @@
 
 module Michelson.Typed.Value
   ( Val (..)
+  , ContractInp
+  , ContractOut
   , CreateAccount (..)
+  , CreateContract (..)
   , CVal (..)
   , Operation (..)
   , SetDelegate (..)
@@ -31,25 +34,44 @@ data Operation instr where
   OpTransferTokens :: TransferTokens instr p -> Operation instr
   OpSetDelegate :: SetDelegate -> Operation instr
   OpCreateAccount :: CreateAccount -> Operation instr
+  OpCreateContract :: Show (instr (ContractInp cp st) (ContractOut st))
+                   => CreateContract instr t cp st -> Operation instr
 
 deriving instance Show (Operation instr)
 
 data TransferTokens instr p = TransferTokens
-  { ttContractParameter :: Val instr p
-  , ttAmount :: Mutez
-  , ttContract :: Val instr ('T_contract p)
+  { ttContractParameter :: !(Val instr p)
+  , ttAmount :: !Mutez
+  , ttContract :: !(Val instr ('T_contract p))
   } deriving (Show)
 
 data SetDelegate = SetDelegate
-  { sdMbKeyHash :: Maybe KeyHash
+  { sdMbKeyHash :: !(Maybe KeyHash)
   } deriving (Show)
 
 data CreateAccount = CreateAccount
-  { caKeyHash :: KeyHash
-  , caMbKeyHash :: Maybe KeyHash
-  , caBool :: Bool
-  , caMutez :: Mutez
+  { caManager :: !KeyHash
+  , caDelegate :: !(Maybe KeyHash)
+  , caSpendable :: !Bool
+  , caBalance :: !Mutez
   } deriving (Show)
+
+data CreateContract instr t cp st
+  = Show (instr (ContractInp cp st) (ContractOut st))
+  => CreateContract
+  { ccManager :: !KeyHash
+  , ccDelegate :: !(Maybe KeyHash)
+  , ccSpendable :: !Bool
+  , ccDelegatable :: !Bool
+  , ccBalance :: !Mutez
+  , ccStorageVal :: !(Val instr t)
+  , ccContractCode :: !(instr (ContractInp cp st) (ContractOut st))
+  }
+
+deriving instance Show (CreateContract instr t cp st)
+
+type ContractInp param st = '[ 'T_pair param st ]
+type ContractOut st = '[ 'T_pair ('T_list 'T_operation) st ]
 
 -- | Representation of Michelson value.
 --

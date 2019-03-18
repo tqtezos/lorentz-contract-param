@@ -1,0 +1,3 @@
+parameter unit;
+storage nat;
+code {DROP; PUSH int 12; DROP; STEPS_TO_QUOTA; NIL operation; PAIR};
