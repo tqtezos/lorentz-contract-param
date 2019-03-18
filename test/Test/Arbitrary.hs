@@ -12,9 +12,9 @@ import Test.QuickCheck.Arbitrary.ADT (ToADTArbitrary(..))
 
 import Michelson.Untyped
   (Annotation(..), CT(..), Comparable(..), Contract(..), Elt(..), FieldAnn, InstrAbstract(..),
-  InternalByteString(..), Op(..), T(..), Type(..), TypeAnn, Value(..), VarAnn)
+  InstrExtU, InternalByteString(..), Op(..), T(..), Type(..), TypeAnn, Value(..), VarAnn)
 import Morley.Test ()
-import Morley.Types (NopInstr(..), StackTypePattern(..), TyVar(..), Var(..))
+import Morley.Types (StackTypePattern(..), TyVar(..), UExtInstr, UExtInstrAbstract(..), Var(..))
 import Tezos.Core (Mutez(..), Timestamp(..), timestampFromSeconds)
 
 instance Arbitrary InternalByteString where
@@ -32,12 +32,12 @@ instance Arbitrary TyVar where
 instance Arbitrary StackTypePattern where
   arbitrary = oneof [pure StkEmpty, pure StkRest, StkCons <$> arbitrary <*> arbitrary]
 
--- TODO extend Arbitrary NopInstr with other constructors
-instance Arbitrary NopInstr where
+-- TODO extend Arbitrary UExtInstr with other constructors
+instance Arbitrary UExtInstr where
   arbitrary = oneof [STACKTYPE <$> arbitrary]
 
-instance (Arbitrary nop, ToADTArbitrary nop) => ToADTArbitrary (Op nop)
-instance Arbitrary nop => Arbitrary (Op nop) where
+instance (Arbitrary InstrExtU, ToADTArbitrary InstrExtU) => ToADTArbitrary Op
+instance Arbitrary Op where
   arbitrary = Op <$> arbitrary
 
 -- TODO: this `Timestamp` gen differs from `Gen (CVal 'T_timestamp)` from `Morley.Test`.
@@ -65,12 +65,11 @@ instance (Arbitrary op, ToADTArbitrary op) => ToADTArbitrary (Contract op)
 instance (Arbitrary op) => Arbitrary (Contract op) where
   arbitrary = Contract <$> arbitrary <*> arbitrary <*> arbitrary
 
-instance (Arbitrary op, ToADTArbitrary op
-         , ToADTArbitrary nop, Arbitrary nop) => ToADTArbitrary (InstrAbstract nop op)
-instance (Arbitrary op, Arbitrary nop) => Arbitrary (InstrAbstract nop op) where
+instance (Arbitrary op, ToADTArbitrary op, Arbitrary (UExtInstrAbstract op)) => ToADTArbitrary (InstrAbstract op)
+instance (Arbitrary op, Arbitrary (UExtInstrAbstract op)) => Arbitrary (InstrAbstract op) where
   arbitrary =
     oneof
-      [ NOP <$> arbitrary
+      [ EXT <$> arbitrary
       , pure DROP
       , DUP <$> arbitrary
       , pure SWAP

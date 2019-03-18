@@ -1,17 +1,40 @@
-module Test.Nop
-  ( nopHandlerSpec
+module Test.Ext
+  ( typeCheckHandlerSpec
+  , interpretHandlerSpec
   ) where
 
-import Test.Hspec (Expectation, Spec, describe, expectationFailure, it)
+import Test.Hspec (Expectation, Spec, describe, expectationFailure, it, shouldSatisfy)
 
-import Michelson.TypeCheck (HST(..), SomeHST(..))
-import Michelson.Typed (extractNotes, fromUType, withSomeSingT)
+import Michelson.TypeCheck (HST(..), SomeHST(..), runTypeCheckT)
+import Michelson.Typed (CVal(..), Instr, Val(..), extractNotes, fromUType, withSomeSingT)
+import qualified Michelson.Typed as T
 import Michelson.Untyped (CT(..), T(..), Type(..), ann, noAnn)
-import Morley.Nop (nopHandler)
-import Morley.Types (NopInstr(..), StackTypePattern(..), TyVar(..))
+import Morley.Ext (interpretMorley, typeCheckHandler)
+import Morley.Test (specWithContract)
+import Morley.Types (MorleyLogs(..), StackTypePattern(..), TyVar(..), UExtInstr, UExtInstrAbstract(..))
+import Test.Util.Interpreter (dummyContractEnv)
 
-nopHandlerSpec :: Spec
-nopHandlerSpec = describe "nopHandler STACKTYPE tests" $ do
+interpretHandlerSpec :: Spec
+interpretHandlerSpec = describe "interpretHandler PRINT/TEST_ASSERT tests" $
+  specWithContract "contracts/testassert_square.tz" $ \c -> do
+    it "TEST_ASSERT assertion passed" $ do
+      runTest True c 100 100
+      runTest True c 1 1
+    it "TEST_ASSERT assertion failed" $ do
+      runTest False c 0 100
+      runTest False c -1 -2
+  where
+    runTest corr contract x y = do
+      let x' = VC $ CvInt x :: Val Instr ('T.T_c 'T.T_int)
+      let y' = VC $ CvInt y :: Val Instr ('T.T_c 'T.T_int)
+      let area' = VC $ CvInt $ x * y :: Val Instr ('T.T_c 'T.T_int)
+      let check (a, s) =
+            if corr then isRight a && s == MorleyLogs ["Area is " <> show area']
+            else isLeft a && s == MorleyLogs ["Sides are " <> show x' <> " x " <> show y']
+      interpretMorley contract (VPair (x', y')) VUnit dummyContractEnv `shouldSatisfy` check
+
+typeCheckHandlerSpec :: Spec
+typeCheckHandlerSpec = describe "typeCheckHandler STACKTYPE tests" $ do
   it "Correct test on [] pattern" $ runNopTest test1 True
   it "Correct test on [a, b] pattern" $ runNopTest test2 True
   it "Correct test on [a, b, ...] pattern" $ runNopTest test3 True
@@ -48,8 +71,10 @@ nopHandlerSpec = describe "nopHandler STACKTYPE tests" $ do
       case convertToHST ts of
         SomeHST is -> SomeHST ((sing, nt, noAnn) ::& is)
 
-    runNopTest :: (NopInstr, SomeHST) -> Bool -> Expectation
-    runNopTest (ni, si) correct = case (nopHandler ni [] si, correct) of
+    nh (ni, si) = runTypeCheckT typeCheckHandler (Type T_key noAnn) $ typeCheckHandler ni [] si
+
+    runNopTest :: (UExtInstr, SomeHST) -> Bool -> Expectation
+    runNopTest tcase correct = case (nh tcase, correct) of
       (Right _, False) -> expectationFailure $ "Test expected to fail but it passed"
       (Left e, True)   -> expectationFailure $ "Test expected to pass but it failed with error: " <> show e
       _                -> pass

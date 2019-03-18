@@ -1,0 +1,30 @@
+{
+    "seed": -5841724642384503195,
+    "samples": [
+        {
+            "tag": "NOP",
+            "contents": {
+                "tag": "STACKTYPE",
+                "contents": {
+                    "tag": "StkRest"
+                }
+            }
+        },
+        {
+            "tag": "COMPARE",
+            "contents": "f.D\n\u0001\u0002W\u0014񧿵\u00179󝣩XXT"
+        },
+        {
+            "tag": "IMPLICIT_ACCOUNT",
+            "contents": "2𐱅僷󮋸df\u001bB"
+        },
+        {
+            "tag": "SHA512",
+            "contents": "D굸񻽷A󯝗<򟾷\u0017\u001d"
+        },
+        {
+            "tag": "LSR",
+            "contents": "\u0012q1󇨯1_𠏲󸮏F䪉S\u0006~6"
+        }
+    ]
+}

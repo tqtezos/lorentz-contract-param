@@ -23,19 +23,19 @@ import Generics.SYB (everywhere, mkT)
 
 import Morley.Types
   (CadrStruct(..), Contract(..), Elt(..), ExpandedInstr, ExpandedOp(..), FieldAnn, Instr,
-  InstrAbstract(..), LetMacro(..), Macro(..), NopInstr(..), Op(..), PairStruct(..), ParsedOp(..),
-  TypeAnn, Value(..), VarAnn, ann, noAnn)
+  InstrAbstract(..), LetMacro(..), Macro(..), Op(..), PairStruct(..), ParsedOp(..), TypeAnn,
+  UExtInstrAbstract(..), Value(..), VarAnn, ann, noAnn)
 
-expandFlat :: [ParsedOp] -> [(Op NopInstr)]
+expandFlat :: [ParsedOp] -> [Op]
 expandFlat = fmap Op . concatMap flatten . fmap expand
 
 -- | Expand and flatten and instructions in parsed contract.
-expandFlattenContract :: Contract ParsedOp -> Contract (Op NopInstr)
+expandFlattenContract :: Contract ParsedOp -> Contract Op
 expandFlattenContract Contract {..} =
   Contract para stor (expandFlat $ code)
 
 -- Probably, some SYB can be used here
-expandValue :: Value ParsedOp -> Value (Op NopInstr)
+expandValue :: Value ParsedOp -> Value Op
 expandValue = \case
   ValuePair l r -> ValuePair (expandValue l) (expandValue r)
   ValueLeft x -> ValueLeft (expandValue x)
@@ -46,23 +46,22 @@ expandValue = \case
   ValueLambda opList -> ValueLambda (expandFlat $ opList)
   x -> fmap (unsafeCastPrim . expand) x
 
-expandElt :: Elt ParsedOp -> Elt (Op NopInstr)
+expandElt :: Elt ParsedOp -> Elt Op
 expandElt (Elt l r) = Elt (expandValue l) (expandValue r)
 
-flatten :: ExpandedOp -> [Instr NopInstr]
+flatten :: ExpandedOp -> [Instr]
 flatten (SEQ_EX s) = concatMap flatten s
 flatten (PRIM_EX o) = [flattenInstr o]
+
+unsafeCastPrim :: ExpandedOp -> Op
+unsafeCastPrim (PRIM_EX x) = Op (fmap unsafeCastPrim x)
+unsafeCastPrim _           = error "unexpected constructor"
 
 -- Here used SYB approach instead pattern matching
 -- flattenInstr (IF_NONE l r) = IF_NONE (concatMap flatten l) (concatMap flatten r)
 -- flattenInstr (IF_LEFT l r) = IF_LEFT (concatMap flatten l) (concatMap flatten r)
 -- ...
-unsafeCastPrim :: ExpandedOp -> (Op NopInstr)
-unsafeCastPrim (PRIM_EX x) = Op (unsafeCastPrim <$> x)
-unsafeCastPrim _           = error "unexpected constructor"
-
-
-flattenInstr :: ExpandedInstr -> (Instr NopInstr)
+flattenInstr :: ExpandedInstr -> Instr
 flattenInstr = fmap unsafeCastPrim . everywhere (mkT flattenOps)
   where
     flattenOps :: [ExpandedOp] -> [ExpandedOp]
@@ -72,16 +71,16 @@ flattenInstr = fmap unsafeCastPrim . everywhere (mkT flattenOps)
 
 expand :: ParsedOp -> ExpandedOp
 expand (MAC m)  = SEQ_EX $ expandMacro m
-expand (PRIM i) = PRIM_EX $ fmap expand i
+expand (PRIM i) = PRIM_EX $ expand <$> i
 expand (SEQ s)  = SEQ_EX $ expand <$> s
 expand (LMAC l)  = SEQ_EX $ expandLetMac l
-
-expandLetMac :: LetMacro -> [ExpandedOp]
-expandLetMac LetMacro {..} =
-  [ PRIM_EX $ NOP (FN lmName lmSig)
-  , SEQ_EX $ expand <$> lmExpr
-  , PRIM_EX $ NOP FN_END
-  ]
+  where
+    expandLetMac :: LetMacro -> [ExpandedOp]
+    expandLetMac LetMacro {..} =
+      [ PRIM_EX $ EXT (FN lmName lmSig)
+      , SEQ_EX $ expand <$> lmExpr
+      , PRIM_EX $ EXT FN_END
+      ]
 
 expandMacro :: Macro -> [ExpandedOp]
 expandMacro = \case

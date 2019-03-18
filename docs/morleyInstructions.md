@@ -48,9 +48,9 @@ For example, `PRINT "Head is: %[0]"` on `'[1, ...]` will print
 Head is: int 1
 ```
 
-### TEST
+## TEST_ASSERT
 
-The `TEST` instruction allows us to declare an inline test assertion, which is
+The `TEST_ASSERT` instruction allows us to declare an inline test assertion, which is
 a labeled sequence of instructions that runs on a copy of the current stack.
 That is, an assertion has no actual effect on the program, but can return the
 result of some computation on the stack.
@@ -64,7 +64,7 @@ storage unit;
 code { DROP;
        PUSH int 2; 
        PUSH int 10;
-       TEST "Test1" "%[0] + %[1] > 10" {ADD; PUSH int 10; COMPARE;};
+       TEST_ASSERT Test1 "%[0] + %[1] > 10" {ADD; PUSH int 10; COMPARE;LT;};
        DROP; UNIT; NIL operation; PAIR; };
 
 ```

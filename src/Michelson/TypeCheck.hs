@@ -1,6 +1,7 @@
 module Michelson.TypeCheck
   ( typeCheckContract
   , typeCheckVal
+  , typeCheckList
   , typeCheckCVal
   , module M
   , eqT'

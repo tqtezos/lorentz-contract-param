@@ -17,16 +17,17 @@ module Morley.Runtime
 
 import Control.Lens (at, makeLenses, (%=), (.=), (<>=))
 import Control.Monad.Except (Except, runExcept, throwError)
+import Data.Default (def)
 import Fmt (blockMapF, pretty, (+|), (|+))
 import Formatting.Buildable (Buildable(build))
 
 import Michelson.Interpret (ContractEnv(..), InterpretUntypedError(..), InterpretUntypedResult(..))
 import Michelson.Typed (Operation, unsafeValToValue)
 import Michelson.Untyped (Contract(..), Op, OriginationOperation(..), Value, mkContractAddress)
-import Morley.Nop (interpretMorleyUntyped)
+import Morley.Ext (interpretMorleyUntyped)
 import Morley.Runtime.GState
 import Morley.Runtime.TxData
-import Morley.Types (NopInstr)
+import Morley.Types (MorleyLogs(..))
 import Tezos.Address (Address(..))
 import Tezos.Core (Timestamp(..), getCurrentTime, unsafeMkMutez)
 import Tezos.Crypto (parseKeyHash)
@@ -43,7 +44,7 @@ import Tezos.Crypto (parseKeyHash)
 -- supposed to be provided by the user, while 'Address' can be
 -- computed by our code.
 data InterpreterOp
-  = OriginateOp !(OriginationOperation NopInstr)
+  = OriginateOp !OriginationOperation
   -- ^ Originate a contract.
   | TransferOp Address
                TxData
@@ -57,10 +58,13 @@ data InterpreterRes = InterpreterRes
   -- ^ New 'GState'.
   , _irOperations :: [InterpreterOp]
   -- ^ List of operations to be added to the operations queue.
-  , _irUpdatedValues :: [(Address, Value (Op NopInstr))]
+  , _irUpdatedValues :: [(Address, Value Op)]
   -- ^ Addresses of all contracts whose storage value was updated and
   -- corresponding new values themselves.
   -- We log these values.
+  , _irPrintedLogs :: [MorleyLogs]
+  -- ^ During execution a contract can print logs,
+  -- all logs are kept until all called contracts are executed
   , _irSourceAddress :: !(Maybe Address)
   -- ^ As soon as transfer operation is encountered, this address is
   -- set to its input.
@@ -72,8 +76,8 @@ makeLenses ''InterpreterRes
 data InterpreterError
   = IEUnknownContract !Address
   -- ^ The interpreted contract hasn't been originated.
-  | IEInterpreterFailed !(Contract (Op NopInstr))
-                        !(InterpretUntypedError NopInstr)
+  | IEInterpreterFailed !(Contract Op)
+                        !(InterpretUntypedError MorleyLogs)
   -- ^ Interpretation of Michelson contract failed.
   | IEAlreadyOriginated !Address
                         !Account
@@ -98,7 +102,7 @@ instance Exception InterpreterError where
 
 -- | Originate a contract. Returns the address of the originated
 -- contract.
-originateContract :: Bool -> FilePath -> OriginationOperation NopInstr -> IO Address
+originateContract :: Bool -> FilePath -> OriginationOperation -> IO Address
 originateContract verbose dbPath origination =
   mkContractAddress origination <$
   interpreter Nothing 100500 verbose dbPath (OriginateOp origination)
@@ -110,8 +114,8 @@ runContract
     -> Word64
     -> Bool
     -> FilePath
-    -> Value (Op NopInstr)
-    -> Contract (Op NopInstr)
+    -> Value Op
+    -> Contract Op
     -> TxData
     -> IO ()
 runContract maybeNow maxSteps verbose dbPath storageValue contract txData = do
@@ -147,11 +151,13 @@ interpreter :: Maybe Timestamp -> Word64 -> Bool -> FilePath -> InterpreterOp ->
 interpreter maybeNow maxSteps verbose dbPath operation = do
   now <- maybe getCurrentTime pure maybeNow
   gState <- readGState dbPath
-  let
-    eitherRes = interpreterPure now maxSteps gState [operation]
+  let eitherRes = interpreterPure now maxSteps gState [operation]
   InterpreterRes {..} <- either throwM pure eitherRes
   when (verbose && not (null _irUpdatedValues)) $
     putTextLn $ "Updates: " +| blockMapF _irUpdatedValues
+  forM_ _irPrintedLogs $ \(MorleyLogs logs) -> do
+    mapM_ putTextLn logs
+    putTextLn "" -- extra break line to separate logs from two sequence contracts
   writeGState dbPath _irGState
 
 -- | Implementation of interpreter outside 'IO'.  It reads operations,
@@ -165,6 +171,7 @@ interpreterPure now maxSteps gState ops =
       { _irGState = gState
       , _irOperations = ops
       , _irUpdatedValues = mempty
+      , _irPrintedLogs = def
       , _irSourceAddress = Nothing
       }
 
@@ -187,6 +194,7 @@ statefulInterpreter now maxSteps = do
       irGState .= _irGState
       irOperations .= opsTail <> _irOperations
       irUpdatedValues <>= _irUpdatedValues
+      irPrintedLogs <>= _irPrintedLogs
       irSourceAddress %= (<|> _irSourceAddress)
       statefulInterpreter now maxSteps
 
@@ -206,6 +214,7 @@ interpretOneOp _ _ _ gs (OriginateOp origination) =
       { _irGState = newGS
       , _irOperations = mempty
       , _irUpdatedValues = mempty
+      , _irPrintedLogs = def
       , _irSourceAddress = Nothing
       }
   where
@@ -229,7 +238,7 @@ interpretOneOp now maxSteps mSourceAddr gs (TransferOp addr txData) = do
         , ceSender = tdSenderAddress txData
         , ceAmount = tdAmount txData
         }
-    InterpretUntypedResult networkOps newValue
+    InterpretUntypedResult networkOps newValue newState
       <- first (IEInterpreterFailed contract) $
             interpretMorleyUntyped contract (tdParameter txData)
                              (accStorage acc) contractEnv
@@ -238,6 +247,7 @@ interpretOneOp now maxSteps mSourceAddr gs (TransferOp addr txData) = do
       _irGState = setStorageValue addr newValueU gs
       _irOperations = foldMap convertOp networkOps
       _irUpdatedValues = [(addr, newValueU)]
+      _irPrintedLogs = [newState]
       _irSourceAddress = Just sourceAddr
     pure InterpreterRes {..}
   where

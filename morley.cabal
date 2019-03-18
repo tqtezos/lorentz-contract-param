@@ -26,7 +26,7 @@ library
                      , Morley.Default
                      , Morley.Lexer
                      , Morley.Macro
-                     , Morley.Nop
+                     , Morley.Ext
                      , Morley.Parser
                      , Morley.Parser.Annotations
                      , Morley.Runtime
@@ -62,6 +62,7 @@ library
                      , base-noprelude >= 4.7 && < 5
                      , base16-bytestring
                      , base58-bytestring
+                     , bifunctors
                      , bytestring
                      , containers
                      , cryptonite
@@ -202,7 +203,7 @@ test-suite morley-test
                      , Test.Interpreter.Compare
                      , Test.Interpreter.Conditionals
                      , Test.Macro
-                     , Test.Nop
+                     , Test.Ext
                      , Test.Morley.Runtime
                      , Test.Parser
                      , Test.Serialization.Aeson

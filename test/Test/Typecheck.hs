@@ -7,9 +7,8 @@ import Text.Megaparsec (parse)
 
 import Michelson.Untyped (Contract(..), Op(..))
 import Morley.Macro (expandFlat)
-import Morley.Nop (typeCheckMorleyContract)
+import Morley.Ext (typeCheckMorleyContract)
 import Morley.Parser (program)
-import Morley.Types (NopInstr)
 
 import Test.Util.Contracts (getIllTypedContracts, getWellTypedContracts)
 
@@ -26,7 +25,7 @@ typeCheckSpec = describe "Typechecker tests" $ do
     badContractsTest = mapM_ (checkFile doTC False) =<< getIllTypedContracts
 
 
-checkFile :: (Contract (Op NopInstr) -> Either String ()) -> Bool -> FilePath -> Expectation
+checkFile :: (Contract Op -> Either String ()) -> Bool -> FilePath -> Expectation
 checkFile doTypeCheck wellTyped file = do
   cd <- readFile file
   case parse program file cd of
@@ -43,7 +42,7 @@ checkFile doTypeCheck wellTyped file = do
         Right _
           | not wellTyped ->
             expectationFailure $
-            "Typechecker unexpectedly considered " <> show file <> "well-typed."
+            "Typechecker unexpectedly considered " <> show file <> " well-typed."
           | otherwise ->
             pass
     Left e -> expectationFailure $ "Parser error: " <> show e

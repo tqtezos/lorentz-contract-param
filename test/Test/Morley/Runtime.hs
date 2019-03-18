@@ -11,15 +11,15 @@ import Test.Hspec
 import Michelson.Interpret (ContractEnv(..), InterpretUntypedError(..), InterpretUntypedResult(..))
 import Michelson.Typed (unsafeValToValue)
 import Michelson.Untyped
-import Morley.Nop (interpretMorleyUntyped)
+import Morley.Ext (interpretMorleyUntyped)
 import Morley.Runtime
 import Morley.Runtime.GState (GState(..), initGState)
-import Morley.Types (NopInstr)
+import Morley.Types (MorleyLogs)
+import Test.Util.Interpreter (ContractAux(..), dummyContractEnv, dummyMaxSteps, dummyNow)
 import Tezos.Address (Address(..))
 import Tezos.Core (unsafeMkMutez)
 
-import Test.Util.Interpreter
-  (ContractAux(..), dummyContractEnv, dummyMaxSteps, dummyNow, dummyOrigination)
+import Test.Util.Interpreter (dummyOrigination)
 
 spec :: Spec
 spec = describe "Morley.Runtime" $ do
@@ -35,7 +35,7 @@ spec = describe "Morley.Runtime" $ do
 ----------------------------------------------------------------------------
 
 data UnexpectedFailed =
-  UnexpectedFailed (InterpretUntypedError NopInstr)
+  UnexpectedFailed (InterpretUntypedError MorleyLogs)
   deriving (Show)
 
 instance Exception UnexpectedFailed
@@ -60,7 +60,7 @@ updatesStorageValue ca = either throwM handleResult $ do
       ]
   (addr,) <$> interpreterPure dummyNow dummyMaxSteps initGState interpreterOps
   where
-    toNewStorage :: InterpretUntypedResult -> Value (Op NopInstr)
+    toNewStorage :: InterpretUntypedResult MorleyLogs -> Value Op
     toNewStorage InterpretUntypedResult {..} = unsafeValToValue iurNewStorage
 
     handleResult :: (Address, InterpreterRes) -> Expectation
@@ -95,7 +95,7 @@ contractAux1 = ContractAux
   , caParameter = ValueString "aaa"
   }
   where
-    contract :: Contract (Op NopInstr)
+    contract :: Contract Op
     contract = Contract
       { para = Type tstring noAnn
       , stor = Type tbool noAnn

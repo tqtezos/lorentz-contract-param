@@ -6,9 +6,11 @@ module Michelson.TypeCheck.Types
     , SomeContract (..)
     , SomeValC (..)
     , TCError (..)
+    , ExtC
     , TcInstrHandler
-    , TcNopHandler
-    , TcNopFrames
+    , TcExtHandler
+    , TcExtFrames
+    , TcResult
     , TypeCheckEnv (..)
     , TypeCheckT
     , runTypeCheckT
@@ -24,7 +26,7 @@ import Michelson.Typed.Extract (toUType)
 import Michelson.Typed.Instr
 import Michelson.Typed.Value
 
-import qualified Michelson.Untyped as Untyped
+import qualified Michelson.Untyped as U
 import Michelson.Untyped.Annotation (VarAnn)
 
 -- | Data type holding type information for stack (Heterogeneous Stack Type).
@@ -91,7 +93,7 @@ data SomeInstr where
   -- TODO use this constructor (to have closer reflection of expression)
   -- SiFail :: Typeable inp => Instr cp inp out -> HST inp -> SomeInstr cp
 
-instance Show SomeInstr where
+instance Show InstrExtT => Show SomeInstr where
   show (i ::: (inp, out)) = show i <> " :: " <> show inp <> " -> " <> show out
   show SiFail = "failed"
 
@@ -117,15 +119,15 @@ data SomeContract where
     -> HST (ContractOut st)
     -> SomeContract
 
-deriving instance Show SomeContract
+deriving instance Show InstrExtT => Show SomeContract
 
 -- | Type check error
-data TCError nop =
-    TCFailedOnInstr (Untyped.Instr nop) SomeHST Text
-  | TCFailedOnValue (Untyped.Value (Untyped.Op nop)) T Text
+data TCError =
+    TCFailedOnInstr U.Instr SomeHST Text
+  | TCFailedOnValue (U.Value U.Op) T Text
   | TCOtherError Text
 
-instance Buildable nop => Buildable (TCError nop) where
+instance Buildable U.Instr => Buildable TCError where
   build = \case
     TCFailedOnInstr instr (SomeHST t) custom ->
       "Error checking expression " +| instr
@@ -138,33 +140,41 @@ instance Buildable nop => Buildable (TCError nop) where
     TCOtherError e ->
       "Error occurred during type check: " +| e |+ ""
 
-instance Buildable nop => Show (TCError nop) where
+instance Buildable U.Instr => Show TCError where
   show = pretty
 
-instance (Buildable nop, Typeable nop) => Exception (TCError nop)
-
--- | Function for typeChecking a @nop@ and updating state
-type TcNopHandler nop = nop -> TcNopFrames nop -> SomeHST
-                        -> Either (TCError nop) (TcNopFrames nop)
+instance Buildable U.Instr => Exception TCError
 
 -- | State for type checking @nop@
-type TcNopFrames nop = [(nop, SomeHST)]
+type TcExtFrames = [(U.InstrExtU, SomeHST)]
+
+-- | Constraints on InstrExtT and untyped Instr
+-- which are required for type checking
+type ExtC = (Show InstrExtT, Typeable InstrExtT, Buildable U.Instr)
+
+type TypeCheckT a =
+  ExceptT TCError
+    (State TypeCheckEnv) a
+
+-- | Function for typeChecking a @nop@ and updating state
+-- TypeCheckT is used because inside
+-- inside of TEST_ASSERT could be PRINT/STACKTYPE/etc extended instructions.
+type TcExtHandler
+  = U.InstrExtU -> TcExtFrames -> SomeHST -> TypeCheckT (TcExtFrames, Maybe InstrExtT)
 
 -- | The typechecking state
-data TypeCheckEnv nop = TypeCheckEnv
-  { tcNopHandler :: TcNopHandler nop
-  , tcNopFrames :: TcNopFrames nop
-  , tcContractParam :: Untyped.Type
+data TypeCheckEnv = TypeCheckEnv
+  { tcExtHandler    :: TcExtHandler
+  , tcExtFrames     :: TcExtFrames
+  , tcContractParam :: U.Type
   }
 
-type TypeCheckT nop a =
-  ExceptT (TCError nop)
-    (State (TypeCheckEnv nop)) a
-
-runTypeCheckT :: TcNopHandler nop -> Untyped.Type -> TypeCheckT nop a -> Either (TCError nop) a
+runTypeCheckT :: TcExtHandler -> U.Type -> TypeCheckT a -> Either TCError a
 runTypeCheckT nh param act = evaluatingState (TypeCheckEnv nh [] param) $ runExceptT act
 
-type TcInstrHandler nop
-   = Untyped.Instr nop
+type TcResult = Either TCError SomeInstr
+
+type TcInstrHandler
+   = U.Instr
     -> SomeHST
-      -> TypeCheckT nop SomeInstr
+      -> TypeCheckT SomeInstr
