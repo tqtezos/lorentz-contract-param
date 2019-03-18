@@ -42,7 +42,7 @@ convertContract contract =
 -- VOp cannot be represented in @Value@ from untyped types, so calling this function
 -- on it will cause an error
 unsafeValToValue :: (ConversibleExt, HasCallStack) => Val Instr t -> Un.Value Un.Op
-unsafeValToValue = either (error err) id . valToOpOrValue
+unsafeValToValue = fromMaybe (error err) . valToOpOrValue
   where
     err =
       "unexpected unsafeValToValue call trying to convert VOp to untyped Value"
@@ -52,22 +52,22 @@ unsafeValToValue = either (error err) id . valToOpOrValue
 valToOpOrValue ::
      forall t . ConversibleExt
   => Val Instr t
-  -> Either (Operation Instr) (Un.Value Un.Op)
+  -> Maybe (Un.Value Un.Op)
 valToOpOrValue = \case
-  VC cVal -> Right $ cValToValue cVal
-  VKey b -> Right $ Un.ValueString $ formatPublicKey b
-  VUnit -> Right $ Un.ValueUnit
-  VSignature b -> Right $ Un.ValueString $ formatSignature b
+  VC cVal -> Just $ cValToValue cVal
+  VKey b -> Just $ Un.ValueString $ formatPublicKey b
+  VUnit -> Just $ Un.ValueUnit
+  VSignature b -> Just $ Un.ValueString $ formatSignature b
   VOption (Just x) -> Un.ValueSome <$> valToOpOrValue x
-  VOption Nothing -> Right $ Un.ValueNone
+  VOption Nothing -> Just $ Un.ValueNone
   VList l -> Un.ValueSeq <$> mapM valToOpOrValue l
-  VSet s -> Right $ Un.ValueSeq $ map cValToValue $ toList s
-  VOp op -> Left op
-  VContract b -> Right $ Un.ValueString $ formatAddress b
+  VSet s -> Just $ Un.ValueSeq $ map cValToValue $ toList s
+  VOp _op -> Nothing
+  VContract b -> Just $ Un.ValueString $ formatAddress b
   VPair (l, r) -> Un.ValuePair <$> valToOpOrValue l <*> valToOpOrValue r
   VOr (Left x) -> Un.ValueLeft <$> valToOpOrValue x
   VOr (Right x) -> Un.ValueRight <$> valToOpOrValue x
-  VLam ops -> Right $ Un.ValueLambda $ instrToOps ops
+  VLam ops -> Just $ Un.ValueLambda $ instrToOps ops
   VMap m ->
     fmap Un.ValueMap . forM (Map.toList m) $ \(k, v) ->
       Un.Elt (cValToValue k) <$> valToOpOrValue v
