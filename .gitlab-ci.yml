@@ -1,61 +1,30 @@
+image: haskell:8.6.3
+
+cache:
+  key: "all"  # Share cache to speed-up initial MR build
+  paths:
+    - .stack-root/
+    - .stack-work/
+
 stages:
-  - verify
-  - setup
-  - build
   - test
-  - clean_up
 
-verify:
-  stage: verify
-  script:
-    - echo $PATH
-    - docker info
-    - id | grep docker || (echo 'gitlab runner user should be in docker group' && exit 1)
-  only:
-    refs:
-      - merge_requests
-  tags:
-    - stack
+variables:
+  STACK_ROOT: "$CI_PROJECT_DIR/.stack-root"
+  STACK_OPTIONS: "--no-install-ghc --system-ghc"
 
-setup_job:
-  stage: setup
-  script:
-    - docker build --target setup . -t haskell-base
-  only:
-    changes:
-      - stack.yaml
-    refs:
-      - merge_requests
-  tags:
-    - stack
-
-build_job:
-  stage: build
-  script:
-    - docker build --target build . -t haskell-app
-  only:
-    refs:
-      - merge_requests
-  tags:
-    - stack
-
-test_job:
+build-and-test:
   stage: test
-  script:
-    - docker build --target test . -t haskell-app-t
-  only:
-    refs:
-      - merge_requests
   tags:
-    - stack
-
-clean_up:
-  stage: clean_up
-  script:
-    - docker images prune
+    - docker-executor
   only:
-    refs:
-      - merge_requests
-  tags:
-    - stack
-
+    - merge_requests
+  script:
+    - stack $STACK_OPTIONS
+        build morley
+        --ghc-options="-Werror" --fast
+        --test --no-run-tests
+        --bench --no-run-benchmarks
+    - stack $STACK_OPTIONS
+        test morley
+    - rm -rf "$STACK_ROOT/programs"  # Faster to download them again
