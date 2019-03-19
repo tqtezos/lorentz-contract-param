@@ -8,7 +8,7 @@ import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck (Property, arbitrary, (===))
 import Test.QuickCheck.Property (forAll, withMaxSuccess)
 
-import Michelson.Interpret (MichelsonFailed)
+import Michelson.Interpret (InterpreterState, MichelsonFailed)
 import Michelson.Typed (CVal(..), ToT, Val(..), toVal)
 import Morley.Test (contractProp, specWithTypedContract)
 import Morley.Test.Util (failedProp)
@@ -20,7 +20,9 @@ import Test.Util.QuickCheck (qcIsLeft, qcIsRight)
 type Param = Either Text (Maybe Integer)
 type ContractParam instr = Val instr (ToT Param)
 type ContractStorage instr = Val instr (ToT Text)
-type ContractResult x instr = (Either MichelsonFailed ([x], ContractStorage instr), MorleyLogs)
+type ContractResult x instr
+   = ( Either MichelsonFailed ([x], ContractStorage instr)
+     , InterpreterState MorleyLogs)
 
 -- | Spec to test conditionals.tz contract.
 conditionalsSpec :: Spec

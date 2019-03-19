@@ -5,6 +5,7 @@ module Test.Ext
 
 import Test.Hspec (Expectation, Spec, describe, expectationFailure, it, shouldSatisfy)
 
+import Michelson.Interpret (InterpreterState(..))
 import Michelson.TypeCheck (HST(..), SomeHST(..), runTypeCheckT)
 import Michelson.Typed (CVal(..), Instr, Val(..), extractNotes, fromUType, withSomeSingT)
 import qualified Michelson.Typed as T
@@ -29,7 +30,7 @@ interpretHandlerSpec = describe "interpretHandler PRINT/TEST_ASSERT tests" $
       let x' = VC $ CvInt x :: Val Instr ('T.T_c 'T.T_int)
       let y' = VC $ CvInt y :: Val Instr ('T.T_c 'T.T_int)
       let area' = VC $ CvInt $ x * y :: Val Instr ('T.T_c 'T.T_int)
-      let check (a, s) =
+      let check (a, InterpreterState s _) =
             if corr then isRight a && s == MorleyLogs ["Area is " <> show area']
             else isLeft a && s == MorleyLogs ["Sides are " <> show x' <> " x " <> show y']
       interpretMorley contract (VPair (x', y')) VUnit dummyContractEnv `shouldSatisfy` check

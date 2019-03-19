@@ -203,6 +203,7 @@ test-suite morley-test
                      , Test.CValConversion
                      , Test.Interpreter
                      , Test.Interpreter.Auction
+                     , Test.Interpreter.CallSelf
                      , Test.Interpreter.Compare
                      , Test.Interpreter.Conditionals
                      , Test.Interpreter.StringCaller

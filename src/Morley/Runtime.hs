@@ -22,7 +22,9 @@ import Data.Default (def)
 import qualified Data.Map.Strict as Map
 import Fmt (Buildable(build), blockListF, fmtLn, nameF, pretty, (+|), (|+))
 
-import Michelson.Interpret (ContractEnv(..), InterpretUntypedError(..), InterpretUntypedResult(..))
+import Michelson.Interpret
+  (ContractEnv(..), InterpretUntypedError(..), InterpretUntypedResult(..), InterpreterState(..),
+  RemainingSteps(..))
 import Michelson.Typed
   (CreateContract(..), Instr, Operation(..), TransferTokens(..), Val(..), convertContract,
   unsafeValToValue)
@@ -70,6 +72,7 @@ data InterpreterRes = InterpreterRes
   , _irSourceAddress :: !(Maybe Address)
   -- ^ As soon as transfer operation is encountered, this address is
   -- set to its input.
+  , _irRemainingSteps :: !RemainingSteps
   } deriving (Show)
 
 makeLenses ''InterpreterRes
@@ -164,10 +167,12 @@ interpreter :: Maybe Timestamp -> Word64 -> Bool -> FilePath -> InterpreterOp ->
 interpreter maybeNow maxSteps verbose dbPath operation = do
   now <- maybe getCurrentTime pure maybeNow
   gState <- readGState dbPath
-  let eitherRes = interpreterPure now maxSteps gState [operation]
+  let eitherRes =
+        interpreterPure now (RemainingSteps maxSteps) gState [operation]
   InterpreterRes {..} <- either throwM pure eitherRes
-  when (verbose && not (null _irUpdates)) $
+  when (verbose && not (null _irUpdates)) $ do
     fmtLn $ nameF "Updates:" (blockListF _irUpdates)
+    putTextLn $ "Remaining gas: " <> pretty _irRemainingSteps
   forM_ _irPrintedLogs $ \(MorleyLogs logs) -> do
     mapM_ putTextLn logs
     putTextLn "" -- extra break line to separate logs from two sequence contracts
@@ -176,9 +181,9 @@ interpreter maybeNow maxSteps verbose dbPath operation = do
 -- | Implementation of interpreter outside 'IO'.  It reads operations,
 -- interprets them one by one and updates state accordingly.
 interpreterPure ::
-  Timestamp -> Word64 -> GState -> [InterpreterOp] -> Either InterpreterError InterpreterRes
+  Timestamp -> RemainingSteps -> GState -> [InterpreterOp] -> Either InterpreterError InterpreterRes
 interpreterPure now maxSteps gState ops =
-    runExcept (execStateT (statefulInterpreter now maxSteps) initialState)
+    runExcept (execStateT (statefulInterpreter now) initialState)
   where
     initialState = InterpreterRes
       { _irGState = gState
@@ -186,20 +191,21 @@ interpreterPure now maxSteps gState ops =
       , _irUpdates = mempty
       , _irPrintedLogs = def
       , _irSourceAddress = Nothing
+      , _irRemainingSteps = maxSteps
       }
 
 statefulInterpreter
   :: Timestamp
-  -> Word64
   -> StateT InterpreterRes (Except InterpreterError) ()
-statefulInterpreter now maxSteps = do
+statefulInterpreter now = do
   curGState <- use irGState
   mSourceAddr <- use irSourceAddress
+  remainingSteps <- use irRemainingSteps
   use irOperations >>= \case
     [] -> pass
     (op:opsTail) ->
       either throwError (processIntRes opsTail) $
-      interpretOneOp now maxSteps mSourceAddr curGState op
+      interpretOneOp now remainingSteps mSourceAddr curGState op
   where
     processIntRes opsTail InterpreterRes {..} = do
       irGState .= _irGState
@@ -207,17 +213,18 @@ statefulInterpreter now maxSteps = do
       irUpdates <>= _irUpdates
       irPrintedLogs <>= _irPrintedLogs
       irSourceAddress %= (<|> _irSourceAddress)
-      statefulInterpreter now maxSteps
+      irRemainingSteps .= _irRemainingSteps
+      statefulInterpreter now
 
 -- | Run only one interpreter operation and update 'GState' accordingly.
 interpretOneOp
   :: Timestamp
-  -> Word64
+  -> RemainingSteps
   -> Maybe Address
   -> GState
   -> InterpreterOp
   -> Either InterpreterError InterpreterRes
-interpretOneOp _ _ _ gs (OriginateOp origination) = do
+interpretOneOp _ remainingSteps _ gs (OriginateOp origination) = do
   let originatorAddress = KeyAddress (ooManager origination)
   originatorBalance <- case gsAddresses gs ^. at (originatorAddress) of
     Nothing -> Left (IEUnknownManager originatorAddress)
@@ -242,6 +249,7 @@ interpretOneOp _ _ _ gs (OriginateOp origination) = do
       , _irUpdates = updates
       , _irPrintedLogs = def
       , _irSourceAddress = Nothing
+      , _irRemainingSteps = remainingSteps
       }
   where
     contractState = ContractState
@@ -250,7 +258,7 @@ interpretOneOp _ _ _ gs (OriginateOp origination) = do
       , csContract = ooContract origination
       }
     address = mkContractAddress origination
-interpretOneOp now maxSteps mSourceAddr gs (TransferOp addr txData) = do
+interpretOneOp now remainingSteps mSourceAddr gs (TransferOp addr txData) = do
     let sourceAddr = fromMaybe (tdSenderAddress txData) mSourceAddr
     let senderAddr = tdSenderAddress txData
     decreaseSenderBalance <- case addresses ^. at senderAddr of
@@ -262,8 +270,8 @@ interpretOneOp now maxSteps mSourceAddr gs (TransferOp addr txData) = do
           -- Subtraction is safe because we have checked its
           -- precondition in guard.
           Right (GSSetBalance senderAddr (balance `unsafeSubMutez` tdAmount txData))
-    let onlyUpdates updates = Right (updates, [], noMorleyLogs)
-    (otherUpdates, sideEffects, logs) <- case (addresses ^. at addr, addr) of
+    let onlyUpdates updates = Right (updates, [], noMorleyLogs, remainingSteps)
+    (otherUpdates, sideEffects, logs, newRemSteps) <- case (addresses ^. at addr, addr) of
       (Nothing, ContractAddress _) ->
         Left (IEUnknownContract addr)
       (Nothing, KeyAddress _) -> do
@@ -283,7 +291,7 @@ interpretOneOp now maxSteps mSourceAddr gs (TransferOp addr txData) = do
           contract = csContract cs
           contractEnv = ContractEnv
             { ceNow = now
-            , ceMaxSteps = maxSteps
+            , ceMaxSteps = remainingSteps
             , ceBalance = csBalance cs
             , ceContracts = Map.mapMaybe extractContract addresses
             , ceSelf = addr
@@ -291,7 +299,11 @@ interpretOneOp now maxSteps mSourceAddr gs (TransferOp addr txData) = do
             , ceSender = senderAddr
             , ceAmount = tdAmount txData
             }
-        InterpretUntypedResult sideEffects newValue printedLogs
+        InterpretUntypedResult
+          { iurOps = sideEffects
+          , iurNewStorage = newValue
+          , iurNewState = InterpreterState printedLogs newRemainingSteps
+          }
           <- first (IEInterpreterFailed contract) $
                 interpretMorleyUntyped contract (tdParameter txData)
                                  (csStorage cs) contractEnv
@@ -306,7 +318,7 @@ interpretOneOp now maxSteps mSourceAddr gs (TransferOp addr txData) = do
             [ updBalance
             , updStorage
             ]
-        Right (updates, sideEffects, printedLogs)
+        Right (updates, sideEffects, printedLogs, newRemainingSteps)
 
     let
       updates = decreaseSenderBalance:otherUpdates
@@ -319,6 +331,7 @@ interpretOneOp now maxSteps mSourceAddr gs (TransferOp addr txData) = do
       , _irUpdates = updates
       , _irPrintedLogs = [logs]
       , _irSourceAddress = Just sourceAddr
+      , _irRemainingSteps = newRemSteps
       }
   where
     addresses :: Map Address AddressState

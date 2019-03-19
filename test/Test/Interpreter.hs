@@ -6,12 +6,13 @@ import Test.Hspec (Expectation, Spec, describe, expectationFailure, it, shouldBe
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck (Property, label, (.&&.), (===))
 
-import Michelson.Interpret (ContractEnv(..), ContractReturn, MichelsonFailed(..))
+import Michelson.Interpret (ContractEnv(..), ContractReturn, MichelsonFailed(..), RemainingSteps)
 import Michelson.Typed (CT(..), CVal(..), Instr(..), T(..), Val(..), ( # ))
 import Morley.Ext (interpretMorley)
 import Morley.Test (ContractPropValidator, contractProp, specWithTypedContract)
 import Morley.Types (MorleyLogs)
 import Test.Interpreter.Auction (auctionSpec)
+import Test.Interpreter.CallSelf (selfCallerSpec)
 import Test.Interpreter.Compare (compareSpec)
 import Test.Interpreter.Conditionals (conditionalsSpec)
 import Test.Interpreter.StringCaller (stringCallerSpec)
@@ -52,6 +53,7 @@ spec = describe "Advanced type interpreter tests" $ do
   compareSpec
   conditionalsSpec
   stringCallerSpec
+  selfCallerSpec
 
   specWithTypedContract "contracts/steps_to_quota_test1.tz" $ \contract -> do
     it "Amount of steps should reduce" $ do
@@ -85,7 +87,8 @@ validateBasic1 _env _param input (Right (ops, res), _) =
 
 validateBasic1 _ _ _ (Left e, _) = error $ show e
 
-validateStepsToQuotaTest :: ContractReturn MorleyLogs ('T_c 'T_nat) -> Word64 -> Expectation
+validateStepsToQuotaTest ::
+     ContractReturn MorleyLogs ('T_c 'T_nat) -> RemainingSteps -> Expectation
 validateStepsToQuotaTest res numOfSteps =
   case fst res of
     Right ([], VC (CvNat x)) ->

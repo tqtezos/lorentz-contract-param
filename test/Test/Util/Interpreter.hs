@@ -11,7 +11,7 @@ module Test.Util.Interpreter
 import Test.Hspec (Expectation)
 import Test.QuickCheck (Property)
 
-import Michelson.Interpret (ContractEnv(..))
+import Michelson.Interpret (ContractEnv(..), RemainingSteps)
 import Michelson.Untyped
 import Morley.Runtime (InterpreterOp)
 import Morley.Runtime.GState (genesisAddress, genesisKeyHash)
@@ -22,7 +22,7 @@ import Tezos.Core (Timestamp(..), unsafeMkMutez)
 dummyNow :: Timestamp
 dummyNow = Timestamp 100
 
-dummyMaxSteps :: Word64
+dummyMaxSteps :: RemainingSteps
 dummyMaxSteps = 100500
 
 dummyContractEnv :: ContractEnv

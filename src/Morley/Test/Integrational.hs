@@ -5,10 +5,13 @@ module Morley.Test.Integrational
   , SuccessValidator
   , integrationalTestExpectation
   , integrationalTestProperty
+
+  -- * Validators
+  , composeValidators
   , expectStorageValue
   , expectStorageConstant
   , expectBalance
-  , composeValidators
+  , expectGasExhaustion
   ) where
 
 import Control.Lens (at)
@@ -17,8 +20,9 @@ import Fmt (blockListF, pretty, (+|), (|+))
 import Test.Hspec (Expectation, expectationFailure)
 import Test.QuickCheck (Property)
 
+import Michelson.Interpret (InterpretUntypedError(..), MichelsonFailed(..), RemainingSteps)
 import Morley.Aliases (UntypedValue)
-import Morley.Runtime (InterpreterError, InterpreterOp(..), InterpreterRes(..), interpreterPure)
+import Morley.Runtime (InterpreterError(..), InterpreterOp(..), InterpreterRes(..), interpreterPure)
 import Morley.Runtime.GState
 import Morley.Test.Util (failedProp, succeededProp)
 import Tezos.Address (Address)
@@ -32,18 +36,18 @@ type IntegrationalValidator = Either (InterpreterError -> Bool) SuccessValidator
 type SuccessValidator = (GState -> [GStateUpdate] -> Either Text ())
 
 integrationalTestExpectation ::
-  Timestamp -> Word64 -> [InterpreterOp] -> IntegrationalValidator -> Expectation
+  Timestamp -> RemainingSteps -> [InterpreterOp] -> IntegrationalValidator -> Expectation
 integrationalTestExpectation =
   integrationalTest (maybe pass (expectationFailure . toString))
 
 integrationalTestProperty ::
-  Timestamp -> Word64 -> [InterpreterOp] -> IntegrationalValidator -> Property
+  Timestamp -> RemainingSteps -> [InterpreterOp] -> IntegrationalValidator -> Property
 integrationalTestProperty = integrationalTest (maybe succeededProp failedProp)
 
 integrationalTest ::
      (Maybe Text -> res)
   -> Timestamp
-  -> Word64
+  -> RemainingSteps
   -> [InterpreterOp]
   -> IntegrationalValidator
   -> res
@@ -140,3 +144,9 @@ composeValidators ::
   -> SuccessValidator
 composeValidators val1 val2 gState updates =
   val1 gState updates >> val2 gState updates
+
+expectGasExhaustion :: InterpreterError -> Bool
+expectGasExhaustion =
+  \case
+    IEInterpreterFailed _ (RuntimeFailure (MichelsonGasExhaustion, _)) -> True
+    _ -> False

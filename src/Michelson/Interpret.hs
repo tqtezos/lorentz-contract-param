@@ -1,4 +1,4 @@
-{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE DerivingStrategies, Rank2Types #-}
 
 -- | Module, containing function to interpret Michelson
 -- instructions against given context and input stack.
@@ -7,6 +7,7 @@ module Michelson.Interpret
   , InterpreterEnv (..)
   , InterpreterState (..)
   , MichelsonFailed (..)
+  , RemainingSteps (..)
   , SomeItStack (..)
   , EvalOp
 
@@ -51,7 +52,7 @@ import Tezos.Crypto (KeyHash, blake2b, checkSignature, hashKey, sha256, sha512)
 data ContractEnv = ContractEnv
   { ceNow :: !Timestamp
   -- ^ Timestamp of the block whose validation triggered this execution.
-  , ceMaxSteps :: !Word64
+  , ceMaxSteps :: !RemainingSteps
   -- ^ Number of steps after which execution unconditionally terminates.
   , ceBalance :: !Mutez
   -- ^ Current amount of mutez of the current contract.
@@ -115,7 +116,7 @@ data InterpretUntypedResult s where
        )
     => { iurOps :: [ Operation Instr ]
        , iurNewStorage :: Val Instr st
-       , iurNewState   :: s
+       , iurNewState   :: InterpreterState s
        }
     -> InterpretUntypedResult s
 
@@ -141,16 +142,24 @@ interpretUntyped typeCheckHandler U.Contract{..} paramU initStU env initState = 
             typeCheckVal initStU (fromUType stor)
     Refl <- first UnexpectedStorageType $ eqT' @st @st1
     Refl <- first UnexpectedParamType   $ eqT' @cp @cp1
-    bimap RuntimeFailure (uncurry3 InterpretUntypedResult) $
-      toRes $
-        interpret instr paramV initStV env initState
+    bimap RuntimeFailure constructIUR $
+      toRes $ interpret instr paramV initStV env initState
   where
-    toRes (ei, s) = bimap (,s) (,s) ei
+    toRes (ei, s) = bimap (,isExtState s) (,s) ei
 
-    uncurry3 f ((a, b), c) = f a b c
+    constructIUR ::
+      (Typeable st, SingI st) =>
+      (([Operation Instr], Val Instr st), InterpreterState s) ->
+      InterpretUntypedResult s
+    constructIUR ((ops, val), st) =
+      InterpretUntypedResult
+      { iurOps = ops
+      , iurNewStorage = val
+      , iurNewState = st
+      }
 
 type ContractReturn s st =
-  (Either MichelsonFailed ([Operation Instr], Val Instr st), s)
+  (Either MichelsonFailed ([Operation Instr], Val Instr st), InterpreterState s)
 
 interpret
   :: (ExtC, Aeson.ToJSON U.InstrExtU, ConversibleExt, Typeable cp, Typeable st)
@@ -164,7 +173,7 @@ interpret instr param initSt env@InterpreterEnv{..} initState = first (fmap toRe
   runEvalOp
     (runInstr instr (VPair (param, initSt) :& RNil))
     env
-    (InterpreterState initState $ RemainingSteps $ ceMaxSteps ieContractEnv)
+    (InterpreterState initState $ ceMaxSteps ieContractEnv)
   where
     toRes
       :: (Rec (Val instr) '[ 'T_pair ('T_list 'T_operation) st ])
@@ -181,20 +190,26 @@ data InterpreterEnv s = InterpreterEnv
   }
 
 newtype RemainingSteps = RemainingSteps Word64
-  deriving (Eq, Ord, Num)
+  deriving stock (Show)
+  deriving newtype (Eq, Ord, Buildable, Num)
 
 data InterpreterState s = InterpreterState
   { isExtState       :: s
   , isRemainingSteps :: RemainingSteps
-  }
+  } deriving (Show)
 
 type EvalOp s a =
   ExceptT MichelsonFailed
     (ReaderT (InterpreterEnv s)
        (State (InterpreterState s))) a
 
-runEvalOp :: EvalOp s a -> InterpreterEnv s -> InterpreterState s -> (Either MichelsonFailed a, s)
-runEvalOp act env initSt = fmap isExtState $ flip runState initSt $ usingReaderT env $ runExceptT act
+runEvalOp ::
+     EvalOp s a
+  -> InterpreterEnv s
+  -> InterpreterState s
+  -> (Either MichelsonFailed a, InterpreterState s)
+runEvalOp act env initSt =
+  flip runState initSt $ usingReaderT env $ runExceptT act
 
 -- | Function to change amount of remaining steps stored in State monad
 runInstr
