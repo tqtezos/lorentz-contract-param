@@ -87,14 +87,9 @@ instance (ConversibleExt, Buildable U.Instr) => Buildable MichelsonFailed where
     where
       formatValue :: forall t . Val Instr t -> Builder
       formatValue v =
-        case valToOpOrValue @t v of
-          Left op ->
-            case op of
-              OpTransferTokens {} -> "TransferTokens"
-              OpSetDelegate {}    -> "SetDelegate"
-              OpCreateAccount {}  -> "CreateAccount"
-              OpCreateContract {} -> "CreateContract"
-          Right untypedV -> build untypedV
+        case valToOpOrValue v of
+          Nothing -> "<value with operations>"
+          Just untypedV -> build untypedV
 
 data InterpretUntypedError s
   = RuntimeFailure (MichelsonFailed, s)
