@@ -9,9 +9,10 @@ import Prelude hiding (Ordering(..))
 import Data.Singletons (SingI(..))
 import qualified Data.Text as T
 import Data.Typeable ((:~:)(..), Typeable, eqT, typeRep)
-import Test.Hspec (Spec, describe, it, shouldBe)
-import Text.Hex (encodeHex)
+import Test.Hspec (Expectation, Spec, describe, it, shouldBe)
+import Text.Hex (decodeHex, encodeHex)
 
+import Michelson.Interpret (runUnpack)
 import Michelson.Interpret.Pack (packValue')
 import Michelson.Macro (expandList)
 import qualified Michelson.Parser as Parser
@@ -56,13 +57,36 @@ spec_Packing = do
 stripOptional0x :: Text -> Text
 stripOptional0x h = T.stripPrefix "0x" h ?: h
 
+-- | Dummy wrapper for what do we test - pack or unpack.
+data TestMethod = TestMethod
+  { _tmName :: String
+  , _tmApply
+      :: forall t. (Typeable t, SingI t, HasNoOp t)
+      => Value t -> Text -> Expectation
+  }
+
+testMethods :: HasCallStack => [TestMethod]
+testMethods =
+  [ TestMethod "Pack" $
+      \val encodedHex ->
+        encodeHex (packValue' val) `shouldBe` stripOptional0x encodedHex
+
+  , TestMethod "Unpack" $
+      \val encodedHex ->
+        let encoded = decodeHex (stripOptional0x encodedHex)
+                      ?: error ("Invalid hex: " <> show encodedHex)
+        in runUnpack mempty encoded
+            `shouldBe` Right val
+  ]
+
 packSpecManual
-    :: (Show x, SingI t, HasNoOp t, HasCallStack)
+    :: (Show x, Typeable t, SingI t, HasNoOp t, HasCallStack)
     => String -> (x -> Value t) -> [(x, Text)] -> Spec
 packSpecManual name toVal' suites =
-  describe name $ forM_ suites $ \(x, h) ->
-    it (show x) $
-      encodeHex (packValue' $ toVal' x) `shouldBe` stripOptional0x h
+  forM_ @[_] testMethods $ \(TestMethod mname method) ->
+    describe mname $
+      describe name $ forM_ suites $ \(x, h) ->
+        it (show x) $ method (toVal' x) h
 
 packSpec
   :: forall x (t :: T).
@@ -80,28 +104,27 @@ parsePackSpec
   -> [(Text, Text)]
   -> Spec
 parsePackSpec name suites =
-  describe name $ forM_ suites $ \(codeText, packed) ->
-    it (toString codeText) $ do
-      parsed <- Parser.codeEntry `shouldParse` codeText
-      let code = expandList parsed
-      let _ :/ typed = typeCheckList code initStack
-            & runExceptT
-            & evaluatingState initTypeCheckST
-            & leftToShowPanic
+  forM_ @[_] testMethods $ \(TestMethod mname method) ->
+    describe mname $
+      describe name $ forM_ suites $ \(codeText, packed) ->
+        it (toString codeText) $ do
+          parsed <- Parser.codeEntry `shouldParse` codeText
+          let code = expandList parsed
+          let _ :/ typed = typeCheckList code initStack
+                & runExceptT
+                & evaluatingState initTypeCheckST
+                & leftToShowPanic
 
-      case typed of
-        AnyOutInstr instr ->
-          -- TODO: [TM-35] remove duplication
-          encodeHex (packValue' $ VLam @inp @out instr)
-          `shouldBe` stripOptional0x packed
+          case typed of
+            AnyOutInstr instr ->
+              method (VLam @inp @out instr) packed
 
-        (instr :: Instr '[inp] outs) ::: _ ->
-          case eqT @'[out] @outs of
-            Just Refl ->
-              encodeHex (packValue' $ VLam @inp @out instr)
-              `shouldBe` stripOptional0x packed
-            Nothing ->
-              error "Output type unexpectedly mismatched"
+            (instr :: Instr '[inp] outs) ::: _ ->
+              case eqT @'[out] @outs of
+                Just Refl ->
+                  method (VLam @inp @out instr) packed
+                Nothing ->
+                  error "Output type unexpectedly mismatched"
   where
     initTypeCheckST = error "Type check state is not defined"
     initStack = (sing @inp, NStar, noAnn) ::& SNil

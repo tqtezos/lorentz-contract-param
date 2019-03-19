@@ -147,11 +147,11 @@ onLeft = flip first
 
 -- | Check whether elements go in strictly ascending order and
 -- return the original list (to keep only one pass on the original list).
-ensureDistinctAsc :: (Ord a, Show a) => [a] -> Either Text [a]
-ensureDistinctAsc = \case
+ensureDistinctAsc :: (Ord b, Show a) => (a -> b) -> [a] -> Either Text [a]
+ensureDistinctAsc toCmp = \case
   (e1 : e2 : l) ->
-    if e1 < e2
-    then (e1 :) <$> ensureDistinctAsc (e2 : l)
+    if toCmp e1 < toCmp e2
+    then (e1 :) <$> ensureDistinctAsc toCmp (e2 : l)
     else Left $ "Entries are unordered (" +|| e1 ||+ " >= " +|| e2 ||+ ")"
   l -> Right l
 

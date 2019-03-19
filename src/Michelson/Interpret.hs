@@ -21,6 +21,7 @@ module Michelson.Interpret
   , InterpretUntypedResult (..)
   , runInstr
   , runInstrNoGas
+  , runUnpack
   ) where
 
 import Prelude hiding (EQ, GT, LT)
@@ -36,6 +37,7 @@ import Fmt (Buildable(build), Builder, genericF)
 import Michelson.EqParam (eqParam1, eqParam2)
 
 import Michelson.Interpret.Pack (packValue')
+import Michelson.Interpret.Unpack (UnpackError, unpackValue', UnpackEnv (..))
 import Michelson.TypeCheck
   ( SomeContract(..), SomeValue(..), TCError, TcOriginatedContracts,
   TCTypeError(..), compareTypes, eqType, runTypeCheckT, typeCheckContract, typeCheckValue)
@@ -363,7 +365,9 @@ runInstrImpl _ FAILWITH (a :& _) = throwError $ MichelsonFailedWith a
 runInstrImpl _ CAST (a :& r) = pure $ a :& r
 runInstrImpl _ RENAME (a :& r) = pure $ a :& r
 runInstrImpl _ PACK (a :& r) = pure $ (VC $ CvBytes $ packValue' a) :& r
-runInstrImpl _ UNPACK (VC (CvBytes _) :& _) = error "Unimplemented yet :/"
+runInstrImpl _ UNPACK (VC (CvBytes a) :& r) = do
+  env <- asks ceContracts
+  pure $ (VOption . rightToMaybe $ runUnpack env a) :& r
 runInstrImpl _ CONCAT (a :& b :& r) = pure $ evalConcat a b :& r
 runInstrImpl _ CONCAT' (VList a :& r) = pure $ evalConcat' a :& r
 runInstrImpl _ SLICE (VC (CvNat o) :& VC (CvNat l) :& s :& r) =
@@ -462,6 +466,18 @@ runArithOp
 runArithOp op l r = case evalOp op l r of
   Left  err -> throwError (MichelsonArithError err)
   Right res -> pure (T.VC res)
+
+-- | Unpacks given raw data into a typed value.
+runUnpack
+  :: forall t. (SingI t, HasNoOp t)
+  => TcOriginatedContracts
+  -> ByteString
+  -> Either UnpackError (T.Value t)
+runUnpack contracts bs =
+  -- TODO [TM-80] Gas consumption here should depend on unpacked data size
+  -- and size of resulting expression, errors would also spend some (all equally).
+  -- Fortunatelly, the inner decoding logic does not need to know anything about gas use.
+  unpackValue' (UnpackEnv contracts) bs
 
 createOrigOp
   :: (SingI param, SingI store, HasNoOp store)

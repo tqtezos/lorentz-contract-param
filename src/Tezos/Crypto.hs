@@ -12,10 +12,12 @@ module Tezos.Crypto
   , CryptoParseError (..)
   , formatPublicKey
   , parsePublicKey
+  , mkPublicKey
   , formatSecretKey
   , parseSecretKey
   , formatSignature
   , parseSignature
+  , mkSignature
   , formatKeyHash
   , parseKeyHash
 
@@ -37,7 +39,7 @@ module Tezos.Crypto
   , decodeBase58CheckWithPrefix
   ) where
 
-import Crypto.Error (CryptoError, CryptoFailable, eitherCryptoError)
+import Crypto.Error (CryptoError, CryptoFailable(..), eitherCryptoError)
 import Crypto.Hash (Blake2b_160, Blake2b_256, Digest, SHA256, SHA512, hash)
 import Crypto.Number.Serialize (os2ip)
 import qualified Crypto.PubKey.Ed25519 as Ed25519
@@ -45,6 +47,7 @@ import Crypto.Random (drgNewSeed, seedFromInteger, withDRG)
 import Data.Aeson (FromJSON(..), ToJSON(..))
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Encoding as Aeson
+import Data.ByteArray (ByteArrayAccess)
 import qualified Data.ByteArray as ByteArray
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base58 as Base58
@@ -149,6 +152,12 @@ instance Buildable.Buildable PublicKey where
 parsePublicKey :: Text -> Either CryptoParseError PublicKey
 parsePublicKey = parseImpl publicKeyTag Ed25519.publicKey
 
+mkPublicKey :: ByteArrayAccess ba => ba -> Either Text PublicKey
+mkPublicKey ba =
+  case Ed25519.publicKey ba of
+    CryptoPassed k -> Right (PublicKey k)
+    CryptoFailed e -> Left (show e)
+
 formatSecretKey :: SecretKey -> Text
 formatSecretKey = formatImpl secretKeyTag . unSecretKey
 
@@ -166,6 +175,12 @@ instance Buildable.Buildable Signature where
 
 parseSignature :: Text -> Either CryptoParseError Signature
 parseSignature = parseImpl signatureTag Ed25519.signature
+
+mkSignature :: ByteArrayAccess ba => ba -> Either Text Signature
+mkSignature ba =
+  case Ed25519.signature ba of
+    CryptoPassed s -> Right (Signature s)
+    CryptoFailed e -> Left (show e)
 
 formatKeyHash :: KeyHash -> Text
 formatKeyHash = formatImpl keyHashTag . unKeyHash
