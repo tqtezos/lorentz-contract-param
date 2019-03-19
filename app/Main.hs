@@ -7,15 +7,15 @@ import Data.Text.IO (getContents)
 import Fmt (pretty)
 import Options.Applicative
   (auto, command, eitherReader, execParser, help, info, long, maybeReader, metavar, option,
-  progDesc, readerError, strOption, subparser, switch, value)
+  progDesc, readerError, showDefault, strOption, subparser, switch, value)
 import qualified Options.Applicative as Opt
 import Text.Megaparsec (parse)
 import Text.Pretty.Simple (pPrint)
 
 import Michelson.Untyped hiding (OriginationOperation(..))
 import qualified Michelson.Untyped as Un
-import Morley.Macro (expandFlattenContract, expandValue)
 import Morley.Ext (typeCheckMorleyContract)
+import Morley.Macro (expandFlattenContract, expandValue)
 import qualified Morley.Parser as P
 import Morley.Runtime (TxData(..), originateContract, runContract)
 import Morley.Runtime.GState (genesisAddress, genesisKeyHash)
@@ -138,9 +138,10 @@ nowOption = optional $ option parser $
 maxStepsOption :: Opt.Parser Word64
 maxStepsOption = option auto $
   value 100500 <>
-  long "max steps" <>
+  long "max-steps" <>
   metavar "Word64" <>
-  help "Max steps that you want the runtime interpreter to use (default is 100500)"
+  help "Max steps that you want the runtime interpreter to use" <>
+  showDefault
 
 dbPathOption :: Opt.Parser FilePath
 dbPathOption = strOption $
