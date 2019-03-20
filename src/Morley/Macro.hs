@@ -161,10 +161,10 @@ expandSetCadr :: [CadrStruct] -> VarAnn -> FieldAnn -> [ParsedOp]
 expandSetCadr cs v f = PRIM <$> case cs of
   []   -> []
   A:[] -> [DUP noAnn, CAR noAnn f, DROP,
-           -- ^ These operations just check that the left element of pair has %f
+           -- ↑ These operations just check that the left element of pair has %f
            CDR (ann "%%") noAnn, SWAP, PAIR noAnn v f (ann "@")]
   D:[] -> [DUP noAnn, CDR noAnn f, DROP,
-           -- ^ These operations just check that the right element of pair has %f
+           -- ↑ These operations just check that the right element of pair has %f
            CAR (ann "%%") noAnn, PAIR noAnn v (ann "@") f]
   A:css -> [DUP noAnn, DIP [PRIM carN, MAC $ SET_CADR css noAnn f], cdrN, SWAP, pairN]
   D:css -> [DUP noAnn, DIP [PRIM cdrN, MAC $ SET_CADR css noAnn f], carN, pairN]

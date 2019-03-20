@@ -8,8 +8,8 @@ module Michelson.Typed.Instr
   , InstrExtT
   ) where
 
-import Data.Singletons (SingI)
 import Data.Kind (Type)
+import Data.Singletons (SingI)
 
 import Michelson.Typed.Arith
 import Michelson.Typed.Polymorphic
@@ -52,9 +52,9 @@ type InstrExtT = ExtT Instr
 -- if they break something
 data Instr (inp :: [T]) (out :: [T]) where
   Seq :: Typeable b => Instr a b -> Instr b c -> Instr a c
-  Nop :: Instr s s
-  -- ^ operation. Missing in Michelson spec, added to parse construction
+  -- | Nop operation. Missing in Michelson spec, added to parse construction
   -- like  `IF {} { SWAP; DROP; }`.
+  Nop :: Instr s s
 
   Ext :: ExtT Instr -> Instr s s
 
