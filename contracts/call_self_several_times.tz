@@ -1,0 +1,25 @@
+# Parameter is number of times this contract will be called in total.
+# Note: parameter must be positive, 0 doesn't work (consumes all gas).
+# Storage is a number which is simply incremented every time the contract is called.
+
+parameter int;
+storage nat;
+code {
+      DUP;
+      # increase storage by one
+      DIP { CDR; PUSH nat 1; ADD; };
+      # decrease parameter by one
+      CAR;
+      DIP { PUSH int 1; };
+      SUB;
+      # put empty list of operations, then some data for TRANSFER_TOKENS
+      DIP { NIL operation; SELF; PUSH mutez 1;};
+      # copy our new parameter
+      DUP;
+      EQ;
+      # if our new parameter is 0, drop all data for TRANSFER_TOKENS
+      # and preserve empty list, otherwise create TRANSFER_TOKENS operation
+      # and add to the list
+      IF { DROP; DROP; DROP; } { TRANSFER_TOKENS; CONS; };
+      # finish, well done!
+      PAIR;};

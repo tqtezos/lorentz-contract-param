@@ -3,29 +3,27 @@ module Test.Util.Interpreter
   , dummyContractEnv
   , dummyMaxSteps
   , dummyNow
-  , dummyKeyHash
   , dummyOrigination
+  , simplerIntegrationalTestExpectation
+  , simplerIntegrationalTestProperty
   ) where
 
-import Test.QuickCheck (arbitrary)
+import Test.Hspec (Expectation)
+import Test.QuickCheck (Property)
 
-import Michelson.Interpret (ContractEnv(..))
+import Michelson.Interpret (ContractEnv(..), RemainingSteps)
 import Michelson.Untyped
-import Tezos.Address (Address(..), mkContractAddressRaw)
+import Morley.Runtime (InterpreterOp)
+import Morley.Runtime.GState (genesisAddress, genesisKeyHash)
+import Morley.Test.Integrational
+  (IntegrationalValidator, integrationalTestExpectation, integrationalTestProperty)
 import Tezos.Core (Timestamp(..), unsafeMkMutez)
-import Tezos.Crypto (KeyHash)
-
-import Test.Util.QuickCheck (runGen)
 
 dummyNow :: Timestamp
 dummyNow = Timestamp 100
 
-dummyMaxSteps :: Word64
+dummyMaxSteps :: RemainingSteps
 dummyMaxSteps = 100500
-
--- We cheat here, but it's not important in tests
-dummyContractAddress :: Address
-dummyContractAddress = mkContractAddressRaw ""
 
 dummyContractEnv :: ContractEnv
 dummyContractEnv = ContractEnv
@@ -33,20 +31,18 @@ dummyContractEnv = ContractEnv
   , ceMaxSteps = dummyMaxSteps
   , ceBalance = unsafeMkMutez 100
   , ceContracts = mempty
-  , ceSource = dummyContractAddress
-  , ceSender = dummyContractAddress
+  , ceSelf = genesisAddress
+  , ceSource = genesisAddress
+  , ceSender = genesisAddress
   , ceAmount = unsafeMkMutez 100
   }
-
-dummyKeyHash :: KeyHash
-dummyKeyHash = runGen arbitrary
 
 dummyOrigination ::
      Value Op
   -> Contract Op
   -> OriginationOperation
 dummyOrigination storage contract = OriginationOperation
-  { ooManager = dummyKeyHash
+  { ooManager = genesisKeyHash
   , ooDelegate = Nothing
   , ooSpendable = False
   , ooDelegatable = False
@@ -54,6 +50,16 @@ dummyOrigination storage contract = OriginationOperation
   , ooStorage = storage
   , ooContract = contract
   }
+
+-- | 'integrationalTestExpectation' which uses dummy now and max steps.
+simplerIntegrationalTestExpectation :: [InterpreterOp] -> IntegrationalValidator -> Expectation
+simplerIntegrationalTestExpectation =
+  integrationalTestExpectation dummyNow dummyMaxSteps
+
+-- | 'integrationalTestProperty' which uses dummy now and max steps.
+simplerIntegrationalTestProperty :: [InterpreterOp] -> IntegrationalValidator -> Property
+simplerIntegrationalTestProperty =
+  integrationalTestProperty dummyNow dummyMaxSteps
 
 -- | Data type, that containts contract and its auxiliary data.
 --

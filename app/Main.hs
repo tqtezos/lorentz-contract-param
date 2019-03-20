@@ -7,17 +7,18 @@ import Data.Text.IO (getContents)
 import Fmt (pretty)
 import Options.Applicative
   (auto, command, eitherReader, execParser, help, info, long, maybeReader, metavar, option,
-  progDesc, readerError, strOption, subparser, switch, value)
+  progDesc, readerError, showDefault, strOption, subparser, switch, value)
 import qualified Options.Applicative as Opt
 import Text.Megaparsec (parse)
 import Text.Pretty.Simple (pPrint)
 
 import Michelson.Untyped hiding (OriginationOperation(..))
 import qualified Michelson.Untyped as Un
-import Morley.Macro (expandFlattenContract, expandValue)
 import Morley.Ext (typeCheckMorleyContract)
+import Morley.Macro (expandFlattenContract, expandValue)
 import qualified Morley.Parser as P
 import Morley.Runtime (TxData(..), originateContract, runContract)
+import Morley.Runtime.GState (genesisAddress, genesisKeyHash)
 import Morley.Types
 import Tezos.Address (Address, parseAddress)
 import Tezos.Core (Mutez, Timestamp(..), mkMutez, parseTimestamp, timestampFromSeconds)
@@ -107,8 +108,9 @@ argParser = subparser $
       OriginateOptions
         <$> contractFileOption
         <*> dbPathOption
-        <*> keyHashOption "manager" "Contract's manager"
-        <*> optional (keyHashOption "manager" "Contract's optional delegate")
+        <*> keyHashOption (Just genesisKeyHash) "manager" "Contract's manager"
+        <*> optional
+            (keyHashOption Nothing "manager" "Contract's optional delegate")
         <*> switch (long "spendable" <>
                     help "Whether the contract is spendable")
         <*> switch (long "delegatable" <>
@@ -136,9 +138,10 @@ nowOption = optional $ option parser $
 maxStepsOption :: Opt.Parser Word64
 maxStepsOption = option auto $
   value 100500 <>
-  long "max steps" <>
+  long "max-steps" <>
   metavar "Word64" <>
-  help "Max steps that you want the runtime interpreter to use (default is 100500)"
+  help "Max steps that you want the runtime interpreter to use" <>
+  showDefault
 
 dbPathOption :: Opt.Parser FilePath
 dbPathOption = strOption $
@@ -147,10 +150,11 @@ dbPathOption = strOption $
   value "db.json" <>
   help "Path to DB with data which is used instead of real blockchain data"
 
-keyHashOption :: String -> String -> Opt.Parser KeyHash
-keyHashOption name hInfo =
+keyHashOption :: Maybe KeyHash -> String -> String -> Opt.Parser KeyHash
+keyHashOption defaultValue name hInfo =
   option (eitherReader (first pretty . parseKeyHash . toText)) $
   long name <>
+  maybe mempty value defaultValue <>
   help hInfo
 
 valueOption :: String -> String -> Opt.Parser (Value Op)
@@ -181,6 +185,7 @@ txData =
     sender = option (eitherReader parseAddrDo) $
       long "sender" <>
       metavar "ADDRESS" <>
+      value genesisAddress <>
       help "Sender address"
     parseAddrDo addr =
       either (Left . mappend "Failed to parse address: " . pretty) Right $

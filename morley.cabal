@@ -23,6 +23,7 @@ library
                      , Michelson.Typed
                      , Michelson.Typed.Value
                      , Michelson.Untyped
+                     , Morley.Aliases
                      , Morley.Default
                      , Morley.Lexer
                      , Morley.Macro
@@ -33,6 +34,8 @@ library
                      , Morley.Runtime.GState
                      , Morley.Runtime.TxData
                      , Morley.Test
+                     , Morley.Test.Integrational
+                     , Morley.Test.Util
                      , Morley.Types
                      , Tezos.Address
                      , Tezos.Core
@@ -200,8 +203,10 @@ test-suite morley-test
                      , Test.CValConversion
                      , Test.Interpreter
                      , Test.Interpreter.Auction
+                     , Test.Interpreter.CallSelf
                      , Test.Interpreter.Compare
                      , Test.Interpreter.Conditionals
+                     , Test.Interpreter.StringCaller
                      , Test.Macro
                      , Test.Ext
                      , Test.Morley.Runtime

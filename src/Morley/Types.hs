@@ -68,6 +68,7 @@ module Morley.Types
   , StackRef(..)
 
   , MorleyLogs (..)
+  , noMorleyLogs
   --  * Let-block
   , StackFn(..)
   , Var (..)
@@ -88,7 +89,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as T
 import Fmt (Buildable(build), Builder, genericF, listF)
 import Text.Megaparsec (ParseErrorBundle, Parsec, ShowErrorComponent(..), errorBundlePretty)
-import Text.Show (show)
+import qualified Text.Show (show)
 
 import Michelson.Typed (instrToOps)
 import qualified Michelson.Typed as T
@@ -118,13 +119,17 @@ type Parser = ReaderT LetEnv (Parsec CustomParserException T.Text)
 instance Default a => Default (Parser a) where
   def = pure def
 
-data ParserException = ParserException (ParseErrorBundle T.Text CustomParserException)
+data ParserException =
+  ParserException (ParseErrorBundle T.Text CustomParserException)
 
 instance Show ParserException where
   show (ParserException bundle) = errorBundlePretty bundle
 
 instance Exception ParserException where
   displayException (ParserException bundle) = errorBundlePretty bundle
+
+instance Buildable ParserException where
+  build = build @String . show
 
 -- | The environment containing lets from the let-block
 data LetEnv = LetEnv
@@ -243,6 +248,9 @@ newtype MorleyLogs = MorleyLogs
   { unMorleyLogs :: [T.Text]
   } deriving stock (Eq, Show)
     deriving newtype (Default, Buildable)
+
+noMorleyLogs :: MorleyLogs
+noMorleyLogs = MorleyLogs []
 
 ---------------------------------------------------
 
