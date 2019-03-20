@@ -24,9 +24,9 @@ import Tezos.Crypto
 -- | Data type corresponding to address structure in Tezos.
 data Address
   = KeyAddress !KeyHash
-  -- * `tz` address which is a hash of a public key.
+  -- ^ `tz` address which is a hash of a public key.
   | ContractAddress !ByteString
-  -- * `KT` address which corresponds to a callable contract.
+  -- ^ `KT` address which corresponds to a callable contract.
   -- It's a hash of origination command.
   -- TODO: we should probably have a `Hash` type.
   deriving (Show, Eq, Ord)

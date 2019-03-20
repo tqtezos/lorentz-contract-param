@@ -25,6 +25,7 @@ build-and-test:
         --ghc-options="-Werror" --fast
         --test --no-run-tests
         --bench --no-run-benchmarks
+        --haddock --no-haddock-deps
     - stack $STACK_OPTIONS
         test morley
     - rm -rf "$STACK_ROOT/programs"  # Faster to download them again
