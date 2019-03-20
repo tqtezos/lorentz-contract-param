@@ -1,10 +1,15 @@
 -- | Interpreter of a contract in Morley language.
 
 module Morley.Runtime
-       ( readAndParseContract
-       , prepareContract
-       , originateContract
+       (
+         -- * High level interface for end user
+         originateContract
        , runContract
+       , transfer
+
+       -- * Other helpers
+       , readAndParseContract
+       , prepareContract
 
        -- * Re-exports
        , ContractState (..)
@@ -167,7 +172,7 @@ runContract
 runContract maybeNow maxSteps verbose dbPath storageValue contract txData = do
   addr <- originateContract verbose dbPath origination
     `catch` ignoreAlreadyOriginated
-  interpreter maybeNow maxSteps verbose dbPath (TransferOp addr txData)
+  transfer maybeNow maxSteps verbose dbPath addr txData
   where
     defaultBalance = unsafeMkMutez 4000000000
     origination = OriginationOperation
@@ -183,6 +188,12 @@ runContract maybeNow maxSteps verbose dbPath storageValue contract txData = do
     ignoreAlreadyOriginated =
       \case IEAlreadyOriginated addr _ -> pure addr
             err -> throwM err
+
+-- | Send a transaction to given address with given parameters.
+transfer ::
+     Maybe Timestamp -> Word64 -> Bool -> FilePath -> Address -> TxData -> IO ()
+transfer maybeNow maxSteps verbose dbPath destination txData =
+  interpreter maybeNow maxSteps verbose dbPath (TransferOp destination txData)
 
 ----------------------------------------------------------------------------
 -- Interpreter

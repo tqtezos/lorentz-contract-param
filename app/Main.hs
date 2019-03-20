@@ -6,7 +6,7 @@ module Main
 import Fmt (pretty)
 import Options.Applicative
   (auto, command, eitherReader, execParser, help, info, long, maybeReader, metavar, option,
-  progDesc, readerError, showDefault, strOption, subparser, switch, value)
+  progDesc, readerError, showDefault, showDefaultWith, strOption, subparser, switch, value)
 import qualified Options.Applicative as Opt
 import Text.Pretty.Simple (pPrint)
 
@@ -16,7 +16,7 @@ import Morley.Ext (typeCheckMorleyContract)
 import Morley.Macro (expandFlattenContract, expandValue)
 import qualified Morley.Parser as P
 import Morley.Runtime
-  (TxData(..), originateContract, prepareContract, readAndParseContract, runContract)
+  (TxData(..), originateContract, prepareContract, readAndParseContract, runContract, transfer)
 import Morley.Runtime.GState (genesisAddress, genesisKeyHash)
 import Tezos.Address (Address, parseAddress)
 import Tezos.Core (Mutez, Timestamp(..), mkMutez, parseTimestamp, timestampFromSeconds)
@@ -27,6 +27,7 @@ data CmdLnArgs
   | TypeCheck (Maybe FilePath) Bool
   | Run !RunOptions
   | Originate !OriginateOptions
+  | Transfer !TransferOptions
 
 data RunOptions = RunOptions
   { roContractFile :: !(Maybe FilePath)
@@ -50,12 +51,22 @@ data OriginateOptions = OriginateOptions
   , ooVerbose :: !Bool
   }
 
+data TransferOptions = TransferOptions
+  { toDBPath :: !FilePath
+  , toDestination :: !Address
+  , toTxData :: !TxData
+  , toNow :: !(Maybe Timestamp)
+  , toMaxSteps :: !Word64
+  , toVerbose :: !Bool
+  }
+
 argParser :: Opt.Parser CmdLnArgs
 argParser = subparser $
   parseSubCmd <>
   typecheckSubCmd <>
   runSubCmd <>
-  originateSubCmd
+  originateSubCmd <>
+  transferSubCmd
   where
     parseSubCmd = command "parse" $
       info (uncurry Parse <$> parseOptions) $
@@ -72,6 +83,10 @@ argParser = subparser $
     originateSubCmd = command "originate" $
       info (Originate <$> originateOptions) $
         progDesc "Originate passed contract. Add it to passed DB"
+
+    transferSubCmd = command "transfer" $
+      info (Transfer <$> transferOptions) $
+        progDesc "Transfer tokens to given address"
 
     verboseFlag :: Opt.Parser Bool
     verboseFlag = switch $
@@ -116,6 +131,16 @@ argParser = subparser $
         <*> valueOption "storage" "Initial storage of an originating contract"
         <*> mutezOption "balance" "Initial balance of an originating contract"
         <*> verboseFlag
+
+    transferOptions :: Opt.Parser TransferOptions
+    transferOptions = do
+      toDBPath <- dbPathOption
+      toDestination <- addressOption Nothing "to" "Destination address"
+      toTxData <- txData
+      toNow <- nowOption
+      toMaxSteps <- maxStepsOption
+      toVerbose <- verboseFlag
+      pure TransferOptions {..}
 
 contractFileOption :: Opt.Parser (Maybe FilePath)
 contractFileOption = optional $ strOption $
@@ -173,21 +198,27 @@ mutezOption name hInfo =
   metavar "INT" <>
   help hInfo
 
+addressOption :: Maybe Address -> String -> String -> Opt.Parser Address
+addressOption defAddress name hInfo =
+  option (eitherReader parseAddrDo) $ mconcat
+  [ long name
+  , metavar "ADDRESS"
+  , help hInfo
+  , maybe mempty defaults defAddress
+  ]
+  where
+    defaults addr = value addr <> showDefaultWith pretty
+    parseAddrDo addr =
+      either (Left . mappend "Failed to parse address: " . pretty) Right $
+      parseAddress $ toText addr
+
 txData :: Opt.Parser TxData
 txData =
   mkTxData
-    <$> sender
+    <$> addressOption (Just genesisAddress) "sender" "Sender address"
     <*> valueOption "parameter" "Parameter of passed contract"
     <*> mutezOption "amount" "Amout sent by a transaction"
   where
-    sender = option (eitherReader parseAddrDo) $
-      long "sender" <>
-      metavar "ADDRESS" <>
-      value genesisAddress <>
-      help "Sender address"
-    parseAddrDo addr =
-      either (Left . mappend "Failed to parse address: " . pretty) Right $
-        parseAddress $ toText addr
     mkTxData :: Address -> Value Op -> Mutez -> TxData
     mkTxData addr param amount =
       TxData
@@ -230,3 +261,5 @@ main = do
               }
         addr <- originateContract ooVerbose ooDBPath origination
         putTextLn $ "Originated contract " <> pretty addr
+      Transfer TransferOptions {..} -> do
+        transfer toNow toMaxSteps toVerbose toDBPath toDestination toTxData
