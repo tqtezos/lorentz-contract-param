@@ -3,12 +3,10 @@ module Test.Typecheck
   ) where
 
 import Test.Hspec (Expectation, Spec, describe, expectationFailure, it)
-import Text.Megaparsec (parse)
 
 import Michelson.Untyped (Contract(..), Op(..))
-import Morley.Macro (expandFlat)
 import Morley.Ext (typeCheckMorleyContract)
-import Morley.Parser (program)
+import Morley.Runtime (prepareContract)
 
 import Test.Util.Contracts (getIllTypedContracts, getWellTypedContracts)
 
@@ -27,22 +25,15 @@ typeCheckSpec = describe "Typechecker tests" $ do
 
 checkFile :: (Contract Op -> Either String ()) -> Bool -> FilePath -> Expectation
 checkFile doTypeCheck wellTyped file = do
-  cd <- readFile file
-  case parse program file cd of
-    Right c' -> do
-      let c = Contract (para c') (stor c') (expandFlat $ code c')
-      case doTypeCheck c of
-        Left err
-          | wellTyped ->
-            expectationFailure $
-            "Typechecker unexpectedly failed on " <>
-            show file <> ": " <> err
-          | otherwise ->
-            pass
-        Right _
-          | not wellTyped ->
-            expectationFailure $
-            "Typechecker unexpectedly considered " <> show file <> " well-typed."
-          | otherwise ->
-            pass
-    Left e -> expectationFailure $ "Parser error: " <> show e
+  c <- prepareContract (Just file)
+  case doTypeCheck c of
+    Left err
+      | wellTyped ->
+        expectationFailure $
+        "Typechecker unexpectedly failed on " <> show file <> ": " <> err
+      | otherwise -> pass
+    Right _
+      | not wellTyped ->
+        expectationFailure $
+        "Typechecker unexpectedly considered " <> show file <> " well-typed."
+      | otherwise -> pass

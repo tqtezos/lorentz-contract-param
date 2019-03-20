@@ -3,13 +3,11 @@ module Main
   ) where
 
 
-import Data.Text.IO (getContents)
 import Fmt (pretty)
 import Options.Applicative
   (auto, command, eitherReader, execParser, help, info, long, maybeReader, metavar, option,
   progDesc, readerError, showDefault, strOption, subparser, switch, value)
 import qualified Options.Applicative as Opt
-import Text.Megaparsec (parse)
 import Text.Pretty.Simple (pPrint)
 
 import Michelson.Untyped hiding (OriginationOperation(..))
@@ -17,9 +15,9 @@ import qualified Michelson.Untyped as Un
 import Morley.Ext (typeCheckMorleyContract)
 import Morley.Macro (expandFlattenContract, expandValue)
 import qualified Morley.Parser as P
-import Morley.Runtime (TxData(..), originateContract, runContract)
+import Morley.Runtime
+  (TxData(..), originateContract, prepareContract, readAndParseContract, runContract)
 import Morley.Runtime.GState (genesisAddress, genesisKeyHash)
-import Morley.Types
 import Tezos.Address (Address, parseAddress)
 import Tezos.Core (Mutez, Timestamp(..), mkMutez, parseTimestamp, timestampFromSeconds)
 import Tezos.Crypto
@@ -232,19 +230,3 @@ main = do
               }
         addr <- originateContract ooVerbose ooDBPath origination
         putTextLn $ "Originated contract " <> pretty addr
-
-    readCode :: Maybe FilePath -> IO Text
-    readCode = maybe getContents readFile
-
-    readAndParseContract :: Maybe FilePath -> IO (Contract ParsedOp)
-    readAndParseContract mFilename = do
-      code <- readCode mFilename
-      let filename = fromMaybe "<stdin>" mFilename
-      either (throwM . P.ParserException) pure $
-        parse P.program filename code
-
-    -- Read and parse the contract, expand and type check.
-    prepareContract
-      :: Maybe FilePath -> IO (Contract Op)
-    prepareContract mFile =
-      expandFlattenContract <$> readAndParseContract mFile
