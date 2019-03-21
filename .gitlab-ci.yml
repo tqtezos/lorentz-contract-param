@@ -8,6 +8,7 @@ cache:
 
 stages:
   - test
+  - build
 
 variables:
   STACK_ROOT: "$CI_PROJECT_DIR/.stack-root"
@@ -18,14 +19,63 @@ build-and-test:
   tags:
     - docker-executor
   only:
-    - merge_requests
+    refs:
+      - merge_requests
+      - master
+    changes:
+      - Dockerfile
+      - .dockerignore
+      - .gitlab-ci.yml
+      - morley.cabal
+      - stack.yaml
+      - app/*
+      - src/*
+      - prelude/*
   script:
+    - cp /usr/lib/gcc/x86_64-linux-gnu/6/crtbeginT.o /usr/lib/gcc/x86_64-linux-gnu/6/crtbeginT.o.orig
+    - cp /usr/lib/gcc/x86_64-linux-gnu/6/crtbeginS.o /usr/lib/gcc/x86_64-linux-gnu/6/crtbeginT.o
     - stack $STACK_OPTIONS
-        build morley
-        --ghc-options="-Werror" --fast
+        install morley
+        --ghc-options '-Werror -optl-static -fPIC'
+        --fast --local-bin-path tmp
         --test --no-run-tests
         --bench --no-run-benchmarks
         --haddock --no-haddock-deps
     - stack $STACK_OPTIONS
         test morley
     - rm -rf "$STACK_ROOT/programs"  # Faster to download them again
+  artifacts:
+    paths:
+      - tmp/morley
+
+build-docker:
+  image: docker:stable
+
+  tags:
+    - shell-executor
+
+  before_script:
+    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
+
+
+  variables:
+    IMAGE_TAG: $CI_REGISTRY_IMAGE:latest
+
+  stage: build
+  dependencies:
+    - build-and-test
+  only:
+    refs:
+      - master
+    changes:
+      - Dockerfile
+      - .dockerignore
+      - .gitlab-ci.yml
+      - morley.cabal
+      - stack.yaml
+      - app/*
+      - src/*
+      - prelude/*
+  script:
+    - docker build -t $IMAGE_TAG .
+    - docker push $IMAGE_TAG
