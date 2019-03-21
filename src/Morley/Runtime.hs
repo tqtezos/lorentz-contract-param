@@ -29,6 +29,7 @@ import Data.Default (def)
 import qualified Data.Map.Strict as Map
 import Data.Text.IO (getContents)
 import Fmt (Buildable(build), blockListF, fmtLn, nameF, pretty, (+|), (|+))
+import Named ((:!), (:?), arg, argDef, defaults, (!))
 import Text.Megaparsec (parse)
 
 import Michelson.Interpret
@@ -47,8 +48,8 @@ import Morley.Runtime.GState
 import Morley.Runtime.TxData
 import Morley.Types (MorleyLogs(..), ParsedOp, noMorleyLogs)
 import Tezos.Address (Address(..))
-import Tezos.Core
-  (Mutez, Timestamp(..), getCurrentTime, unsafeAddMutez, unsafeMkMutez, unsafeSubMutez)
+import Tezos.Core (Mutez, Timestamp(..), getCurrentTime, unsafeAddMutez, unsafeSubMutez)
+import Tezos.Crypto (parseKeyHash)
 
 ----------------------------------------------------------------------------
 -- Auxiliary types
@@ -153,47 +154,65 @@ prepareContract mFile = expandFlattenContract <$> readAndParseContract mFile
 
 -- | Originate a contract. Returns the address of the originated
 -- contract.
-originateContract :: Bool -> FilePath -> OriginationOperation -> IO Address
-originateContract verbose dbPath origination =
+originateContract ::
+     FilePath -> OriginationOperation -> "verbose" :! Bool -> IO Address
+originateContract dbPath origination verbose =
+  -- pass 100500 as maxSteps, because it doesn't matter for origination,
+  -- as well as 'now'
   mkContractAddress origination <$
-  interpreter Nothing 100500 verbose dbPath (OriginateOp origination)
+  interpreter Nothing 100500 dbPath [OriginateOp origination] verbose
+  ! defaults
 
 -- | Run a contract. The contract is originated first (if it's not
 -- already) and then we pretend that we send a transaction to it.
 runContract
-    :: Maybe Timestamp
-    -> Word64
-    -> Bool
-    -> FilePath
-    -> Value Op
-    -> Contract Op
-    -> TxData
-    -> IO ()
-runContract maybeNow maxSteps verbose dbPath storageValue contract txData = do
-  addr <- originateContract verbose dbPath origination
-    `catch` ignoreAlreadyOriginated
-  transfer maybeNow maxSteps verbose dbPath addr txData
+  :: Maybe Timestamp
+  -> Word64
+  -> Mutez
+  -> FilePath
+  -> Value Op
+  -> Contract Op
+  -> TxData
+  -> "verbose" :! Bool
+  -> "dryRun" :! Bool
+  -> IO ()
+runContract maybeNow maxSteps initBalance dbPath storageValue contract txData
+  verbose (arg #dryRun -> dryRun) =
+  interpreter maybeNow maxSteps dbPath operations verbose ! #dryRun dryRun
   where
-    defaultBalance = unsafeMkMutez 4000000000
+    -- We hardcode some random key hash here as delegate to make sure that:
+    -- 1. Contract's address won't clash with already originated one (because
+    -- it may have different storage value which may be confusing).
+    -- 2. If one uses this functionality twice with the same contract and
+    -- other data, the contract will have the same address.
+    delegate =
+      either (error . mappend "runContract can't parse delegate: " . pretty) id $
+      parseKeyHash "tz1YCABRTa6H8PLKx2EtDWeCGPaKxUhNgv47"
     origination = OriginationOperation
       { ooManager = genesisKeyHash
-      , ooDelegate = Nothing
+      , ooDelegate = Just delegate
       , ooSpendable = False
       , ooDelegatable = False
-      , ooBalance = defaultBalance
+      , ooBalance = initBalance
       , ooStorage = storageValue
       , ooContract = contract
       }
-    ignoreAlreadyOriginated :: InterpreterError -> IO Address
-    ignoreAlreadyOriginated =
-      \case IEAlreadyOriginated addr _ -> pure addr
-            err -> throwM err
+    addr = mkContractAddress origination
+    operations =
+      [ OriginateOp origination
+      , TransferOp addr txData
+      ]
 
 -- | Send a transaction to given address with given parameters.
 transfer ::
-     Maybe Timestamp -> Word64 -> Bool -> FilePath -> Address -> TxData -> IO ()
-transfer maybeNow maxSteps verbose dbPath destination txData =
-  interpreter maybeNow maxSteps verbose dbPath (TransferOp destination txData)
+     Maybe Timestamp
+  -> Word64
+  -> FilePath
+  -> Address
+  -> TxData
+  -> "verbose" :! Bool -> "dryRun" :? Bool -> IO ()
+transfer maybeNow maxSteps dbPath destination txData =
+  interpreter maybeNow maxSteps dbPath [TransferOp destination txData]
 
 ----------------------------------------------------------------------------
 -- Interpreter
@@ -201,12 +220,20 @@ transfer maybeNow maxSteps verbose dbPath destination txData =
 
 -- | Interpret a contract on some global state (read from file) and
 -- transaction data (passed explicitly).
-interpreter :: Maybe Timestamp -> Word64 -> Bool -> FilePath -> InterpreterOp -> IO ()
-interpreter maybeNow maxSteps verbose dbPath operation = do
+interpreter ::
+     Maybe Timestamp
+  -> Word64
+  -> FilePath
+  -> [InterpreterOp]
+  -> "verbose" :! Bool -> "dryRun" :? Bool -> IO ()
+interpreter maybeNow maxSteps dbPath operations
+  (arg #verbose -> verbose)
+  (argDef #dryRun False -> dryRun)
+    = do
   now <- maybe getCurrentTime pure maybeNow
   gState <- readGState dbPath
   let eitherRes =
-        interpreterPure now (RemainingSteps maxSteps) gState [operation]
+        interpreterPure now (RemainingSteps maxSteps) gState operations
   InterpreterRes {..} <- either throwM pure eitherRes
   when (verbose && not (null _irUpdates)) $ do
     fmtLn $ nameF "Updates:" (blockListF _irUpdates)
@@ -214,7 +241,8 @@ interpreter maybeNow maxSteps verbose dbPath operation = do
   forM_ _irPrintedLogs $ \(MorleyLogs logs) -> do
     mapM_ putTextLn logs
     putTextLn "" -- extra break line to separate logs from two sequence contracts
-  writeGState dbPath _irGState
+  unless dryRun $
+    writeGState dbPath _irGState
 
 -- | Implementation of interpreter outside 'IO'.  It reads operations,
 -- interprets them one by one and updates state accordingly.
