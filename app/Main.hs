@@ -3,12 +3,15 @@ module Main
   ) where
 
 
+import Data.Version (showVersion)
 import Fmt (pretty)
 import Named ((!))
 import Options.Applicative
-  (auto, command, eitherReader, execParser, help, info, long, maybeReader, metavar, option,
-  progDesc, readerError, showDefault, showDefaultWith, strOption, subparser, switch, value)
+  (auto, command, eitherReader, execParser, fullDesc, header, help, helper, info, infoOption, long,
+  maybeReader, metavar, option, progDesc, readerError, short, showDefault, showDefaultWith,
+  strOption, subparser, switch, value)
 import qualified Options.Applicative as Opt
+import Paths_morley (version)
 import Text.Pretty.Simple (pPrint)
 
 import Michelson.Untyped hiding (OriginationOperation(..))
@@ -73,29 +76,40 @@ argParser = subparser $
   originateSubCmd <>
   transferSubCmd
   where
-    parseSubCmd = command "parse" $
-      info (uncurry Parse <$> parseOptions) $
-        progDesc "Parse passed contract"
+    mkCommandParser commandName parser desc =
+      command commandName $
+      info (helper <*> parser) $
+      progDesc desc
 
-    typecheckSubCmd = command "typecheck" $
-      info (uncurry TypeCheck <$> typecheckOptions) $
-        progDesc "Typecheck passed contract"
+    parseSubCmd =
+      mkCommandParser "parse"
+      (uncurry Parse <$> parseOptions)
+      "Parse passed contract"
 
-    runSubCmd = command "run" $
-      info (Run <$> runOptions) $
-        progDesc "Run passed contract. \
-                 \It's originated first and then a transaction is sent to it"
+    typecheckSubCmd =
+      mkCommandParser "typecheck"
+      (uncurry TypeCheck <$> typecheckOptions)
+      "Typecheck passed contract"
 
-    originateSubCmd = command "originate" $
-      info (Originate <$> originateOptions) $
-        progDesc "Originate passed contract. Add it to passed DB"
+    runSubCmd =
+      mkCommandParser "run"
+      (Run <$> runOptions) $
+      "Run passed contract. \
+      \It's originated first and then a transaction is sent to it"
 
-    transferSubCmd = command "transfer" $
-      info (Transfer <$> transferOptions) $
-        progDesc "Transfer tokens to given address"
+    originateSubCmd =
+      mkCommandParser "originate"
+      (Originate <$> originateOptions)
+      "Originate passed contract. Add it to passed DB"
+
+    transferSubCmd =
+      mkCommandParser "transfer"
+      (Transfer <$> transferOptions)
+      "Transfer tokens to given address"
 
     verboseFlag :: Opt.Parser Bool
     verboseFlag = switch $
+      short 'v' <>
       long "verbose" <>
       help "Whether output should be verbose"
 
@@ -242,7 +256,7 @@ txData =
   mkTxData
     <$> addressOption (Just genesisAddress) "sender" "Sender address"
     <*> valueOption "parameter" "Parameter of passed contract"
-    <*> mutezOption Nothing "amount" "Amout sent by a transaction"
+    <*> mutezOption (Just minBound) "amount" "Amout sent by a transaction"
   where
     mkTxData :: Address -> Value Op -> Mutez -> TxData
     mkTxData addr param amount =
@@ -254,10 +268,19 @@ txData =
 
 main :: IO ()
 main = do
-  cmdLnArgs <- execParser (info argParser progInfo)
+  cmdLnArgs <- execParser programInfo
   run cmdLnArgs `catchAny` (die . displayException)
   where
-    progInfo = progDesc "Haskell implementation of Michelson typechecker and interpreter"
+    programInfo = info (helper <*> versionOption <*> argParser) $
+      mconcat
+      [ fullDesc
+      , progDesc "Morley: Haskell implementation of Michelson typechecker and interpreter"
+      , header "Morley tools"
+      ]
+
+    versionOption = infoOption ("morley-" <> showVersion version)
+      (long "version" <> help "Show version.")
+
     run :: CmdLnArgs -> IO ()
     run args = case args of
       Parse mFilename hasExpandMacros -> do
