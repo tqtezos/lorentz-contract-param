@@ -21,6 +21,7 @@ module Morley.Runtime.GState
        , GStateUpdateError (..)
        , applyUpdate
        , applyUpdates
+       , extractAllContracts
        ) where
 
 import Control.Lens (at)
@@ -39,6 +40,8 @@ import Morley.Types ()
 import Tezos.Address (Address(..))
 import Tezos.Core (Mutez)
 import Tezos.Crypto (KeyHash, parseKeyHash)
+import Michelson.Untyped (Type, para)
+import Michelson.TypeCheck (TcOriginatedContracts)
 
 -- | State of a contract with code.
 data ContractState = ContractState
@@ -225,3 +228,12 @@ updateAddressState addr f gs =
       return $ gs { gsAddresses = addresses & at addr .~ Just newState }
   where
     addresses = gsAddresses gs
+
+-- | Retrive all contracts stored in GState
+extractAllContracts :: GState -> TcOriginatedContracts
+extractAllContracts = Map.mapMaybe extractContract . gsAddresses
+ where
+    extractContract :: AddressState -> Maybe Type
+    extractContract =
+      \case ASSimple {} -> Nothing
+            ASContract cs -> Just (para $ csContract cs)

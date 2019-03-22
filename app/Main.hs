@@ -18,11 +18,11 @@ import Text.Pretty.Simple (pPrint)
 import Michelson.Printer (printUntypedContract)
 import Michelson.Untyped hiding (OriginationOperation(..))
 import qualified Michelson.Untyped as U
-import Morley.Ext (typeCheckMorleyContract)
 import Morley.Macro (expandContract, expandValue)
 import qualified Morley.Parser as P
 import Morley.Runtime
-  (TxData(..), originateContract, prepareContract, readAndParseContract, runContract, transfer)
+  (TxData(..), originateContract, prepareContract, readAndParseContract, runContract, transfer,
+  typeCheckWithDb)
 import Morley.Runtime.GState (genesisAddress, genesisKeyHash)
 import Tezos.Address (Address, parseAddress)
 import Tezos.Core
@@ -32,10 +32,16 @@ import Tezos.Crypto
 data CmdLnArgs
   = Parse (Maybe FilePath) Bool
   | Print (Maybe FilePath)
-  | TypeCheck (Maybe FilePath) Bool
+  | TypeCheck !TypeCheckOptions
   | Run !RunOptions
   | Originate !OriginateOptions
   | Transfer !TransferOptions
+
+data TypeCheckOptions = TypeCheckOptions
+  { tcoContractFile :: !(Maybe FilePath)
+  , tcoDBPath       :: !FilePath
+  , tcoVerbose      :: !Bool
+  }
 
 data RunOptions = RunOptions
   { roContractFile :: !(Maybe FilePath)
@@ -92,8 +98,8 @@ argParser = subparser $
 
     typecheckSubCmd =
       mkCommandParser "typecheck"
-      (uncurry TypeCheck <$> typecheckOptions)
-      "Typecheck passed contract"
+        (TypeCheck <$> typeCheckOptions) $
+        ("Typecheck passed contract")
 
     printSubCmd =
       mkCommandParser "print"
@@ -133,9 +139,10 @@ argParser = subparser $
       long "dry-run" <>
       help "Do not write updated DB to DB file"
 
-    typecheckOptions :: Opt.Parser (Maybe FilePath, Bool)
-    typecheckOptions = (,)
+    typeCheckOptions :: Opt.Parser TypeCheckOptions
+    typeCheckOptions = TypeCheckOptions
       <$> contractFileOption
+      <*> dbPathOption
       <*> verboseFlag
 
     parseOptions :: Opt.Parser (Maybe FilePath, Bool)
@@ -311,10 +318,9 @@ main = do
       Print mFilename -> do
         contract <- prepareContract mFilename
         putStrLn $ printUntypedContract contract
-      TypeCheck mFilename _hasVerboseFlag -> do
-        michelsonContract <- prepareContract mFilename
-        void $ either throwM pure $
-          typeCheckMorleyContract michelsonContract
+      TypeCheck TypeCheckOptions{..} -> do
+        morleyContract <- prepareContract tcoContractFile
+        either throwM (const pass) =<< typeCheckWithDb tcoDBPath morleyContract
         putTextLn "Contract is well-typed"
       Run RunOptions {..} -> do
         michelsonContract <- prepareContract roContractFile

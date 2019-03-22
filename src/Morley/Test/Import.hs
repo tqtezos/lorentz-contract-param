@@ -57,11 +57,13 @@ specWithContractImpl doImport file execSpec =
 readContract
   :: forall cp st .
     (Typeable cp, Typeable st)
-  => FilePath -> Text -> Either ImportContractError (U.Contract, Contract cp st)
+  => FilePath
+  -> Text
+  -> Either ImportContractError (U.Contract, Contract cp st)
 readContract filePath txt = do
   contract <- first ICEParse $ parseExpandContract (Just filePath) txt
   SomeContract (instr :: Contract cp' st') _ _
-    <- first ICETypeCheck $ typeCheckMorleyContract contract
+    <- first ICETypeCheck $ typeCheckMorleyContract mempty contract
   case (eqT @cp @cp', eqT @st @st') of
     (Just Refl, Just Refl) -> pure (contract, instr)
     (Nothing, _) -> Left $
@@ -70,7 +72,9 @@ readContract filePath txt = do
 
 -- | Import contract from a given file path.
 --
--- This function reads file, parses and type checks contract.
+-- This function reads file, parses and type checks a contract.
+-- Within the typechecking we assume that no contracts are originated,
+-- otherwise a type checking error will be caused.
 --
 -- This function may throw 'IOException' and 'ImportContractError'.
 importContract

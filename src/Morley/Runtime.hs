@@ -1,4 +1,4 @@
--- | Interpreter of a contract in Morley language.
+-- | Interpreter and typechecker of a contract in Morley language.
 
 module Morley.Runtime
        (
@@ -12,6 +12,7 @@ module Morley.Runtime
        , parseExpandContract
        , readAndParseContract
        , prepareContract
+       , typeCheckWithDb
 
        -- * Re-exports
        , ContractState (..)
@@ -27,7 +28,6 @@ module Morley.Runtime
 
 import Control.Lens (at, makeLenses, (%=), (.=), (<>=))
 import Control.Monad.Except (Except, runExcept, throwError)
-import qualified Data.Map.Strict as Map
 import Data.Text.IO (getContents)
 import Fmt (Buildable(build), blockListF, fmt, fmtLn, nameF, pretty, (+|), (|+))
 import Named ((:!), (:?), arg, argDef, defaults, (!))
@@ -36,7 +36,7 @@ import Text.Megaparsec (parse)
 import Michelson.Interpret
   (ContractEnv(..), InterpretUntypedError(..), InterpretUntypedResult(..), InterpreterState(..),
   RemainingSteps(..))
-import Michelson.TypeCheck (TCError)
+import Michelson.TypeCheck (SomeContract, TCError)
 import Michelson.Typed
   (CreateContract(..), Instr, Operation(..), TransferTokens(..), convertContract, untypeValue)
 import qualified Michelson.Typed as T
@@ -317,7 +317,7 @@ interpretOneOp
   -> Either InterpreterError InterpreterRes
 interpretOneOp _ remainingSteps _ gs (OriginateOp origination) = do
   void $ first IEIllTypedContract $
-    typeCheckMorleyContract (ooContract origination)
+    typeCheckMorleyContract (extractAllContracts gs) (ooContract origination)
   let originatorAddress = KeyAddress (ooManager origination)
   originatorBalance <- case gsAddresses gs ^. at (originatorAddress) of
     Nothing -> Left (IEUnknownManager originatorAddress)
@@ -383,11 +383,12 @@ interpretOneOp now remainingSteps mSourceAddr gs (TransferOp addr txData) = do
       (Just (ASContract cs), _) -> do
         let
           contract = csContract cs
+          existingContracts = extractAllContracts gs
           contractEnv = ContractEnv
             { ceNow = now
             , ceMaxSteps = remainingSteps
             , ceBalance = csBalance cs
-            , ceContracts = Map.mapMaybe extractContract addresses
+            , ceContracts = existingContracts
             , ceSelf = addr
             , ceSource = sourceAddr
             , ceSender = senderAddr
@@ -431,10 +432,16 @@ interpretOneOp now remainingSteps mSourceAddr gs (TransferOp addr txData) = do
     addresses :: Map Address AddressState
     addresses = gsAddresses gs
 
-    extractContract :: AddressState -> Maybe Contract
-    extractContract =
-      \case ASSimple {} -> Nothing
-            ASContract cs -> Just (csContract cs)
+----------------------------------------------------------------------------
+-- TypeCheck
+----------------------------------------------------------------------------
+typeCheckWithDb
+  :: FilePath
+  -> U.Contract
+  -> IO (Either TCError SomeContract)
+typeCheckWithDb dbPath morleyContract = do
+  gState <- readGState dbPath
+  pure . typeCheckMorleyContract (extractAllContracts gState) $ morleyContract
 
 ----------------------------------------------------------------------------
 -- Simple helpers
@@ -466,3 +473,4 @@ convertOp interpretedAddr =
             , ooContract = convertContract (ccContractCode cc)
             }
        in Just (OriginateOp origination)
+

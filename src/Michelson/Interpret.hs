@@ -32,14 +32,14 @@ import Data.Typeable ((:~:)(..))
 import Data.Vinyl (Rec(..), (<+>))
 import Fmt (Buildable(build), Builder, genericF)
 
-import Michelson.TypeCheck
-  (ExtC, SomeContract(..), SomeValue(..), TCError, TcExtHandler, eqT', runTypeCheckT,
-  typeCheckContract, typeCheckValue)
 import Michelson.Interpret.Pack (packValue')
+import Michelson.TypeCheck
+  (ExtC, SomeContract(..), SomeValue(..), TCError, TcExtHandler, TcOriginatedContracts,
+  compareTypes, eqT', runTypeCheckT, typeCheckContract, typeCheckValue)
 import Michelson.Typed
   (CValue(..), Contract, ConversibleExt, CreateAccount(..), CreateContract(..), HasNoOp, Instr(..),
   OpPresence(..), Operation(..), SetDelegate(..), Sing(..), T(..), TransferTokens(..), Value'(..),
-  fromUType)
+  extractNotes, fromUType, withSomeSingT)
 import qualified Michelson.Typed as T
 import Michelson.Typed.Arith
 import Michelson.Typed.Convert (convertContract, untypeValue)
@@ -57,7 +57,7 @@ data ContractEnv = ContractEnv
   -- ^ Number of steps after which execution unconditionally terminates.
   , ceBalance :: !Mutez
   -- ^ Current amount of mutez of the current contract.
-  , ceContracts :: Map Address U.Contract
+  , ceContracts :: TcOriginatedContracts
   -- ^ Mapping from existing contracts' addresses to their executable
   -- representation.
   , ceSelf :: !Address
@@ -80,7 +80,7 @@ data MichelsonFailed where
 
 deriving instance Show MichelsonFailed
 
-instance (ConversibleExt) => Buildable MichelsonFailed where
+instance ConversibleExt => Buildable MichelsonFailed where
   build =
     \case
       MichelsonFailedWith (v :: T.Value t) ->
@@ -134,20 +134,24 @@ interpretUntyped
   -> InterpreterEnv s
   -> s
   -> Either (InterpretUntypedError s) (InterpretUntypedResult s)
-interpretUntyped typeCheckHandler U.Contract{..} paramU initStU env initState = do
-    (SomeContract (instr :: Contract cp st) _ _)
-       <- first IllTypedContract $ typeCheckContract typeCheckHandler
-              (U.Contract para stor code)
-    paramV :::: ((_ :: Sing cp1), _)
-       <- first IllTypedParam $ runTypeCheckT typeCheckHandler para $
-            typeCheckValue paramU (fromUType para)
-    initStV :::: ((_ :: Sing st1), _)
-       <- first IllTypedStorage $ runTypeCheckT typeCheckHandler para $
-            typeCheckValue initStU (fromUType stor)
-    Refl <- first UnexpectedStorageType $ eqT' @st @st1
-    Refl <- first UnexpectedParamType   $ eqT' @cp @cp1
-    bimap RuntimeFailure constructIUR $
-      toRes $ interpret instr paramV initStV env initState
+interpretUntyped typeCheckHandler U.Contract{..} paramU initStU env@InterpreterEnv{..} initState = do
+  (SomeContract (instr :: Contract cp st) _ _)
+      <- first IllTypedContract $ typeCheckContract typeCheckHandler (ceContracts ieContractEnv)
+            (U.Contract para stor code)
+  withSomeSingT (fromUType para) $ \sgp ->
+    withSomeSingT (fromUType stor) $ \sgs -> do
+      ntp <- first UnexpectedParamType $ extractNotes para sgp
+      nts <- first UnexpectedStorageType $ extractNotes stor sgs
+      paramV :::: ((_ :: Sing cp1), _)
+          <- first IllTypedParam $ runTypeCheckT typeCheckHandler para (ceContracts ieContractEnv) $
+               typeCheckValue paramU (sgp, ntp)
+      initStV :::: ((_ :: Sing st1), _)
+          <- first IllTypedStorage $ runTypeCheckT typeCheckHandler para (ceContracts ieContractEnv) $
+               typeCheckValue initStU (sgs, nts)
+      Refl <- first UnexpectedStorageType $ eqT' @st @st1
+      Refl <- first UnexpectedParamType   $ eqT' @cp @cp1
+      bimap RuntimeFailure constructIUR $
+        toRes $ interpret instr paramV initStV env initState
   where
     toRes (ei, s) = bimap (,isExtState s) (,s) ei
 
@@ -356,11 +360,16 @@ runInstrImpl _ INT (VC (CvNat n) :& r) = pure $ VC (CvInt $ toInteger n) :& r
 runInstrImpl _ SELF r = do
   ContractEnv{..} <- asks ieContractEnv
   pure $ VContract ceSelf :& r
-runInstrImpl _ CONTRACT (VC (CvAddress addr) :& r) = do
+runInstrImpl _ (CONTRACT (nt :: T.Notes p)) (VC (CvAddress addr) :& r) = do
   ContractEnv{..} <- asks ieContractEnv
-  if Map.member addr ceContracts
-  then pure $ VOption (Just $ VContract addr) :& r
-  else pure $ VOption Nothing :& r
+  case Map.lookup addr ceContracts of
+    Just tc -> do
+      pure $
+        either (const $ VOption Nothing)
+               (const $ VOption (Just $ VContract addr))
+               (compareTypes (sing @p, nt) tc)
+        :& r
+    Nothing -> pure $ VOption Nothing :& r
 runInstrImpl _ TRANSFER_TOKENS (p :& VC (CvMutez mutez) :& contract :& r) =
   pure $ VOp (OpTransferTokens $ TransferTokens p mutez contract) :& r
 runInstrImpl _ SET_DELEGATE (VOption mbKeyHash :& r) =

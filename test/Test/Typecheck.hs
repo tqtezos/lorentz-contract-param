@@ -16,7 +16,7 @@ typeCheckSpec = describe "Typechecker tests" $ do
   it "Reports errors on contracts examples from contracts/ill-typed" badContractsTest
   where
     doTC = either (Left . displayException) (\_ -> pure ()) .
-            typeCheckMorleyContract
+            typeCheckMorleyContract mempty
 
     goodContractsTest = mapM_ (checkFile doTC True) =<< getWellTypedContracts
 

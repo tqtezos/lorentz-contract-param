@@ -73,7 +73,7 @@ typeCheckHandlerSpec = describe "typeCheckHandler STACKTYPE tests" $ do
       case convertToHST ts of
         SomeHST is -> SomeHST ((sing, nt, noAnn) ::& is)
 
-    nh (ni, si) = runTypeCheckT typeCheckHandler (Type TKey noAnn) $ typeCheckHandler ni [] si
+    nh (ni, si) = runTypeCheckT typeCheckHandler (Type TKey noAnn) mempty $ typeCheckHandler ni [] si
 
     runNopTest :: (ExpandedUExtInstr, SomeHST) -> Bool -> Expectation
     runNopTest tcase correct = case (nh tcase, correct) of

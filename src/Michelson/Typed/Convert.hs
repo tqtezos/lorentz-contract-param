@@ -12,7 +12,7 @@ import qualified Data.Map as Map
 import Data.Singletons (SingI(sing))
 
 import Michelson.Typed.CValue
-import Michelson.Typed.Extract (toUType)
+import Michelson.Typed.Extract (toUType, mkUType)
 import Michelson.Typed.Instr as Instr
 import Michelson.Typed.Scope
 import Michelson.Typed.Sing (Sing(..), fromSingCT, fromSingT)
@@ -236,12 +236,12 @@ instrToOps instr = case instr of
     handleInstr GE = [U.GE U.noAnn]
     handleInstr INT = [U.INT U.noAnn]
     handleInstr SELF = [U.SELF U.noAnn]
-    handleInstr i@CONTRACT = handle i
+    handleInstr i@(CONTRACT _) = handle i
       where
         handle :: Instr ('Tc 'CAddress ': s) ('TOption ('TContract p) ': s)
                -> [U.ExpandedInstr]
-        handle (CONTRACT :: Instr ('Tc 'CAddress ': s) ('TOption ('TContract p) ': s)) =
-          [U.CONTRACT U.noAnn (toUType $ fromSingT (sing @p))]
+        handle (CONTRACT nt :: Instr ('Tc 'CAddress ': s) ('TOption ('TContract p) ': s)) =
+          [U.CONTRACT (U.noAnn) (mkUType (sing @p) nt)]
         handle _ = error "unexcepted call"
     handleInstr TRANSFER_TOKENS = [U.TRANSFER_TOKENS U.noAnn]
     handleInstr SET_DELEGATE = [U.SET_DELEGATE U.noAnn]
