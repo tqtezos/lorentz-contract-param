@@ -91,6 +91,7 @@ import Fmt (Buildable(build), Builder, genericF, listF)
 import Text.Megaparsec (ParseErrorBundle, Parsec, ShowErrorComponent(..), errorBundlePretty)
 import qualified Text.Show (show)
 
+import Michelson.EqParam (eqParam2)
 import Michelson.Typed (instrToOps)
 import qualified Michelson.Typed as T
 import Michelson.Untyped
@@ -230,16 +231,25 @@ data TestAssert where
 
 deriving instance Show TestAssert
 
+instance Eq TestAssert where
+  TestAssert   name1 pattern1 instr1
+    ==
+    TestAssert name2 pattern2 instr2
+    = and
+    [ name1 == name2
+    , pattern1 == pattern2
+    , instr1 `eqParam2` instr2
+    ]
+
 data ExtInstr
   = TEST_ASSERT TestAssert
   | PRINT PrintComment
+  deriving (Show, Eq)
 
 instance T.Conversible ExtInstr (UExtInstrAbstract Op) where
   convert (PRINT pc) = UPRINT pc
   convert (TEST_ASSERT (TestAssert nm pc i)) =
     UTEST_ASSERT $ UTestAssert nm pc (instrToOps i)
-
-deriving instance Show ExtInstr
 
 ---------------------------------------------------
 

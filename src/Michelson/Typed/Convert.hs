@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 module Michelson.Typed.Convert
   ( convertContract
   , instrToOps
@@ -254,3 +256,10 @@ instrToOps instr = Un.Op <$> handleInstr instr
     handleInstr SOURCE = [Un.SOURCE Un.noAnn]
     handleInstr SENDER = [Un.SENDER Un.noAnn]
     handleInstr ADDRESS = [Un.ADDRESS Un.noAnn]
+
+-- It's an orphan instance, but it's better than checking all cases manually.
+-- We can also move this convertion to the place where `Instr` is defined,
+-- but then there will be a very large module (as we'll have to move a lot of
+-- stuff as well).
+instance (ConversibleExt, Eq Un.InstrExtU) => Eq (Instr inp out) where
+  i1 == i2 = instrToOps i1 == instrToOps i2

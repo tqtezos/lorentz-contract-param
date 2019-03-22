@@ -122,7 +122,7 @@ data InterpretUntypedResult s where
 
 -- | Interpret a contract without performing any side effects.
 interpretUntyped
-  :: forall s . (ExtC, Aeson.ToJSON U.InstrExtU, ConversibleExt)
+  :: forall s . (ExtC, Aeson.ToJSON U.InstrExtU)
   => TcExtHandler
   -> U.Contract U.Op
   -> U.Value U.Op
@@ -162,7 +162,7 @@ type ContractReturn s st =
   (Either MichelsonFailed ([Operation Instr], Val Instr st), InterpreterState s)
 
 interpret
-  :: (ExtC, Aeson.ToJSON U.InstrExtU, ConversibleExt, Typeable cp, Typeable st)
+  :: (ExtC, Aeson.ToJSON U.InstrExtU, Typeable cp, Typeable st)
   => Contract cp st
   -> Val Instr cp
   -> Val Instr st
@@ -213,7 +213,7 @@ runEvalOp act env initSt =
 
 -- | Function to change amount of remaining steps stored in State monad
 runInstr
-  :: (ExtC, Aeson.ToJSON U.InstrExtU, ConversibleExt, Typeable inp)
+  :: (ExtC, Aeson.ToJSON U.InstrExtU, Typeable inp)
   => Instr inp out
   -> Rec (Val Instr) inp
   -> EvalOp state (Rec (Val Instr) out)
@@ -229,14 +229,14 @@ runInstr i r = do
 
 runInstrNoGas
   :: forall a b state .
-  (ExtC, Aeson.ToJSON U.InstrExtU, ConversibleExt, Typeable a)
+  (ExtC, Aeson.ToJSON U.InstrExtU, Typeable a)
   => T.Instr a b -> Rec (Val T.Instr) a -> EvalOp state (Rec (Val T.Instr) b)
 runInstrNoGas = runInstrImpl runInstrNoGas
 
 -- | Function to interpret Michelson instruction(s) against given stack.
 runInstrImpl
     :: forall state .
-    (ExtC, Aeson.ToJSON U.InstrExtU, ConversibleExt)
+    (ExtC, Aeson.ToJSON U.InstrExtU)
     => (forall inp1 out1 . Typeable inp1 =>
       Instr inp1 out1
     -> Rec (Val Instr) inp1

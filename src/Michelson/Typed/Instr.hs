@@ -196,7 +196,7 @@ data Instr (inp :: [T]) (out :: [T]) where
   CONTRACT
     :: SingI p => Instr ('Tc 'CAddress ': s) ('TOption ('TContract p) ': s)
   TRANSFER_TOKENS
-    :: Instr (p ': 'Tc 'CMutez ': 'TContract p ': s)
+    :: Typeable p => Instr (p ': 'Tc 'CMutez ': 'TContract p ': s)
                    ('TOperation ': s)
   SET_DELEGATE
     :: Instr ('TOption ('Tc 'CKeyHash) ': s) ('TOperation ': s)
@@ -207,7 +207,7 @@ data Instr (inp :: [T]) (out :: [T]) where
          ': 'Tc 'CMutez ': s) ('TOperation ': 'Tc 'CAddress ': s)
 
   CREATE_CONTRACT
-    :: (SingI p, SingI g)
+    :: (SingI p, SingI g, Typeable p, Typeable g)
     => Instr
         ('Tc 'CKeyHash ': 'TOption ('Tc 'CKeyHash) ': 'Tc 'CBool
           ': 'Tc 'CBool ': 'Tc 'CMutez
@@ -215,7 +215,7 @@ data Instr (inp :: [T]) (out :: [T]) where
                        ('TPair ('TList 'TOperation) g) ': g ': s)
         ('TOperation ': 'Tc 'CAddress ': s)
   CREATE_CONTRACT2
-    :: (SingI p, SingI g)
+    :: (SingI p, SingI g, Typeable p, Typeable g)
     => Instr '[ 'TPair p g ] '[ 'TPair ('TList 'TOperation) g ]
     -> Instr ('Tc 'CKeyHash ':
               'TOption ('Tc 'CKeyHash) ':
