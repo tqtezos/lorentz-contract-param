@@ -40,7 +40,7 @@ instance ToADTArbitrary Op
 instance Arbitrary Op where
   arbitrary = Op <$> arbitrary
 
--- TODO: this `Timestamp` gen differs from `Gen (CVal 'T_timestamp)` from `Morley.Test`.
+-- TODO: this `Timestamp` gen differs from `Gen (CVal 'CTimestamp)` from `Morley.Test`.
 instance Arbitrary Timestamp where
   arbitrary = timestampFromSeconds @Word <$> arbitrary
 
@@ -236,20 +236,20 @@ instance ToADTArbitrary T
 instance Arbitrary T where
   arbitrary =
     oneof
-      [ T_comparable <$> arbitrary
-      , pure T_key
-      , pure T_unit
-      , pure T_signature
-      , T_option <$> arbitrary <*> arbitrary
-      , T_list <$> arbitrary
-      , T_set <$> arbitrary
-      , pure T_operation
-      , T_contract <$> arbitrary
-      , T_pair <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      , T_or <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      , T_lambda <$> arbitrary <*> arbitrary
-      , T_map <$> arbitrary <*> arbitrary
-      , T_big_map <$> arbitrary <*> arbitrary
+      [ Tc <$> arbitrary
+      , pure TKey
+      , pure TUnit
+      , pure TSignature
+      , TOption <$> arbitrary <*> arbitrary
+      , TList <$> arbitrary
+      , TSet <$> arbitrary
+      , pure TOperation
+      , TContract <$> arbitrary
+      , TPair <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+      , TOr <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+      , TLambda <$> arbitrary <*> arbitrary
+      , TMap <$> arbitrary <*> arbitrary
+      , TBigMap <$> arbitrary <*> arbitrary
       ]
 
 instance ToADTArbitrary CT

@@ -45,7 +45,7 @@ deriving instance Show (Operation instr)
 data TransferTokens instr p = TransferTokens
   { ttContractParameter :: !(Val instr p)
   , ttAmount :: !Mutez
-  , ttContract :: !(Val instr ('T_contract p))
+  , ttContract :: !(Val instr ('TContract p))
   } deriving (Show)
 
 data SetDelegate = SetDelegate
@@ -73,37 +73,37 @@ data CreateContract instr t cp st
 
 deriving instance Show (CreateContract instr t cp st)
 
-type ContractInp param st = '[ 'T_pair param st ]
-type ContractOut st = '[ 'T_pair ('T_list 'T_operation) st ]
+type ContractInp param st = '[ 'TPair param st ]
+type ContractOut st = '[ 'TPair ('TList 'TOperation) st ]
 
 -- | Representation of Michelson value.
 --
 -- Type parameter @instr@ stands for Michelson instruction
 -- type, i.e. data type to represent an instruction of language.
 data Val instr t where
-  VC :: CVal t -> Val instr ('T_c t)
-  VKey :: PublicKey -> Val instr 'T_key
-  VUnit :: Val instr 'T_unit
-  VSignature :: Signature -> Val instr 'T_signature
-  VOption :: Maybe (Val instr t) -> Val instr ('T_option t)
-  VList :: [Val instr t] -> Val instr ('T_list t)
-  VSet :: Set (CVal t) -> Val instr ('T_set t)
-  VOp :: Operation instr -> Val instr 'T_operation
-  VContract :: Address -> Val instr ('T_contract p)
-  VPair :: (Val instr l, Val instr r) -> Val instr ('T_pair l r)
-  VOr :: Either (Val instr l) (Val instr r) -> Val instr ('T_or l r)
+  VC :: CVal t -> Val instr ('Tc t)
+  VKey :: PublicKey -> Val instr 'TKey
+  VUnit :: Val instr 'TUnit
+  VSignature :: Signature -> Val instr 'TSignature
+  VOption :: Maybe (Val instr t) -> Val instr ('TOption t)
+  VList :: [Val instr t] -> Val instr ('TList t)
+  VSet :: Set (CVal t) -> Val instr ('TSet t)
+  VOp :: Operation instr -> Val instr 'TOperation
+  VContract :: Address -> Val instr ('TContract p)
+  VPair :: (Val instr l, Val instr r) -> Val instr ('TPair l r)
+  VOr :: Either (Val instr l) (Val instr r) -> Val instr ('TOr l r)
   VLam
     :: Show (instr '[inp] '[out])
-    => instr (inp ': '[]) (out ': '[]) -> Val instr ('T_lambda inp out)
-  VMap :: Map (CVal k) (Val instr v) -> Val instr ('T_map k v)
-  VBigMap :: Map (CVal k) (Val instr v) -> Val instr ('T_big_map k v)
+    => instr (inp ': '[]) (out ': '[]) -> Val instr ('TLambda inp out)
+  VMap :: Map (CVal k) (Val instr v) -> Val instr ('TMap k v)
+  VBigMap :: Map (CVal k) (Val instr v) -> Val instr ('TBigMap k v)
 
 deriving instance Show (Val instr t)
 
 -- TODO: actually we should handle big maps with something close
 -- to following:
 --
---  VBigMap :: BigMap op ref k v -> Val cp ('T_big_map k v)
+--  VBigMap :: BigMap op ref k v -> Val cp ('TBigMap k v)
 --
 -- data ValueOp v
 --     = New v
@@ -129,7 +129,7 @@ class FromVal t where
 -- instances below, but I am not sure whether it's a good idea.
 -- Note: if it breaks compilation for you, try to clean and
 -- rebuild from scratch. It seems to compile fine.
--- instance {-# OVERLAPPABLE #-} ('T_c (ToCT t) ~ ToT t, FromCVal t) => FromVal t where
+-- instance {-# OVERLAPPABLE #-} ('Tc (ToCT t) ~ ToT t, FromCVal t) => FromVal t where
 --   fromVal (VC cval) = fromCVal cval
 
 instance FromVal Integer where

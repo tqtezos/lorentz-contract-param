@@ -62,185 +62,185 @@ data Instr (inp :: [T]) (out :: [T]) where
   DUP  :: Instr (a ': s) (a ': a ': s)
   SWAP :: Instr (a ': b ': s) (b ': a ': s)
   PUSH :: forall t s . SingI t => Val Instr t -> Instr s (t ': s)
-  SOME :: Instr (a ': s) ('T_option a ': s)
-  NONE :: forall a s . SingI a => Instr s ('T_option a ': s)
-  UNIT :: Instr s ('T_unit ': s)
+  SOME :: Instr (a ': s) ('TOption a ': s)
+  NONE :: forall a s . SingI a => Instr s ('TOption a ': s)
+  UNIT :: Instr s ('TUnit ': s)
   IF_NONE
     :: (Typeable a, Typeable s)
     => Instr s s'
     -> Instr (a ': s) s'
-    -> Instr ('T_option a ': s) s'
-  PAIR :: Instr (a ': b ': s) ('T_pair a b ': s)
-  CAR :: Instr ('T_pair a b ': s) (a ': s)
-  CDR :: Instr ('T_pair a b ': s) (b ': s)
-  LEFT :: forall a b s . SingI b => Instr (a ': s) ('T_or a b ': s)
-  RIGHT :: forall a b s . SingI a => Instr (b ': s) ('T_or a b ': s)
+    -> Instr ('TOption a ': s) s'
+  PAIR :: Instr (a ': b ': s) ('TPair a b ': s)
+  CAR :: Instr ('TPair a b ': s) (a ': s)
+  CDR :: Instr ('TPair a b ': s) (b ': s)
+  LEFT :: forall a b s . SingI b => Instr (a ': s) ('TOr a b ': s)
+  RIGHT :: forall a b s . SingI a => Instr (b ': s) ('TOr a b ': s)
   IF_LEFT
     :: (Typeable s, Typeable a, Typeable b)
     => Instr (a ': s) s'
     -> Instr (b ': s) s'
-    -> Instr ('T_or a b ': s) s'
+    -> Instr ('TOr a b ': s) s'
   IF_RIGHT
     :: (Typeable s, Typeable b, Typeable a)
     => Instr (b ': s) s'
     -> Instr (a ': s) s'
-    -> Instr ('T_or a b ': s) s'
-  NIL :: SingI p => Instr s ('T_list p ': s)
-  CONS :: Instr (a ': 'T_list a ': s) ('T_list a ': s)
+    -> Instr ('TOr a b ': s) s'
+  NIL :: SingI p => Instr s ('TList p ': s)
+  CONS :: Instr (a ': 'TList a ': s) ('TList a ': s)
   IF_CONS
     :: (Typeable s, Typeable a)
-    => Instr (a ': 'T_list a ': s) s'
+    => Instr (a ': 'TList a ': s) s'
     -> Instr s s'
-    -> Instr ('T_list a ': s) s'
-  SIZE :: SizeOp c => Instr (c ': s) ('T_c 'T_nat ': s)
-  EMPTY_SET :: SingI e => Instr s ('T_set e ': s)
-  EMPTY_MAP :: (SingI a, SingI b) => Instr s ('T_map a b ': s)
+    -> Instr ('TList a ': s) s'
+  SIZE :: SizeOp c => Instr (c ': s) ('Tc 'CNat ': s)
+  EMPTY_SET :: SingI e => Instr s ('TSet e ': s)
+  EMPTY_MAP :: (SingI a, SingI b) => Instr s ('TMap a b ': s)
   MAP :: (Typeable (MapOpInp c ': s), MapOp c b)
       => Instr (MapOpInp c ': s) (b ': s)
       -> Instr (c ': s) (MapOpRes c b ': s)
   ITER :: (Typeable (IterOpEl c ': s), IterOp c) => Instr (IterOpEl c ': s) s -> Instr (c ': s) s
-  MEM :: MemOp c => Instr ('T_c (MemOpKey c) ': c ': s) ('T_c 'T_bool ': s)
+  MEM :: MemOp c => Instr ('Tc (MemOpKey c) ': c ': s) ('Tc 'CBool ': s)
   GET
     :: GetOp c
-    => Instr ('T_c (GetOpKey c) ': c ': s) ('T_option (GetOpVal c) ': s)
+    => Instr ('Tc (GetOpKey c) ': c ': s) ('TOption (GetOpVal c) ': s)
   UPDATE
     :: UpdOp c
-    => Instr ('T_c (UpdOpKey c) ': UpdOpParams c ': c ': s) (c ': s)
+    => Instr ('Tc (UpdOpKey c) ': UpdOpParams c ': c ': s) (c ': s)
   IF :: Typeable s
      => Instr s s'
      -> Instr s s'
-     -> Instr ('T_c 'T_bool ': s) s'
+     -> Instr ('Tc 'CBool ': s) s'
   LOOP :: Typeable s
-       => Instr s ('T_c 'T_bool ': s)
-       -> Instr ('T_c 'T_bool ': s) s
+       => Instr s ('Tc 'CBool ': s)
+       -> Instr ('Tc 'CBool ': s) s
   LOOP_LEFT
     :: (Typeable a, Typeable s)
-    => Instr (a ': s) ('T_or a b ': s)
-    -> Instr ('T_or a b ': s) (b ': s)
+    => Instr (a ': s) ('TOr a b ': s)
+    -> Instr ('TOr a b ': s) (b ': s)
   LAMBDA :: forall i o s . (SingI i, SingI o)
-         => Val Instr ('T_lambda i o) -> Instr s ('T_lambda i o ': s)
-  EXEC :: Typeable t1 => Instr (t1 ': 'T_lambda t1 t2 ': s) (t2 ': s)
+         => Val Instr ('TLambda i o) -> Instr s ('TLambda i o ': s)
+  EXEC :: Typeable t1 => Instr (t1 ': 'TLambda t1 t2 ': s) (t2 ': s)
   DIP :: Typeable a => Instr a c -> Instr (b ': a) (b ': c)
   FAILWITH :: Instr (a ': s) t
   CAST :: forall a s . SingI a => Instr (a ': s) (a ': s)
   RENAME :: Instr (a ': s) (a ': s)
-  PACK :: Instr (a ': s) ('T_c 'T_bytes ': s)
-  UNPACK :: SingI a => Instr ('T_c 'T_bytes ': s) ('T_option a ': s)
+  PACK :: Instr (a ': s) ('Tc 'CBytes ': s)
+  UNPACK :: SingI a => Instr ('Tc 'CBytes ': s) ('TOption a ': s)
   CONCAT :: ConcatOp c => Instr (c ': c ': s) (c ': s)
-  CONCAT' :: ConcatOp c => Instr ('T_list c ': s) (c ': s)
+  CONCAT' :: ConcatOp c => Instr ('TList c ': s) (c ': s)
   SLICE
     :: SliceOp c
-    => Instr ('T_c 'T_nat ': 'T_c 'T_nat ': c ': s) ('T_option c ': s)
-  ISNAT :: Instr ('T_c 'T_int ': s) ('T_option ('T_c 'T_nat) ': s)
+    => Instr ('Tc 'CNat ': 'Tc 'CNat ': c ': s) ('TOption c ': s)
+  ISNAT :: Instr ('Tc 'CInt ': s) ('TOption ('Tc 'CNat) ': s)
   ADD
     :: ArithOp Add n m
-    => Instr ('T_c n ': 'T_c m ': s) ('T_c (ArithRes Add n m) ': s)
+    => Instr ('Tc n ': 'Tc m ': s) ('Tc (ArithRes Add n m) ': s)
   SUB
     :: ArithOp Sub n m
-    => Instr ('T_c n ': 'T_c m ': s) ('T_c (ArithRes Sub n m) ': s)
+    => Instr ('Tc n ': 'Tc m ': s) ('Tc (ArithRes Sub n m) ': s)
   MUL
     :: ArithOp Mul n m
-    => Instr ('T_c n ': 'T_c m ': s) ('T_c (ArithRes Mul n m) ': s)
+    => Instr ('Tc n ': 'Tc m ': s) ('Tc (ArithRes Mul n m) ': s)
   EDIV
     :: EDivOp n m
-    => Instr ('T_c n ': 'T_c m ': s)
-                 (('T_option ('T_pair ('T_c (EDivOpRes n m))
-                                      ('T_c (EModOpRes n m)))) ': s)
+    => Instr ('Tc n ': 'Tc m ': s)
+                 (('TOption ('TPair ('Tc (EDivOpRes n m))
+                                      ('Tc (EModOpRes n m)))) ': s)
   ABS
     :: UnaryArithOp Abs n
-    => Instr ('T_c n ': s) ('T_c (UnaryArithRes Abs n) ': s)
+    => Instr ('Tc n ': s) ('Tc (UnaryArithRes Abs n) ': s)
   NEG
     :: UnaryArithOp Neg n
-    => Instr ('T_c n ': s) ('T_c (UnaryArithRes Neg n) ': s)
+    => Instr ('Tc n ': s) ('Tc (UnaryArithRes Neg n) ': s)
   LSL
     :: ArithOp Lsl n m
-    => Instr ('T_c n ': 'T_c m ': s) ('T_c (ArithRes Lsl n m) ': s)
+    => Instr ('Tc n ': 'Tc m ': s) ('Tc (ArithRes Lsl n m) ': s)
   LSR
     :: ArithOp Lsr n m
-    => Instr ('T_c n ': 'T_c m ': s) ('T_c (ArithRes Lsr n m) ': s)
+    => Instr ('Tc n ': 'Tc m ': s) ('Tc (ArithRes Lsr n m) ': s)
   OR
     :: ArithOp Or n m
-    => Instr ('T_c n ': 'T_c m ': s) ('T_c (ArithRes Or n m) ': s)
+    => Instr ('Tc n ': 'Tc m ': s) ('Tc (ArithRes Or n m) ': s)
   AND
     :: ArithOp And n m
-    => Instr ('T_c n ': 'T_c m ': s) ('T_c (ArithRes And n m) ': s)
+    => Instr ('Tc n ': 'Tc m ': s) ('Tc (ArithRes And n m) ': s)
   XOR
     :: ArithOp Xor n m
-    => Instr ('T_c n ': 'T_c m ': s) ('T_c (ArithRes Xor n m) ': s)
+    => Instr ('Tc n ': 'Tc m ': s) ('Tc (ArithRes Xor n m) ': s)
   NOT
     :: UnaryArithOp Not n
-    => Instr ('T_c n ': s) ('T_c (UnaryArithRes Not n) ': s)
+    => Instr ('Tc n ': s) ('Tc (UnaryArithRes Not n) ': s)
   COMPARE
     :: ArithOp Compare n m
-    => Instr ('T_c n ': 'T_c m ': s) ('T_c (ArithRes Compare n m) ': s)
+    => Instr ('Tc n ': 'Tc m ': s) ('Tc (ArithRes Compare n m) ': s)
   EQ
     :: UnaryArithOp Eq' n
-    => Instr ('T_c n ': s) ('T_c (UnaryArithRes Eq' n) ': s)
+    => Instr ('Tc n ': s) ('Tc (UnaryArithRes Eq' n) ': s)
   NEQ
     :: UnaryArithOp Neq n
-    => Instr ('T_c n ': s) ('T_c (UnaryArithRes Neq n) ': s)
+    => Instr ('Tc n ': s) ('Tc (UnaryArithRes Neq n) ': s)
   LT
     :: UnaryArithOp Lt n
-    => Instr ('T_c n ': s) ('T_c (UnaryArithRes Lt n) ': s)
+    => Instr ('Tc n ': s) ('Tc (UnaryArithRes Lt n) ': s)
   GT
     :: UnaryArithOp Gt n
-    => Instr ('T_c n ': s) ('T_c (UnaryArithRes Gt n) ': s)
+    => Instr ('Tc n ': s) ('Tc (UnaryArithRes Gt n) ': s)
   LE
     :: UnaryArithOp Le n
-    => Instr ('T_c n ': s) ('T_c (UnaryArithRes Le n) ': s)
+    => Instr ('Tc n ': s) ('Tc (UnaryArithRes Le n) ': s)
   GE
     :: UnaryArithOp Ge n
-    => Instr ('T_c n ': s) ('T_c (UnaryArithRes Ge n) ': s)
-  INT :: Instr ('T_c 'T_nat ': s) ('T_c 'T_int ': s)
-  SELF :: forall (cp :: T) s . Instr s ('T_contract cp ': s)
+    => Instr ('Tc n ': s) ('Tc (UnaryArithRes Ge n) ': s)
+  INT :: Instr ('Tc 'CNat ': s) ('Tc 'CInt ': s)
+  SELF :: forall (cp :: T) s . Instr s ('TContract cp ': s)
   CONTRACT
-    :: SingI p => Instr ('T_c 'T_address ': s) ('T_option ('T_contract p) ': s)
+    :: SingI p => Instr ('Tc 'CAddress ': s) ('TOption ('TContract p) ': s)
   TRANSFER_TOKENS
-    :: Instr (p ': 'T_c 'T_mutez ': 'T_contract p ': s)
-                   ('T_operation ': s)
+    :: Instr (p ': 'Tc 'CMutez ': 'TContract p ': s)
+                   ('TOperation ': s)
   SET_DELEGATE
-    :: Instr ('T_option ('T_c 'T_key_hash) ': s) ('T_operation ': s)
+    :: Instr ('TOption ('Tc 'CKeyHash) ': s) ('TOperation ': s)
 
   CREATE_ACCOUNT
     :: Instr
-        ('T_c 'T_key_hash ': 'T_option ('T_c 'T_key_hash) ': 'T_c 'T_bool
-         ': 'T_c 'T_mutez ': s) ('T_operation ': 'T_c 'T_address ': s)
+        ('Tc 'CKeyHash ': 'TOption ('Tc 'CKeyHash) ': 'Tc 'CBool
+         ': 'Tc 'CMutez ': s) ('TOperation ': 'Tc 'CAddress ': s)
 
   CREATE_CONTRACT
     :: (SingI p, SingI g)
     => Instr
-        ('T_c 'T_key_hash ': 'T_option ('T_c 'T_key_hash) ': 'T_c 'T_bool
-          ': 'T_c 'T_bool ': 'T_c 'T_mutez
-          ': 'T_lambda ('T_pair p g)
-                       ('T_pair ('T_list 'T_operation) g) ': g ': s)
-        ('T_operation ': 'T_c 'T_address ': s)
+        ('Tc 'CKeyHash ': 'TOption ('Tc 'CKeyHash) ': 'Tc 'CBool
+          ': 'Tc 'CBool ': 'Tc 'CMutez
+          ': 'TLambda ('TPair p g)
+                       ('TPair ('TList 'TOperation) g) ': g ': s)
+        ('TOperation ': 'Tc 'CAddress ': s)
   CREATE_CONTRACT2
     :: (SingI p, SingI g)
-    => Instr '[ 'T_pair p g ] '[ 'T_pair ('T_list 'T_operation) g ]
-    -> Instr ('T_c 'T_key_hash ':
-              'T_option ('T_c 'T_key_hash) ':
-              'T_c 'T_bool ':
-              'T_c 'T_bool ':
-              'T_c 'T_mutez ':
+    => Instr '[ 'TPair p g ] '[ 'TPair ('TList 'TOperation) g ]
+    -> Instr ('Tc 'CKeyHash ':
+              'TOption ('Tc 'CKeyHash) ':
+              'Tc 'CBool ':
+              'Tc 'CBool ':
+              'Tc 'CMutez ':
                g ': s)
-             ('T_operation ': 'T_c 'T_address ': s)
+             ('TOperation ': 'Tc 'CAddress ': s)
 
   IMPLICIT_ACCOUNT
-    :: Instr ('T_c 'T_key_hash ': s) ('T_contract 'T_unit ': s)
-  NOW :: Instr s ('T_c 'T_timestamp ': s)
-  AMOUNT :: Instr s ('T_c 'T_mutez ': s)
-  BALANCE :: Instr s ('T_c 'T_mutez ': s)
+    :: Instr ('Tc 'CKeyHash ': s) ('TContract 'TUnit ': s)
+  NOW :: Instr s ('Tc 'CTimestamp ': s)
+  AMOUNT :: Instr s ('Tc 'CMutez ': s)
+  BALANCE :: Instr s ('Tc 'CMutez ': s)
   CHECK_SIGNATURE
-    :: Instr ('T_key ': 'T_signature ': 'T_c 'T_bytes ': s)
-                   ('T_c 'T_bool ': s)
-  SHA256 :: Instr ('T_c 'T_bytes ': s) ('T_c 'T_bytes ': s)
-  SHA512 :: Instr ('T_c 'T_bytes ': s) ('T_c 'T_bytes ': s)
-  BLAKE2B :: Instr ('T_c 'T_bytes ': s) ('T_c 'T_bytes ': s)
-  HASH_KEY :: Instr ('T_key ': s) ('T_c 'T_key_hash ': s)
-  STEPS_TO_QUOTA :: Instr s ('T_c 'T_nat ': s)
-  SOURCE :: Instr s ('T_c 'T_address ': s)
-  SENDER :: Instr s ('T_c 'T_address ': s)
-  ADDRESS :: Instr ('T_contract a ': s) ('T_c 'T_address ': s)
+    :: Instr ('TKey ': 'TSignature ': 'Tc 'CBytes ': s)
+                   ('Tc 'CBool ': s)
+  SHA256 :: Instr ('Tc 'CBytes ': s) ('Tc 'CBytes ': s)
+  SHA512 :: Instr ('Tc 'CBytes ': s) ('Tc 'CBytes ': s)
+  BLAKE2B :: Instr ('Tc 'CBytes ': s) ('Tc 'CBytes ': s)
+  HASH_KEY :: Instr ('TKey ': s) ('Tc 'CKeyHash ': s)
+  STEPS_TO_QUOTA :: Instr s ('Tc 'CNat ': s)
+  SOURCE :: Instr s ('Tc 'CAddress ': s)
+  SENDER :: Instr s ('Tc 'CAddress ': s)
+  ADDRESS :: Instr ('TContract a ': s) ('Tc 'CAddress ': s)
 
 deriving instance Show (ExtT Instr) => Show (Instr inp out)
 

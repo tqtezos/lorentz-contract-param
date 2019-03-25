@@ -71,7 +71,7 @@ auctionSpec = parallel $ do
     aBitBeforeMidTimestamp = midTimestamp `timestampPlusSeconds` -1
     -- ^ 1s before NOW
 
-    -- N.B.: using Gen (CVal 'T_timestamp) from Morley.Test.
+    -- N.B.: using Gen (CVal 'CTimestamp) from Morley.Test.
     denseTime = CvTimestamp . (timestampPlusSeconds midTimestamp) <$> choose (-4, 4)
     denseAmount = unsafeMkMutez . (midAmount +) . fromInteger <$> choose (-4, 4)
 
@@ -84,7 +84,7 @@ auctionSpec = parallel $ do
     mkParam :: Param -> ContractParam instr
     mkParam = toVal
 
-    mkStorage :: (CVal 'T_timestamp, (Mutez, KeyHash)) -> ContractStorage instr
+    mkStorage :: (CVal 'CTimestamp, (Mutez, KeyHash)) -> ContractStorage instr
     mkStorage (CvTimestamp t, b) = toVal (t, b)
 
 keyHash1 :: KeyHash

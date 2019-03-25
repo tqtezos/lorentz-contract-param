@@ -67,22 +67,22 @@ notesCase _ f (N b) = f b
 -- and holds all type and field annotations that can be attributed to a
 -- Michelson type corrspoding to @t@.
 data Notes' t where
-  NT_c         :: TypeAnn -> Notes' ('T_c ct)
-  NT_key       :: TypeAnn -> Notes' 'T_key
-  NT_unit      :: TypeAnn -> Notes' 'T_unit
-  NT_signature :: TypeAnn -> Notes' 'T_signature
-  NT_option    :: TypeAnn -> FieldAnn -> Notes t -> Notes' ('T_option t)
-  NT_list      :: TypeAnn -> Notes t -> Notes' ('T_list t)
-  NT_set       :: TypeAnn -> TypeAnn -> Notes' ('T_set ct)
-  NT_operation :: TypeAnn -> Notes' 'T_operation
-  NT_contract  :: TypeAnn -> Notes t -> Notes' ('T_contract t)
-  NT_pair      :: TypeAnn -> FieldAnn -> FieldAnn
-               -> Notes p -> Notes q -> Notes' ('T_pair p q)
-  NT_or        :: TypeAnn -> FieldAnn -> FieldAnn
-               -> Notes p -> Notes q -> Notes' ('T_or p q)
-  NT_lambda    :: TypeAnn -> Notes p -> Notes q -> Notes' ('T_lambda p q)
-  NT_map       :: TypeAnn -> TypeAnn -> Notes v -> Notes' ('T_map k v)
-  NT_big_map   :: TypeAnn -> TypeAnn -> Notes v -> Notes' ('T_big_map k v)
+  NTc         :: TypeAnn -> Notes' ('Tc ct)
+  NTKey       :: TypeAnn -> Notes' 'TKey
+  NTUnit      :: TypeAnn -> Notes' 'TUnit
+  NTSignature :: TypeAnn -> Notes' 'TSignature
+  NTOption    :: TypeAnn -> FieldAnn -> Notes t -> Notes' ('TOption t)
+  NTList      :: TypeAnn -> Notes t -> Notes' ('TList t)
+  NTSet       :: TypeAnn -> TypeAnn -> Notes' ('TSet ct)
+  NTOperation :: TypeAnn -> Notes' 'TOperation
+  NTContract  :: TypeAnn -> Notes t -> Notes' ('TContract t)
+  NTPair      :: TypeAnn -> FieldAnn -> FieldAnn
+               -> Notes p -> Notes q -> Notes' ('TPair p q)
+  NTOr        :: TypeAnn -> FieldAnn -> FieldAnn
+               -> Notes p -> Notes q -> Notes' ('TOr p q)
+  NTLambda    :: TypeAnn -> Notes p -> Notes q -> Notes' ('TLambda p q)
+  NTMap       :: TypeAnn -> TypeAnn -> Notes v -> Notes' ('TMap k v)
+  NTBigMap   :: TypeAnn -> TypeAnn -> Notes v -> Notes' ('TBigMap k v)
 
 -- | Check whether given annotations object is @*@.
 isStar :: Notes t -> Bool
@@ -98,23 +98,23 @@ isDef = (== def)
 -- Given @n :: Notes' t@ can be immediately converted to star iff all nested
 -- @(sn :: Notes t) == NStar@ and for each annotation @an@: @an == def@.
 mkNotes :: Notes' t -> Notes t
-mkNotes (NT_option tn fn ns) | isStar ns && isDef tn && isDef fn   = NStar
-mkNotes (NT_list tn ns)      | isStar ns && isDef tn               = NStar
-mkNotes (NT_set tn en)       | isDef tn && isDef en                = NStar
-mkNotes (NT_contract tn ns)  | isStar ns && isDef tn               = NStar
-mkNotes (NT_pair tn fn1 fn2 ns1 ns2)
+mkNotes (NTOption tn fn ns) | isStar ns && isDef tn && isDef fn   = NStar
+mkNotes (NTList tn ns)      | isStar ns && isDef tn               = NStar
+mkNotes (NTSet tn en)       | isDef tn && isDef en                = NStar
+mkNotes (NTContract tn ns)  | isStar ns && isDef tn               = NStar
+mkNotes (NTPair tn fn1 fn2 ns1 ns2)
   | isStar ns1 && isStar ns2 && isDef tn && isDef fn1 && isDef fn2 = NStar
-mkNotes (NT_or tn fn1 fn2 ns1 ns2)
+mkNotes (NTOr tn fn1 fn2 ns1 ns2)
   | isStar ns1 && isStar ns2 && isDef tn && isDef fn1 && isDef fn2 = NStar
-mkNotes (NT_lambda tn ns1 ns2)
+mkNotes (NTLambda tn ns1 ns2)
   | isStar ns1 && isStar ns2 && isDef tn                           = NStar
-mkNotes (NT_map tn kn vns)
+mkNotes (NTMap tn kn vns)
   | isStar vns && isDef tn && isDef kn                             = NStar
-mkNotes (NT_c t) | isDef t                                         = NStar
-mkNotes (NT_key t) | isDef t                                       = NStar
-mkNotes (NT_unit t) | isDef t                                      = NStar
-mkNotes (NT_signature t) | isDef t                                 = NStar
-mkNotes (NT_operation t) | isDef t                                 = NStar
+mkNotes (NTc t) | isDef t                                         = NStar
+mkNotes (NTKey t) | isDef t                                       = NStar
+mkNotes (NTUnit t) | isDef t                                      = NStar
+mkNotes (NTSignature t) | isDef t                                 = NStar
+mkNotes (NTOperation t) | isDef t                                 = NStar
 mkNotes n = N n
 
 orAnn :: Annotation t -> Annotation t -> Annotation t
@@ -124,33 +124,33 @@ orAnn a b = bool a b (a == def)
 -- in such a way that `c` can be obtained from both `a` and `b` by replacing
 -- some @*@ leafs with type or/and field annotations.
 converge' :: Notes' t -> Notes' t -> Either Text (Notes' t)
-converge' (NT_c a) (NT_c b) = NT_c <$> convergeAnns a b
-converge' (NT_key a) (NT_key b) = NT_key <$> convergeAnns a b
-converge' (NT_unit a) (NT_unit b) = NT_unit <$> convergeAnns a b
-converge' (NT_signature a) (NT_signature b) =
-    NT_signature <$> convergeAnns a b
-converge' (NT_option a f n) (NT_option b g m) =
-  NT_option <$> convergeAnns a b <*> convergeAnns f g <*> converge n m
-converge' (NT_list a n) (NT_list b m) =
-  NT_list <$> convergeAnns a b <*> converge n m
-converge' (NT_set a n) (NT_set b m) =
-  NT_set <$> convergeAnns a b <*> convergeAnns n m
-converge' (NT_operation a) (NT_operation b) =
-  NT_operation <$> convergeAnns a b
-converge' (NT_contract a n) (NT_contract b m) =
-  NT_contract <$> convergeAnns a b <*> converge n m
-converge' (NT_pair a pF qF pN qN) (NT_pair b pG qG pM qM) =
-  NT_pair <$> convergeAnns a b <*> convergeAnns pF pG
+converge' (NTc a) (NTc b) = NTc <$> convergeAnns a b
+converge' (NTKey a) (NTKey b) = NTKey <$> convergeAnns a b
+converge' (NTUnit a) (NTUnit b) = NTUnit <$> convergeAnns a b
+converge' (NTSignature a) (NTSignature b) =
+    NTSignature <$> convergeAnns a b
+converge' (NTOption a f n) (NTOption b g m) =
+  NTOption <$> convergeAnns a b <*> convergeAnns f g <*> converge n m
+converge' (NTList a n) (NTList b m) =
+  NTList <$> convergeAnns a b <*> converge n m
+converge' (NTSet a n) (NTSet b m) =
+  NTSet <$> convergeAnns a b <*> convergeAnns n m
+converge' (NTOperation a) (NTOperation b) =
+  NTOperation <$> convergeAnns a b
+converge' (NTContract a n) (NTContract b m) =
+  NTContract <$> convergeAnns a b <*> converge n m
+converge' (NTPair a pF qF pN qN) (NTPair b pG qG pM qM) =
+  NTPair <$> convergeAnns a b <*> convergeAnns pF pG
           <*> convergeAnns qF qG <*> converge pN pM <*> converge qN qM
-converge' (NT_or a pF qF pN qN) (NT_or b pG qG pM qM) =
-  NT_or <$> convergeAnns a b <*> convergeAnns pF pG <*> convergeAnns qF qG
+converge' (NTOr a pF qF pN qN) (NTOr b pG qG pM qM) =
+  NTOr <$> convergeAnns a b <*> convergeAnns pF pG <*> convergeAnns qF qG
           <*> converge pN pM <*> converge qN qM
-converge' (NT_lambda a pN qN) (NT_lambda b pM qM) =
-  NT_lambda <$> convergeAnns a b <*> converge pN pM <*> converge qN qM
-converge' (NT_map a kN vN) (NT_map b kM vM) =
-  NT_map <$> convergeAnns a b <*> convergeAnns kN kM <*> converge vN vM
-converge' (NT_big_map a kN vN) (NT_big_map b kM vM) =
-  NT_big_map <$> convergeAnns a b <*> convergeAnns kN kM <*> converge vN vM
+converge' (NTLambda a pN qN) (NTLambda b pM qM) =
+  NTLambda <$> convergeAnns a b <*> converge pN pM <*> converge qN qM
+converge' (NTMap a kN vN) (NTMap b kM vM) =
+  NTMap <$> convergeAnns a b <*> convergeAnns kN kM <*> converge vN vM
+converge' (NTBigMap a kN vN) (NTBigMap b kM vM) =
+  NTBigMap <$> convergeAnns a b <*> convergeAnns kN kM <*> converge vN vM
 
 -- | Same as 'converge'' but works with 'Notes' data type.
 converge :: Notes t -> Notes t -> Either Text (Notes t)

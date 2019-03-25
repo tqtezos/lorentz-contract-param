@@ -27,9 +27,9 @@ interpretHandlerSpec = describe "interpretHandler PRINT/TEST_ASSERT tests" $
       runTest False c -1 -2
   where
     runTest corr contract x y = do
-      let x' = VC $ CvInt x :: Val Instr ('T.T_c 'T.T_int)
-      let y' = VC $ CvInt y :: Val Instr ('T.T_c 'T.T_int)
-      let area' = VC $ CvInt $ x * y :: Val Instr ('T.T_c 'T.T_int)
+      let x' = VC $ CvInt x :: Val Instr ('T.Tc 'T.CInt)
+      let y' = VC $ CvInt y :: Val Instr ('T.Tc 'T.CInt)
+      let area' = VC $ CvInt $ x * y :: Val Instr ('T.Tc 'T.CInt)
       let check (a, InterpreterState s _) =
             if corr then isRight a && s == MorleyLogs ["Area is " <> show area']
             else isLeft a && s == MorleyLogs ["Sides are " <> show x' <> " x " <> show y']
@@ -62,9 +62,9 @@ typeCheckHandlerSpec = describe "typeCheckHandler STACKTYPE tests" $ do
     test8 = (STACKTYPE p3, convertToHST [t1])
     test9 = (STACKTYPE p2, convertToHST [t1, t3])
 
-    t1 = Type (T_option (ann "f") (Type T_key (ann "key"))) (ann "opt")
-    t2 = Type (T_pair (ann "f") (ann "s") (Type T_unit "x") (Type T_signature "s")) noAnn
-    t3 = Type (T_comparable T_int) (ann "tint")
+    t1 = Type (TOption (ann "f") (Type TKey (ann "key"))) (ann "opt")
+    t2 = Type (TPair (ann "f") (ann "s") (Type TUnit "x") (Type TSignature "s")) noAnn
+    t3 = Type (Tc CInt) (ann "tint")
 
     convertToHST :: [Type] -> SomeHST
     convertToHST [] = SomeHST SNil
@@ -73,7 +73,7 @@ typeCheckHandlerSpec = describe "typeCheckHandler STACKTYPE tests" $ do
       case convertToHST ts of
         SomeHST is -> SomeHST ((sing, nt, noAnn) ::& is)
 
-    nh (ni, si) = runTypeCheckT typeCheckHandler (Type T_key noAnn) $ typeCheckHandler ni [] si
+    nh (ni, si) = runTypeCheckT typeCheckHandler (Type TKey noAnn) $ typeCheckHandler ni [] si
 
     runNopTest :: (UExtInstr, SomeHST) -> Bool -> Expectation
     runNopTest tcase correct = case (nh tcase, correct) of

@@ -24,15 +24,15 @@ import Tezos.Crypto (KeyHash)
 -- Only these values can be used as map keys
 -- or set elements.
 data CVal t where
-  CvInt       :: Integer -> CVal 'T_int
-  CvNat       :: Natural -> CVal 'T_nat
-  CvString    :: Text -> CVal 'T_string
-  CvBytes     :: ByteString -> CVal 'T_bytes
-  CvMutez     :: Mutez -> CVal 'T_mutez
-  CvBool      :: Bool -> CVal 'T_bool
-  CvKeyHash   :: KeyHash -> CVal 'T_key_hash
-  CvTimestamp :: Timestamp -> CVal 'T_timestamp
-  CvAddress   :: Address -> CVal 'T_address
+  CvInt       :: Integer -> CVal 'CInt
+  CvNat       :: Natural -> CVal 'CNat
+  CvString    :: Text -> CVal 'CString
+  CvBytes     :: ByteString -> CVal 'CBytes
+  CvMutez     :: Mutez -> CVal 'CMutez
+  CvBool      :: Bool -> CVal 'CBool
+  CvKeyHash   :: KeyHash -> CVal 'CKeyHash
+  CvTimestamp :: Timestamp -> CVal 'CTimestamp
+  CvAddress   :: Address -> CVal 'CAddress
 
 deriving instance Show (CVal t)
 deriving instance Eq (CVal t)

@@ -46,7 +46,7 @@ class ArithOp aop (n :: CT) (m :: CT) where
   --
   -- For instance, adding integer to natural produces integer,
   -- which is reflected in following instance of type family:
-  -- @ArithRes Add T_nat T_int = T_int@.
+  -- @ArithRes Add CNat CInt = CInt@.
   type ArithRes aop n m :: CT
 
   -- | Evaluate arithmetic operation on given operands.
@@ -90,194 +90,194 @@ data Gt
 data Le
 data Ge
 
-instance ArithOp Add 'T_nat 'T_int where
-  type ArithRes Add 'T_nat 'T_int = 'T_int
+instance ArithOp Add 'CNat 'CInt where
+  type ArithRes Add 'CNat 'CInt = 'CInt
   evalOp _ (CvNat i) (CvInt j) = Right $ CvInt (toInteger i + j)
-instance ArithOp Add 'T_int 'T_nat where
-  type ArithRes Add 'T_int 'T_nat = 'T_int
+instance ArithOp Add 'CInt 'CNat where
+  type ArithRes Add 'CInt 'CNat = 'CInt
   evalOp _ (CvInt i) (CvNat j) = Right $ CvInt (i + toInteger j)
-instance ArithOp Add 'T_nat 'T_nat where
-  type ArithRes Add 'T_nat 'T_nat = 'T_nat
+instance ArithOp Add 'CNat 'CNat where
+  type ArithRes Add 'CNat 'CNat = 'CNat
   evalOp _ (CvNat i) (CvNat j) = Right $ CvNat (i + j)
-instance ArithOp Add 'T_int 'T_int where
-  type ArithRes Add 'T_int 'T_int = 'T_int
+instance ArithOp Add 'CInt 'CInt where
+  type ArithRes Add 'CInt 'CInt = 'CInt
   evalOp _ (CvInt i) (CvInt j) = Right $ CvInt (i + j)
-instance ArithOp Add 'T_timestamp 'T_int where
-  type ArithRes Add 'T_timestamp 'T_int = 'T_timestamp
+instance ArithOp Add 'CTimestamp 'CInt where
+  type ArithRes Add 'CTimestamp 'CInt = 'CTimestamp
   evalOp _ (CvTimestamp i) (CvInt j) =
     Right $ CvTimestamp $ timestampFromSeconds $ timestampToSeconds i + j
-instance ArithOp Add 'T_int 'T_timestamp where
-  type ArithRes Add 'T_int 'T_timestamp = 'T_timestamp
+instance ArithOp Add 'CInt 'CTimestamp where
+  type ArithRes Add 'CInt 'CTimestamp = 'CTimestamp
   evalOp _ (CvInt i) (CvTimestamp j) =
     Right $ CvTimestamp $ timestampFromSeconds $ timestampToSeconds j + i
-instance ArithOp Add 'T_mutez 'T_mutez where
-  type ArithRes Add 'T_mutez 'T_mutez = 'T_mutez
+instance ArithOp Add 'CMutez 'CMutez where
+  type ArithRes Add 'CMutez 'CMutez = 'CMutez
   evalOp _ n@(CvMutez i) m@(CvMutez j) = res
     where
       res = maybe (Left $ MutezArithError AddOverflow n m) (Right . CvMutez) $ i `addMutez` j
 
-instance ArithOp Sub 'T_nat 'T_int where
-  type ArithRes Sub 'T_nat 'T_int = 'T_int
+instance ArithOp Sub 'CNat 'CInt where
+  type ArithRes Sub 'CNat 'CInt = 'CInt
   evalOp _ (CvNat i) (CvInt j) = Right $ CvInt (toInteger i - j)
-instance ArithOp Sub 'T_int 'T_nat where
-  type ArithRes Sub 'T_int 'T_nat = 'T_int
+instance ArithOp Sub 'CInt 'CNat where
+  type ArithRes Sub 'CInt 'CNat = 'CInt
   evalOp _ (CvInt i) (CvNat j) = Right $ CvInt (i - toInteger j)
-instance ArithOp Sub 'T_nat 'T_nat where
-  type ArithRes Sub 'T_nat 'T_nat = 'T_int
+instance ArithOp Sub 'CNat 'CNat where
+  type ArithRes Sub 'CNat 'CNat = 'CInt
   evalOp _ (CvNat i) (CvNat j) = Right $ CvInt (toInteger i - toInteger j)
-instance ArithOp Sub 'T_int 'T_int where
-  type ArithRes Sub 'T_int 'T_int = 'T_int
+instance ArithOp Sub 'CInt 'CInt where
+  type ArithRes Sub 'CInt 'CInt = 'CInt
   evalOp _ (CvInt i) (CvInt j) = Right $ CvInt (i - j)
-instance ArithOp Sub 'T_timestamp 'T_int where
-  type ArithRes Sub 'T_timestamp 'T_int = 'T_timestamp
+instance ArithOp Sub 'CTimestamp 'CInt where
+  type ArithRes Sub 'CTimestamp 'CInt = 'CTimestamp
   evalOp _ (CvTimestamp i) (CvInt j) =
     Right $ CvTimestamp $ timestampFromSeconds $ timestampToSeconds i - j
-instance ArithOp Sub 'T_timestamp 'T_timestamp where
-  type ArithRes Sub 'T_timestamp 'T_timestamp = 'T_int
+instance ArithOp Sub 'CTimestamp 'CTimestamp where
+  type ArithRes Sub 'CTimestamp 'CTimestamp = 'CInt
   evalOp _ (CvTimestamp i) (CvTimestamp j) =
     Right $ CvInt $ timestampToSeconds i - timestampToSeconds j
-instance ArithOp Sub 'T_mutez 'T_mutez where
-  type ArithRes Sub 'T_mutez 'T_mutez = 'T_mutez
+instance ArithOp Sub 'CMutez 'CMutez where
+  type ArithRes Sub 'CMutez 'CMutez = 'CMutez
   evalOp _ n@(CvMutez i) m@(CvMutez j) = res
     where
       res = maybe (Left $ MutezArithError SubUnderflow n m) (Right . CvMutez) $ i `subMutez` j
 
-instance ArithOp Mul 'T_nat 'T_int where
-  type ArithRes Mul 'T_nat 'T_int = 'T_int
+instance ArithOp Mul 'CNat 'CInt where
+  type ArithRes Mul 'CNat 'CInt = 'CInt
   evalOp _ (CvNat i) (CvInt j) = Right $ CvInt (toInteger i * j)
-instance ArithOp Mul 'T_int 'T_nat where
-  type ArithRes Mul 'T_int 'T_nat = 'T_int
+instance ArithOp Mul 'CInt 'CNat where
+  type ArithRes Mul 'CInt 'CNat = 'CInt
   evalOp _ (CvInt i) (CvNat j) = Right $ CvInt (i * toInteger j)
-instance ArithOp Mul 'T_nat 'T_nat where
-  type ArithRes Mul 'T_nat 'T_nat = 'T_nat
+instance ArithOp Mul 'CNat 'CNat where
+  type ArithRes Mul 'CNat 'CNat = 'CNat
   evalOp _ (CvNat i) (CvNat j) = Right $ CvNat (i * j)
-instance ArithOp Mul 'T_int 'T_int where
-  type ArithRes Mul 'T_int 'T_int = 'T_int
+instance ArithOp Mul 'CInt 'CInt where
+  type ArithRes Mul 'CInt 'CInt = 'CInt
   evalOp _ (CvInt i) (CvInt j) = Right $ CvInt (i * j)
-instance ArithOp Mul 'T_nat 'T_mutez where
-  type ArithRes Mul 'T_nat 'T_mutez = 'T_mutez
+instance ArithOp Mul 'CNat 'CMutez where
+  type ArithRes Mul 'CNat 'CMutez = 'CMutez
   evalOp _ n@(CvNat i) m@(CvMutez j) = res
     where
       res = maybe (Left $ MutezArithError MulOverflow n m) (Right . CvMutez) $ j `mulMutez` i
-instance ArithOp Mul 'T_mutez 'T_nat where
-  type ArithRes Mul 'T_mutez 'T_nat = 'T_mutez
+instance ArithOp Mul 'CMutez 'CNat where
+  type ArithRes Mul 'CMutez 'CNat = 'CMutez
   evalOp _ n@(CvMutez i) m@(CvNat j) = res
     where
       res = maybe (Left $ MutezArithError MulOverflow n m) (Right . CvMutez) $ i `mulMutez` j
 
-instance UnaryArithOp Abs 'T_int where
-  type UnaryArithRes Abs 'T_int = 'T_nat
+instance UnaryArithOp Abs 'CInt where
+  type UnaryArithRes Abs 'CInt = 'CNat
   evalUnaryArithOp _ (CvInt i) = CvNat (fromInteger $ abs i)
 
-instance UnaryArithOp Neg 'T_int where
-  type UnaryArithRes Neg 'T_int = 'T_int
+instance UnaryArithOp Neg 'CInt where
+  type UnaryArithRes Neg 'CInt = 'CInt
   evalUnaryArithOp _ (CvInt i) = CvInt (-i)
 
-instance ArithOp Or 'T_nat 'T_nat where
-  type ArithRes Or 'T_nat 'T_nat = 'T_nat
+instance ArithOp Or 'CNat 'CNat where
+  type ArithRes Or 'CNat 'CNat = 'CNat
   evalOp _ (CvNat i) (CvNat j) = Right $ CvNat (i .|. j)
-instance ArithOp Or 'T_bool 'T_bool where
-  type ArithRes Or 'T_bool 'T_bool = 'T_bool
+instance ArithOp Or 'CBool 'CBool where
+  type ArithRes Or 'CBool 'CBool = 'CBool
   evalOp _ (CvBool i) (CvBool j) = Right $ CvBool (i .|. j)
 
-instance ArithOp And 'T_int 'T_nat where
-  type ArithRes And 'T_int 'T_nat = 'T_int
+instance ArithOp And 'CInt 'CNat where
+  type ArithRes And 'CInt 'CNat = 'CInt
   evalOp _ (CvInt i) (CvNat j) = Right $ CvInt (i .&. fromIntegral j)
-instance ArithOp And 'T_nat 'T_nat where
-  type ArithRes And 'T_nat 'T_nat = 'T_nat
+instance ArithOp And 'CNat 'CNat where
+  type ArithRes And 'CNat 'CNat = 'CNat
   evalOp _ (CvNat i) (CvNat j) = Right $ CvNat (i .&. j)
-instance ArithOp And 'T_bool 'T_bool where
-  type ArithRes And 'T_bool 'T_bool = 'T_bool
+instance ArithOp And 'CBool 'CBool where
+  type ArithRes And 'CBool 'CBool = 'CBool
   evalOp _ (CvBool i) (CvBool j) = Right $ CvBool (i .&. j)
 
-instance ArithOp Xor 'T_nat 'T_nat where
-  type ArithRes Xor 'T_nat 'T_nat = 'T_nat
+instance ArithOp Xor 'CNat 'CNat where
+  type ArithRes Xor 'CNat 'CNat = 'CNat
   evalOp _ (CvNat i) (CvNat j) = Right $ CvNat (i `xor` j)
-instance ArithOp Xor 'T_bool 'T_bool where
-  type ArithRes Xor 'T_bool 'T_bool = 'T_bool
+instance ArithOp Xor 'CBool 'CBool where
+  type ArithRes Xor 'CBool 'CBool = 'CBool
   evalOp _ (CvBool i) (CvBool j) = Right $ CvBool (i `xor` j)
 
 -- Todo add condition when shift >= 256
-instance ArithOp Lsl 'T_nat 'T_nat where
-  type ArithRes Lsl 'T_nat 'T_nat = 'T_nat
+instance ArithOp Lsl 'CNat 'CNat where
+  type ArithRes Lsl 'CNat 'CNat = 'CNat
   evalOp _ (CvNat i) (CvNat j) =
     Right $ CvNat (fromInteger $ shift (toInteger i) (fromIntegral j))
 
-instance ArithOp Lsr 'T_nat 'T_nat where
-  type ArithRes Lsr 'T_nat 'T_nat = 'T_nat
+instance ArithOp Lsr 'CNat 'CNat where
+  type ArithRes Lsr 'CNat 'CNat = 'CNat
   evalOp _ (CvNat i) (CvNat j) =
     Right $ CvNat (fromInteger $ shift (toInteger i) (-(fromIntegral j)))
 
-instance UnaryArithOp Not 'T_int where
-  type UnaryArithRes Not 'T_int = 'T_int
+instance UnaryArithOp Not 'CInt where
+  type UnaryArithRes Not 'CInt = 'CInt
   evalUnaryArithOp _ (CvInt i) = CvInt (complement i)
-instance UnaryArithOp Not 'T_nat where
-  type UnaryArithRes Not 'T_nat = 'T_int
+instance UnaryArithOp Not 'CNat where
+  type UnaryArithRes Not 'CNat = 'CInt
   evalUnaryArithOp _ (CvNat i) = CvInt (complement $ toInteger i)
-instance UnaryArithOp Not 'T_bool where
-  type UnaryArithRes Not 'T_bool = 'T_bool
+instance UnaryArithOp Not 'CBool where
+  type UnaryArithRes Not 'CBool = 'CBool
   evalUnaryArithOp _ (CvBool i) = CvBool (not i)
 
-instance ArithOp Compare 'T_bool 'T_bool where
-  type ArithRes Compare 'T_bool 'T_bool = 'T_int
+instance ArithOp Compare 'CBool 'CBool where
+  type ArithRes Compare 'CBool 'CBool = 'CInt
   evalOp _ (CvBool i) (CvBool j) =
     Right $ CvInt $ toInteger $ fromEnum (compare i j) - 1
-instance ArithOp Compare 'T_address 'T_address where
-  type ArithRes Compare 'T_address 'T_address = 'T_int
+instance ArithOp Compare 'CAddress 'CAddress where
+  type ArithRes Compare 'CAddress 'CAddress = 'CInt
   evalOp _ (CvAddress i) (CvAddress j) =
     Right $ CvInt $ toInteger $ fromEnum (compare i j) - 1
-instance ArithOp Compare 'T_nat 'T_nat where
-  type ArithRes Compare 'T_nat 'T_nat = 'T_int
+instance ArithOp Compare 'CNat 'CNat where
+  type ArithRes Compare 'CNat 'CNat = 'CInt
   evalOp _ (CvNat i) (CvNat j) =
     Right $ CvInt $ toInteger $ fromEnum (compare i j) - 1
-instance ArithOp Compare 'T_int 'T_int where
-  type ArithRes Compare 'T_int 'T_int = 'T_int
+instance ArithOp Compare 'CInt 'CInt where
+  type ArithRes Compare 'CInt 'CInt = 'CInt
   evalOp _ (CvInt i) (CvInt j) =
     Right $ CvInt $ toInteger $ fromEnum (compare i j) - 1
-instance ArithOp Compare 'T_string 'T_string where
-  type ArithRes Compare 'T_string 'T_string = 'T_int
+instance ArithOp Compare 'CString 'CString where
+  type ArithRes Compare 'CString 'CString = 'CInt
   evalOp _ (CvString i) (CvString j) =
     Right $ CvInt $ toInteger $ fromEnum (compare i j) - 1
-instance ArithOp Compare 'T_bytes 'T_bytes where
-  type ArithRes Compare 'T_bytes 'T_bytes = 'T_int
+instance ArithOp Compare 'CBytes 'CBytes where
+  type ArithRes Compare 'CBytes 'CBytes = 'CInt
   evalOp _ (CvBytes i) (CvBytes j) =
     Right $ CvInt $ toInteger $ fromEnum (compare i j) - 1
-instance ArithOp Compare 'T_timestamp 'T_timestamp where
-  type ArithRes Compare 'T_timestamp 'T_timestamp = 'T_int
+instance ArithOp Compare 'CTimestamp 'CTimestamp where
+  type ArithRes Compare 'CTimestamp 'CTimestamp = 'CInt
   evalOp _ (CvTimestamp i) (CvTimestamp j) =
     Right $ CvInt $ toInteger $ fromEnum (compare i j) - 1
-instance ArithOp Compare 'T_mutez 'T_mutez where
-  type ArithRes Compare 'T_mutez 'T_mutez = 'T_int
+instance ArithOp Compare 'CMutez 'CMutez where
+  type ArithRes Compare 'CMutez 'CMutez = 'CInt
   evalOp _ (CvMutez i) (CvMutez j) = Right $
     CvInt $ toInteger $ fromEnum (compare i j) - 1
-instance ArithOp Compare 'T_key_hash 'T_key_hash where
-  type ArithRes Compare 'T_key_hash 'T_key_hash = 'T_int
+instance ArithOp Compare 'CKeyHash 'CKeyHash where
+  type ArithRes Compare 'CKeyHash 'CKeyHash = 'CInt
   evalOp _ (CvKeyHash i) (CvKeyHash j) =
     Right $ CvInt $ toInteger $ fromEnum (compare i j) - 1
 
-instance UnaryArithOp Eq' 'T_int where
-  type UnaryArithRes Eq' 'T_int = 'T_bool
+instance UnaryArithOp Eq' 'CInt where
+  type UnaryArithRes Eq' 'CInt = 'CBool
   evalUnaryArithOp _ (CvInt i) = CvBool (i == 0)
 
-instance UnaryArithOp Neq 'T_int where
-  type UnaryArithRes Neq 'T_int = 'T_bool
+instance UnaryArithOp Neq 'CInt where
+  type UnaryArithRes Neq 'CInt = 'CBool
   evalUnaryArithOp _ (CvInt i) = CvBool (i /= 0)
 
 
-instance UnaryArithOp Lt 'T_int where
-  type UnaryArithRes Lt 'T_int = 'T_bool
+instance UnaryArithOp Lt 'CInt where
+  type UnaryArithRes Lt 'CInt = 'CBool
   evalUnaryArithOp _ (CvInt i) = CvBool (i < 0)
 
-instance UnaryArithOp Gt 'T_int where
-  type UnaryArithRes Gt 'T_int = 'T_bool
+instance UnaryArithOp Gt 'CInt where
+  type UnaryArithRes Gt 'CInt = 'CBool
   evalUnaryArithOp _ (CvInt i) = CvBool (i > 0)
 
-instance UnaryArithOp Le 'T_int where
-  type UnaryArithRes Le 'T_int = 'T_bool
+instance UnaryArithOp Le 'CInt where
+  type UnaryArithRes Le 'CInt = 'CBool
   evalUnaryArithOp _ (CvInt i) = CvBool (i <= 0)
 
-instance UnaryArithOp Ge 'T_int where
-  type UnaryArithRes Ge 'T_int = 'T_bool
+instance UnaryArithOp Ge 'CInt where
+  type UnaryArithRes Ge 'CInt = 'CBool
   evalUnaryArithOp _ (CvInt i) = CvBool (i >= 0)
 
 

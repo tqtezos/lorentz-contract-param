@@ -176,7 +176,7 @@ interpret instr param initSt env@InterpreterEnv{..} initState = first (fmap toRe
     (InterpreterState initState $ ceMaxSteps ieContractEnv)
   where
     toRes
-      :: (Rec (Val instr) '[ 'T_pair ('T_list 'T_operation) st ])
+      :: (Rec (Val instr) '[ 'TPair ('TList 'TOperation) st ])
       -> ([Operation instr], Val instr st)
     toRes (VPair (VList ops_, newSt) :& RNil) =
       (map (\(VOp op) -> op) ops_, newSt)
@@ -417,7 +417,7 @@ runArithOp
   => proxy aop
   -> CVal n
   -> CVal m
-  -> EvalOp s (Val instr ('T_c (ArithRes aop n m)))
+  -> EvalOp s (Val instr ('Tc (ArithRes aop n m)))
 runArithOp op l r = case evalOp op l r of
   Left  err -> throwError (MichelsonArithError err)
   Right res -> pure (VC res)
@@ -425,7 +425,7 @@ runArithOp op l r = case evalOp op l r of
 createOrigOp
   :: (SingI param, SingI store, ConversibleExt)
   => KeyHash
-  -> Maybe (Val Instr ('T_c 'U.T_key_hash))
+  -> Maybe (Val Instr ('Tc 'U.CKeyHash))
   -> Bool -> Bool -> Mutez
   -> Contract param store
   -> Val Instr t
@@ -441,6 +441,6 @@ createOrigOp k mbKeyHash delegetable spendable m contract g =
     , ooContract = convertContract contract
     }
 
-unwrapMbKeyHash :: Maybe (Val Instr ('T_c 'U.T_key_hash)) -> Maybe KeyHash
+unwrapMbKeyHash :: Maybe (Val Instr ('Tc 'U.CKeyHash)) -> Maybe KeyHash
 unwrapMbKeyHash (Just (VC (CvKeyHash keyHash))) = Just keyHash
 unwrapMbKeyHash Nothing = Nothing
