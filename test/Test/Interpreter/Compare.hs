@@ -9,7 +9,7 @@ import Test.QuickCheck (Property, arbitrary, (===))
 import Test.QuickCheck.Property (forAll, withMaxSuccess)
 
 import Michelson.Interpret (InterpreterState, MichelsonFailed)
-import Michelson.Typed (ToT, Val(..), fromVal, toVal)
+import Michelson.Typed (ToT, Val(..), fromVal)
 import Morley.Test (contractProp, specWithTypedContract)
 import Morley.Test.Dummy
 import Morley.Test.Util (failedProp)
@@ -37,8 +37,8 @@ compareSpec = parallel $ do
 
 
   where
-    mkStorage :: ContractStorage instr
-    mkStorage = VList []
+    initStorage :: [Bool]
+    initStorage = []
 
     mkExpected :: Param -> [Bool]
     mkExpected (a, b) = [a == b, a > b, a < b, a >= b, a <= b]
@@ -55,5 +55,5 @@ compareSpec = parallel $ do
       contractProp contract
         (validate (mkExpected inputs))
         dummyContractEnv
-        (toVal inputs)
-        mkStorage
+        inputs
+        initStorage

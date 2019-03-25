@@ -54,8 +54,8 @@ spec = describe "Advanced type interpreter tests" $ do
 
   specWithTypedContract "contracts/basic1.tz" $ \contract -> do
     prop "Random check" $ \input ->
-      contractProp contract (validateBasic1 input) dummyContractEnv
-      (toVal ()) (toVal input)
+      contractProp @_ @[Integer] contract (validateBasic1 input)
+      dummyContractEnv () input
 
   auctionSpec
   compareSpec

@@ -9,14 +9,13 @@ import Test.QuickCheck (Property, arbitrary, (===))
 import Test.QuickCheck.Property (forAll, withMaxSuccess)
 
 import Michelson.Interpret (InterpreterState, MichelsonFailed)
-import Michelson.Typed (CVal(..), ToT, Val(..), toVal)
+import Michelson.Typed (CVal(..), ToT, Val(..))
 import Morley.Test (contractProp, specWithTypedContract)
 import Morley.Test.Dummy (dummyContractEnv)
 import Morley.Test.Util (failedProp, qcIsLeft, qcIsRight)
 import Morley.Types (MorleyLogs)
 
 type Param = Either Text (Maybe Integer)
-type ContractParam instr = Val instr (ToT Param)
 type ContractStorage instr = Val instr (ToT Text)
 type ContractResult x instr
    = ( Either MichelsonFailed ([x], ContractStorage instr)
@@ -37,12 +36,6 @@ conditionalsSpec = parallel $ do
           contractProp' contract (first toText inputs')
 
   where
-    mkStorage :: ContractStorage instr
-    mkStorage = toVal @Text "storage"
-
-    mkParam :: Param -> ContractParam instr
-    mkParam = toVal
-
     validate
       :: Show x
       => Param
@@ -58,5 +51,5 @@ conditionalsSpec = parallel $ do
       contractProp contract
         (validate inputs)
         dummyContractEnv
-        (mkParam inputs)
-        mkStorage
+        inputs
+        ("storage" :: Text)

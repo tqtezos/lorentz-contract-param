@@ -60,12 +60,12 @@ specImpl (uSelfCaller, selfCaller) = modifyMaxSuccess (min 10) $ do
   it ("With parameter 1 single execution consumes " <>
       show @_ @Int gasForLastExecution <> " gas") $
     contractProp selfCaller (unitValidator gasForLastExecution) unitContractEnv
-    (toVal @Integer 1) (toVal @Natural 0)
+    (1 :: Integer) (0 :: Natural)
 
   it ("With parameter 2 single execution consumes " <>
       show @_ @Int gasForOneExecution <> " gas") $
     contractProp selfCaller (unitValidator gasForOneExecution) unitContractEnv
-    (toVal @Integer 2) (toVal @Natural 0)
+    (2 :: Integer) (0 :: Natural)
 
   prop propertyDescription $
     forAll genFixture $ \fixture ->

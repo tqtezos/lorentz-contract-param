@@ -6,6 +6,7 @@ module Morley.Test
   ( ContractReturn
   , ContractPropValidator
   , contractProp
+  , contractPropVal
   , specWithContract
   , specWithTypedContract
   , importContract
@@ -28,7 +29,7 @@ import Text.Megaparsec (parse)
 
 import Michelson.Interpret (ContractEnv, ContractReturn)
 import Michelson.TypeCheck (SomeContract(..), TCError)
-import Michelson.Typed (CT(..), CVal(..), Contract, Instr, T(..), Val(..))
+import Michelson.Typed (CT(..), CVal(..), Contract, Instr, T(..), ToT, ToVal(..), Val(..))
 import qualified Michelson.Untyped as U
 import Morley.Aliases (UntypedContract)
 import Morley.Ext (interpretMorley, typeCheckMorleyContract)
@@ -53,6 +54,22 @@ type ContractPropValidator st prop = ContractReturn MorleyLogs st -> prop
 -- Takes contract environment, initial storage and parameter,
 -- interprets contract on this input and invokes validation function.
 contractProp
+  :: ( ToVal param, ToVal storage
+     , ToT param ~ cp, ToT storage ~ st
+     , Typeable cp, Typeable st
+     )
+  => Contract cp st
+  -> ContractPropValidator st prop
+  -> ContractEnv
+  -> param
+  -> storage
+  -> prop
+contractProp instr check env param initSt =
+  contractPropVal instr check env (toVal param) (toVal initSt)
+
+-- | Version of 'contractProp' which takes 'Val' as arguments instead
+-- of regular Haskell values.
+contractPropVal
   :: (Typeable cp, Typeable st)
   => Contract cp st
   -> ContractPropValidator st prop
@@ -60,7 +77,7 @@ contractProp
   -> Val Instr cp
   -> Val Instr st
   -> prop
-contractProp instr check env param initSt =
+contractPropVal instr check env param initSt =
   check $ interpretMorley instr param initSt env
 
 -- | Import contract and use it in the spec. Both versions of contract are

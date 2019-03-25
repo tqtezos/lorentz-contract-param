@@ -13,7 +13,7 @@ import Test.QuickCheck.Property (expectFailure, forAll, withMaxSuccess)
 import Test.QuickCheck.Random (mkQCGen)
 
 import Michelson.Interpret (ContractEnv(..))
-import Michelson.Typed (CVal(..), Operation(..), ToT, TransferTokens(..), Val(..), toVal)
+import Michelson.Typed (CVal(..), Operation(..), ToT, TransferTokens(..), Val(..))
 import Morley.Test (ContractPropValidator, contractProp, midTimestamp, specWithTypedContract)
 import Morley.Test.Dummy
 import Morley.Test.Util (failedProp)
@@ -23,8 +23,6 @@ import Tezos.Crypto (KeyHash)
 
 type Storage = (Timestamp, (Mutez, KeyHash))
 type Param = KeyHash
-type ContractParam instr = Val instr (ToT Param)
-type ContractStorage instr = Val instr (ToT Storage)
 
 -- | Spec to test auction.tz contract.
 --
@@ -38,8 +36,8 @@ auctionSpec = parallel $ do
       contractProp contract
         (flip shouldSatisfy (isLeft . fst))
         (env { ceAmount = unsafeMkMutez 1200 })
-        (mkParam keyHash2)
-        (toVal (aBitBeforeMidTimestamp, (unsafeMkMutez 1000, keyHash1)))
+        keyHash2
+        (aBitBeforeMidTimestamp, (unsafeMkMutez 1000, keyHash1))
 
     prop "Random check (sparse distribution)" $ withMaxSuccess 200 $
       qcProp contract arbitrary arbitrary
@@ -65,7 +63,7 @@ auctionSpec = parallel $ do
       forAll ((,) <$> eoaGen <*> ((,) <$> amountGen <*> arbitrary)) $
         \s p ->
           let validate = validateAuction env p s
-           in contractProp contract validate env (mkParam p) (mkStorage s)
+           in contractProp contract validate env p s
 
     aBitBeforeMidTimestamp = midTimestamp `timestampPlusSeconds` -1
     -- ^ 1s before NOW
@@ -78,12 +76,6 @@ auctionSpec = parallel $ do
             , ceAmount = unsafeMkMutez midAmount
             }
     midAmount = unMutez (maxBound `unsafeSubMutez` minBound) `div` 2
-
-    mkParam :: Param -> ContractParam instr
-    mkParam = toVal
-
-    mkStorage :: Storage -> ContractStorage instr
-    mkStorage = toVal
 
 keyHash1 :: KeyHash
 keyHash1 = unGen arbitrary (mkQCGen 300406) 0
