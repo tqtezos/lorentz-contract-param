@@ -200,7 +200,7 @@ maxStepsOption :: Opt.Parser Word64
 maxStepsOption = option auto $
   value 100500 <>
   long "max-steps" <>
-  metavar "Word64" <>
+  metavar "INT" <>
   help "Max steps that you want the runtime interpreter to use" <>
   showDefault
 
