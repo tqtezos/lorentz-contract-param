@@ -22,7 +22,7 @@ import Michelson.Interpret
 import Michelson.TypeCheck
 import Michelson.TypeCheck.Helpers (convergeHST, eqT')
 import Michelson.TypeCheck.Types (HST)
-import Michelson.Typed (T(..), Val, converge, extractNotes, mkUType)
+import Michelson.Typed (Val, converge, extractNotes, mkUType)
 import qualified Michelson.Typed as T
 import Michelson.Untyped (CT(..), InstrAbstract(..))
 import Morley.Types
@@ -64,7 +64,7 @@ typeCheckHandler ext nfs hst@(SomeHST hs) =
         instr ::: (_ :: HST inp, ((_ :: (Sing b, T.Notes b, VarAnn)) ::& (_ :: HST out1))) -> do
           Refl <- liftEither $
                     first (const $ TCOtherError "TEST_ASSERT has to return Bool, but returned something else") $
-                      eqT' @b @('T_c 'T_bool)
+                      eqT' @b @('T.Tc 'CBool)
           pure (nfs, Just $ TEST_ASSERT $ TestAssert tassName tassComment instr)
         _ -> thErr "TEST_ASSERT has to return Bool, but the stack is empty"
   where
@@ -93,7 +93,7 @@ interpretHandler (PRINT (PrintComment pc), SomeItStack st) = do
         fromMaybe (error "StackRef " <> show i <> " has to exist in the stack after typechecking, but it doesn't") $
         rat st (fromIntegral i)
   modify (\s -> s {isExtState = MorleyLogs $ mconcat (map getEl pc) : unMorleyLogs (isExtState s)})
-interpretHandler (TEST_ASSERT (TestAssert nm pc (instr :: T.Instr inp1 ('T.T_c 'T.T_bool ': out1) )),
+interpretHandler (TEST_ASSERT (TestAssert nm pc (instr :: T.Instr inp1 ('T.Tc 'T.CBool ': out1) )),
             SomeItStack (st :: Rec (Val T.Instr) inp2)) = do
   Refl <- liftEither $ first (error "TEST_ASSERT input stack doesn't match") $ eqT' @inp1 @inp2
   runInstrNoGas instr st >>= \case

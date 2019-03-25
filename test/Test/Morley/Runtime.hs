@@ -105,7 +105,7 @@ contractAux1 = ContractAux
       , stor = Type tbool noAnn
       , code =
         [ Op $ CDR noAnn noAnn
-        , Op $ NIL noAnn noAnn $ Type T_operation noAnn
+        , Op $ NIL noAnn noAnn $ Type TOperation noAnn
         , Op $ PAIR noAnn noAnn noAnn noAnn
         ]
       }
@@ -116,7 +116,7 @@ contractAux2 = contractAux1
     { code =
       [ Op $ CDR noAnn noAnn
       , Op $ NOT noAnn
-      , Op $ NIL noAnn noAnn $ Type T_operation noAnn
+      , Op $ NIL noAnn noAnn $ Type TOperation noAnn
       , Op $ PAIR noAnn noAnn noAnn noAnn
       ]
     }

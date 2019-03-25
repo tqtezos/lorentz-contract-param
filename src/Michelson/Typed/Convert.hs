@@ -108,8 +108,8 @@ instrToOps instr = Un.Op <$> handleInstr instr
         handle _ = error "unexcepted call"
     handleInstr i@NONE = handle i
       where
-        handle :: Instr inp1 ('T_option a ': inp1) -> [Un.Instr]
-        handle (NONE :: Instr inp1 ('T_option a ': inp1)) =
+        handle :: Instr inp1 ('TOption a ': inp1) -> [Un.Instr]
+        handle (NONE :: Instr inp1 ('TOption a ': inp1)) =
           [Un.NONE Un.noAnn Un.noAnn Un.noAnn (toUType $ fromSingT (sing @a))]
         handle _ = error "unexcepted call"
     handleInstr SOME = [Un.SOME Un.noAnn Un.noAnn Un.noAnn]
@@ -120,22 +120,22 @@ instrToOps instr = Un.Op <$> handleInstr instr
     handleInstr CDR = [Un.CDR Un.noAnn Un.noAnn]
     handleInstr i@LEFT = handle i
       where
-        handle :: Instr (a ': s) ('T_or a b ': s) -> [Un.Instr]
-        handle (LEFT :: Instr (a ': s) ('T_or a b ': s)) =
+        handle :: Instr (a ': s) ('TOr a b ': s) -> [Un.Instr]
+        handle (LEFT :: Instr (a ': s) ('TOr a b ': s)) =
           [Un.LEFT Un.noAnn Un.noAnn Un.noAnn Un.noAnn (toUType $ fromSingT (sing @b))]
         handle _ = error "unexcepted call"
     handleInstr i@(RIGHT) = handle i
       where
-        handle :: Instr (b ': s) ('T_or a b ': s) -> [Un.Instr]
-        handle (RIGHT :: Instr (b ': s) ('T_or a b ': s)) =
+        handle :: Instr (b ': s) ('TOr a b ': s) -> [Un.Instr]
+        handle (RIGHT :: Instr (b ': s) ('TOr a b ': s)) =
           [Un.RIGHT Un.noAnn Un.noAnn Un.noAnn Un.noAnn (toUType $ fromSingT (sing @a))]
         handle _ = error "unexcepted call"
     handleInstr (IF_LEFT i1 i2) = [Un.IF_LEFT (instrToOps i1) (instrToOps i2)]
     handleInstr (IF_RIGHT i1 i2) = [Un.IF_RIGHT (instrToOps i1) (instrToOps i2)]
     handleInstr i@(NIL) = handle i
       where
-        handle :: Instr s ('T_list p ': s) -> [Un.Instr]
-        handle (NIL :: Instr s ('T_list p ': s)) =
+        handle :: Instr s ('TList p ': s) -> [Un.Instr]
+        handle (NIL :: Instr s ('TList p ': s)) =
           [Un.NIL Un.noAnn Un.noAnn (toUType $ fromSingT (sing @p))]
         handle _ = error "unexcepted call"
     handleInstr CONS = [Un.CONS Un.noAnn]
@@ -143,14 +143,14 @@ instrToOps instr = Un.Op <$> handleInstr instr
     handleInstr SIZE = [Un.SIZE Un.noAnn]
     handleInstr i@EMPTY_SET = handle i
       where
-        handle :: Instr s ('T_set e ': s) -> [Un.Instr]
-        handle (EMPTY_SET :: Instr s ('T_set e ': s)) =
+        handle :: Instr s ('TSet e ': s) -> [Un.Instr]
+        handle (EMPTY_SET :: Instr s ('TSet e ': s)) =
           [Un.EMPTY_SET Un.noAnn Un.noAnn (Un.Comparable (fromSingCT (sing @e)) Un.noAnn)]
         handle _ = error "unexcepted call"
     handleInstr i@EMPTY_MAP = handle i
       where
-        handle :: Instr s ('T_map a b ': s) -> [Un.Instr]
-        handle (EMPTY_MAP :: Instr s ('T_map a b ': s)) =
+        handle :: Instr s ('TMap a b ': s) -> [Un.Instr]
+        handle (EMPTY_MAP :: Instr s ('TMap a b ': s)) =
           [Un.EMPTY_MAP Un.noAnn Un.noAnn (Un.Comparable (fromSingCT (sing @a)) Un.noAnn)
            (toUType $ fromSingT (sing @b))
           ]
@@ -165,13 +165,13 @@ instrToOps instr = Un.Op <$> handleInstr instr
     handleInstr (LOOP_LEFT op) = [Un.LOOP_LEFT (instrToOps op)]
     handleInstr i@(LAMBDA l) = handle i
       where
-        handle :: Instr s ('T_lambda i o ': s) -> [Un.Instr]
-        handle (LAMBDA _ :: Instr s ('T_lambda i o ': s)) =
+        handle :: Instr s ('TLambda i o ': s) -> [Un.Instr]
+        handle (LAMBDA _ :: Instr s ('TLambda i o ': s)) =
           [Un.LAMBDA Un.noAnn (toUType $ fromSingT (sing @i))
             (toUType $ fromSingT (sing @i)) (convertLambdaBody l)
           ]
         handle _ = error "unexcepted call"
-        convertLambdaBody :: Val Instr ('T_lambda i o) -> [Un.Op]
+        convertLambdaBody :: Val Instr ('TLambda i o) -> [Un.Op]
         convertLambdaBody (VLam ops) = instrToOps ops
     handleInstr EXEC = [Un.EXEC Un.noAnn]
     handleInstr (DIP op) = [Un.DIP (instrToOps op)]
@@ -186,8 +186,8 @@ instrToOps instr = Un.Op <$> handleInstr instr
     handleInstr PACK = [Un.PACK Un.noAnn]
     handleInstr i@(UNPACK) = handle i
       where
-        handle :: Instr ('T_c 'T_bytes ': s) ('T_option a ': s) -> [Un.Instr]
-        handle (UNPACK :: Instr ('T_c 'T_bytes ': s) ('T_option a ': s)) =
+        handle :: Instr ('Tc 'CBytes ': s) ('TOption a ': s) -> [Un.Instr]
+        handle (UNPACK :: Instr ('Tc 'CBytes ': s) ('TOption a ': s)) =
           [Un.UNPACK Un.noAnn (toUType $ fromSingT (sing @a))]
         handle _ = error "unexcepted call"
     handleInstr CONCAT = [Un.CONCAT Un.noAnn]
@@ -217,9 +217,9 @@ instrToOps instr = Un.Op <$> handleInstr instr
     handleInstr SELF = [Un.SELF Un.noAnn]
     handleInstr i@CONTRACT = handle i
       where
-        handle :: Instr ('T_c 'T_address ': s) ('T_option ('T_contract p) ': s)
+        handle :: Instr ('Tc 'CAddress ': s) ('TOption ('TContract p) ': s)
                -> [Un.Instr]
-        handle (CONTRACT :: Instr ('T_c 'T_address ': s) ('T_option ('T_contract p) ': s)) =
+        handle (CONTRACT :: Instr ('Tc 'CAddress ': s) ('TOption ('TContract p) ': s)) =
           [Un.CONTRACT Un.noAnn (toUType $ fromSingT (sing @p))]
         handle _ = error "unexcepted call"
     handleInstr TRANSFER_TOKENS = [Un.TRANSFER_TOKENS Un.noAnn]
@@ -228,15 +228,15 @@ instrToOps instr = Un.Op <$> handleInstr instr
     handleInstr CREATE_CONTRACT = [Un.CREATE_CONTRACT Un.noAnn Un.noAnn]
     handleInstr i@(CREATE_CONTRACT2 _) = handle i
       where
-        handle :: Instr ('T_c 'T_key_hash ': 'T_option ('T_c 'T_key_hash)
-                    ': 'T_c 'T_bool ': 'T_c 'T_bool ': 'T_c 'T_mutez ': g ': s)
-                   ('T_operation ': 'T_c 'T_address ': s) -> [Un.Instr]
-        handle (CREATE_CONTRACT2 ops :: Instr ('T_c 'T_key_hash
-                    ': 'T_option ('T_c 'T_key_hash)
-                    ': 'T_c 'T_bool ': 'T_c 'T_bool ': 'T_c 'T_mutez ': g ': s)
-                   ('T_operation ': 'T_c 'T_address ': s)) =
+        handle :: Instr ('Tc 'CKeyHash ': 'TOption ('Tc 'CKeyHash)
+                    ': 'Tc 'CBool ': 'Tc 'CBool ': 'Tc 'CMutez ': g ': s)
+                   ('TOperation ': 'Tc 'CAddress ': s) -> [Un.Instr]
+        handle (CREATE_CONTRACT2 ops :: Instr ('Tc 'CKeyHash
+                    ': 'TOption ('Tc 'CKeyHash)
+                    ': 'Tc 'CBool ': 'Tc 'CBool ': 'Tc 'CMutez ': g ': s)
+                   ('TOperation ': 'Tc 'CAddress ': s)) =
           case ops of
-            (code :: Instr '[ 'T_pair p g ] '[ 'T_pair ('T_list 'T_operation) g ]) ->
+            (code :: Instr '[ 'TPair p g ] '[ 'TPair ('TList 'TOperation) g ]) ->
               let contract = Un.Contract (toUType $ fromSingT (sing @p))
                     (toUType $ fromSingT (sing @g)) (instrToOps code) in
               [Un.CREATE_CONTRACT2 Un.noAnn Un.noAnn contract]
