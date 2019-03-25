@@ -11,13 +11,13 @@ import Michelson.Interpret (ContractEnv(..), ContractReturn, MichelsonFailed(..)
 import Michelson.Typed (CT(..), CVal(..), Instr(..), T(..), Val(..), toVal, ( # ))
 import Morley.Ext (interpretMorley)
 import Morley.Test (ContractPropValidator, contractProp, specWithTypedContract)
+import Morley.Test.Dummy (dummyContractEnv)
 import Morley.Types (MorleyLogs)
 import Test.Interpreter.Auction (auctionSpec)
 import Test.Interpreter.CallSelf (selfCallerSpec)
 import Test.Interpreter.Compare (compareSpec)
 import Test.Interpreter.Conditionals (conditionalsSpec)
 import Test.Interpreter.StringCaller (stringCallerSpec)
-import Test.Util.Interpreter (dummyContractEnv)
 
 spec :: Spec
 spec = describe "Advanced type interpreter tests" $ do

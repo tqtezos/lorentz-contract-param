@@ -42,6 +42,7 @@ library
                      , Morley.Runtime.GState
                      , Morley.Runtime.TxData
                      , Morley.Test
+                     , Morley.Test.Dummy
                      , Morley.Test.Integrational
                      , Morley.Test.Util
                      , Morley.Types
@@ -228,7 +229,6 @@ test-suite morley-test
                      , Test.Tezos.Crypto
                      , Test.Typecheck
                      , Test.Util.Contracts
-                     , Test.Util.Interpreter
                      , Test.Util.QuickCheck
                      , Test.ValConversion
   build-depends:

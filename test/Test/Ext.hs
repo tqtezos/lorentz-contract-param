@@ -12,9 +12,9 @@ import qualified Michelson.Typed as T
 import Michelson.Untyped (CT(..), T(..), Type(..), ann, noAnn)
 import Morley.Ext (interpretMorley, typeCheckHandler)
 import Morley.Test (specWithTypedContract)
+import Morley.Test.Dummy (dummyContractEnv)
 import Morley.Types
   (MorleyLogs(..), StackTypePattern(..), TyVar(..), UExtInstr, UExtInstrAbstract(..))
-import Test.Util.Interpreter (dummyContractEnv)
 
 interpretHandlerSpec :: Spec
 interpretHandlerSpec = describe "interpretHandler PRINT/TEST_ASSERT tests" $

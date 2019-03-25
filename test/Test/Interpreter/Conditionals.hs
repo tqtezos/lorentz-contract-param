@@ -11,11 +11,9 @@ import Test.QuickCheck.Property (forAll, withMaxSuccess)
 import Michelson.Interpret (InterpreterState, MichelsonFailed)
 import Michelson.Typed (CVal(..), ToT, Val(..), toVal)
 import Morley.Test (contractProp, specWithTypedContract)
-import Morley.Test.Util (failedProp)
+import Morley.Test.Dummy (dummyContractEnv)
+import Morley.Test.Util (failedProp, qcIsLeft, qcIsRight)
 import Morley.Types (MorleyLogs)
-
-import Test.Util.Interpreter (dummyContractEnv)
-import Test.Util.QuickCheck (qcIsLeft, qcIsRight)
 
 type Param = Either Text (Maybe Integer)
 type ContractParam instr = Val instr (ToT Param)

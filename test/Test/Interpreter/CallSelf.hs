@@ -16,10 +16,8 @@ import Morley.Aliases (UntypedContract)
 import Morley.Runtime (InterpreterOp(..), TxData(..))
 import Morley.Runtime.GState
 import Morley.Test (ContractPropValidator, contractProp, specWithContract)
+import Morley.Test.Dummy
 import Morley.Test.Integrational
-
-import Test.Arbitrary ()
-import Test.Util.Interpreter
 
 selfCallerSpec :: Spec
 selfCallerSpec =

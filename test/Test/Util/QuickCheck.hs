@@ -31,10 +31,6 @@ module Test.Util.QuickCheck
   , roundtripSpecSTB
   , aesonRoundtrip
 
-  -- * 'Property' helpers
-  , qcIsLeft
-  , qcIsRight
-
   -- * 'Gen' helpers
   , runGen
   ) where
@@ -47,11 +43,8 @@ import Test.Hspec (Spec)
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck (Arbitrary, Property, (===))
 import Test.QuickCheck.Gen (Gen, unGen)
-import Test.QuickCheck.Property (property)
 import Test.QuickCheck.Random (mkQCGen)
 import qualified Text.Show (show)
-
-import Morley.Test.Util (failedProp)
 
 ----------------------------------------------------------------------------
 -- 'Show'ing a value though 'Buildable' type class.
@@ -112,20 +105,6 @@ aesonRoundtrip ::
      forall x. (Show (ShowThroughBuild x), ToJSON x, FromJSON x, Typeable x, Arbitrary x, Eq x)
   => Spec
 aesonRoundtrip = roundtripSpecSTB (Aeson.encode @x) Aeson.eitherDecode
-
-----------------------------------------------------------------------------
--- Property
-----------------------------------------------------------------------------
-
--- | The 'Property' holds on `Left a`.
-qcIsLeft :: Show b => Either a b -> Property
-qcIsLeft (Left _)  = property True
-qcIsLeft (Right x) = failedProp $ "expected Left, got Right (" <> show x <> ")"
-
--- | The 'Property' holds on `Right b`.
-qcIsRight :: Show a => Either a b -> Property
-qcIsRight (Right _) = property True
-qcIsRight (Left x)  = failedProp $ "expected Right, got Left (" <> show x <> ")"
 
 ----------------------------------------------------------------------------
 -- Gen
