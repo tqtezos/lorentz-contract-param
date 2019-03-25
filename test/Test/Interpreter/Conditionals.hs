@@ -56,7 +56,7 @@ conditionalsSpec = parallel $ do
 
     contractProp' contract inputs =
       contractProp contract
-        (\_ _ _ -> validate inputs)
+        (validate inputs)
         dummyContractEnv
         (mkParam inputs)
         mkStorage

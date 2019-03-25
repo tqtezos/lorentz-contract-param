@@ -53,7 +53,7 @@ compareSpec = parallel $ do
 
     contractProp' contract inputs =
       contractProp contract
-        (\_ _ _ -> validate (mkExpected inputs))
+        (validate (mkExpected inputs))
         dummyContractEnv
         (toVal inputs)
         mkStorage

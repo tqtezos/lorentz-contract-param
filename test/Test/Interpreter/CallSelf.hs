@@ -59,12 +59,12 @@ specImpl ::
 specImpl (uSelfCaller, selfCaller) = modifyMaxSuccess (min 10) $ do
   it ("With parameter 1 single execution consumes " <>
       show @_ @Int gasForLastExecution <> " gas") $
-    contractProp selfCaller (unitValidator gasForLastExecution) dummyContractEnv
+    contractProp selfCaller (unitValidator gasForLastExecution) unitContractEnv
     (toVal @Integer 1) (toVal @Natural 0)
 
   it ("With parameter 2 single execution consumes " <>
       show @_ @Int gasForOneExecution <> " gas") $
-    contractProp selfCaller (unitValidator gasForOneExecution) dummyContractEnv
+    contractProp selfCaller (unitValidator gasForOneExecution) unitContractEnv
     (toVal @Integer 2) (toVal @Natural 0)
 
   prop propertyDescription $
@@ -72,11 +72,13 @@ specImpl (uSelfCaller, selfCaller) = modifyMaxSuccess (min 10) $ do
       integrationalTestProperty dummyNow (fMaxSteps fixture)
       (operations fixture) (integValidator fixture)
   where
+    -- Environment for unit test
+    unitContractEnv = dummyContractEnv
     -- Validator for unit test
     unitValidator ::
-      RemainingSteps -> ContractPropValidator Parameter Storage Expectation
-    unitValidator gasDiff env _param _storage (_, isRemainingSteps -> remSteps) =
-      remSteps `shouldBe` ceMaxSteps env - gasDiff
+      RemainingSteps -> ContractPropValidator Storage Expectation
+    unitValidator gasDiff (_, isRemainingSteps -> remSteps) =
+      remSteps `shouldBe` ceMaxSteps unitContractEnv - gasDiff
 
     propertyDescription =
       "calls itself as many times as you pass to it as a parameter, " <>

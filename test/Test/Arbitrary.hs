@@ -15,7 +15,7 @@ import Michelson.Untyped
   InternalByteString(..), Op(..), T(..), Type(..), TypeAnn, Value(..), VarAnn)
 import Morley.Test ()
 import Morley.Types (StackTypePattern(..), TyVar(..), UExtInstr, UExtInstrAbstract(..), Var(..))
-import Tezos.Core (Mutez(..), Timestamp(..), timestampFromSeconds)
+import Tezos.Core (Mutez(..))
 
 instance Arbitrary InternalByteString where
   arbitrary = InternalByteString . T.encodeUtf8 . T.pack <$> listOf arbitrary
@@ -39,10 +39,6 @@ instance Arbitrary UExtInstr where
 instance ToADTArbitrary Op
 instance Arbitrary Op where
   arbitrary = Op <$> arbitrary
-
--- TODO: this `Timestamp` gen differs from `Gen (CVal 'CTimestamp)` from `Morley.Test`.
-instance Arbitrary Timestamp where
-  arbitrary = timestampFromSeconds @Word <$> arbitrary
 
 instance ToADTArbitrary Mutez
 

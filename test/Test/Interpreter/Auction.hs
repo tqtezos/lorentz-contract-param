@@ -13,8 +13,7 @@ import Test.QuickCheck.Property (expectFailure, forAll, withMaxSuccess)
 import Test.QuickCheck.Random (mkQCGen)
 
 import Michelson.Interpret (ContractEnv(..))
-import Michelson.Typed
-  (CT(..), CVal(..), Operation(..), ToT, TransferTokens(..), Val(..), fromVal, toVal)
+import Michelson.Typed (CVal(..), Operation(..), ToT, TransferTokens(..), Val(..), toVal)
 import Morley.Test (ContractPropValidator, contractProp, midTimestamp, specWithTypedContract)
 import Morley.Test.Dummy
 import Morley.Test.Util (failedProp)
@@ -37,7 +36,7 @@ auctionSpec = parallel $ do
   specWithTypedContract "contracts/auction.tz" $ \contract -> do
     it "Bid after end of auction triggers failure" $
       contractProp contract
-        (\_ _ _ -> flip shouldSatisfy (isLeft . fst))
+        (flip shouldSatisfy (isLeft . fst))
         (env { ceAmount = unsafeMkMutez 1200 })
         (mkParam keyHash2)
         (toVal (aBitBeforeMidTimestamp, (unsafeMkMutez 1000, keyHash1)))
@@ -64,14 +63,14 @@ auctionSpec = parallel $ do
   where
     qcProp contract eoaGen amountGen =
       forAll ((,) <$> eoaGen <*> ((,) <$> amountGen <*> arbitrary)) $
-        \s' p' ->
-          contractProp contract validateAuction env (mkParam p') (mkStorage s')
+        \s p ->
+          let validate = validateAuction env p s
+           in contractProp contract validate env (mkParam p) (mkStorage s)
 
     aBitBeforeMidTimestamp = midTimestamp `timestampPlusSeconds` -1
     -- ^ 1s before NOW
 
-    -- N.B.: using Gen (CVal 'CTimestamp) from Morley.Test.
-    denseTime = CvTimestamp . (timestampPlusSeconds midTimestamp) <$> choose (-4, 4)
+    denseTime = timestampPlusSeconds midTimestamp <$> choose (-4, 4)
     denseAmount = unsafeMkMutez . (midAmount +) . fromInteger <$> choose (-4, 4)
 
     env = dummyContractEnv
@@ -83,8 +82,8 @@ auctionSpec = parallel $ do
     mkParam :: Param -> ContractParam instr
     mkParam = toVal
 
-    mkStorage :: (CVal 'CTimestamp, (Mutez, KeyHash)) -> ContractStorage instr
-    mkStorage (CvTimestamp t, b) = toVal (t, b)
+    mkStorage :: Storage -> ContractStorage instr
+    mkStorage = toVal
 
 keyHash1 :: KeyHash
 keyHash1 = unGen arbitrary (mkQCGen 300406) 0
@@ -107,12 +106,11 @@ keyHash2 = unGen arbitrary (mkQCGen 142917) 0
 -- * Script returned exactly one operation, @TransferTokens@, which
 --   returns money back to the previous bidder
 validateAuction
-  :: ContractPropValidator (ToT Param) (ToT Storage) Property
-validateAuction env
-    (fromVal -> newKeyHash)
-    (fromVal -> (endOfAuction, (amount, keyHash :: KeyHash)))
-    (resE, _)
-
+  :: ContractEnv
+  -> Param
+  -> Storage
+  -> ContractPropValidator (ToT Storage) Property
+validateAuction env newKeyHash (endOfAuction, (amount, keyHash)) (resE, _)
   | ceNow env > endOfAuction
       = counterexample "Failure didn't trigger on end of auction" $ isLeft resE
   | ceAmount env <= amount

@@ -41,22 +41,13 @@ import Tezos.Core
 
 -- | Type for contract execution validation.
 --
--- It's a function which is supplied with:
---
---  * contract's environment
---  * initial state
---  * contract's parameter
---  * contract execution output (failure or new storage with operation list)
+-- It's a function which is supplied with contract execution output
+-- (failure or new storage with operation list).
 --
 -- Function returns a property which type is designated by type variable @prop@
 -- and might be 'Test.QuickCheck.Property' or 'Test.Hspec.Expectation'
 -- or anything else relevant.
-type ContractPropValidator cp st prop =
-     ContractEnv
-  -> Val Instr cp
-  -> Val Instr st
-  -> ContractReturn MorleyLogs st
-  -> prop
+type ContractPropValidator st prop = ContractReturn MorleyLogs st -> prop
 
 -- | Contract's property tester against given input.
 -- Takes contract environment, initial storage and parameter,
@@ -64,13 +55,13 @@ type ContractPropValidator cp st prop =
 contractProp
   :: (Typeable cp, Typeable st)
   => Contract cp st
-  -> ContractPropValidator cp st prop
+  -> ContractPropValidator st prop
   -> ContractEnv
   -> Val Instr cp
   -> Val Instr st
   -> prop
 contractProp instr check env param initSt =
-  check env param initSt $ interpretMorley instr param initSt env
+  check $ interpretMorley instr param initSt env
 
 -- | Import contract and use it in the spec. Both versions of contract are
 -- passed to the callback function (untyped and typed).
@@ -191,9 +182,12 @@ midTimestamp = timestampFromUTCTime $
           (fromInteger $ (maxSec - minSec) `div` 2)
 
 instance Arbitrary (CVal 'CTimestamp) where
-  arbitrary =
-    CvTimestamp . timestampFromSeconds @Int <$>
-    choose (timestampToSeconds minTimestamp, timestampToSeconds maxTimestamp)
+  arbitrary = CvTimestamp <$> arbitrary
 
 instance Arbitrary Mutez where
   arbitrary = unsafeMkMutez <$> choose (unMutez minBound, unMutez maxBound)
+
+instance Arbitrary Timestamp where
+  arbitrary =
+    timestampFromSeconds @Int <$>
+    choose (timestampToSeconds minTimestamp, timestampToSeconds maxTimestamp)
