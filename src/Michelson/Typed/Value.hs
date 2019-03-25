@@ -23,6 +23,7 @@ import Fmt (Buildable(build), (+|), (|+))
 
 import Michelson.EqParam
 import Michelson.Typed.CValue (CVal(..), FromCVal, ToCVal, fromCVal, toCVal)
+import Michelson.Typed.Scope (HasNoOp)
 import Michelson.Typed.T (T(..), ToT)
 import Tezos.Address (Address)
 import Tezos.Core (Mutez, Timestamp)
@@ -34,13 +35,15 @@ import Tezos.Crypto (KeyHash, PublicKey, Signature)
 -- These operations are to be further executed against system state
 -- after the contract execution.
 data Operation instr where
-  OpTransferTokens :: Typeable p => TransferTokens instr p -> Operation instr
+  OpTransferTokens
+    :: (Typeable p, SingI p, HasNoOp p)
+    => TransferTokens instr p -> Operation instr
   OpSetDelegate :: SetDelegate -> Operation instr
   OpCreateAccount :: CreateAccount -> Operation instr
   OpCreateContract
     :: ( Show (instr (ContractInp cp st) (ContractOut st)), SingI cp, SingI st
-       , Typeable t, Typeable cp, Typeable st)
-    => CreateContract instr t cp st
+       , Typeable instr, Typeable cp, Typeable st, HasNoOp cp, HasNoOp st)
+    => CreateContract instr cp st
     -> Operation instr
 
 instance Buildable (Operation instr) where
@@ -97,7 +100,7 @@ instance Buildable CreateAccount where
     ", spendable: " +| caSpendable |+
     " and balance = " +| caBalance |+ ""
 
-data CreateContract instr t cp st
+data CreateContract instr cp st
   = ( Show (instr (ContractInp cp st) (ContractOut st))
     , Eq (instr (ContractInp cp st) (ContractOut st))
     )
@@ -107,11 +110,11 @@ data CreateContract instr t cp st
   , ccSpendable :: !Bool
   , ccDelegatable :: !Bool
   , ccBalance :: !Mutez
-  , ccStorageVal :: !(Val instr t)
+  , ccStorageVal :: !(Val instr st)
   , ccContractCode :: !(instr (ContractInp cp st) (ContractOut st))
   }
 
-instance Buildable (CreateContract instr t cp st) where
+instance Buildable (CreateContract instr cp st) where
   build CreateContract {..} =
     "Create a new contract with manager " +| ccManager |+
     " and delegate " +| maybe "<nobody>" build ccDelegate |+
@@ -119,8 +122,8 @@ instance Buildable (CreateContract instr t cp st) where
     ", delegatable: " +| ccDelegatable |+
     " and balance = " +| ccBalance |+ ""
 
-deriving instance Show (CreateContract instr t cp st)
-deriving instance Eq (CreateContract instr t cp st)
+deriving instance Show (CreateContract instr cp st)
+deriving instance Eq (CreateContract instr cp st)
 
 type ContractInp param st = '[ 'TPair param st ]
 type ContractOut st = '[ 'TPair ('TList 'TOperation) st ]

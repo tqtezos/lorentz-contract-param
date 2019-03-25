@@ -21,7 +21,7 @@ import Fmt (Buildable(..), pretty, (+|), (|+), (||+))
 import Prelude hiding (EQ, GT, LT)
 import qualified Text.Show
 
-import Michelson.Typed (ConversibleExt, Notes(..), Sing(..), T(..), fromSingT)
+import Michelson.Typed (ConversibleExt, HasNoOp, Notes(..), Sing(..), T(..), fromSingT)
 import Michelson.Typed.Extract (toUType)
 import Michelson.Typed.Instr
 import Michelson.Typed.Value
@@ -113,7 +113,7 @@ data SomeValC where
 
 data SomeContract where
   SomeContract
-    :: (Typeable st, SingI st, SingI cp, Typeable cp)
+    :: Each [Typeable, SingI, HasNoOp] [st, cp]
     => Contract cp st
     -> HST (ContractInp cp st)
     -> HST (ContractOut st)

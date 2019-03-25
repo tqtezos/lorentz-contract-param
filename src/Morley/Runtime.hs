@@ -39,7 +39,7 @@ import Michelson.Interpret
 import Michelson.TypeCheck (TCError)
 import Michelson.Typed
   (CreateContract(..), Instr, Operation(..), TransferTokens(..), Val(..), convertContract,
-  unsafeValToValue)
+  valToValue)
 import Michelson.Untyped
   (Contract(..), OriginationOperation(..), UntypedContract, UntypedValue, mkContractAddress)
 import Morley.Ext (interpretMorleyUntyped, typeCheckMorleyContract)
@@ -263,7 +263,7 @@ interpreter maybeNow maxSteps dbPath operations
         [] -> putTextLn "It didn't return any operations"
         _ -> fmt $ nameF "It returned operations:" (blockListF iurOps)
       putTextLn $
-        "It returned storage: " <> pretty (unsafeValToValue iurNewStorage)
+        "It returned storage: " <> pretty (valToValue iurNewStorage)
       let MorleyLogs logs = isExtState iurNewState
       unless (null logs) $
         mapM_ putTextLn logs
@@ -402,7 +402,7 @@ interpretOneOp now remainingSteps mSourceAddr gs (TransferOp addr txData) = do
                 interpretMorleyUntyped contract (tdParameter txData)
                                  (csStorage cs) contractEnv
         let
-          newValueU = unsafeValToValue newValue
+          newValueU = valToValue newValue
           -- can't overflow if global state is correct (because we can't
           -- create money out of nowhere)
           newBalance = csBalance cs `unsafeAddMutez` tdAmount txData
@@ -448,7 +448,7 @@ convertOp interpretedAddr =
       let txData =
             TxData
               { tdSenderAddress = interpretedAddr
-              , tdParameter = unsafeValToValue (ttContractParameter tt)
+              , tdParameter = valToValue (ttContractParameter tt)
               , tdAmount = ttAmount tt
               }
           VContract destAddress = ttContract tt
@@ -462,7 +462,7 @@ convertOp interpretedAddr =
             , ooSpendable = ccSpendable cc
             , ooDelegatable = ccDelegatable cc
             , ooBalance = ccBalance cc
-            , ooStorage = unsafeValToValue (ccStorageVal cc)
+            , ooStorage = valToValue (ccStorageVal cc)
             , ooContract = convertContract (ccContractCode cc)
             }
        in Just (OriginateOp origination)

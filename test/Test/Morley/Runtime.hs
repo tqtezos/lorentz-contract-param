@@ -11,7 +11,7 @@ import Test.Hspec
   shouldSatisfy, specify)
 
 import Michelson.Interpret (ContractEnv(..), InterpretUntypedError(..), InterpretUntypedResult(..))
-import Michelson.Typed (unsafeValToValue)
+import Michelson.Typed (valToValue)
 import Michelson.Untyped
 import Morley.Ext (interpretMorleyUntyped)
 import Morley.Runtime
@@ -76,7 +76,7 @@ updatesStorageValue ca = either throwM handleResult $ do
   (addr,) <$> interpreterPure dummyNow dummyMaxSteps initGState interpreterOps
   where
     toNewStorage :: InterpretUntypedResult MorleyLogs -> UntypedValue
-    toNewStorage InterpretUntypedResult {..} = unsafeValToValue iurNewStorage
+    toNewStorage InterpretUntypedResult {..} = valToValue iurNewStorage
 
     handleResult :: (Address, InterpreterRes) -> Expectation
     handleResult (addr, ir) = do

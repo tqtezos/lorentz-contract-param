@@ -3,8 +3,7 @@
 module Michelson.Typed.Convert
   ( convertContract
   , instrToOps
-  , unsafeValToValue
-  , valToOpOrValue
+  , valToValue
   , Conversible (..)
   , ConversibleExt
   ) where
@@ -15,7 +14,8 @@ import Data.Singletons (SingI(sing))
 import Michelson.Typed.CValue
 import Michelson.Typed.Extract (toUType)
 import Michelson.Typed.Instr as Instr
-import Michelson.Typed.Sing (fromSingCT, fromSingT)
+import Michelson.Typed.Scope
+import Michelson.Typed.Sing (Sing(..), fromSingCT, fromSingT)
 import Michelson.Typed.T (CT(..), T(..))
 import Michelson.Typed.Value
 import qualified Michelson.Untyped as Un
@@ -38,48 +38,63 @@ convertContract contract =
     , code = instrToOps contract
     }
 
--- | Function @unsafeValToValue@ converts typed @Val@ to untyped @Value@
--- from @Michelson.Untyped.Value@ module
+-- | Convert a typed 'Val' to an untyped 'Value'.
 --
--- VOp cannot be represented in @Value@ from untyped types, so calling this function
--- on it will cause an error
-unsafeValToValue :: (ConversibleExt, HasCallStack) => Val Instr t -> Un.UntypedValue
-unsafeValToValue = fromMaybe (error err) . valToOpOrValue
-  where
-    err =
-      "unexpected unsafeValToValue call trying to convert VOp to untyped Value"
-
--- | Convert a typed 'Val' to an untyped 'Value', or fail if it contains operations
--- which are unrepresentable there.
-valToOpOrValue ::
-     forall t . ConversibleExt
+-- For full isomorphism type of the given 'Val' should not contain
+-- 'TOperation' - a compile error will be raised otherwise.
+-- You can analyse its presence with 'checkOpPresence' function.
+valToValue ::
+     forall t . (ConversibleExt, SingI t, HasNoOp t)
   => Val Instr t
-  -> Maybe Un.UntypedValue
-valToOpOrValue = \case
-  VC cVal -> Just $ cValToValue cVal
-  VKey b -> Just $ Un.ValueString $ formatPublicKey b
-  VUnit -> Just $ Un.ValueUnit
-  VSignature b -> Just $ Un.ValueString $ formatSignature b
-  VOption (Just x) -> Un.ValueSome <$> valToOpOrValue x
-  VOption Nothing -> Just $ Un.ValueNone
-  VList l -> valueList Un.ValueSeq <$> mapM valToOpOrValue l
-  VSet s -> Just $ valueList Un.ValueSeq $ map cValToValue $ toList s
-  VOp _op -> Nothing
-  VContract b -> Just $ Un.ValueString $ formatAddress b
-  VPair (l, r) -> Un.ValuePair <$> valToOpOrValue l <*> valToOpOrValue r
-  VOr (Left x) -> Un.ValueLeft <$> valToOpOrValue x
-  VOr (Right x) -> Un.ValueRight <$> valToOpOrValue x
-  VLam ops ->
-    Just $ maybe Un.ValueNil Un.ValueLambda $
-    nonEmpty (instrToOps ops)
-  VMap m ->
-    fmap (valueList Un.ValueMap) . forM (Map.toList m) $ \(k, v) ->
-      Un.Elt (cValToValue k) <$> valToOpOrValue v
-  VBigMap m ->
-    fmap (valueList Un.ValueMap) . forM (Map.toList m) $ \(k, v) ->
-      Un.Elt (cValToValue k) <$> valToOpOrValue v
+  -> Un.UntypedValue
+valToValue val = case (val, sing @t) of
+  (VC cVal, _) ->
+    cValToValue cVal
+  (VKey b, _) ->
+    Un.ValueString $ formatPublicKey b
+  (VUnit, _) ->
+    Un.ValueUnit
+  (VSignature b, _) ->
+    Un.ValueString $ formatSignature b
+  (VOption (Just x), STOption _) ->
+    Un.ValueSome (valToValue x)
+  (VOption Nothing, STOption _) ->
+    Un.ValueNone
+  (VList l, STList _) ->
+    vList Un.ValueSeq $ map valToValue l
+  (VSet s, _) ->
+    vList Un.ValueSeq $ map cValToValue $ toList s
+  (VContract b, _) ->
+    Un.ValueString $ formatAddress b
+
+  (VPair (l, r), STPair lt _) ->
+    case checkOpPresence lt of
+      OpAbsent -> Un.ValuePair (valToValue l) (valToValue r)
+
+  (VOr (Left x), STOr lt _) ->
+    case checkOpPresence lt of
+      OpAbsent -> Un.ValueLeft (valToValue x)
+
+  (VOr (Right x), STOr lt _) ->
+    case checkOpPresence lt of
+      OpAbsent -> Un.ValueRight (valToValue x)
+
+  (VLam ops, _) ->
+    vList Un.ValueLambda $ instrToOps ops
+
+  (VMap m, STMap _ vt) ->
+    case checkOpPresence vt of
+      OpAbsent ->
+        vList Un.ValueMap $ Map.toList m <&> \(k, v) ->
+        Un.Elt (cValToValue k) (valToValue v)
+
+  (VBigMap m, STBigMap _ vt) ->
+    case checkOpPresence vt of
+      OpAbsent ->
+        vList Un.ValueMap $ Map.toList m <&> \(k, v) ->
+        Un.Elt (cValToValue k) (valToValue v)
   where
-    valueList ctor = maybe Un.ValueNil ctor . nonEmpty
+    vList ctor = maybe Un.ValueNil ctor . nonEmpty
 
 cValToValue :: CVal t -> Un.UntypedValue
 cValToValue cVal = case cVal of
@@ -111,8 +126,7 @@ instrToOps instr = case instr of
       where
         handle :: Instr inp1 (t ': s) -> [Un.ExpandedInstr]
         handle (PUSH _ :: Instr inp1 (t ': s)) =
-          let value = unsafeValToValue val
-              --- ^ safe because PUSH cannot have operation as argument
+          let value = valToValue val
           in [Un.PUSH Un.noAnn (toUType $ fromSingT (sing @t)) value]
         handle _ = error "unexcepted call"
     handleInstr i@NONE = handle i
