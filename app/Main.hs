@@ -209,13 +209,14 @@ dbPathOption = strOption $
   long "db" <>
   metavar "FILEPATH" <>
   value "db.json" <>
-  help "Path to DB with data which is used instead of real blockchain data"
+  help "Path to DB with data which is used instead of real blockchain data" <>
+  showDefault
 
 keyHashOption :: Maybe KeyHash -> String -> String -> Opt.Parser KeyHash
 keyHashOption defaultValue name hInfo =
   option (eitherReader (first pretty . parseKeyHash . toText)) $
   long name <>
-  maybe mempty value defaultValue <>
+  maybeAddDefault pretty defaultValue <>
   help hInfo
 
 valueOption :: String -> String -> Opt.Parser (Value Op)
@@ -234,7 +235,7 @@ mutezOption defaultValue name hInfo =
   option (maybe (readerError "Invalid mutez") pure . mkMutez =<< auto) $
   long name <>
   metavar "INT" <>
-  maybe mempty (mappend (showDefaultWith (show . unMutez)) . value) defaultValue <>
+  maybeAddDefault (show . unMutez) defaultValue <>
   help hInfo
 
 addressOption :: Maybe Address -> String -> String -> Opt.Parser Address
@@ -243,10 +244,9 @@ addressOption defAddress name hInfo =
   [ long name
   , metavar "ADDRESS"
   , help hInfo
-  , maybe mempty defaults defAddress
+  , maybeAddDefault pretty defAddress
   ]
   where
-    defaults addr = value addr <> showDefaultWith pretty
     parseAddrDo addr =
       either (Left . mappend "Failed to parse address: " . pretty) Right $
       parseAddress $ toText addr
@@ -265,6 +265,12 @@ txData =
         , tdParameter = param
         , tdAmount = amount
         }
+
+-- Maybe add default value and make sure it will be shown in help message.
+maybeAddDefault :: Opt.HasValue f => (a -> String) -> Maybe a -> Opt.Mod f a
+maybeAddDefault printer = maybe mempty addDefault
+  where
+    addDefault v = value v <> showDefaultWith printer
 
 main :: IO ()
 main = do
