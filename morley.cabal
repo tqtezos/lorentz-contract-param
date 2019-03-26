@@ -76,6 +76,7 @@ library
                      , megaparsec >= 7.0.0
                      , memory
                      , morley-prelude
+                     , named
                      , natural-numbers
                      , QuickCheck
                      , text
@@ -137,16 +138,17 @@ library
 executable morley
   hs-source-dirs:      app
   main-is:             Main.hs
+  other-modules:       Paths_morley
   default-language:    Haskell2010
   build-depends:       base-noprelude >= 4.7 && < 5
-                     , universum
                      , fmt
-                     , pretty-simple
                      , megaparsec >= 7.0.0
-                     , optparse-applicative
-                     , text
                      , morley
                      , morley-prelude
+                     , named
+                     , optparse-applicative
+                     , pretty-simple
+                     , text
   ghc-options:        -Weverything
                       -Wno-missing-exported-signatures
                       -Wno-missing-import-lists

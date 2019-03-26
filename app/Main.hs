@@ -3,11 +3,15 @@ module Main
   ) where
 
 
+import Data.Version (showVersion)
 import Fmt (pretty)
+import Named ((!))
 import Options.Applicative
-  (auto, command, eitherReader, execParser, help, info, long, maybeReader, metavar, option,
-  progDesc, readerError, showDefault, strOption, subparser, switch, value)
+  (auto, command, eitherReader, execParser, fullDesc, header, help, helper, info, infoOption, long,
+  maybeReader, metavar, option, progDesc, readerError, short, showDefault, showDefaultWith,
+  strOption, subparser, switch, value)
 import qualified Options.Applicative as Opt
+import Paths_morley (version)
 import Text.Pretty.Simple (pPrint)
 
 import Michelson.Untyped hiding (OriginationOperation(..))
@@ -16,10 +20,11 @@ import Morley.Ext (typeCheckMorleyContract)
 import Morley.Macro (expandFlattenContract, expandValue)
 import qualified Morley.Parser as P
 import Morley.Runtime
-  (TxData(..), originateContract, prepareContract, readAndParseContract, runContract)
+  (TxData(..), originateContract, prepareContract, readAndParseContract, runContract, transfer)
 import Morley.Runtime.GState (genesisAddress, genesisKeyHash)
 import Tezos.Address (Address, parseAddress)
-import Tezos.Core (Mutez, Timestamp(..), mkMutez, parseTimestamp, timestampFromSeconds)
+import Tezos.Core
+  (Mutez, Timestamp(..), mkMutez, parseTimestamp, timestampFromSeconds, unMutez, unsafeMkMutez)
 import Tezos.Crypto
 
 data CmdLnArgs
@@ -27,6 +32,7 @@ data CmdLnArgs
   | TypeCheck (Maybe FilePath) Bool
   | Run !RunOptions
   | Originate !OriginateOptions
+  | Transfer !TransferOptions
 
 data RunOptions = RunOptions
   { roContractFile :: !(Maybe FilePath)
@@ -36,6 +42,8 @@ data RunOptions = RunOptions
   , roVerbose :: !Bool
   , roNow :: !(Maybe Timestamp)
   , roMaxSteps :: !Word64
+  , roInitBalance :: !Mutez
+  , roWrite :: !Bool
   }
 
 data OriginateOptions = OriginateOptions
@@ -50,33 +58,70 @@ data OriginateOptions = OriginateOptions
   , ooVerbose :: !Bool
   }
 
+data TransferOptions = TransferOptions
+  { toDBPath :: !FilePath
+  , toDestination :: !Address
+  , toTxData :: !TxData
+  , toNow :: !(Maybe Timestamp)
+  , toMaxSteps :: !Word64
+  , toVerbose :: !Bool
+  , toDryRun :: !Bool
+  }
+
 argParser :: Opt.Parser CmdLnArgs
 argParser = subparser $
   parseSubCmd <>
   typecheckSubCmd <>
   runSubCmd <>
-  originateSubCmd
+  originateSubCmd <>
+  transferSubCmd
   where
-    parseSubCmd = command "parse" $
-      info (uncurry Parse <$> parseOptions) $
-        progDesc "Parse passed contract"
+    mkCommandParser commandName parser desc =
+      command commandName $
+      info (helper <*> parser) $
+      progDesc desc
 
-    typecheckSubCmd = command "typecheck" $
-      info (uncurry TypeCheck <$> typecheckOptions) $
-        progDesc "Typecheck passed contract"
+    parseSubCmd =
+      mkCommandParser "parse"
+      (uncurry Parse <$> parseOptions)
+      "Parse passed contract"
 
-    runSubCmd = command "run" $
-      info (Run <$> runOptions) $
-        progDesc "Run passed contract on "
+    typecheckSubCmd =
+      mkCommandParser "typecheck"
+      (uncurry TypeCheck <$> typecheckOptions)
+      "Typecheck passed contract"
 
-    originateSubCmd = command "originate" $
-      info (Originate <$> originateOptions) $
-        progDesc "Originate passed contract. Add it to passed DB"
+    runSubCmd =
+      mkCommandParser "run"
+      (Run <$> runOptions) $
+      "Run passed contract. \
+      \It's originated first and then a transaction is sent to it"
+
+    originateSubCmd =
+      mkCommandParser "originate"
+      (Originate <$> originateOptions)
+      "Originate passed contract. Add it to passed DB"
+
+    transferSubCmd =
+      mkCommandParser "transfer"
+      (Transfer <$> transferOptions)
+      "Transfer tokens to given address"
 
     verboseFlag :: Opt.Parser Bool
     verboseFlag = switch $
+      short 'v' <>
       long "verbose" <>
       help "Whether output should be verbose"
+
+    writeFlag :: Opt.Parser Bool
+    writeFlag = switch $
+      long "write" <>
+      help "Whether updated DB should be written to DB file"
+
+    dryRunFlag :: Opt.Parser Bool
+    dryRunFlag = switch $
+      long "dry-run" <>
+      help "Do not write updated DB to DB file"
 
     typecheckOptions :: Opt.Parser (Maybe FilePath, Bool)
     typecheckOptions = (,)
@@ -90,6 +135,9 @@ argParser = subparser $
         long "expand-macros" <>
         help "Whether expand macros after parsing or not")
 
+    defaultBalance :: Mutez
+    defaultBalance = unsafeMkMutez 4000000
+
     runOptions :: Opt.Parser RunOptions
     runOptions =
       RunOptions
@@ -100,6 +148,9 @@ argParser = subparser $
         <*> verboseFlag
         <*> nowOption
         <*> maxStepsOption
+        <*> mutezOption (Just defaultBalance)
+            "balance" "Initial balance of this contract"
+        <*> writeFlag
 
     originateOptions :: Opt.Parser OriginateOptions
     originateOptions =
@@ -114,8 +165,20 @@ argParser = subparser $
         <*> switch (long "delegatable" <>
                     help "Whether the contract is delegatable")
         <*> valueOption "storage" "Initial storage of an originating contract"
-        <*> mutezOption "balance" "Initial balance of an originating contract"
+        <*> mutezOption (Just defaultBalance)
+            "balance" "Initial balance of an originating contract"
         <*> verboseFlag
+
+    transferOptions :: Opt.Parser TransferOptions
+    transferOptions = do
+      toDBPath <- dbPathOption
+      toDestination <- addressOption Nothing "to" "Destination address"
+      toTxData <- txData
+      toNow <- nowOption
+      toMaxSteps <- maxStepsOption
+      toVerbose <- verboseFlag
+      toDryRun <- dryRunFlag
+      pure TransferOptions {..}
 
 contractFileOption :: Opt.Parser (Maybe FilePath)
 contractFileOption = optional $ strOption $
@@ -137,7 +200,7 @@ maxStepsOption :: Opt.Parser Word64
 maxStepsOption = option auto $
   value 100500 <>
   long "max-steps" <>
-  metavar "Word64" <>
+  metavar "INT" <>
   help "Max steps that you want the runtime interpreter to use" <>
   showDefault
 
@@ -146,13 +209,14 @@ dbPathOption = strOption $
   long "db" <>
   metavar "FILEPATH" <>
   value "db.json" <>
-  help "Path to DB with data which is used instead of real blockchain data"
+  help "Path to DB with data which is used instead of real blockchain data" <>
+  showDefault
 
 keyHashOption :: Maybe KeyHash -> String -> String -> Opt.Parser KeyHash
 keyHashOption defaultValue name hInfo =
   option (eitherReader (first pretty . parseKeyHash . toText)) $
   long name <>
-  maybe mempty value defaultValue <>
+  maybeAddDefault pretty defaultValue <>
   help hInfo
 
 valueOption :: String -> String -> Opt.Parser (Value Op)
@@ -166,28 +230,34 @@ valueOption name hInfo = option (eitherReader parseValue) $
              (Right . expandValue)
       $ P.parseNoEnv P.value "" (toText s)
 
-mutezOption :: String -> String -> Opt.Parser Mutez
-mutezOption name hInfo =
+mutezOption :: Maybe Mutez -> String -> String -> Opt.Parser Mutez
+mutezOption defaultValue name hInfo =
   option (maybe (readerError "Invalid mutez") pure . mkMutez =<< auto) $
   long name <>
   metavar "INT" <>
+  maybeAddDefault (show . unMutez) defaultValue <>
   help hInfo
+
+addressOption :: Maybe Address -> String -> String -> Opt.Parser Address
+addressOption defAddress name hInfo =
+  option (eitherReader parseAddrDo) $ mconcat
+  [ long name
+  , metavar "ADDRESS"
+  , help hInfo
+  , maybeAddDefault pretty defAddress
+  ]
+  where
+    parseAddrDo addr =
+      either (Left . mappend "Failed to parse address: " . pretty) Right $
+      parseAddress $ toText addr
 
 txData :: Opt.Parser TxData
 txData =
   mkTxData
-    <$> sender
+    <$> addressOption (Just genesisAddress) "sender" "Sender address"
     <*> valueOption "parameter" "Parameter of passed contract"
-    <*> mutezOption "amount" "Amout sent by a transaction"
+    <*> mutezOption (Just minBound) "amount" "Amout sent by a transaction"
   where
-    sender = option (eitherReader parseAddrDo) $
-      long "sender" <>
-      metavar "ADDRESS" <>
-      value genesisAddress <>
-      help "Sender address"
-    parseAddrDo addr =
-      either (Left . mappend "Failed to parse address: " . pretty) Right $
-        parseAddress $ toText addr
     mkTxData :: Address -> Value Op -> Mutez -> TxData
     mkTxData addr param amount =
       TxData
@@ -196,12 +266,27 @@ txData =
         , tdAmount = amount
         }
 
+-- Maybe add default value and make sure it will be shown in help message.
+maybeAddDefault :: Opt.HasValue f => (a -> String) -> Maybe a -> Opt.Mod f a
+maybeAddDefault printer = maybe mempty addDefault
+  where
+    addDefault v = value v <> showDefaultWith printer
+
 main :: IO ()
 main = do
-  cmdLnArgs <- execParser (info argParser progInfo)
+  cmdLnArgs <- execParser programInfo
   run cmdLnArgs `catchAny` (die . displayException)
   where
-    progInfo = progDesc "Haskell implementation of Michelson typechecker and interpreter"
+    programInfo = info (helper <*> versionOption <*> argParser) $
+      mconcat
+      [ fullDesc
+      , progDesc "Morley: Haskell implementation of Michelson typechecker and interpreter"
+      , header "Morley tools"
+      ]
+
+    versionOption = infoOption ("morley-" <> showVersion version)
+      (long "version" <> help "Show version.")
+
     run :: CmdLnArgs -> IO ()
     run args = case args of
       Parse mFilename hasExpandMacros -> do
@@ -216,7 +301,9 @@ main = do
         putTextLn "Contract is well-typed"
       Run RunOptions {..} -> do
         michelsonContract <- prepareContract roContractFile
-        runContract roNow roMaxSteps roVerbose roDBPath roStorageValue michelsonContract roTxData
+        runContract roNow roMaxSteps roInitBalance roDBPath roStorageValue michelsonContract roTxData
+          ! #verbose roVerbose
+          ! #dryRun (not roWrite)
       Originate OriginateOptions {..} -> do
         michelsonContract <- prepareContract ooContractFile
         let origination = Un.OriginationOperation
@@ -228,5 +315,9 @@ main = do
               , Un.ooBalance = ooBalance
               , Un.ooContract = michelsonContract
               }
-        addr <- originateContract ooVerbose ooDBPath origination
+        addr <- originateContract ooDBPath origination ! #verbose ooVerbose
         putTextLn $ "Originated contract " <> pretty addr
+      Transfer TransferOptions {..} -> do
+        transfer toNow toMaxSteps toDBPath toDestination toTxData
+          ! #verbose toVerbose
+          ! #dryRun toDryRun
