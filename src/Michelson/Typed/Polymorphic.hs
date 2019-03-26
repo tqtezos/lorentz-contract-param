@@ -137,10 +137,6 @@ instance ConcatOp ('Tc 'CBytes) where
   evalConcat (VC (CvBytes b1)) (VC (CvBytes b2)) = (VC . CvBytes) (b1 <> b2)
   evalConcat' l =
     (VC . CvBytes) $ foldr (<>) mempty (map (\(VC (CvBytes b)) -> b) l)
-instance ConcatOp ('TList t) where
-  evalConcat (VList l1) (VList l2) = VList $ l1 <> l2
-  evalConcat' l =
-    VList $ concat $ map (\(VList l') -> l') l
 
 class SliceOp (c :: T) where
   evalSlice :: Natural -> Natural -> Val cp c -> Maybe (Val cp c)

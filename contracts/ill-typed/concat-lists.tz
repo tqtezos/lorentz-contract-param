@@ -1,0 +1,7 @@
+parameter (list unit);
+storage (list unit);
+code {
+      UNPAIR;
+      CONCAT;
+      NIL operation;
+      PAIR; };
