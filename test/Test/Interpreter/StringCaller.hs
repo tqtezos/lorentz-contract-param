@@ -6,7 +6,7 @@ module Test.Interpreter.StringCaller
 
 import Test.Hspec (Spec, it, parallel)
 import Test.Hspec.QuickCheck (modifyMaxSuccess, prop)
-import Test.QuickCheck (arbitrary, forAll)
+import Test.QuickCheck.Instances.Text ()
 
 import Michelson.Typed
 import Michelson.Untyped (OriginationOperation(..), mkContractAddress)
@@ -40,8 +40,7 @@ specImpl (uStringCaller, _stringCaller) (uIdString, _idString) = do
   -- The test is trivial, so it's kinda useless to run it many times
   modifyMaxSuccess (const 2) $
     prop "stringCaller calls idString and updates its storage with an arbitrary value" $
-    forAll (arbitrary @String) $ \(Untyped.ValueString . toText -> newValue) ->
-      simplerIntegrationalTestProperty
+      \(Untyped.ValueString -> newValue) -> simplerIntegrationalTestProperty
         (operations newValue)
         (Right (updatesValidator newValue))
   where

@@ -248,6 +248,7 @@ test-suite morley-test
                      , morley-prelude
                      , QuickCheck
                      , quickcheck-arbitrary-adt
+                     , quickcheck-instances
                      , text
                      , time
                      , universum

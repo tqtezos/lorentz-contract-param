@@ -9,6 +9,7 @@ import qualified Data.Text.Encoding as T
 
 import Test.QuickCheck (Arbitrary(..), Gen, choose, elements, listOf, oneof, vector)
 import Test.QuickCheck.Arbitrary.ADT (ToADTArbitrary(..))
+import Test.QuickCheck.Instances.Text ()
 
 import Michelson.Untyped
   (Annotation(..), CT(..), Comparable(..), Contract(..), Elt(..), FieldAnn, InstrAbstract(..),
@@ -19,9 +20,6 @@ import Tezos.Core (Mutez(..))
 
 instance Arbitrary InternalByteString where
   arbitrary = InternalByteString . T.encodeUtf8 . T.pack <$> listOf arbitrary
-
-instance Arbitrary Text where
-  arbitrary = T.pack <$> arbitrary
 
 instance Arbitrary Var where
   arbitrary = Var <$> arbitrary

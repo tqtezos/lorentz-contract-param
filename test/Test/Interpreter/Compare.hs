@@ -5,8 +5,8 @@ module Test.Interpreter.Compare
 
 import Test.Hspec (Spec, it, parallel)
 import Test.Hspec.QuickCheck (prop)
-import Test.QuickCheck (Property, arbitrary, (===))
-import Test.QuickCheck.Property (forAll, withMaxSuccess)
+import Test.QuickCheck (Property, (===))
+import Test.QuickCheck.Property (withMaxSuccess)
 
 import Michelson.Interpret (InterpreterState, MichelsonFailed)
 import Michelson.Typed (ToT, Val(..), fromVal)
@@ -27,15 +27,15 @@ compareSpec :: Spec
 compareSpec = parallel $ do
 
   specWithTypedContract "contracts/compare.tz" $ \contract -> do
+    let
+      contractProp' inputParam =
+        contractProp contract (validate (mkExpected inputParam))
+        dummyContractEnv inputParam initStorage
+
     it "success test" $
-      contractProp' contract (unsafeMkMutez 10, unsafeMkMutez 11)
+      contractProp' (unsafeMkMutez 10, unsafeMkMutez 11)
 
-    prop "Random check"
-      $ withMaxSuccess 200
-      $ forAll ((,) <$> arbitrary <*> arbitrary)
-      $ contractProp' contract
-
-
+    prop "Random check" $ withMaxSuccess 200 contractProp'
   where
     initStorage :: [Bool]
     initStorage = []
@@ -50,10 +50,3 @@ compareSpec = parallel $ do
     validate e (Right ([], fromVal -> l), _) = l === e
     validate _ (Left _, _) = failedProp "Unexpected fail of sctipt."
     validate _ _ = failedProp "Invalid result got."
-
-    contractProp' contract inputs =
-      contractProp contract
-        (validate (mkExpected inputs))
-        dummyContractEnv
-        inputs
-        initStorage
