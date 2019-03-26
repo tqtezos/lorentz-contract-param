@@ -43,7 +43,10 @@ library
                      , Morley.Runtime.TxData
                      , Morley.Test
                      , Morley.Test.Dummy
+                     , Morley.Test.Gen
+                     , Morley.Test.Import
                      , Morley.Test.Integrational
+                     , Morley.Test.Unit
                      , Morley.Test.Util
                      , Morley.Types
                      , Tezos.Address
