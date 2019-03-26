@@ -188,7 +188,8 @@ typeCheckValsImpl
   -> [Un.UntypedValue]
   -> T
   -> TypeCheckT ([Val Instr t], Notes t)
-typeCheckValsImpl tcDo mvs t = foldM check ([], NStar) mvs
+typeCheckValsImpl tcDo mvs t =
+  fmap (first reverse) $ foldM check ([], NStar) mvs
   where
     check (res, ns) mv = do
       v :::: ((_ :: Sing t'), vns) <- typeCheckValImpl tcDo mv t

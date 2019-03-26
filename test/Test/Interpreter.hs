@@ -8,7 +8,7 @@ import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck (Property, label, (.&&.), (===))
 
 import Michelson.Interpret (ContractEnv(..), ContractReturn, MichelsonFailed(..), RemainingSteps)
-import Michelson.Typed (CT(..), CVal(..), Instr(..), T(..), Val(..), fromVal, toVal, ( # ))
+import Michelson.Typed (CT(..), CVal(..), Instr(..), T(..), ToT, Val(..), fromVal, toVal, ( # ))
 import Morley.Ext (interpretMorley)
 import Morley.Test (ContractPropValidator, contractProp, specWithTypedContract)
 import Morley.Test.Dummy (dummyContractEnv)
@@ -80,6 +80,19 @@ spec = describe "Advanced type interpreter tests" $ do
         Right _ -> expectationFailure "expecting contract to fail"
         Left MichelsonGasExhaustion -> pass
         Left _ -> expectationFailure "expecting another failure reason"
+
+  specWithTypedContract "contracts/add1_list.tz" $ \contract -> do
+    let
+      validate ::
+        [Integer] -> ContractPropValidator (ToT [Integer]) Property
+      validate param (res, _) =
+        case res of
+          Left failed -> failedProp $
+            "add1_list unexpectedly failed: " <> pretty failed
+          Right (fromVal . snd -> finalStorage) ->
+            map succ param === finalStorage
+    prop "Random check" $ \param ->
+      contractProp contract (validate param) dummyContractEnv param param
 
 validateBasic1
   :: [Integer] -> ContractPropValidator ('TList ('Tc 'CInt)) Property
