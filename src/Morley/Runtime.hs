@@ -1,7 +1,9 @@
 -- | Interpreter of a contract in Morley language.
 
 module Morley.Runtime
-       ( originateContract
+       ( readAndParseContract
+       , prepareContract
+       , originateContract
        , runContract
 
        -- * Re-exports
@@ -20,20 +22,25 @@ import Control.Lens (at, makeLenses, (%=), (.=), (<>=))
 import Control.Monad.Except (Except, runExcept, throwError)
 import Data.Default (def)
 import qualified Data.Map.Strict as Map
+import Data.Text.IO (getContents)
 import Fmt (Buildable(build), blockListF, fmtLn, nameF, pretty, (+|), (|+))
+import Text.Megaparsec (parse)
 
 import Michelson.Interpret
   (ContractEnv(..), InterpretUntypedError(..), InterpretUntypedResult(..), InterpreterState(..),
   RemainingSteps(..))
+import Michelson.TypeCheck (TCError)
 import Michelson.Typed
   (CreateContract(..), Instr, Operation(..), TransferTokens(..), Val(..), convertContract,
   unsafeValToValue)
-import Michelson.Untyped (Contract(..), Op, OriginationOperation(..), Value, mkContractAddress)
+import Michelson.Untyped (Contract(..), Op(..), OriginationOperation(..), Value, mkContractAddress)
 import Morley.Aliases (UntypedContract)
-import Morley.Ext (interpretMorleyUntyped)
+import Morley.Ext (interpretMorleyUntyped, typeCheckMorleyContract)
+import Morley.Macro (expandFlattenContract)
+import qualified Morley.Parser as P
 import Morley.Runtime.GState
 import Morley.Runtime.TxData
-import Morley.Types (MorleyLogs(..), noMorleyLogs)
+import Morley.Types (MorleyLogs(..), ParsedOp, noMorleyLogs)
 import Tezos.Address (Address(..))
 import Tezos.Core
   (Mutez, Timestamp(..), getCurrentTime, unsafeAddMutez, unsafeMkMutez, unsafeSubMutez)
@@ -95,6 +102,8 @@ data InterpreterError
   -- ^ Sender doesn't have enough funds.
   | IEFailedToApplyUpdates !GStateUpdateError
   -- ^ Failed to apply updates to GState.
+  | IEIllTypedContract !TCError
+  -- ^ A contract is ill-typed.
   deriving (Show)
 
 instance Buildable InterpreterError where
@@ -111,6 +120,7 @@ instance Buildable InterpreterError where
         "The sender (" +| addr |+
         ") doesn't  have enough funds (has only " +| amount |+ ")"
       IEFailedToApplyUpdates err -> "Failed to update GState: " +| err |+ ""
+      IEIllTypedContract err -> "The contract is ill-typed " +| err |+ ""
 
 instance Exception InterpreterError where
   displayException = pretty
@@ -118,6 +128,23 @@ instance Exception InterpreterError where
 ----------------------------------------------------------------------------
 -- Interface
 ----------------------------------------------------------------------------
+
+-- | Read and parse a contract from give path or `stdin` (if the
+-- argument is 'Nothing'). The contract is not expanded.
+readAndParseContract :: Maybe FilePath -> IO (Contract ParsedOp)
+readAndParseContract mFilename = do
+  code <- readCode mFilename
+  let filename = fromMaybe "<stdin>" mFilename
+  either (throwM . P.ParserException) pure $
+    parse P.program filename code
+  where
+    readCode :: Maybe FilePath -> IO Text
+    readCode = maybe getContents readFile
+
+-- | Read a contract using 'readAndParseContract', expand and
+-- flatten. The contract is not type checked.
+prepareContract :: Maybe FilePath -> IO (Contract Op)
+prepareContract mFile = expandFlattenContract <$> readAndParseContract mFile
 
 -- | Originate a contract. Returns the address of the originated
 -- contract.
@@ -225,6 +252,8 @@ interpretOneOp
   -> InterpreterOp
   -> Either InterpreterError InterpreterRes
 interpretOneOp _ remainingSteps _ gs (OriginateOp origination) = do
+  void $ first IEIllTypedContract $
+    typeCheckMorleyContract (unOp <$> ooContract origination)
   let originatorAddress = KeyAddress (ooManager origination)
   originatorBalance <- case gsAddresses gs ^. at (originatorAddress) of
     Nothing -> Left (IEUnknownManager originatorAddress)

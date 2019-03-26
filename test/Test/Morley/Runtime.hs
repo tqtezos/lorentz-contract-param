@@ -7,8 +7,8 @@ module Test.Morley.Runtime
 import Control.Lens (at)
 import Fmt (pretty)
 import Test.Hspec
-  (Expectation, Spec, context, describe, expectationFailure, it, parallel, shouldBe, shouldSatisfy,
-  specify)
+  (Expectation, Spec, context, describe, expectationFailure, it, parallel, runIO, shouldBe,
+  shouldSatisfy, specify)
 
 import Michelson.Interpret (ContractEnv(..), InterpretUntypedError(..), InterpretUntypedResult(..))
 import Michelson.Typed (unsafeValToValue)
@@ -25,12 +25,17 @@ import Test.Util.Interpreter (dummyOrigination)
 
 spec :: Spec
 spec = describe "Morley.Runtime" $ do
+  illTypedContract <- runIO $
+    prepareContract (Just "contracts/ill-typed/sum-strings.tz")
+
   -- Safe to run in parallel, because 'interpreterPure' is pure.
   describe "interpreterPure" $ parallel $ do
     context "Updates storage value of executed contract" $ do
       specify "contract1" $ updatesStorageValue contractAux1
       specify "contract2" $ updatesStorageValue contractAux2
     it "Fails to originate an already originated contract" failsToOriginateTwice
+    it "Fails to originate an ill-typed contract"
+      (failsToOriginateIllTyped (ValueString "") illTypedContract)
 
 ----------------------------------------------------------------------------
 -- Test code
@@ -78,14 +83,30 @@ updatesStorageValue ca = either throwM handleResult $ do
 
 failsToOriginateTwice :: Expectation
 failsToOriginateTwice =
-  interpreterPure dummyNow dummyMaxSteps initGState ops `shouldSatisfy`
-  isAlreadyOriginated
+  simpleTest ops isAlreadyOriginated
   where
     contract = caContract contractAux1
     origination = dummyOrigination (caStorage contractAux1) contract
     ops = [OriginateOp origination, OriginateOp origination]
     isAlreadyOriginated (Left (IEAlreadyOriginated {})) = True
     isAlreadyOriginated _ = False
+
+failsToOriginateIllTyped :: Value Op -> Contract Op -> Expectation
+failsToOriginateIllTyped initialStorage illTypedContract =
+  simpleTest ops isIllTypedContract
+  where
+    origination = dummyOrigination initialStorage illTypedContract
+    ops = [OriginateOp origination]
+    isIllTypedContract (Left (IEIllTypedContract {})) = True
+    isIllTypedContract _ = False
+
+simpleTest ::
+     [InterpreterOp]
+  -> (Either InterpreterError InterpreterRes -> Bool)
+  -> Expectation
+simpleTest ops predicate =
+  interpreterPure dummyNow dummyMaxSteps initGState ops `shouldSatisfy`
+  predicate
 
 ----------------------------------------------------------------------------
 -- Data
