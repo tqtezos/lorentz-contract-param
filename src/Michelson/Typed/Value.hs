@@ -20,6 +20,7 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.Singletons (SingI)
 
+import Michelson.EqParam
 import Michelson.Typed.CValue (CVal(..), FromCVal, ToCVal, fromCVal, toCVal)
 import Michelson.Typed.T (T(..), ToT)
 import Tezos.Address (Address)
@@ -32,35 +33,48 @@ import Tezos.Crypto (KeyHash, PublicKey, Signature)
 -- These operations are to be further executed against system state
 -- after the contract execution.
 data Operation instr where
-  OpTransferTokens :: TransferTokens instr p -> Operation instr
+  OpTransferTokens :: Typeable p => TransferTokens instr p -> Operation instr
   OpSetDelegate :: SetDelegate -> Operation instr
   OpCreateAccount :: CreateAccount -> Operation instr
   OpCreateContract
-    :: (Show (instr (ContractInp cp st) (ContractOut st)), SingI cp, SingI st)
+    :: ( Show (instr (ContractInp cp st) (ContractOut st)), SingI cp, SingI st
+       , Typeable t, Typeable cp, Typeable st)
     => CreateContract instr t cp st
     -> Operation instr
 
 deriving instance Show (Operation instr)
+instance Eq (Operation instr) where
+  op1 == op2 = case (op1, op2) of
+    (OpTransferTokens tt1, OpTransferTokens tt2) -> eqParam1 tt1 tt2
+    (OpTransferTokens _, _) -> False
+    (OpSetDelegate sd1, OpSetDelegate sd2) -> sd1 == sd2
+    (OpSetDelegate _, _) -> False
+    (OpCreateAccount ca1, OpCreateAccount ca2) -> ca1 == ca2
+    (OpCreateAccount _, _) -> False
+    (OpCreateContract cc1, OpCreateContract cc2) -> eqParam3 cc1 cc2
+    (OpCreateContract _, _) -> False
 
 data TransferTokens instr p = TransferTokens
   { ttContractParameter :: !(Val instr p)
   , ttAmount :: !Mutez
   , ttContract :: !(Val instr ('TContract p))
-  } deriving (Show)
+  } deriving (Show, Eq)
 
 data SetDelegate = SetDelegate
   { sdMbKeyHash :: !(Maybe KeyHash)
-  } deriving (Show)
+  } deriving (Show, Eq)
 
 data CreateAccount = CreateAccount
   { caManager :: !KeyHash
   , caDelegate :: !(Maybe KeyHash)
   , caSpendable :: !Bool
   , caBalance :: !Mutez
-  } deriving (Show)
+  } deriving (Show, Eq)
 
 data CreateContract instr t cp st
-  = Show (instr (ContractInp cp st) (ContractOut st))
+  = ( Show (instr (ContractInp cp st) (ContractOut st))
+    , Eq (instr (ContractInp cp st) (ContractOut st))
+    )
   => CreateContract
   { ccManager :: !KeyHash
   , ccDelegate :: !(Maybe KeyHash)
@@ -72,6 +86,7 @@ data CreateContract instr t cp st
   }
 
 deriving instance Show (CreateContract instr t cp st)
+deriving instance Eq (CreateContract instr t cp st)
 
 type ContractInp param st = '[ 'TPair param st ]
 type ContractOut st = '[ 'TPair ('TList 'TOperation) st ]
@@ -93,12 +108,15 @@ data Val instr t where
   VPair :: (Val instr l, Val instr r) -> Val instr ('TPair l r)
   VOr :: Either (Val instr l) (Val instr r) -> Val instr ('TOr l r)
   VLam
-    :: Show (instr '[inp] '[out])
+    :: ( Show (instr '[inp] '[out])
+       , Eq (instr '[inp] '[out])
+       )
     => instr (inp ': '[]) (out ': '[]) -> Val instr ('TLambda inp out)
   VMap :: Map (CVal k) (Val instr v) -> Val instr ('TMap k v)
   VBigMap :: Map (CVal k) (Val instr v) -> Val instr ('TBigMap k v)
 
 deriving instance Show (Val instr t)
+deriving instance Eq (Val instr t)
 
 -- TODO: actually we should handle big maps with something close
 -- to following:

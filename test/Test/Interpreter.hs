@@ -2,12 +2,13 @@ module Test.Interpreter
   ( spec
   ) where
 
+import Fmt (pretty)
 import Test.Hspec (Expectation, Spec, describe, expectationFailure, it, shouldBe, shouldSatisfy)
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck (Property, label, (.&&.), (===))
 
 import Michelson.Interpret (ContractEnv(..), ContractReturn, MichelsonFailed(..), RemainingSteps)
-import Michelson.Typed (CT(..), CVal(..), Instr(..), T(..), Val(..), ( # ))
+import Michelson.Typed (CT(..), CVal(..), Instr(..), T(..), Val(..), toVal, ( # ))
 import Morley.Ext (interpretMorley)
 import Morley.Test (ContractPropValidator, contractProp, specWithTypedContract)
 import Morley.Types (MorleyLogs)
@@ -20,15 +21,20 @@ import Test.Util.Interpreter (dummyContractEnv)
 
 spec :: Spec
 spec = describe "Advanced type interpreter tests" $ do
+  let contractResShouldBe (res, _) expected =
+        case res of
+          Left err -> expectationFailure $ "Unexpected failure: " <> pretty err
+          Right (_ops, v) -> v `shouldBe` expected
+
   specWithTypedContract "contracts/basic5.tz" $ \contract ->
     it "Basic test" $
-      interpretMorley contract VUnit (VList [ VC $ CvInt 1 ]) dummyContractEnv
-        `shouldSatisfy` (isRight . fst)
+      interpretMorley contract VUnit (toVal [1 :: Integer]) dummyContractEnv
+        `contractResShouldBe` (toVal [13 :: Integer, 100])
 
   specWithTypedContract "contracts/increment.tz" $ \contract ->
     it "Basic test" $
-      interpretMorley contract VUnit (VC $ CvInt 23) dummyContractEnv
-        `shouldSatisfy` (isRight . fst)
+      interpretMorley contract VUnit (toVal @Integer 23) dummyContractEnv
+        `contractResShouldBe` (toVal @Integer 24)
 
   specWithTypedContract "contracts/fail.tz" $ \contract ->
     it "Fail test" $

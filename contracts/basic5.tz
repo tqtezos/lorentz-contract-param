@@ -1,16 +1,14 @@
 parameter unit;
 storage (list (int :t));
-code {
-  CDR;
-  PUSH int 0;
-  SWAP;
-  ITER { ADD; };
-  NIL operation;
-  PUSH int 12;
-  DIP { SWAP; };
-  ADD;
-  PUSH (int :t) 100;
-  NIL int;
-  SWAP; CONS; SWAP; CONS; SWAP;
-  PAIR;
-};
+code { CDR;
+       PUSH int 0;
+       SWAP;
+       ITER { ADD; };
+       NIL operation;
+       PUSH int 12;
+       DIP { SWAP; };
+       ADD;
+       PUSH (int :t) 100;
+       NIL int;
+       SWAP; CONS; SWAP; CONS; SWAP;
+       PAIR };

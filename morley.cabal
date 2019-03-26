@@ -40,7 +40,9 @@ library
                      , Tezos.Address
                      , Tezos.Core
                      , Tezos.Crypto
-  other-modules:       Michelson.TypeCheck.Helpers
+  other-modules:
+                       Michelson.EqParam
+                     , Michelson.TypeCheck.Helpers
                      , Michelson.TypeCheck.Instr
                      , Michelson.TypeCheck.Types
                      , Michelson.TypeCheck.Value

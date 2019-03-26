@@ -13,8 +13,8 @@ import Prelude hiding (EQ, GT, LT)
 import Michelson.TypeCheck.Helpers
 import Michelson.TypeCheck.Types
 import Michelson.Typed
-  (CT(..), Instr(..), InstrExtT, Notes(..), Notes'(..), Sing(..), T(..), converge, mkNotes,
-  withSomeSingCT, withSomeSingT)
+  (CT(..), ConversibleExt, Instr(..), InstrExtT, Notes(..), Notes'(..), Sing(..), T(..), converge,
+  mkNotes, withSomeSingCT, withSomeSingT)
 import Michelson.Typed.Value (CVal(..), Val(..))
 import qualified Michelson.Untyped as Un
 import Tezos.Address (parseAddress)
@@ -69,7 +69,7 @@ typeCheckCVals mvs t = traverse check mvs
 -- that is interpreted as input of wrong type and type check finishes with
 -- error.
 typeCheckValImpl
-  :: Show InstrExtT
+  :: (Show InstrExtT, ConversibleExt, Eq Un.InstrExtU)
   => TcInstrHandler
   -> Un.Value Un.Op
   -> T
@@ -160,7 +160,7 @@ typeCheckValImpl tcDo v@(Un.ValueLambda (fmap Un.unOp -> mp)) t@(TLambda mi mo) 
 typeCheckValImpl _ v t = throwError $ TCFailedOnValue v t ""
 
 typeCheckValsImpl
-  :: forall t . (Typeable t, Show InstrExtT)
+  :: forall t . (Typeable t, Show InstrExtT, ConversibleExt, Eq Un.InstrExtU)
   => TcInstrHandler
   -> [Un.Value Un.Op]
   -> T

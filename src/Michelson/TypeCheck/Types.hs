@@ -21,7 +21,7 @@ import Fmt (Buildable(..), pretty, (+|), (|+), (||+))
 import Prelude hiding (EQ, GT, LT)
 import qualified Text.Show
 
-import Michelson.Typed (Notes(..), Sing(..), T(..), fromSingT)
+import Michelson.Typed (ConversibleExt, Notes(..), Sing(..), T(..), fromSingT)
 import Michelson.Typed.Extract (toUType)
 import Michelson.Typed.Instr
 import Michelson.Typed.Value
@@ -150,7 +150,12 @@ type TcExtFrames = [(U.InstrExtU, SomeHST)]
 
 -- | Constraints on InstrExtT and untyped Instr
 -- which are required for type checking
-type ExtC = (Show InstrExtT, Typeable InstrExtT, Buildable U.Instr)
+type ExtC
+   = ( Show InstrExtT
+     , Eq U.InstrExtU
+     , Typeable InstrExtT
+     , Buildable U.Instr
+     , ConversibleExt)
 
 type TypeCheckT a =
   ExceptT TCError
