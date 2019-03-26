@@ -159,7 +159,7 @@ argParser = subparser $
         <*> dbPathOption
         <*> keyHashOption (Just genesisKeyHash) "manager" "Contract's manager"
         <*> optional
-            (keyHashOption Nothing "manager" "Contract's optional delegate")
+            (keyHashOption Nothing "delegate" "Contract's optional delegate")
         <*> switch (long "spendable" <>
                     help "Whether the contract is spendable")
         <*> switch (long "delegatable" <>
