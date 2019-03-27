@@ -1,0 +1,13 @@
+resolver: lts-13.3
+
+name: edsl-example
+
+packages:
+# morley deps
+- aeson-options-0.1.0
+- base58-bytestring-0.1.0
+- hex-text-0.1.0.0
+
+# morley itself
+- morley-prelude-0.1.0.3
+- morley-0.2.0

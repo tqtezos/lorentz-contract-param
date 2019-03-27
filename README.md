@@ -33,7 +33,10 @@ Workflow is the following:
 
 ## IV: Testing EDSL
 
-Coming soon, see TM-77.
+Testing EDSL makes it possible to write tests in Haskell.
+It supports both integrational and unit tests.
+Tests of both types can use static data or arbitrary data.
+There is [a document](/docs/testingEDSL.md) with a detailed description of EDSL and a tutorial about its usage.
 
 ## Running and building
 
