@@ -93,7 +93,6 @@ library
                      , memory
                      , morley-prelude
                      , named
-                     , natural-numbers
                      , QuickCheck
                      , text
                      , time
