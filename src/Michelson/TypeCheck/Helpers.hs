@@ -8,6 +8,7 @@ module Michelson.TypeCheck.Helpers
     , convergeHSTEl
     , convergeHST
 
+    , ensureDistinctAsc
     , eqT'
     , assertEqT
     , checkEqT
@@ -38,6 +39,7 @@ import Data.Default (def)
 import Data.Singletons (SingI(sing))
 import qualified Data.Text as T
 import Data.Typeable ((:~:)(..), eqT, typeRep)
+import Fmt ((+||), (||+))
 
 import Michelson.TypeCheck.Types
 import Michelson.Typed
@@ -135,6 +137,16 @@ onLeft = flip first
 --------------------------------------------
 -- Typechecker auxiliary
 --------------------------------------------
+
+-- | Check whether elements go in strictly ascending order and
+-- return the original list (to keep only one pass on the original list).
+ensureDistinctAsc :: (Ord a, Show a) => [a] -> Either Text [a]
+ensureDistinctAsc = \case
+  (e1 : e2 : l) ->
+    if e1 < e2
+    then (e1 :) <$> ensureDistinctAsc (e2 : l)
+    else Left $ "Entries are unordered (" +|| e1 ||+ " >= " +|| e2 ||+ ""
+  l -> Right l
 
 checkEqT
   :: forall a b ts . (Typeable a, Typeable b, Typeable ts)
