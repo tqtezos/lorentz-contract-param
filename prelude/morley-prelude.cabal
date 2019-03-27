@@ -3,7 +3,7 @@ version:             0.1.0.0
 synopsis:            A custom prelude used in Morley
 homepage:            https://gitlab.com/camlcase-dev/morley
 license:             AGPL-3
-license-file:        ../LICENSE
+license-file:        LICENSE
 author:              camlCase, Serokell
 maintainer:          john@camlcase.io
 copyright:           2019 Tocqueville Group
