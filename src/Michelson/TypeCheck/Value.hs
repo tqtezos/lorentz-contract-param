@@ -116,14 +116,16 @@ typeCheckValImpl tcDo (Un.ValueSeq mels) (TList vt) =
     (els, ns) <- typeCheckValsImpl tcDo mels vt
     pure $ VList els :::: (STList vst, mkNotes $ NTList def ns)
 
-typeCheckValImpl _ (Un.ValueSeq mels) (TSet vt) =
+typeCheckValImpl _ sq@(Un.ValueSeq mels) (TSet vt) =
   withSomeSingCT vt $ \vst -> do
     els <- liftEither $ typeCheckCVals mels vt
             `onLeft` \(cv, err) -> TCFailedOnValue cv (Tc vt) $
                                       "wrong type of set element: " <> err
-    pure $ VSet (S.fromList els) :::: (STSet vst, NStar)
+    elsS <- liftEither $ S.fromDistinctAscList <$> ensureDistinctAsc els
+            `onLeft` TCFailedOnValue sq (Tc vt)
+    pure $ VSet elsS :::: (STSet vst, NStar)
 
-typeCheckValImpl tcDo (Un.ValueMap mels) (TMap kt vt) =
+typeCheckValImpl tcDo mp@(Un.ValueMap mels) (TMap kt vt) =
   withSomeSingT vt $ \vst ->
   withSomeSingCT kt $ \kst -> do
     ks <- liftEither $  typeCheckCVals (map (\(Un.Elt k _) -> k) mels) kt
@@ -131,7 +133,9 @@ typeCheckValImpl tcDo (Un.ValueMap mels) (TMap kt vt) =
                                       "wrong type of map key: " <> err
     (vals, vns) <- typeCheckValsImpl tcDo (map (\(Un.Elt _ v) -> v) mels) vt
     let ns = mkNotes $ NTMap def def vns
-    pure $ VMap (M.fromList $ zip ks vals) :::: (STMap kst vst, ns)
+    ksS <- liftEither $ ensureDistinctAsc ks
+            `onLeft` TCFailedOnValue mp (Tc kt)
+    pure $ VMap (M.fromDistinctAscList $ zip ksS vals) :::: (STMap kst vst, ns)
 
 typeCheckValImpl tcDo v@(Un.ValueLambda (fmap Un.unOp -> mp)) t@(TLambda mi mo) =
   withSomeSingT mi $ \(it :: Sing it) ->

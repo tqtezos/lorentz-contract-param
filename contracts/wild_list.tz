@@ -1,0 +1,3 @@
+parameter unit;
+storage (list nat);
+code { DROP; PUSH (list nat) {5; 3; 1}; NIL operation; PAIR }
