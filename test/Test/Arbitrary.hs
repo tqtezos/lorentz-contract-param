@@ -7,8 +7,9 @@ import Prelude hiding (EQ, GT, LT)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 
-import Test.QuickCheck (Arbitrary(..), Gen, choose, elements, listOf, oneof, vector)
+import Test.QuickCheck (Arbitrary(..), Gen, choose, elements, listOf, oneof, suchThatMap, vector)
 import Test.QuickCheck.Arbitrary.ADT (ToADTArbitrary(..))
+import Test.QuickCheck.Instances.Semigroup ()
 import Test.QuickCheck.Instances.Text ()
 
 import Michelson.Untyped
@@ -54,6 +55,12 @@ instance Arbitrary VarAnn where
 
 smallSize :: Gen Int
 smallSize = choose (0, 3)
+
+smallList :: Arbitrary a => Gen [a]
+smallList = smallSize >>= vector
+
+smallList1 :: Arbitrary a => Gen (NonEmpty a)
+smallList1 = smallList `suchThatMap` nonEmpty
 
 instance (Arbitrary op, ToADTArbitrary op) => ToADTArbitrary (Contract op)
 instance (Arbitrary op) => Arbitrary (Contract op) where
@@ -204,18 +211,10 @@ instance (Arbitrary op) => Arbitrary (Value op) where
       , ValueRight <$> arbitrary
       , ValueSome <$> arbitrary
       , pure ValueNone
-      , (do size1 <- smallSize
-            l1 <- vector size1
-            pure $ ValueSeq l1
-        )
-      , (do size1 <- smallSize
-            l1 <- vector size1
-            pure $ ValueMap l1
-        )
-      , (do size1 <- smallSize
-            l1 <- vector size1
-            pure $ ValueLambda l1
-        )
+      , pure ValueNil
+      , ValueSeq <$> smallList1
+      , ValueMap <$> smallList1
+      , ValueLambda <$> smallList1
       ]
 
 instance (Arbitrary op, ToADTArbitrary op) => ToADTArbitrary (Elt op)

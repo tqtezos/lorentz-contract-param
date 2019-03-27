@@ -41,9 +41,12 @@ expandValue = \case
   ValueLeft x -> ValueLeft (expandValue x)
   ValueRight x -> ValueRight (expandValue x)
   ValueSome x -> ValueSome (expandValue x)
+  ValueNil -> ValueNil
   ValueSeq valueList -> ValueSeq (map expandValue valueList)
   ValueMap eltList -> ValueMap (map expandElt eltList)
-  ValueLambda opList -> ValueLambda (expandFlat $ opList)
+  ValueLambda opList ->
+    maybe ValueNil ValueLambda $
+    nonEmpty (expandFlat $ toList opList)
   x -> fmap (unsafeCastPrim . expand) x
 
 expandElt :: Elt ParsedOp -> Elt Op

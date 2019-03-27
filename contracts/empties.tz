@@ -1,0 +1,9 @@
+parameter unit;
+storage unit;
+code {
+      DROP;
+      PUSH (list unit) { }; DROP;
+      PUSH (map int unit) {}; DROP;
+      PUSH (lambda unit unit) {}; DROP;
+      UNIT; NIL operation;
+      PAIR; };

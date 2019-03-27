@@ -29,6 +29,7 @@ import qualified Text.Megaparsec.Char.Lexer as L
 import Morley.Lexer
 import qualified Morley.Macro as Macro
 import Morley.Parser.Annotations
+import Morley.Parser.Helpers
 import Morley.Types (CustomParserException(..), ParsedOp(..), Parser, ParserException(..))
 import qualified Morley.Types as Mo
 
@@ -97,17 +98,23 @@ type_ = (ti <|> parens ti) <|> (customFailure UnknownTypeException)
   where
     ti = snd <$> (lexeme $ typeInner (pure Mo.noAnn))
 
-ops :: Parser [Mo.ParsedOp]
-ops = do
+op' :: Parser Mo.ParsedOp
+op' = do
   lms <- asks Mo.letMacros
-  let op' = choice [ (Mo.PRIM . Mo.EXT) <$> nopInstr
-                   , Mo.LMAC <$> mkLetMac lms
-                   , Mo.PRIM <$> prim
-                   , Mo.MAC <$> macro
-                   , primOrMac
-                   , Mo.SEQ <$> ops
-                   ]
-  braces $ sepEndBy op' semicolon
+  choice
+    [ (Mo.PRIM . Mo.EXT) <$> nopInstr
+    , Mo.LMAC <$> mkLetMac lms
+    , Mo.PRIM <$> prim
+    , Mo.MAC <$> macro
+    , primOrMac
+    , Mo.SEQ <$> ops
+    ]
+
+ops :: Parser [Mo.ParsedOp]
+ops = braces $ sepEndBy op' semicolon
+
+ops1 :: Parser (NonEmpty Mo.ParsedOp)
+ops1 = braces $ sepEndBy1 op' semicolon
 
 -------------------------------------------------------------------------------
 -- Let block
@@ -216,7 +223,8 @@ valueInner :: Parser (Mo.Value Mo.ParsedOp)
 valueInner = choice $
   [ intLiteral, stringLiteral, bytesLiteral, unitValue
   , trueValue, falseValue, pairValue, leftValue, rightValue
-  , someValue, noneValue, seqValue, mapValue, lambdaValue, dataLetValue
+  , someValue, noneValue, nilValue, seqValue, mapValue, lambdaValue
+  , dataLetValue
   ]
 
 dataLetValue :: Parser (Mo.Value ParsedOp)
@@ -302,17 +310,20 @@ someValue = do void $ symbol "Some"; Mo.ValueSome <$> value
 noneValue :: Parser (Mo.Value ParsedOp)
 noneValue = do symbol "None"; return Mo.ValueNone
 
+nilValue :: Parser (Mo.Value ParsedOp)
+nilValue = Mo.ValueNil <$ (try $ braces pass)
+
 lambdaValue :: Parser (Mo.Value ParsedOp)
-lambdaValue = Mo.ValueLambda <$> ops
+lambdaValue = Mo.ValueLambda <$> ops1
 
 seqValue :: Parser (Mo.Value ParsedOp)
-seqValue = Mo.ValueSeq <$> (try $ braces $ sepEndBy value semicolon)
+seqValue = Mo.ValueSeq <$> (try $ braces $ sepEndBy1 value semicolon)
 
 eltValue :: Parser (Mo.Elt ParsedOp)
 eltValue = do void $ symbol "Elt"; Mo.Elt <$> value <*> value
 
 mapValue :: Parser (Mo.Value ParsedOp)
-mapValue = Mo.ValueMap <$> (try $ braces $ sepEndBy eltValue semicolon)
+mapValue = Mo.ValueMap <$> (try $ braces $ sepEndBy1 eltValue semicolon)
 
 -------------------------------------------------------------------------------
 -- Types

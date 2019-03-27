@@ -62,20 +62,24 @@ valToOpOrValue = \case
   VSignature b -> Just $ Un.ValueString $ formatSignature b
   VOption (Just x) -> Un.ValueSome <$> valToOpOrValue x
   VOption Nothing -> Just $ Un.ValueNone
-  VList l -> Un.ValueSeq <$> mapM valToOpOrValue l
-  VSet s -> Just $ Un.ValueSeq $ map cValToValue $ toList s
+  VList l -> valueList Un.ValueSeq <$> mapM valToOpOrValue l
+  VSet s -> Just $ valueList Un.ValueSeq $ map cValToValue $ toList s
   VOp _op -> Nothing
   VContract b -> Just $ Un.ValueString $ formatAddress b
   VPair (l, r) -> Un.ValuePair <$> valToOpOrValue l <*> valToOpOrValue r
   VOr (Left x) -> Un.ValueLeft <$> valToOpOrValue x
   VOr (Right x) -> Un.ValueRight <$> valToOpOrValue x
-  VLam ops -> Just $ Un.ValueLambda $ instrToOps ops
+  VLam ops ->
+    Just $ maybe Un.ValueNil Un.ValueLambda $
+    nonEmpty (instrToOps ops)
   VMap m ->
-    fmap Un.ValueMap . forM (Map.toList m) $ \(k, v) ->
+    fmap (valueList Un.ValueMap) . forM (Map.toList m) $ \(k, v) ->
       Un.Elt (cValToValue k) <$> valToOpOrValue v
   VBigMap m ->
-    fmap Un.ValueMap . forM (Map.toList m) $ \(k, v) ->
+    fmap (valueList Un.ValueMap) . forM (Map.toList m) $ \(k, v) ->
       Un.Elt (cValToValue k) <$> valToOpOrValue v
+  where
+    valueList ctor = maybe Un.ValueNil ctor . nonEmpty
 
 cValToValue :: CVal t -> Un.Value Un.Op
 cValToValue cVal = case cVal of

@@ -111,12 +111,20 @@ typeCheckValImpl _ Un.ValueNone (TOption vt) =
   withSomeSingT vt $ \vst ->
     pure $ VOption Nothing :::: (STOption vst, NStar)
 
-typeCheckValImpl tcDo (Un.ValueSeq mels) (TList vt) =
+typeCheckValImpl _ Un.ValueNil (TList vt) =
+  withSomeSingT vt $ \vst ->
+    pure $ VList [] :::: (STList vst, mkNotes $ NTList def NStar)
+
+typeCheckValImpl tcDo (Un.ValueSeq (toList -> mels)) (TList vt) =
   withSomeSingT vt $ \vst -> do
     (els, ns) <- typeCheckValsImpl tcDo mels vt
     pure $ VList els :::: (STList vst, mkNotes $ NTList def ns)
 
-typeCheckValImpl _ sq@(Un.ValueSeq mels) (TSet vt) =
+typeCheckValImpl _ Un.ValueNil (TSet vt) =
+  withSomeSingCT vt $ \vst ->
+    pure $ VSet S.empty :::: (STSet vst, NStar)
+
+typeCheckValImpl _ sq@(Un.ValueSeq (toList -> mels)) (TSet vt) =
   withSomeSingCT vt $ \vst -> do
     els <- liftEither $ typeCheckCVals mels vt
             `onLeft` \(cv, err) -> TCFailedOnValue cv (Tc vt) $
@@ -125,7 +133,13 @@ typeCheckValImpl _ sq@(Un.ValueSeq mels) (TSet vt) =
             `onLeft` TCFailedOnValue sq (Tc vt)
     pure $ VSet elsS :::: (STSet vst, NStar)
 
-typeCheckValImpl tcDo mp@(Un.ValueMap mels) (TMap kt vt) =
+typeCheckValImpl _ Un.ValueNil (TMap kt vt) =
+  withSomeSingT vt $ \vst ->
+  withSomeSingCT kt $ \kst -> do
+    let ns = mkNotes $ NTMap def def NStar
+    pure $ VMap M.empty :::: (STMap kst vst, ns)
+
+typeCheckValImpl tcDo sq@(Un.ValueMap (toList -> mels)) (TMap kt vt) =
   withSomeSingT vt $ \vst ->
   withSomeSingCT kt $ \kst -> do
     ks <- liftEither $  typeCheckCVals (map (\(Un.Elt k _) -> k) mels) kt
@@ -134,30 +148,35 @@ typeCheckValImpl tcDo mp@(Un.ValueMap mels) (TMap kt vt) =
     (vals, vns) <- typeCheckValsImpl tcDo (map (\(Un.Elt _ v) -> v) mels) vt
     let ns = mkNotes $ NTMap def def vns
     ksS <- liftEither $ ensureDistinctAsc ks
-            `onLeft` TCFailedOnValue mp (Tc kt)
+            `onLeft` TCFailedOnValue sq (Tc kt)
     pure $ VMap (M.fromDistinctAscList $ zip ksS vals) :::: (STMap kst vst, ns)
 
-typeCheckValImpl tcDo v@(Un.ValueLambda (fmap Un.unOp -> mp)) t@(TLambda mi mo) =
+typeCheckValImpl tcDo v t@(TLambda mi mo) = do
+  mp <- case v of
+    Un.ValueNil -> pure []
+    Un.ValueLambda mp -> pure $ fmap Un.unOp (toList mp)
+    _ -> throwError $ TCFailedOnValue v t ""
+
   withSomeSingT mi $ \(it :: Sing it) ->
-  withSomeSingT mo $ \(ot :: Sing ot) ->
-    typeCheckImpl tcDo mp (SomeHST $ (it, NStar, def) ::& SNil) >>= \case
-      SiFail -> pure $ VLam FAILWITH :::: (STLambda it ot, NStar)
-      lam ::: ((li :: HST li), (lo :: HST lo)) -> do
-        Refl <- liftEither $ eqT' @li @'[ it ] `onLeft` unexpectedErr
-        case (eqT' @'[ ot ] @lo, SomeHST lo, SomeHST li) of
-          (Right Refl,
-           SomeHST ((_, ons, _) ::& SNil :: HST lo'),
-           SomeHST ((_, ins, _) ::& SNil :: HST li')) -> do
-            Refl <- liftEither $ eqT' @lo @lo' `onLeft` unexpectedErr
-            Refl <- liftEither $ eqT' @li @li' `onLeft` unexpectedErr
-            let ns = mkNotes $ NTLambda def ins ons
-            pure $ VLam lam :::: (STLambda it ot, ns)
-          (Right _, _, _) ->
-            throwError $ TCFailedOnValue v t
-                    "wrong output type of lambda's value (wrong stack size)"
-          (Left m, _, _) ->
-            throwError $ TCFailedOnValue v t $
-                    "wrong output type of lambda's value: " <> m
+    withSomeSingT mo $ \(ot :: Sing ot) ->
+      typeCheckImpl tcDo mp (SomeHST $ (it, NStar, def) ::& SNil) >>= \case
+        SiFail -> pure $ VLam FAILWITH :::: (STLambda it ot, NStar)
+        lam ::: ((li :: HST li), (lo :: HST lo)) -> do
+          Refl <- liftEither $ eqT' @li @'[ it ] `onLeft` unexpectedErr
+          case (eqT' @'[ ot ] @lo, SomeHST lo, SomeHST li) of
+            (Right Refl,
+             SomeHST ((_, ons, _) ::& SNil :: HST lo'),
+             SomeHST ((_, ins, _) ::& SNil :: HST li')) -> do
+              Refl <- liftEither $ eqT' @lo @lo' `onLeft` unexpectedErr
+              Refl <- liftEither $ eqT' @li @li' `onLeft` unexpectedErr
+              let ns = mkNotes $ NTLambda def ins ons
+              pure $ VLam lam :::: (STLambda it ot, ns)
+            (Right _, _, _) ->
+              throwError $ TCFailedOnValue v t
+                      "wrong output type of lambda's value (wrong stack size)"
+            (Left m, _, _) ->
+              throwError $ TCFailedOnValue v t $
+                      "wrong output type of lambda's value: " <> m
   where
     unexpectedErr m = TCFailedOnValue v t ("unexpected " <> m)
 
