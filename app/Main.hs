@@ -7,9 +7,10 @@ import Data.Version (showVersion)
 import Fmt (pretty)
 import Named ((!))
 import Options.Applicative
-  (auto, command, eitherReader, execParser, fullDesc, header, help, helper, info, infoOption, long,
-  maybeReader, metavar, option, progDesc, readerError, short, showDefault, showDefaultWith,
+  (auto, command, eitherReader, execParser, footerDoc, fullDesc, header, help, helper, info, infoOption,
+  long, maybeReader, metavar, option, progDesc, readerError, short, showDefault, showDefaultWith,
   strOption, subparser, switch, value)
+import Options.Applicative.Help.Pretty (Doc, linebreak)
 import qualified Options.Applicative as Opt
 import Paths_morley (version)
 import Text.Pretty.Simple (pPrint)
@@ -282,6 +283,7 @@ main = do
       [ fullDesc
       , progDesc "Morley: Haskell implementation of Michelson typechecker and interpreter"
       , header "Morley tools"
+      , footerDoc $ usageDoc
       ]
 
     versionOption = infoOption ("morley-" <> showVersion version)
@@ -321,3 +323,28 @@ main = do
         transfer toNow toMaxSteps toDBPath toDestination toTxData
           ! #verbose toVerbose
           ! #dryRun toDryRun
+
+usageDoc :: Maybe Doc
+usageDoc = Just $ mconcat
+   [ "You can use help for specific COMMAND", linebreak
+   , "EXAMPLE:", linebreak
+   , "  morley run --help", linebreak
+   , linebreak
+   , "Documentation for morley tools can be found at the following links:", linebreak
+   , "  https://gitlab.com/camlcase-dev/morley/blob/master/README.md", linebreak
+   , "  https://gitlab.com/camlcase-dev/morley/tree/master/docs", linebreak
+   , linebreak
+   , "Sample contracts for running can be found at the following link:", linebreak
+   , "  https://gitlab.com/camlcase-dev/morley/tree/master/contracts", linebreak
+   , linebreak
+   , "USAGE EXAMPLE:", linebreak
+   , "  morley parse --contract add1.tz", linebreak
+   , linebreak
+   , "  This command will parse contract stored in add1.tz", linebreak
+   , "  and return its representation in haskell types", linebreak
+   , linebreak
+   , "  morley originate --contract add1.tz --storage 1 --verbose", linebreak
+   , linebreak
+   , "  This command will originate contract with code stored in add1.tz", linebreak
+   , "  with initial storage value set to 1 and return info about", linebreak
+   , "  originated contract: its balance, storage and contract code"]
