@@ -12,6 +12,8 @@ It is located in `Michelson.TypeCheck` and designed in the following way:
 End users can use the `typecheck` command to execute the typechecker.
 It parses the contract, performs macro expansion and passes it to the typechecker which says that the contract is well-typed or produces an error message.
 
+Example: `morley typecheck --contract auction.tz`.
+
 As a future improvement we may implement verbose behavior of the reference implementation, see [TM-84](https://issues.serokell.io/issue/TM-84).
 
 ## Limitations
