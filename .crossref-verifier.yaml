@@ -1,0 +1,36 @@
+# Parameters of repository traversal.
+traversal:
+  # Folders which we pretend do not exist.
+  ignored:
+    # Git files
+    - .git/
+
+    # Stack files
+    - .stack-work
+
+    # Verifier repo itself, added in CI
+    - crossref-verifier
+
+# Verification parameters.
+verification:
+  # On 'anchor not found' error, how much similar anchors should be displayed as hint.
+  # Number should be between 0 and 1, larger value means stricter filter.
+  anchorSimilarityThreshold: 0.5
+
+  # When checking external references, how long to wait on request before
+  # declaring "Response timeout".
+  externalRefCheckTimeout: 60s
+
+  # Files prefixes references in which should not be analyzed.
+  notScanned:
+    # Gitlab-specific files
+    - .gitlab/merge_request_templates/
+
+  # Glob patterns describing the files which do not physically exist in the repository
+  # but should be treated as existing nevertheless.
+  virtualFiles:
+    # Gitlab pages
+    - ../../issues
+    - ../../issues/*
+    - ../../merge_requests
+    - ../../merge_requests/*
