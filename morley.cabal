@@ -76,6 +76,7 @@ library
 
   build-depends:       aeson
                      , aeson-options
+                     , aeson-pretty
                      , base-noprelude >= 4.7 && < 5
                      , base16-bytestring
                      , base58-bytestring

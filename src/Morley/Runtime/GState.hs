@@ -25,6 +25,7 @@ module Morley.Runtime.GState
 
 import Control.Lens (at)
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Encode.Pretty as Aeson
 import Data.Aeson.Options (defaultOptions)
 import Data.Aeson.TH (deriveJSON)
 import qualified Data.ByteString.Lazy as LBS
@@ -132,7 +133,12 @@ readGState fp = (LBS.readFile fp >>= parseFile) `catch` onExc
 
 -- | Write 'GState' to a file.
 writeGState :: FilePath -> GState -> IO ()
-writeGState fp gs = LBS.writeFile fp (Aeson.encode gs)
+writeGState fp gs = LBS.writeFile fp (Aeson.encodePretty' config gs)
+  where
+    config =
+      Aeson.defConfig
+      { Aeson.confTrailingNewline = True
+      }
 
 -- | Updates that can be applied to 'GState'.
 data GStateUpdate
