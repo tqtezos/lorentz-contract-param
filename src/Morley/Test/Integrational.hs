@@ -25,6 +25,7 @@ module Morley.Test.Integrational
   , expectStorageUpdate
   , expectStorageUpdateConst
   , expectBalance
+  , expectStorageConst
   , expectGasExhaustion
   , expectMichelsonFailed
   ) where
@@ -181,6 +182,20 @@ expectStorageUpdateConst addr expected =
     predicate val
       | val == expected = pass
       | otherwise = Left $ "expected " +| expected |+ ""
+
+-- | Check that eventually address has some particular storage value.
+expectStorageConst :: Address -> UntypedValue -> SuccessValidator
+expectStorageConst addr expected gs _ =
+  case gsAddresses gs ^. at addr of
+    Just (ASContract cs)
+      | csStorage cs == expected -> pass
+      | otherwise ->
+        Left $ intro +|  "its storage is " +| csStorage cs |+ ""
+    Just (ASSimple {}) ->
+      Left $ intro +| "it's a simple address"
+    Nothing -> Left $ intro +| "it's unknown"
+  where
+    intro = "Expected " +| addr |+ " to have storage " +| expected |+ ", but "
 
 -- | Check that eventually address has some particular balance.
 expectBalance :: Address -> Mutez -> SuccessValidator

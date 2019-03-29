@@ -224,6 +224,7 @@ test-suite morley-test
                      , Test.Interpreter.CallSelf
                      , Test.Interpreter.Compare
                      , Test.Interpreter.Conditionals
+                     , Test.Interpreter.EnvironmentSpec
                      , Test.Interpreter.StringCaller
                      , Test.Macro
                      , Test.Ext
