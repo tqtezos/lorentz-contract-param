@@ -133,9 +133,9 @@ contractAux1 = ContractAux
       { para = Type tstring noAnn
       , stor = Type tbool noAnn
       , code =
-        [ PRIM_EX $ CDR noAnn noAnn
-        , PRIM_EX $ NIL noAnn noAnn $ Type TOperation noAnn
-        , PRIM_EX $ PAIR noAnn noAnn noAnn noAnn
+        [ PrimEx $ CDR noAnn noAnn
+        , PrimEx $ NIL noAnn noAnn $ Type TOperation noAnn
+        , PrimEx $ PAIR noAnn noAnn noAnn noAnn
         ]
       }
 
@@ -143,10 +143,10 @@ contractAux2 :: ContractAux
 contractAux2 = contractAux1
   { caContract = (caContract contractAux1)
     { code =
-      [ PRIM_EX $ CDR noAnn noAnn
-      , PRIM_EX $ NOT noAnn
-      , PRIM_EX $ NIL noAnn noAnn $ Type TOperation noAnn
-      , PRIM_EX $ PAIR noAnn noAnn noAnn noAnn
+      [ PrimEx $ CDR noAnn noAnn
+      , PrimEx $ NOT noAnn
+      , PrimEx $ NIL noAnn noAnn $ Type TOperation noAnn
+      , PrimEx $ PAIR noAnn noAnn noAnn noAnn
       ]
     }
   }

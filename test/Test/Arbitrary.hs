@@ -37,7 +37,7 @@ instance Arbitrary ExpandedUExtInstr where
 
 instance ToADTArbitrary ExpandedOp
 instance Arbitrary ExpandedOp where
-  arbitrary = PRIM_EX <$> arbitrary
+  arbitrary = PrimEx <$> arbitrary
 
 instance ToADTArbitrary Mutez
 

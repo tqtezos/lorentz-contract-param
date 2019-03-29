@@ -187,9 +187,9 @@ typeCheckImpl
   -> TypeCheckT SomeInstr
 typeCheckImpl tcInstr instrs t@(SomeHST (a :: HST a)) =
   case instrs of
-    [Un.PRIM_EX i]       -> tcInstr i t
-    (Un.SEQ_EX sq  : rs) -> typeCheckImplDo (typeCheckImpl tcInstr sq) Nested rs
-    (Un.PRIM_EX p_ : rs) -> typeCheckImplDo (tcInstr p_) id rs
+    [Un.PrimEx i]       -> tcInstr i t
+    (Un.SeqEx sq  : rs) -> typeCheckImplDo (typeCheckImpl tcInstr sq) Nested rs
+    (Un.PrimEx p_ : rs) -> typeCheckImplDo (tcInstr p_) id rs
     []                   -> pure $ Nop ::: (a, a)
   where
     typeCheckImplDo

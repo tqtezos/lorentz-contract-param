@@ -52,8 +52,8 @@ type ExpandedInstrExtU = ExtU InstrAbstract ExpandedOp
 type ExpandedInstr = InstrAbstract ExpandedOp
 
 data ExpandedOp
-  = PRIM_EX ExpandedInstr
-  | SEQ_EX [ExpandedOp]
+  = PrimEx ExpandedInstr
+  | SeqEx [ExpandedOp]
   deriving stock (Generic)
 
 deriving instance Eq ExpandedInstr => Eq ExpandedOp

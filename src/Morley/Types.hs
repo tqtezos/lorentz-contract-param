@@ -185,10 +185,10 @@ type ParsedInstr = InstrAbstract ParsedOp
 -- | Unexpanded instructions produced directly by the @ops@ parser, which
 -- contains primitive Michelson Instructions, inline-able macros and sequences
 data ParsedOp
-  = PRIM ParsedInstr -- ^ Primitive Michelson instruction
-  | MAC Macro        -- ^ Built-in Michelson macro defined by the specification
-  | LMAC LetMacro    -- ^ User-defined macro with instructions to be inlined
-  | SEQ [ParsedOp]   -- ^ A sequence of instructions
+  = Prim ParsedInstr -- ^ Primitive Michelson instruction
+  | Mac Macro        -- ^ Built-in Michelson macro defined by the specification
+  | LMac LetMacro    -- ^ User-defined macro with instructions to be inlined
+  | Seq [ParsedOp]   -- ^ A sequence of instructions
   deriving (Eq, Show, Data, Generic)
 
 instance Buildable ParsedInstr where

@@ -43,7 +43,7 @@ valueParserTest = do
     (Right Mo.ValueNil)
   P.parseNoEnv P.value "" "{PUSH int 5;}" `shouldBe`
     (Right . Mo.ValueLambda $ NE.fromList
-      [Mo.PRIM (Mo.PUSH noAnn (Mo.Type (Mo.Tc Mo.CInt) noAnn) (Mo.ValueInt 5))]
+      [Mo.Prim (Mo.PUSH noAnn (Mo.Type (Mo.Tc Mo.CInt) noAnn) (Mo.ValueInt 5))]
     )
   P.parseNoEnv P.value "" "{1; 2}" `shouldBe`
     (Right . Mo.ValueSeq $ NE.fromList
@@ -65,28 +65,28 @@ stringLiteralTest = do
 ifParsersTest :: Expectation
 ifParsersTest = do
   P.parseNoEnv P.ops "" "{IF {} {};}" `shouldBe`
-    (Prelude.Right [Mo.PRIM $ Mo.IF [] []])
+    (Prelude.Right [Mo.Prim $ Mo.IF [] []])
   P.parseNoEnv P.ops "" "{IFEQ {} {};}" `shouldBe`
-    (Prelude.Right [Mo.MAC $ Mo.IFX (Mo.EQ noAnn) [] []])
+    (Prelude.Right [Mo.Mac $ Mo.IFX (Mo.EQ noAnn) [] []])
   P.parseNoEnv P.ops "" "{IFCMPEQ {} {};}" `shouldBe`
-    (Prelude.Right [Mo.MAC $ Mo.IFCMP (Mo.EQ noAnn) noAnn [] []])
+    (Prelude.Right [Mo.Mac $ Mo.IFCMP (Mo.EQ noAnn) noAnn [] []])
 
 mapParsersTest :: Expectation
 mapParsersTest = do
   parseNoEnv P.ops "" "{MAP {};}" `shouldBe`
-    (Prelude.Right [Mo.PRIM $ Mo.MAP noAnn []])
+    (Prelude.Right [Mo.Prim $ Mo.MAP noAnn []])
   parseNoEnv P.ops "" "{MAP_CAR {};}" `shouldBe`
-    (Prelude.Right [Mo.MAC $ Mo.MAP_CADR [Mo.A] noAnn noAnn []])
+    (Prelude.Right [Mo.Mac $ Mo.MAP_CADR [Mo.A] noAnn noAnn []])
 
 pairParsersTest :: Expectation
 pairParsersTest = do
   P.parseNoEnv P.ops "" "{PAIR;}" `shouldBe`
-    Prelude.Right [Mo.PRIM $ PAIR noAnn noAnn noAnn noAnn]
+    Prelude.Right [Mo.Prim $ PAIR noAnn noAnn noAnn noAnn]
   P.parseNoEnv P.ops "" "{PAIR %a;}" `shouldBe`
-    Prelude.Right [MAC $ PAPAIR (P (F (noAnn, Mo.ann "a")) (F (noAnn,noAnn))) noAnn noAnn]
+    Prelude.Right [Mac $ PAPAIR (P (F (noAnn, Mo.ann "a")) (F (noAnn,noAnn))) noAnn noAnn]
   P.parseNoEnv P.ops "" "{PAPAIR;}" `shouldBe`
     Prelude.Right
-      [MAC $
+      [Mac $
         PAPAIR (P (F (noAnn,noAnn)) (P (F (noAnn,noAnn)) (F (noAnn,noAnn))))
           noAnn noAnn
       ]

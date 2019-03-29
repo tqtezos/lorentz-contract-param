@@ -102,12 +102,12 @@ op' :: Parser Mo.ParsedOp
 op' = do
   lms <- asks Mo.letMacros
   choice
-    [ (Mo.PRIM . Mo.EXT) <$> nopInstr
-    , Mo.LMAC <$> mkLetMac lms
-    , Mo.PRIM <$> prim
-    , Mo.MAC <$> macro
+    [ (Mo.Prim . Mo.EXT) <$> nopInstr
+    , Mo.LMac <$> mkLetMac lms
+    , Mo.Prim <$> prim
+    , Mo.Mac <$> macro
     , primOrMac
-    , Mo.SEQ <$> ops
+    , Mo.Seq <$> ops
     ]
 
 ops :: Parser [Mo.ParsedOp]
@@ -873,15 +873,15 @@ ifOrIfX = do
   symbol' "IF"
   a <- eitherP cmpOp ops
   case a of
-    Left cmp -> Mo.MAC <$> (Mo.IFX cmp <$> ops <*> ops)
-    Right op -> Mo.PRIM <$> (Mo.IF op <$> ops)
+    Left cmp -> Mo.Mac <$> (Mo.IFX cmp <$> ops <*> ops)
+    Right op -> Mo.Prim <$> (Mo.IF op <$> ops)
 
 -- Some of the operations and macros have the same prefixes in their names
 -- So this case should be handled separately
 primOrMac :: Parser Mo.ParsedOp
-primOrMac = ((Mo.MAC <$> ifCmpMac) <|> ifOrIfX)
-  <|> ((Mo.MAC <$> mapCadrMac) <|> (Mo.PRIM <$> mapOp))
-  <|> (try (Mo.PRIM <$> pairOp) <|> Mo.MAC <$> pairMac)
+primOrMac = ((Mo.Mac <$> ifCmpMac) <|> ifOrIfX)
+  <|> ((Mo.Mac <$> mapCadrMac) <|> (Mo.Prim <$> mapOp))
+  <|> (try (Mo.Prim <$> pairOp) <|> Mo.Mac <$> pairMac)
 
 -------------------------------------------------------------------------------
 -- Morley Instructions

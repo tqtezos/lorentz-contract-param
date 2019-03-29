@@ -52,78 +52,78 @@ expandElt :: Elt ParsedOp -> Elt ExpandedOp
 expandElt (Elt l r) = Elt (expandValue l) (expandValue r)
 
 expand :: ParsedOp -> ExpandedOp
-expand (MAC m)  = SEQ_EX $ expandMacro m
-expand (PRIM i) = PRIM_EX $ expand <$> i
-expand (SEQ s)  = SEQ_EX $ expand <$> s
-expand (LMAC l)  = SEQ_EX $ expandLetMac l
+expand (Mac m)  = SeqEx $ expandMacro m
+expand (Prim i) = PrimEx $ expand <$> i
+expand (Seq s)  = SeqEx $ expand <$> s
+expand (LMac l)  = SeqEx $ expandLetMac l
   where
     expandLetMac :: LetMacro -> [ExpandedOp]
     expandLetMac LetMacro {..} =
-      [ PRIM_EX $ EXT (FN lmName lmSig)
-      , SEQ_EX $ expand <$> lmExpr
-      , PRIM_EX $ EXT FN_END
+      [ PrimEx $ EXT (FN lmName lmSig)
+      , SeqEx $ expand <$> lmExpr
+      , PrimEx $ EXT FN_END
       ]
 
 expandMacro :: Macro -> [ExpandedOp]
 expandMacro = \case
-  CMP i v            -> [PRIM_EX (COMPARE v), xo i]
-  IFX i bt bf        -> [xo i, PRIM_EX (IF (xp bt) (xp bf))]
-  IFCMP i v bt bf    -> PRIM_EX <$> [COMPARE v, expand <$> i, IF (xp bt) (xp bf)]
-  IF_SOME bt bf      -> [PRIM_EX (IF_NONE (xp bf) (xp bt))]
-  FAIL               -> PRIM_EX <$> [UNIT noAnn noAnn, FAILWITH]
-  ASSERT             -> xol $ IF [] [MAC FAIL]
-  ASSERTX i          -> [expand $ MAC $ IFX i [] [MAC FAIL]]
-  ASSERT_CMP i       -> [expand $ MAC $ IFCMP i noAnn [] [MAC FAIL]]
-  ASSERT_NONE        -> xol $ IF_NONE [] [MAC FAIL]
-  ASSERT_SOME        -> xol $ IF_NONE [MAC FAIL] []
-  ASSERT_LEFT        -> xol $ IF_LEFT [] [MAC FAIL]
-  ASSERT_RIGHT       -> xol $ IF_LEFT [MAC FAIL] []
+  CMP i v            -> [PrimEx (COMPARE v), xo i]
+  IFX i bt bf        -> [xo i, PrimEx (IF (xp bt) (xp bf))]
+  IFCMP i v bt bf    -> PrimEx <$> [COMPARE v, expand <$> i, IF (xp bt) (xp bf)]
+  IF_SOME bt bf      -> [PrimEx (IF_NONE (xp bf) (xp bt))]
+  FAIL               -> PrimEx <$> [UNIT noAnn noAnn, FAILWITH]
+  ASSERT             -> xol $ IF [] [Mac FAIL]
+  ASSERTX i          -> [expand $ Mac $ IFX i [] [Mac FAIL]]
+  ASSERT_CMP i       -> [expand $ Mac $ IFCMP i noAnn [] [Mac FAIL]]
+  ASSERT_NONE        -> xol $ IF_NONE [] [Mac FAIL]
+  ASSERT_SOME        -> xol $ IF_NONE [Mac FAIL] []
+  ASSERT_LEFT        -> xol $ IF_LEFT [] [Mac FAIL]
+  ASSERT_RIGHT       -> xol $ IF_LEFT [Mac FAIL] []
   PAPAIR ps t v      -> expand <$> expandPapair ps t v
   UNPAIR ps          -> expand <$> expandUnpapair ps
   CADR c v f         -> expand <$> expandCadr c v f
   SET_CADR c v f     -> expand <$> expandSetCadr c v f
   MAP_CADR c v f ops -> expand <$> expandMapCadr c v f ops
-  DIIP 1 ops         -> [PRIM_EX $ DIP (xp ops)]
-  DIIP n ops         -> xol $  DIP [MAC $ DIIP (n - 1) ops]
-  DUUP 1 v           -> [PRIM_EX $ DUP v]
-  DUUP n v           -> [xo (DIP [MAC $ DUUP (n - 1) v]), PRIM_EX SWAP]
+  DIIP 1 ops         -> [PrimEx $ DIP (xp ops)]
+  DIIP n ops         -> xol $  DIP [Mac $ DIIP (n - 1) ops]
+  DUUP 1 v           -> [PrimEx $ DUP v]
+  DUUP n v           -> [xo (DIP [Mac $ DUUP (n - 1) v]), PrimEx SWAP]
   where
     xol = one . xo
-    xo = PRIM_EX . fmap expand
+    xo = PrimEx . fmap expand
     xp = fmap expand
 
 -- the correctness of type-annotation expansion is currently untested, as these
 -- expansions are not explicitly documented in the Michelson Specification
 expandPapair :: PairStruct -> TypeAnn -> VarAnn -> [ParsedOp]
 expandPapair ps t v = case ps of
-  P (F a) (F b) -> [PRIM $ PAIR t v (snd a) (snd b)]
-  P (F a) r     -> PRIM <$> [ DIP [MAC $ PAPAIR r noAnn noAnn]
+  P (F a) (F b) -> [Prim $ PAIR t v (snd a) (snd b)]
+  P (F a) r     -> Prim <$> [ DIP [Mac $ PAPAIR r noAnn noAnn]
                             , PAIR t v (snd a) noAnn]
-  P l     (F b) -> [ MAC $ PAPAIR l noAnn noAnn
-                   , PRIM $ PAIR t v noAnn (snd b)]
-  P l     r     -> [ MAC $ PAPAIR l noAnn noAnn
-                   , PRIM $ DIP [MAC $ PAPAIR r noAnn noAnn]
-                   , PRIM $ PAIR t v noAnn noAnn]
+  P l     (F b) -> [ Mac $ PAPAIR l noAnn noAnn
+                   , Prim $ PAIR t v noAnn (snd b)]
+  P l     r     -> [ Mac $ PAPAIR l noAnn noAnn
+                   , Prim $ DIP [Mac $ PAPAIR r noAnn noAnn]
+                   , Prim $ PAIR t v noAnn noAnn]
   F _           -> [] -- Do nothing in this case.
   -- It's impossible from the structure of PairStruct and considered cases above,
   -- but if it accidentally happened let's just do nothing.
 
 expandUnpapair :: PairStruct -> [ParsedOp]
 expandUnpapair = \case
-  P (F (v,f)) (F (w,g)) -> PRIM <$> [ DUP noAnn
+  P (F (v,f)) (F (w,g)) -> Prim <$> [ DUP noAnn
                                     , CAR v f
-                                    , DIP [PRIM $ CDR w g]]
-  P (F (v, f)) r        -> PRIM <$> [ DUP noAnn
+                                    , DIP [Prim $ CDR w g]]
+  P (F (v, f)) r        -> Prim <$> [ DUP noAnn
                                     , CAR v f
-                                    , DIP [PRIM $ CDR noAnn noAnn,
-                                           MAC $ UNPAIR r]]
-  P l     (F (v, f))    -> [ PRIM (DUP noAnn)
-                           , PRIM (DIP [PRIM $ CDR v f])
-                           , PRIM $ CAR noAnn noAnn
-                           , MAC $ UNPAIR l]
-  P l      r            -> [ MAC unpairOne
-                           , PRIM $ DIP [MAC $ UNPAIR r]
-                           , MAC $ UNPAIR l]
+                                    , DIP [Prim $ CDR noAnn noAnn,
+                                           Mac $ UNPAIR r]]
+  P l     (F (v, f))    -> [ Prim (DUP noAnn)
+                           , Prim (DIP [Prim $ CDR v f])
+                           , Prim $ CAR noAnn noAnn
+                           , Mac $ UNPAIR l]
+  P l      r            -> [ Mac unpairOne
+                           , Prim $ DIP [Mac $ UNPAIR r]
+                           , Mac $ UNPAIR l]
   F _                   -> [] -- Do nothing in this case.
   -- It's impossible from the structure of PairStruct and considered cases above,
   -- but if it accidentally happened let's just do nothing.
@@ -134,13 +134,13 @@ expandUnpapair = \case
 expandCadr :: [CadrStruct] -> VarAnn -> FieldAnn -> [ParsedOp]
 expandCadr cs v f = case cs of
   []    -> []
-  [A]  -> [PRIM $ CAR v f]
-  [D]  -> [PRIM $ CDR v f]
-  A:css -> [PRIM $ CAR noAnn noAnn, MAC $ CADR css v f]
-  D:css -> [PRIM $ CDR noAnn noAnn, MAC $ CADR css v f]
+  [A]  -> [Prim $ CAR v f]
+  [D]  -> [Prim $ CDR v f]
+  A:css -> [Prim $ CAR noAnn noAnn, Mac $ CADR css v f]
+  D:css -> [Prim $ CDR noAnn noAnn, Mac $ CADR css v f]
 
 expandSetCadr :: [CadrStruct] -> VarAnn -> FieldAnn -> [ParsedOp]
-expandSetCadr cs v f = PRIM <$> case cs of
+expandSetCadr cs v f = Prim <$> case cs of
   []   -> []
   [A] -> [DUP noAnn, CAR noAnn f, DROP,
            -- ↑ These operations just check that the left element of pair has %f
@@ -148,8 +148,8 @@ expandSetCadr cs v f = PRIM <$> case cs of
   [D] -> [DUP noAnn, CDR noAnn f, DROP,
            -- ↑ These operations just check that the right element of pair has %f
            CAR (ann "%%") noAnn, PAIR noAnn v (ann "@") f]
-  A:css -> [DUP noAnn, DIP [PRIM carN, MAC $ SET_CADR css noAnn f], cdrN, SWAP, pairN]
-  D:css -> [DUP noAnn, DIP [PRIM cdrN, MAC $ SET_CADR css noAnn f], carN, pairN]
+  A:css -> [DUP noAnn, DIP [Prim carN, Mac $ SET_CADR css noAnn f], cdrN, SWAP, pairN]
+  D:css -> [DUP noAnn, DIP [Prim cdrN, Mac $ SET_CADR css noAnn f], carN, pairN]
   where
     carN = CAR noAnn noAnn
     cdrN = CDR noAnn noAnn
@@ -158,10 +158,10 @@ expandSetCadr cs v f = PRIM <$> case cs of
 expandMapCadr :: [CadrStruct] -> VarAnn -> FieldAnn -> [ParsedOp] -> [ParsedOp]
 expandMapCadr cs v f ops = case cs of
   []    -> []
-  [A]  -> PRIM <$> [DUP noAnn, cdrN, DIP [PRIM $ CAR noAnn f, SEQ ops], SWAP, pairN]
-  [D]  -> concat [PRIM <$> [DUP noAnn, CDR noAnn f], [SEQ ops], PRIM <$> [SWAP, carN, pairN]]
-  A:css -> PRIM <$> [DUP noAnn, DIP [PRIM $ carN, MAC $ MAP_CADR css noAnn f ops], cdrN, SWAP, pairN]
-  D:css -> PRIM <$> [DUP noAnn, DIP [PRIM $ cdrN, MAC $ MAP_CADR css noAnn f ops], carN, pairN]
+  [A]  -> Prim <$> [DUP noAnn, cdrN, DIP [Prim $ CAR noAnn f, Seq ops], SWAP, pairN]
+  [D]  -> concat [Prim <$> [DUP noAnn, CDR noAnn f], [Seq ops], Prim <$> [SWAP, carN, pairN]]
+  A:css -> Prim <$> [DUP noAnn, DIP [Prim $ carN, Mac $ MAP_CADR css noAnn f ops], cdrN, SWAP, pairN]
+  D:css -> Prim <$> [DUP noAnn, DIP [Prim $ cdrN, Mac $ MAP_CADR css noAnn f ops], carN, pairN]
   where
     carN = CAR noAnn noAnn
     cdrN = CDR noAnn noAnn

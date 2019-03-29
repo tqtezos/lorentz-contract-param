@@ -96,8 +96,8 @@ cValToValue cVal = case cVal of
 
 instrToOps :: ConversibleExt => Instr inp out -> [Un.ExpandedOp]
 instrToOps instr = case instr of
-  Nested sq -> one $ Un.SEQ_EX $ instrToOps sq
-  i -> Un.PRIM_EX <$> handleInstr i
+  Nested sq -> one $ Un.SeqEx $ instrToOps sq
+  i -> Un.PrimEx <$> handleInstr i
   where
     handleInstr :: Instr inp out -> [Un.ExpandedInstr]
     handleInstr (Seq i1 i2) = handleInstr i1 <> handleInstr i2
