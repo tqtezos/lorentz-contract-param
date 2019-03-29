@@ -16,12 +16,10 @@ import Michelson.Untyped
 import Morley.Ext (interpretMorleyUntyped)
 import Morley.Runtime
 import Morley.Runtime.GState (GState(..), initGState)
+import Morley.Test.Dummy (dummyContractEnv, dummyMaxSteps, dummyNow, dummyOrigination)
 import Morley.Types (MorleyLogs)
-import Test.Util.Interpreter (ContractAux(..), dummyContractEnv, dummyMaxSteps, dummyNow)
 import Tezos.Address (Address(..))
 import Tezos.Core (unsafeMkMutez)
-
-import Test.Util.Interpreter (dummyOrigination)
 
 spec :: Spec
 spec = describe "Morley.Runtime" $ do
@@ -40,6 +38,16 @@ spec = describe "Morley.Runtime" $ do
 ----------------------------------------------------------------------------
 -- Test code
 ----------------------------------------------------------------------------
+
+-- | Data type, that containts contract and its auxiliary data.
+--
+-- This type is mostly used for testing purposes.
+data ContractAux = ContractAux
+  { caContract :: !(Contract Op)
+  , caEnv :: !ContractEnv
+  , caStorage :: !(Value Op)
+  , caParameter :: !(Value Op)
+  }
 
 data UnexpectedFailed =
   UnexpectedFailed (InterpretUntypedError MorleyLogs)

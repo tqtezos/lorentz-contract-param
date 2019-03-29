@@ -13,20 +13,16 @@ import Test.QuickCheck.Property (expectFailure, forAll, withMaxSuccess)
 import Test.QuickCheck.Random (mkQCGen)
 
 import Michelson.Interpret (ContractEnv(..))
-import Michelson.Typed
-  (CT(..), CVal(..), Operation(..), ToT, TransferTokens(..), Val(..), fromVal, toVal)
+import Michelson.Typed (CVal(..), Operation(..), ToT, TransferTokens(..), Val(..))
 import Morley.Test (ContractPropValidator, contractProp, midTimestamp, specWithTypedContract)
+import Morley.Test.Dummy
 import Morley.Test.Util (failedProp)
 import Tezos.Address (Address(..))
 import Tezos.Core (Mutez, Timestamp, timestampPlusSeconds, unMutez, unsafeMkMutez, unsafeSubMutez)
 import Tezos.Crypto (KeyHash)
 
-import Test.Util.Interpreter (dummyContractEnv)
-
 type Storage = (Timestamp, (Mutez, KeyHash))
 type Param = KeyHash
-type ContractParam instr = Val instr (ToT Param)
-type ContractStorage instr = Val instr (ToT Storage)
 
 -- | Spec to test auction.tz contract.
 --
@@ -38,10 +34,10 @@ auctionSpec = parallel $ do
   specWithTypedContract "contracts/auction.tz" $ \contract -> do
     it "Bid after end of auction triggers failure" $
       contractProp contract
-        (\_ _ _ -> flip shouldSatisfy (isLeft . fst))
+        (flip shouldSatisfy (isLeft . fst))
         (env { ceAmount = unsafeMkMutez 1200 })
-        (mkParam keyHash2)
-        (toVal (aBitBeforeMidTimestamp, (unsafeMkMutez 1000, keyHash1)))
+        keyHash2
+        (aBitBeforeMidTimestamp, (unsafeMkMutez 1000, keyHash1))
 
     prop "Random check (sparse distribution)" $ withMaxSuccess 200 $
       qcProp contract arbitrary arbitrary
@@ -65,14 +61,14 @@ auctionSpec = parallel $ do
   where
     qcProp contract eoaGen amountGen =
       forAll ((,) <$> eoaGen <*> ((,) <$> amountGen <*> arbitrary)) $
-        \s' p' ->
-          contractProp contract validateAuction env (mkParam p') (mkStorage s')
+        \s p ->
+          let validate = validateAuction env p s
+           in contractProp contract validate env p s
 
     aBitBeforeMidTimestamp = midTimestamp `timestampPlusSeconds` -1
     -- ^ 1s before NOW
 
-    -- N.B.: using Gen (CVal 'CTimestamp) from Morley.Test.
-    denseTime = CvTimestamp . (timestampPlusSeconds midTimestamp) <$> choose (-4, 4)
+    denseTime = timestampPlusSeconds midTimestamp <$> choose (-4, 4)
     denseAmount = unsafeMkMutez . (midAmount +) . fromInteger <$> choose (-4, 4)
 
     env = dummyContractEnv
@@ -80,12 +76,6 @@ auctionSpec = parallel $ do
             , ceAmount = unsafeMkMutez midAmount
             }
     midAmount = unMutez (maxBound `unsafeSubMutez` minBound) `div` 2
-
-    mkParam :: Param -> ContractParam instr
-    mkParam = toVal
-
-    mkStorage :: (CVal 'CTimestamp, (Mutez, KeyHash)) -> ContractStorage instr
-    mkStorage (CvTimestamp t, b) = toVal (t, b)
 
 keyHash1 :: KeyHash
 keyHash1 = unGen arbitrary (mkQCGen 300406) 0
@@ -108,12 +98,11 @@ keyHash2 = unGen arbitrary (mkQCGen 142917) 0
 -- * Script returned exactly one operation, @TransferTokens@, which
 --   returns money back to the previous bidder
 validateAuction
-  :: ContractPropValidator (ToT Param) (ToT Storage) Property
-validateAuction env
-    (fromVal -> newKeyHash)
-    (fromVal -> (endOfAuction, (amount, keyHash :: KeyHash)))
-    (resE, _)
-
+  :: ContractEnv
+  -> Param
+  -> Storage
+  -> ContractPropValidator (ToT Storage) Property
+validateAuction env newKeyHash (endOfAuction, (amount, keyHash)) (resE, _)
   | ceNow env > endOfAuction
       = counterexample "Failure didn't trigger on end of auction" $ isLeft resE
   | ceAmount env <= amount

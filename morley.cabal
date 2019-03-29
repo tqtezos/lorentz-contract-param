@@ -42,7 +42,11 @@ library
                      , Morley.Runtime.GState
                      , Morley.Runtime.TxData
                      , Morley.Test
+                     , Morley.Test.Dummy
+                     , Morley.Test.Gen
+                     , Morley.Test.Import
                      , Morley.Test.Integrational
+                     , Morley.Test.Unit
                      , Morley.Test.Util
                      , Morley.Types
                      , Tezos.Address
@@ -228,7 +232,6 @@ test-suite morley-test
                      , Test.Tezos.Crypto
                      , Test.Typecheck
                      , Test.Util.Contracts
-                     , Test.Util.Interpreter
                      , Test.Util.QuickCheck
                      , Test.ValConversion
   build-depends:
@@ -248,6 +251,7 @@ test-suite morley-test
                      , morley-prelude
                      , QuickCheck
                      , quickcheck-arbitrary-adt
+                     , quickcheck-instances
                      , text
                      , time
                      , universum

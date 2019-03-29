@@ -5,6 +5,8 @@ module Morley.Test.Integrational
   , SuccessValidator
   , integrationalTestExpectation
   , integrationalTestProperty
+  , simplerIntegrationalTestExpectation
+  , simplerIntegrationalTestProperty
 
   -- * Validators
   , composeValidators
@@ -24,6 +26,7 @@ import Michelson.Interpret (InterpretUntypedError(..), MichelsonFailed(..), Rema
 import Morley.Aliases (UntypedValue)
 import Morley.Runtime (InterpreterError(..), InterpreterOp(..), InterpreterRes(..), interpreterPure)
 import Morley.Runtime.GState
+import Morley.Test.Dummy
 import Morley.Test.Util (failedProp, succeededProp)
 import Tezos.Address (Address)
 import Tezos.Core (Mutez, Timestamp)
@@ -35,14 +38,31 @@ type IntegrationalValidator = Either (InterpreterError -> Bool) SuccessValidator
 
 type SuccessValidator = (GState -> [GStateUpdate] -> Either Text ())
 
+-- | Integrational test that executes given operations and validates
+-- them using given validator. It can fail using 'Expectation'
+-- capability.
 integrationalTestExpectation ::
   Timestamp -> RemainingSteps -> [InterpreterOp] -> IntegrationalValidator -> Expectation
 integrationalTestExpectation =
   integrationalTest (maybe pass (expectationFailure . toString))
 
+-- | Integrational test that executes given operations and validates
+-- them using given validator. It can fail using 'Property'
+-- capability. It can be used with QuickCheck's @forAll@ to make a
+-- property-based test with arbitrary data.
 integrationalTestProperty ::
   Timestamp -> RemainingSteps -> [InterpreterOp] -> IntegrationalValidator -> Property
 integrationalTestProperty = integrationalTest (maybe succeededProp failedProp)
+
+-- | 'integrationalTestExpectation' which uses dummy now and max steps.
+simplerIntegrationalTestExpectation :: [InterpreterOp] -> IntegrationalValidator -> Expectation
+simplerIntegrationalTestExpectation =
+  integrationalTestExpectation dummyNow dummyMaxSteps
+
+-- | 'integrationalTestProperty' which uses dummy now and max steps.
+simplerIntegrationalTestProperty :: [InterpreterOp] -> IntegrationalValidator -> Property
+simplerIntegrationalTestProperty =
+  integrationalTestProperty dummyNow dummyMaxSteps
 
 integrationalTest ::
      (Maybe Text -> res)

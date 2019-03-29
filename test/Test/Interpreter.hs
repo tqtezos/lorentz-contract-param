@@ -8,16 +8,17 @@ import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck (Property, label, (.&&.), (===))
 
 import Michelson.Interpret (ContractEnv(..), ContractReturn, MichelsonFailed(..), RemainingSteps)
-import Michelson.Typed (CT(..), CVal(..), Instr(..), T(..), Val(..), toVal, ( # ))
+import Michelson.Typed (CT(..), CVal(..), Instr(..), T(..), Val(..), fromVal, toVal, ( # ))
 import Morley.Ext (interpretMorley)
 import Morley.Test (ContractPropValidator, contractProp, specWithTypedContract)
+import Morley.Test.Dummy (dummyContractEnv)
+import Morley.Test.Util (failedProp)
 import Morley.Types (MorleyLogs)
 import Test.Interpreter.Auction (auctionSpec)
 import Test.Interpreter.CallSelf (selfCallerSpec)
 import Test.Interpreter.Compare (compareSpec)
 import Test.Interpreter.Conditionals (conditionalsSpec)
 import Test.Interpreter.StringCaller (stringCallerSpec)
-import Test.Util.Interpreter (dummyContractEnv)
 
 spec :: Spec
 spec = describe "Advanced type interpreter tests" $ do
@@ -52,8 +53,9 @@ spec = describe "Advanced type interpreter tests" $ do
         `shouldSatisfy` (isLeft . fst)
 
   specWithTypedContract "contracts/basic1.tz" $ \contract -> do
-    prop "Random check" $
-      contractProp contract validateBasic1 dummyContractEnv
+    prop "Random check" $ \input ->
+      contractProp @_ @[Integer] contract (validateBasic1 input)
+      dummyContractEnv () input
 
   auctionSpec
   compareSpec
@@ -73,25 +75,19 @@ spec = describe "Advanced type interpreter tests" $ do
 
   specWithTypedContract "contracts/gas_exhaustion.tz" $ \contract -> do
     it "Contract should fail due to gas exhaustion" $ do
-      case fst $ interpretMorley contract (VC (CvString "x")) (VC (CvString "x")) dummyContractEnv of
+      let dummyStr = toVal @Text "x"
+      case fst $ interpretMorley contract dummyStr dummyStr dummyContractEnv of
         Right _ -> expectationFailure "expecting contract to fail"
         Left MichelsonGasExhaustion -> pass
         Left _ -> expectationFailure "expecting another failure reason"
 
 validateBasic1
-  :: ContractPropValidator 'TUnit ('TList ('Tc 'CInt)) Property
-validateBasic1 _env _param input (Right (ops, res), _) =
-    (trToList res === [calcSum input + 12, 100])
+  :: [Integer] -> ContractPropValidator ('TList ('Tc 'CInt)) Property
+validateBasic1 input (Right (ops, res), _) =
+    (fromVal res === [sum input + 12, 100])
     .&&.
     (label "returned no ops" $ null ops)
-  where
-    calcSum :: Val instr ('TList ('Tc 'CInt)) -> Integer
-    calcSum (VList l) = sum $ map (\(VC (CvInt i)) -> i) l
-
-    trToList :: Val instr ('TList ('Tc 'CInt)) -> [Integer]
-    trToList (VList l) = map (\(VC (CvInt i)) -> i) l
-
-validateBasic1 _ _ _ (Left e, _) = error $ show e
+validateBasic1 _ (Left e, _) = failedProp $ show e
 
 validateStepsToQuotaTest ::
      ContractReturn MorleyLogs ('Tc 'CNat) -> RemainingSteps -> Expectation

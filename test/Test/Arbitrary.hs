@@ -9,19 +9,17 @@ import qualified Data.Text.Encoding as T
 
 import Test.QuickCheck (Arbitrary(..), Gen, choose, elements, listOf, oneof, vector)
 import Test.QuickCheck.Arbitrary.ADT (ToADTArbitrary(..))
+import Test.QuickCheck.Instances.Text ()
 
 import Michelson.Untyped
   (Annotation(..), CT(..), Comparable(..), Contract(..), Elt(..), FieldAnn, InstrAbstract(..),
   InternalByteString(..), Op(..), T(..), Type(..), TypeAnn, Value(..), VarAnn)
 import Morley.Test ()
 import Morley.Types (StackTypePattern(..), TyVar(..), UExtInstr, UExtInstrAbstract(..), Var(..))
-import Tezos.Core (Mutez(..), Timestamp(..), timestampFromSeconds)
+import Tezos.Core (Mutez(..))
 
 instance Arbitrary InternalByteString where
   arbitrary = InternalByteString . T.encodeUtf8 . T.pack <$> listOf arbitrary
-
-instance Arbitrary Text where
-  arbitrary = T.pack <$> arbitrary
 
 instance Arbitrary Var where
   arbitrary = Var <$> arbitrary
@@ -39,10 +37,6 @@ instance Arbitrary UExtInstr where
 instance ToADTArbitrary Op
 instance Arbitrary Op where
   arbitrary = Op <$> arbitrary
-
--- TODO: this `Timestamp` gen differs from `Gen (CVal 'CTimestamp)` from `Morley.Test`.
-instance Arbitrary Timestamp where
-  arbitrary = timestampFromSeconds @Word <$> arbitrary
 
 instance ToADTArbitrary Mutez
 

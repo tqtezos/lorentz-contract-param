@@ -6,7 +6,7 @@ module Test.Interpreter.StringCaller
 
 import Test.Hspec (Spec, it, parallel)
 import Test.Hspec.QuickCheck (modifyMaxSuccess, prop)
-import Test.QuickCheck (arbitrary, forAll)
+import Test.QuickCheck.Instances.Text ()
 
 import Michelson.Typed
 import Michelson.Untyped (OriginationOperation(..), mkContractAddress)
@@ -15,13 +15,10 @@ import Morley.Aliases (UntypedContract, UntypedValue)
 import Morley.Runtime (InterpreterOp(..), TxData(..))
 import Morley.Runtime.GState
 import Morley.Test (specWithContract)
+import Morley.Test.Dummy
 import Morley.Test.Integrational
-  (SuccessValidator, composeValidators, expectBalance, expectStorageConstant)
 import Tezos.Address (formatAddress)
 import Tezos.Core
-
-import Test.Arbitrary ()
-import Test.Util.Interpreter
 
 stringCallerSpec :: Spec
 stringCallerSpec =
@@ -43,8 +40,7 @@ specImpl (uStringCaller, _stringCaller) (uIdString, _idString) = do
   -- The test is trivial, so it's kinda useless to run it many times
   modifyMaxSuccess (const 2) $
     prop "stringCaller calls idString and updates its storage with an arbitrary value" $
-    forAll arbitrary $ \(Untyped.ValueString -> newValue) ->
-      simplerIntegrationalTestProperty
+      \(Untyped.ValueString -> newValue) -> simplerIntegrationalTestProperty
         (operations newValue)
         (Right (updatesValidator newValue))
   where
