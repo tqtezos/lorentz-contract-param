@@ -5,31 +5,30 @@ effective.
 
 ## I: A reimplementation of the Michelson Language in Haskell
 
-- `Michelson.Untyped`: Simple data types representing Michelson smart
-  contracts and expresions. We use word `Untyped` to reflect that
-  Michelson type of corresponding Haskel values is not statically known
-  (e. g. there is a `Value` type which is basically dynamically typed).
-- `Michelson.Typed`: These modules contain more advanced types comparing to
-  `Michelson.Untyped` with similar semantics. These types use `GADTs` GHC
-  extension and in this representation Michelson type of each value and
-  instruction is statically known. There are also some utilities to use this
-  advanced machinery.
-- `Michelson.TypeCheck`: A typechecker that validates ADT's that conform to
-  Michelson's typing rules.
-- `Michelson.Intepreter`: An intepreter for Michelson contracts which doesn't
-  perform any side effects.
-- `Morley.Types`: Types for macros, syntactic sugar, and interpreter directives.
-- `Morley.Parser` A parser to turn a `.tz` file into an ADT.
-- `Morley.Runtime`: An interpreter that executes a well-typed Morley smart
-  contract in a sandbox.
+It consists of the following parts:
 
-## II: Testing tools (TBD)
+- `Tezos.*` hierarchy is designed to implement cryptographic primitives, string and byte formats, and any other functionality specific to the Tezos protocol which is required for testing/execution of Michelson contracts, but is used not only by Michelson.
+- `Michelson.Untyped` and `Michelson.Typed` hierarchies define Haskell data types that assemble a Michelson contract. See [michelsonTypes.md](/docs/michelsonTypes.md).
+- `Michelson.TypeCheck`: A typechecker that validates Michelson contracts according to Michelson's typing rules. Essentially it performs conversion from untyped representation to the typed one. See [morleyTypechecker.md](/docs/morleyTypechecker.md).
+- `Michelson.Intepreter`: An intepreter for Michelson contracts which doesn't perform any side effects. See [morleyInterpreter.md](/docs/morleyInterpreter.md).
+- `Morley.Types`: Types for macros, syntactic sugar and other extensions described in the next chapter.
+- `Morley.Parser` A parser to turn a `.tz` or `.mtz` file (`.mtz` is a Michelson contract with Morley extensions) into a Haskell ADT.
+- `Morley.Runtime`: A high-level interface to Morley functionality. It implements [high-level Morley interpreter](/docs/morleyInterpreter.md) and provides functions to read and parse a contract, originate it, transfer tokens, etc.
 
-- `Morley.REPL`: An interactive REPL with stack visualization.
-- `Morley.QuickCheck`: QuickCheck generators for arbitary Michelson `Value`s,
-  `LAMBDA`s and `Contract`s.
-- `Morley.Sandbox`: Simulating a more realistic network environment, multiple
-   smart contracts in the same sandbox.
+## II: Morley extensions
+
+The Morley Language is a superset of the Michelson language, which means that each Michelson contract is also a valid Morley contract but not vice versa.
+There are several extensions which make it more convenient to write Michelson contracts and test them.
+See [the document](/docs/morleyLanguage.md) about these extensions.
+Also there is a transpiler from Morley to Michelson.
+
+## III: Morley-to-Michelson transpiler
+
+Coming soon, see TM-58.
+
+## IV: Testing EDSL
+
+Coming soon, see TM-77.
 
 ## Issue Tracker
 
