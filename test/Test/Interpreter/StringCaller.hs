@@ -9,13 +9,10 @@ import Test.Hspec.QuickCheck (modifyMaxSuccess, prop)
 import Test.QuickCheck.Instances.Text ()
 
 import Michelson.Typed
-import Michelson.Untyped
-  (OriginationOperation(..), UntypedContract, UntypedValue, mkContractAddress)
+import Michelson.Untyped (UntypedContract)
 import qualified Michelson.Untyped as Untyped
-import Morley.Runtime (InterpreterOp(..), TxData(..))
 import Morley.Runtime.GState
 import Morley.Test (specWithContract)
-import Morley.Test.Dummy
 import Morley.Test.Integrational
 import Tezos.Address (formatAddress)
 import Tezos.Core
@@ -32,53 +29,48 @@ specImpl ::
   -> (UntypedContract, Contract ('Tc 'CString) ('Tc 'CString))
   -> Spec
 specImpl (uStringCaller, _stringCaller) (uIdString, _idString) = do
+  let scenario = integrationalScenario uStringCaller uIdString
   it "stringCaller calls idString and updates its storage with a constant" $
-    simplerIntegrationalTestExpectation
-      (operations newValueConstant)
-      (Right (updatesValidator newValueConstant))
+    integrationalTestExpectation (scenario constStr)
 
   -- The test is trivial, so it's kinda useless to run it many times
   modifyMaxSuccess (const 2) $
     prop "stringCaller calls idString and updates its storage with an arbitrary value" $
-      \(Untyped.ValueString -> newValue) -> simplerIntegrationalTestProperty
-        (operations newValue)
-        (Right (updatesValidator newValue))
+      \str -> integrationalTestProperty (scenario str)
   where
-    newValueConstant = Untyped.ValueString "caller"
+    constStr = "caller"
 
-    idStringOrigination :: OriginationOperation
-    idStringOrigination =
-      dummyOrigination (Untyped.ValueString "hello") uIdString
-    originateIdString = OriginateOp idStringOrigination
-    idStringAddress = mkContractAddress idStringOrigination
+integrationalScenario :: UntypedContract -> UntypedContract -> Text -> IntegrationalScenario
+integrationalScenario stringCaller idString str = do
+  let
+    initIdStringBalace = unsafeMkMutez 100
+    initStringCallerBalance = unsafeMkMutez 100
 
-    stringCallerOrigination :: OriginationOperation
-    stringCallerOrigination =
-      dummyOrigination (Untyped.ValueString $ formatAddress idStringAddress)
-      uStringCaller
-    originateStringCaller = OriginateOp stringCallerOrigination
-    stringCallerAddress = mkContractAddress stringCallerOrigination
+  idStringAddress <-
+    originate idString (Untyped.ValueString "hello") initIdStringBalace
+  stringCallerAddress <-
+    originate stringCaller (Untyped.ValueString $ formatAddress idStringAddress)
+    initStringCallerBalance
 
-    txData :: UntypedValue -> TxData
-    txData newValue = TxData
+  let
+    newValue = Untyped.ValueString str
+    txData = TxData
       { tdSenderAddress = genesisAddress
       , tdParameter = newValue
-      , tdAmount = minBound
+      , tdAmount = unsafeMkMutez 0
       }
-    transferToStringCaller newValue =
-      TransferOp stringCallerAddress (txData newValue)
 
-    operations newValue =
-      [ originateIdString
-      , originateStringCaller
-      , transferToStringCaller newValue
-      ]
+  transfer txData stringCallerAddress
 
+  let
     -- `stringCaller.tz` transfers 2 mutez.
-    expectedIdStringBalance =
-      ooBalance idStringOrigination `unsafeAddMutez` unsafeMkMutez 2
+    expectedIdStringBalance = unsafeMkMutez 102
+    expectedStringCallerBalance = unsafeMkMutez 98
 
-    updatesValidator :: UntypedValue -> SuccessValidator
-    updatesValidator newValue =
-      expectStorageConstant idStringAddress newValue `composeValidators`
-      expectBalance idStringAddress expectedIdStringBalance
+    updatesValidator :: SuccessValidator
+    updatesValidator =
+      expectStorageUpdateConst idStringAddress newValue `composeValidators`
+      expectBalance idStringAddress expectedIdStringBalance `composeValidators`
+      expectBalance stringCallerAddress expectedStringCallerBalance
+
+  validate (Right updatesValidator)
