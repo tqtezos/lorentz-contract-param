@@ -13,7 +13,7 @@ It consists of the following parts:
 - `Michelson.Intepreter`: An intepreter for Michelson contracts which doesn't perform any side effects. See [morleyInterpreter.md](/docs/morleyInterpreter.md).
 - `Morley.Types`: Types for macros, syntactic sugar and other extensions described in the next chapter.
 - `Morley.Parser` A parser to turn a `.tz` or `.mtz` file (`.mtz` is a Michelson contract with Morley extensions) into a Haskell ADT.
-- `Morley.Runtime`: A high-level interface to Morley functionality. It implements [high-level Morley interpreter](/docs/morleyInterpreter.md) and provides functions to read and parse a contract, originate it, transfer tokens, etc.
+- `Morley.Runtime`: A high-level interface to Morley functionality, see [morleyRuntime.md](/docs/morleyRuntime.md).
 
 ## II: Morley extensions
 
