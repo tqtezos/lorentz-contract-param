@@ -1,13 +1,24 @@
+# This contract takes a string as parameter and an address as storage.
+# It transfers 300 mutez to given address and passes its parameter as
+# parameter for this transfer.
+# It fails if current timestamp is greater than 500.
+
 parameter string;
 storage address;
-code { DUP;
+code {
+       # Check current timestamp
+       PUSH timestamp 500;
+       NOW;
+       IFCMPGT { FAIL; } { };
+       # Construct operations
+       DUP;
        DUP;
        CDR;
        CONTRACT string;
        IF_NONE {DROP; NIL operation }
                {SWAP;
                 CAR;
-                DIP {PUSH mutez 2};
+                DIP {PUSH mutez 300};
                 TRANSFER_TOKENS;
                 DIP {NIL operation;};
                 CONS;

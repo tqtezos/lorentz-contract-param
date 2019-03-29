@@ -94,7 +94,7 @@ makeLenses ''InterpreterRes
 data InterpreterError
   = IEUnknownContract !Address
   -- ^ The interpreted contract hasn't been originated.
-  | IEInterpreterFailed !UntypedContract
+  | IEInterpreterFailed !Address
                         !(InterpretUntypedError MorleyLogs)
   -- ^ Interpretation of Michelson contract failed.
   | IEAlreadyOriginated !Address
@@ -116,7 +116,8 @@ instance Buildable InterpreterError where
   build =
     \case
       IEUnknownContract addr -> "The contract is not originated " +| addr |+ ""
-      IEInterpreterFailed _ err -> "Michelson interpreter failed: " +| err |+ ""
+      IEInterpreterFailed addr err ->
+        "Michelson interpreter failed for contract " +| addr |+ ": " +| err |+ ""
       IEAlreadyOriginated addr cs ->
         "The following contract is already originated: " +| addr |+
         ", " +| cs |+ ""
@@ -372,7 +373,7 @@ interpretOneOp now remainingSteps mSourceAddr gs (TransferOp addr txData) = do
           , iurNewStorage = newValue
           , iurNewState = InterpreterState printedLogs newRemainingSteps
           }
-          <- first (IEInterpreterFailed contract) $
+          <- first (IEInterpreterFailed addr) $
                 interpretMorleyUntyped contract (tdParameter txData)
                                  (csStorage cs) contractEnv
         let

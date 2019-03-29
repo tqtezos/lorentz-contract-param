@@ -20,10 +20,13 @@ module Morley.Test.Integrational
 
   -- * Validators
   , composeValidators
+  , composeValidatorsList
+  , expectAnySuccess
   , expectStorageUpdate
   , expectStorageUpdateConst
   , expectBalance
   , expectGasExhaustion
+  , expectMichelsonFailed
   ) where
 
 import Control.Lens (assign, at, makeLenses, (.=), (<>=))
@@ -142,6 +145,10 @@ putOperation op = isOperations <>= one op
 -- Validators to be used within 'IntegrationalValidator'
 ----------------------------------------------------------------------------
 
+-- | 'SuccessValidator' that always passes.
+expectAnySuccess :: SuccessValidator
+expectAnySuccess _ _ = pass
+
 -- | Check that storage value is updated for given address. Takes a
 -- predicate that is used to check the value.
 --
@@ -203,11 +210,23 @@ composeValidators ::
 composeValidators val1 val2 gState updates =
   val1 gState updates >> val2 gState updates
 
+-- | Compose a list of success validators.
+composeValidatorsList :: [SuccessValidator] -> SuccessValidator
+composeValidatorsList = foldl' composeValidators expectAnySuccess
+
 -- | Check that interpreter failed due to gas exhaustion.
 expectGasExhaustion :: InterpreterError -> Bool
 expectGasExhaustion =
   \case
     IEInterpreterFailed _ (RuntimeFailure (MichelsonGasExhaustion, _)) -> True
+    _ -> False
+
+-- | Expect that interpretation of contract with given address ended
+-- with [FAILED].
+expectMichelsonFailed :: Address -> InterpreterError -> Bool
+expectMichelsonFailed addr =
+  \case
+    IEInterpreterFailed failedAddr (RuntimeFailure {}) -> addr == failedAddr
     _ -> False
 
 ----------------------------------------------------------------------------

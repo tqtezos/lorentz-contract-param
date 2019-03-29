@@ -1,0 +1,20 @@
+# This contract takes a string as parameter and updates its storage to
+# this string.
+# However, it fails if its balance is greater than 1000.
+# Also it transfers 5 mutez to a fixed address (tz1faswCTDciRzE4oJ9jn2Vm2dvjeyA9fUzU).
+
+parameter string;
+storage string;
+code { CAR; # ignore storage
+       # Check balance and possibly fail
+       PUSH mutez 1000;
+       BALANCE;
+       IFCMPGT { FAIL; } { };
+       # Construct transfer operation
+       NIL operation;
+       PUSH (contract unit) "tz1faswCTDciRzE4oJ9jn2Vm2dvjeyA9fUzU";
+       PUSH mutez 5;
+       UNIT;
+       TRANSFER_TOKENS;
+       CONS;
+       PAIR;};
