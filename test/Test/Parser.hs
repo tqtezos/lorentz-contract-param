@@ -2,6 +2,7 @@ module Test.Parser
   ( spec
   ) where
 
+import qualified Data.List.NonEmpty as NE
 import Test.Hspec (Expectation, Spec, describe, it, shouldBe, shouldSatisfy)
 import Text.Megaparsec (parse)
 
@@ -38,12 +39,20 @@ checkFile file = do
 
 valueParserTest :: Expectation
 valueParserTest = do
+  P.parseNoEnv P.value "" "{}" `shouldBe`
+    (Right Mo.ValueNil)
   P.parseNoEnv P.value "" "{PUSH int 5;}" `shouldBe`
-    (Right $ Mo.ValueLambda [Mo.PRIM (Mo.PUSH noAnn (Mo.Type (Mo.Tc Mo.CInt) noAnn) (Mo.ValueInt 5))])
+    (Right . Mo.ValueLambda $ NE.fromList
+      [Mo.PRIM (Mo.PUSH noAnn (Mo.Type (Mo.Tc Mo.CInt) noAnn) (Mo.ValueInt 5))]
+    )
   P.parseNoEnv P.value "" "{1; 2}" `shouldBe`
-    (Right $ Mo.ValueSeq [Mo.ValueInt 1, Mo.ValueInt 2])
+    (Right . Mo.ValueSeq $ NE.fromList
+      [Mo.ValueInt 1, Mo.ValueInt 2]
+    )
   P.parseNoEnv P.value "" "{Elt 1 2; Elt 3 4}" `shouldBe`
-    (Right $ Mo.ValueMap [Mo.Elt (Mo.ValueInt 1) (Mo.ValueInt 2), Mo.Elt (Mo.ValueInt 3) (Mo.ValueInt 4)])
+    (Right . Mo.ValueMap $ NE.fromList
+      [Mo.Elt (Mo.ValueInt 1) (Mo.ValueInt 2), Mo.Elt (Mo.ValueInt 3) (Mo.ValueInt 4)]
+    )
 
 stringLiteralTest :: Expectation
 stringLiteralTest = do

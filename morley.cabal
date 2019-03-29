@@ -38,6 +38,7 @@ library
                      , Morley.Ext
                      , Morley.Parser
                      , Morley.Parser.Annotations
+                     , Morley.Parser.Helpers
                      , Morley.Runtime
                      , Morley.Runtime.GState
                      , Morley.Runtime.TxData

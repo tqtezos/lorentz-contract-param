@@ -2,6 +2,8 @@ module Test.Macro
   ( spec
   ) where
 
+import qualified Data.List.NonEmpty as NE
+
 import Morley.Macro
 import Morley.Types
 import Test.Hspec (Expectation, Spec, describe, it, shouldBe)
@@ -163,11 +165,11 @@ expandValueTest = do
     expandedPapair = ValuePair (ValuePair (ValueInt 5) (ValueInt 5)) (ValueInt 5)
 
     parsedLambdaWithMac :: Value ParsedOp
-    parsedLambdaWithMac = ValueLambda
-      [MAC (PAPAIR (P (F (noAnn, noAnn)) (P (F (noAnn, noAnn)) (F (noAnn, noAnn)))) noAnn noAnn)]
+    parsedLambdaWithMac = ValueLambda $
+      one (MAC (PAPAIR (P (F (noAnn, noAnn)) (P (F (noAnn, noAnn)) (F (noAnn, noAnn)))) noAnn noAnn))
 
     expandedLambdaWithMac :: Value Op
-    expandedLambdaWithMac = ValueLambda
+    expandedLambdaWithMac = ValueLambda . NE.fromList $
       [ Op {unOp = DIP [Op {unOp = PAIR noAnn noAnn noAnn noAnn}]}
       , Op {unOp = PAIR noAnn noAnn noAnn noAnn}
       ]

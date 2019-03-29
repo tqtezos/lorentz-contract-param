@@ -31,11 +31,12 @@ data Value op =
   | ValueRight   (Value op)
   | ValueSome    (Value op)
   | ValueNone
-  | ValueSeq     [Value op]
+  | ValueNil
+  | ValueSeq     (NonEmpty $ Value op)
   -- ^ A sequence of elements: can be a list or a set.
   -- We can't distinguish lists and sets during parsing.
-  | ValueMap     [Elt op]
-  | ValueLambda  [op]
+  | ValueMap     (NonEmpty $ Elt op)
+  | ValueLambda  (NonEmpty op)
   deriving stock (Eq, Show, Functor, Data, Generic)
 
 data Elt op = Elt (Value op) (Value op)
@@ -63,12 +64,13 @@ instance Buildable op => Buildable (Value op) where
       ValueRight v -> "(Right " +| v |+ ")"
       ValueSome v -> "(Some " +| v |+ ")"
       ValueNone -> "None"
+      ValueNil -> "{}"
       ValueSeq vs -> buildList vs
       ValueMap els -> buildList els
       ValueLambda ops -> buildList ops
     where
-      buildList :: Buildable a => [a] -> Builder
-      buildList items =
+      buildList :: Buildable a => NonEmpty a -> Builder
+      buildList (toList -> items) =
         "{" <>
         mconcat (intersperse "; " $ map Buildable.build items) <>
         "}"
