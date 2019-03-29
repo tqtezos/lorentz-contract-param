@@ -7,7 +7,9 @@ import Test.Aeson.GenericSpecs (roundtripADTSpecs, roundtripSpecs)
 import Test.Hspec (Spec)
 import Test.QuickCheck (Arbitrary)
 
-import Michelson.Untyped (Contract, Elt, FieldAnn, InstrAbstract, Op, TypeAnn, Value, VarAnn)
+import Michelson.Untyped
+  (Elt, FieldAnn, InstrAbstract, TypeAnn, UntypedContract, UntypedValue,
+  VarAnn, ExpandedOp)
 import Tezos.Core (Mutez, Timestamp)
 
 import Test.Arbitrary ()
@@ -37,7 +39,7 @@ spec = do
   test (Proxy @Mutez)
 
   -- Michelson types
-  testADT (Proxy @Op)
+  testADT (Proxy @ExpandedOp)
 
   -- these are actually all the same thing (Annotation a),
   -- where a is a phantom type,
@@ -47,7 +49,7 @@ spec = do
   test (Proxy @FieldAnn)
   test (Proxy @VarAnn)
 
-  test (Proxy @(Contract Op))
-  testADT (Proxy @(InstrAbstract Op))
-  test (Proxy @(Value Op))
-  test (Proxy @(Elt Op))
+  test (Proxy @UntypedContract)
+  testADT (Proxy @(InstrAbstract ExpandedOp))
+  test (Proxy @UntypedValue)
+  test (Proxy @(Elt ExpandedOp))

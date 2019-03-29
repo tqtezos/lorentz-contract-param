@@ -39,10 +39,10 @@ import Michelson.TypeCheck (TCError)
 import Michelson.Typed
   (CreateContract(..), Instr, Operation(..), TransferTokens(..), Val(..), convertContract,
   unsafeValToValue)
-import Michelson.Untyped (Contract(..), Op(..), OriginationOperation(..), Value, mkContractAddress)
-import Morley.Aliases (UntypedContract)
+import Michelson.Untyped
+  (Contract(..), OriginationOperation(..), UntypedContract, UntypedValue, mkContractAddress)
 import Morley.Ext (interpretMorleyUntyped, typeCheckMorleyContract)
-import Morley.Macro (expandFlattenContract)
+import Morley.Macro (expandContract)
 import qualified Morley.Parser as P
 import Morley.Runtime.GState
 import Morley.Runtime.TxData
@@ -94,7 +94,7 @@ makeLenses ''InterpreterRes
 data InterpreterError
   = IEUnknownContract !Address
   -- ^ The interpreted contract hasn't been originated.
-  | IEInterpreterFailed !(Contract Op)
+  | IEInterpreterFailed !UntypedContract
                         !(InterpretUntypedError MorleyLogs)
   -- ^ Interpretation of Michelson contract failed.
   | IEAlreadyOriginated !Address
@@ -149,8 +149,8 @@ readAndParseContract mFilename = do
 
 -- | Read a contract using 'readAndParseContract', expand and
 -- flatten. The contract is not type checked.
-prepareContract :: Maybe FilePath -> IO (Contract Op)
-prepareContract mFile = expandFlattenContract <$> readAndParseContract mFile
+prepareContract :: Maybe FilePath -> IO UntypedContract
+prepareContract mFile = expandContract <$> readAndParseContract mFile
 
 -- | Originate a contract. Returns the address of the originated
 -- contract.
@@ -170,8 +170,8 @@ runContract
   -> Word64
   -> Mutez
   -> FilePath
-  -> Value Op
-  -> Contract Op
+  -> UntypedValue
+  -> UntypedContract
   -> TxData
   -> "verbose" :! Bool
   -> "dryRun" :! Bool
@@ -292,7 +292,7 @@ interpretOneOp
   -> Either InterpreterError InterpreterRes
 interpretOneOp _ remainingSteps _ gs (OriginateOp origination) = do
   void $ first IEIllTypedContract $
-    typeCheckMorleyContract (unOp <$> ooContract origination)
+    typeCheckMorleyContract (ooContract origination)
   let originatorAddress = KeyAddress (ooManager origination)
   originatorBalance <- case gsAddresses gs ^. at (originatorAddress) of
     Nothing -> Left (IEUnknownManager originatorAddress)

@@ -9,9 +9,9 @@ import Test.Hspec.QuickCheck (modifyMaxSuccess, prop)
 import Test.QuickCheck.Instances.Text ()
 
 import Michelson.Typed
-import Michelson.Untyped (OriginationOperation(..), mkContractAddress)
+import Michelson.Untyped
+  (OriginationOperation(..), UntypedContract, UntypedValue, mkContractAddress)
 import qualified Michelson.Untyped as Untyped
-import Morley.Aliases (UntypedContract, UntypedValue)
 import Morley.Runtime (InterpreterOp(..), TxData(..))
 import Morley.Runtime.GState
 import Morley.Test (specWithContract)

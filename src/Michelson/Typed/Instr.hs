@@ -55,8 +55,11 @@ data Instr (inp :: [T]) (out :: [T]) where
   -- | Nop operation. Missing in Michelson spec, added to parse construction
   -- like  `IF {} { SWAP; DROP; }`.
   Nop :: Instr s s
-
   Ext :: ExtT Instr -> Instr s s
+  -- | Nested wrapper is going to wrap a sequence of instructions with { }.
+  -- It is crucial because serialisation of a contract
+  -- depends on precise structure of its code.
+  Nested :: Instr inp out -> Instr inp out
 
   DROP :: Instr (a ': s) s
   DUP  :: Instr (a ': s) (a ': a ': s)

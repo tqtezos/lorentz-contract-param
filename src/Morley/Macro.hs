@@ -1,7 +1,7 @@
 module Morley.Macro
   (
     -- * For utilities
-    expandFlattenContract
+    expandContract
   , expandValue
 
     -- * For parsing
@@ -9,33 +9,32 @@ module Morley.Macro
 
     -- * Internals exported for tests
   , expand
-  , expandFlat
+  , expandList
   , expandPapair
   , expandUnpapair
   , expandCadr
   , expandSetCadr
   , expandMapCadr
-  , flatten
 
   ) where
 
-import Generics.SYB (everywhere, mkT)
 
+import Michelson.Untyped (UntypedContract, UntypedValue)
 import Morley.Types
-  (CadrStruct(..), Contract(..), Elt(..), ExpandedInstr, ExpandedOp(..), FieldAnn, Instr,
-  InstrAbstract(..), LetMacro(..), Macro(..), Op(..), PairStruct(..), ParsedOp(..), TypeAnn,
+  (CadrStruct(..), Contract(..), Elt(..), ExpandedOp(..), FieldAnn,
+  InstrAbstract(..), LetMacro(..), Macro(..), PairStruct(..), ParsedOp(..), TypeAnn,
   UExtInstrAbstract(..), Value(..), VarAnn, ann, noAnn)
 
-expandFlat :: [ParsedOp] -> [Op]
-expandFlat = fmap Op . concatMap flatten . fmap expand
+expandList :: [ParsedOp] -> [ExpandedOp]
+expandList = fmap expand
 
 -- | Expand and flatten and instructions in parsed contract.
-expandFlattenContract :: Contract ParsedOp -> Contract Op
-expandFlattenContract Contract {..} =
-  Contract para stor (expandFlat $ code)
+expandContract :: Contract ParsedOp -> UntypedContract
+expandContract Contract {..} =
+  Contract para stor (expandList $ code)
 
 -- Probably, some SYB can be used here
-expandValue :: Value ParsedOp -> Value Op
+expandValue :: Value ParsedOp -> UntypedValue
 expandValue = \case
   ValuePair l r -> ValuePair (expandValue l) (expandValue r)
   ValueLeft x -> ValueLeft (expandValue x)
@@ -46,31 +45,11 @@ expandValue = \case
   ValueMap eltList -> ValueMap (map expandElt eltList)
   ValueLambda opList ->
     maybe ValueNil ValueLambda $
-    nonEmpty (expandFlat $ toList opList)
-  x -> fmap (unsafeCastPrim . expand) x
+    nonEmpty (expandList $ toList opList)
+  x -> fmap expand x
 
-expandElt :: Elt ParsedOp -> Elt Op
+expandElt :: Elt ParsedOp -> Elt ExpandedOp
 expandElt (Elt l r) = Elt (expandValue l) (expandValue r)
-
-flatten :: ExpandedOp -> [Instr]
-flatten (SEQ_EX s) = concatMap flatten s
-flatten (PRIM_EX o) = [flattenInstr o]
-
-unsafeCastPrim :: ExpandedOp -> Op
-unsafeCastPrim (PRIM_EX x) = Op (fmap unsafeCastPrim x)
-unsafeCastPrim _           = error "unexpected constructor"
-
--- Here used SYB approach instead pattern matching
--- flattenInstr (IF_NONE l r) = IF_NONE (concatMap flatten l) (concatMap flatten r)
--- flattenInstr (IF_LEFT l r) = IF_LEFT (concatMap flatten l) (concatMap flatten r)
--- ...
-flattenInstr :: ExpandedInstr -> Instr
-flattenInstr = fmap unsafeCastPrim . everywhere (mkT flattenOps)
-  where
-    flattenOps :: [ExpandedOp] -> [ExpandedOp]
-    flattenOps [] = []
-    flattenOps (SEQ_EX s : xs) = s ++ flattenOps xs
-    flattenOps (x@(PRIM_EX _) : xs) = x : flattenOps xs
 
 expand :: ParsedOp -> ExpandedOp
 expand (MAC m)  = SEQ_EX $ expandMacro m
@@ -155,18 +134,18 @@ expandUnpapair = \case
 expandCadr :: [CadrStruct] -> VarAnn -> FieldAnn -> [ParsedOp]
 expandCadr cs v f = case cs of
   []    -> []
-  A:[]  -> [PRIM $ CAR v f]
-  D:[]  -> [PRIM $ CDR v f]
+  [A]  -> [PRIM $ CAR v f]
+  [D]  -> [PRIM $ CDR v f]
   A:css -> [PRIM $ CAR noAnn noAnn, MAC $ CADR css v f]
   D:css -> [PRIM $ CDR noAnn noAnn, MAC $ CADR css v f]
 
 expandSetCadr :: [CadrStruct] -> VarAnn -> FieldAnn -> [ParsedOp]
 expandSetCadr cs v f = PRIM <$> case cs of
   []   -> []
-  A:[] -> [DUP noAnn, CAR noAnn f, DROP,
+  [A] -> [DUP noAnn, CAR noAnn f, DROP,
            -- ↑ These operations just check that the left element of pair has %f
            CDR (ann "%%") noAnn, SWAP, PAIR noAnn v f (ann "@")]
-  D:[] -> [DUP noAnn, CDR noAnn f, DROP,
+  [D] -> [DUP noAnn, CDR noAnn f, DROP,
            -- ↑ These operations just check that the right element of pair has %f
            CAR (ann "%%") noAnn, PAIR noAnn v (ann "@") f]
   A:css -> [DUP noAnn, DIP [PRIM carN, MAC $ SET_CADR css noAnn f], cdrN, SWAP, pairN]
@@ -179,8 +158,8 @@ expandSetCadr cs v f = PRIM <$> case cs of
 expandMapCadr :: [CadrStruct] -> VarAnn -> FieldAnn -> [ParsedOp] -> [ParsedOp]
 expandMapCadr cs v f ops = case cs of
   []    -> []
-  A:[]  -> PRIM <$> [DUP noAnn, cdrN, DIP [PRIM $ CAR noAnn f, SEQ ops], SWAP, pairN]
-  D:[]  -> concat [PRIM <$> [DUP noAnn, CDR noAnn f], [SEQ ops], PRIM <$> [SWAP, carN, pairN]]
+  [A]  -> PRIM <$> [DUP noAnn, cdrN, DIP [PRIM $ CAR noAnn f, SEQ ops], SWAP, pairN]
+  [D]  -> concat [PRIM <$> [DUP noAnn, CDR noAnn f], [SEQ ops], PRIM <$> [SWAP, carN, pairN]]
   A:css -> PRIM <$> [DUP noAnn, DIP [PRIM $ carN, MAC $ MAP_CADR css noAnn f ops], cdrN, SWAP, pairN]
   D:css -> PRIM <$> [DUP noAnn, DIP [PRIM $ cdrN, MAC $ MAP_CADR css noAnn f ops], carN, pairN]
   where

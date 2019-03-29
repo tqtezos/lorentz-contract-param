@@ -43,9 +43,9 @@ dummyContractEnv = ContractEnv
 -- | 'OriginationOperation' with most data hardcoded to some
 -- reasonable values. Contract and initial values must be passed
 -- explicitly, because otherwise it hardly makes sense.
-dummyOrigination ::
-     Value Op
-  -> Contract Op
+dummyOrigination
+  :: UntypedValue
+  -> UntypedContract
   -> OriginationOperation
 dummyOrigination storage contract = OriginationOperation
   { ooManager = genesisKeyHash

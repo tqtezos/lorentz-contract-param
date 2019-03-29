@@ -56,7 +56,7 @@ data ContractEnv = ContractEnv
   -- ^ Number of steps after which execution unconditionally terminates.
   , ceBalance :: !Mutez
   -- ^ Current amount of mutez of the current contract.
-  , ceContracts :: Map Address (U.Contract U.Op)
+  , ceContracts :: Map Address U.UntypedContract
   -- ^ Mapping from existing contracts' addresses to their executable
   -- representation.
   , ceSelf :: !Address
@@ -79,7 +79,7 @@ data MichelsonFailed where
 
 deriving instance Show MichelsonFailed
 
-instance (ConversibleExt, Buildable U.Instr) => Buildable MichelsonFailed where
+instance (ConversibleExt, Buildable U.ExpandedInstr) => Buildable MichelsonFailed where
   build =
     \case
       MichelsonFailedWith (v :: Val Instr t) ->
@@ -104,9 +104,9 @@ data InterpretUntypedError s
   | UnexpectedStorageType Text
   deriving (Generic)
 
-deriving instance (Buildable U.Instr, Show s) => Show (InterpretUntypedError s)
+deriving instance (Buildable U.ExpandedInstr, Show s) => Show (InterpretUntypedError s)
 
-instance (ConversibleExt, Buildable U.Instr, Buildable s) => Buildable (InterpretUntypedError s) where
+instance (ConversibleExt, Buildable U.ExpandedInstr, Buildable s) => Buildable (InterpretUntypedError s) where
   build = genericF
 
 data InterpretUntypedResult s where
@@ -122,18 +122,18 @@ data InterpretUntypedResult s where
 
 -- | Interpret a contract without performing any side effects.
 interpretUntyped
-  :: forall s . (ExtC, Aeson.ToJSON U.InstrExtU)
+  :: forall s . (ExtC, Aeson.ToJSON U.ExpandedInstrExtU)
   => TcExtHandler
-  -> U.Contract U.Op
-  -> U.Value U.Op
-  -> U.Value U.Op
+  -> U.UntypedContract
+  -> U.UntypedValue
+  -> U.UntypedValue
   -> InterpreterEnv s
   -> s
   -> Either (InterpretUntypedError s) (InterpretUntypedResult s)
 interpretUntyped typeCheckHandler U.Contract{..} paramU initStU env initState = do
     (SomeContract (instr :: Contract cp st) _ _)
        <- first IllTypedContract $ typeCheckContract typeCheckHandler
-              (U.Contract para stor (U.unOp <$> code))
+              (U.Contract para stor code)
     paramV :::: ((_ :: Sing cp1), _)
        <- first IllTypedParam $ runTypeCheckT typeCheckHandler para $
             typeCheckVal paramU (fromUType para)
@@ -162,7 +162,7 @@ type ContractReturn s st =
   (Either MichelsonFailed ([Operation Instr], Val Instr st), InterpreterState s)
 
 interpret
-  :: (ExtC, Aeson.ToJSON U.InstrExtU, Typeable cp, Typeable st)
+  :: (ExtC, Aeson.ToJSON U.ExpandedInstrExtU, Typeable cp, Typeable st)
   => Contract cp st
   -> Val Instr cp
   -> Val Instr st
@@ -213,7 +213,7 @@ runEvalOp act env initSt =
 
 -- | Function to change amount of remaining steps stored in State monad
 runInstr
-  :: (ExtC, Aeson.ToJSON U.InstrExtU, Typeable inp)
+  :: (ExtC, Aeson.ToJSON U.ExpandedInstrExtU, Typeable inp)
   => Instr inp out
   -> Rec (Val Instr) inp
   -> EvalOp state (Rec (Val Instr) out)
@@ -229,14 +229,14 @@ runInstr i r = do
 
 runInstrNoGas
   :: forall a b state .
-  (ExtC, Aeson.ToJSON U.InstrExtU, Typeable a)
+  (ExtC, Aeson.ToJSON U.ExpandedInstrExtU, Typeable a)
   => T.Instr a b -> Rec (Val T.Instr) a -> EvalOp state (Rec (Val T.Instr) b)
 runInstrNoGas = runInstrImpl runInstrNoGas
 
 -- | Function to interpret Michelson instruction(s) against given stack.
 runInstrImpl
     :: forall state .
-    (ExtC, Aeson.ToJSON U.InstrExtU)
+    (ExtC, Aeson.ToJSON U.ExpandedInstrExtU)
     => (forall inp1 out1 . Typeable inp1 =>
       Instr inp1 out1
     -> Rec (Val Instr) inp1
@@ -252,6 +252,7 @@ runInstrImpl _ Nop r = pure $ r
 runInstrImpl _ (Ext nop) r = do
   handler <- asks ieItHandler
   r <$ handler (nop, SomeItStack r)
+runInstrImpl runner (Nested sq) r = runInstrImpl runner sq r
 runInstrImpl _ DROP (_ :& r) = pure $ r
 runInstrImpl _ DUP (a :& r) = pure $ a :& a :& r
 runInstrImpl _ SWAP (a :& b :& r) = pure $ b :& a :& r

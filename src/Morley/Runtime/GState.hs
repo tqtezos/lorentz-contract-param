@@ -34,7 +34,7 @@ import Fmt (genericF, pretty, (+|), (|+))
 import Formatting.Buildable (Buildable(build))
 import System.IO.Error (IOError, isDoesNotExistError)
 
-import Morley.Aliases (UntypedContract, UntypedValue)
+import Michelson.Untyped (UntypedContract, UntypedValue)
 import Morley.Types ()
 import Tezos.Address (Address(..))
 import Tezos.Core (Mutez)

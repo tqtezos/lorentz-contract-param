@@ -15,7 +15,6 @@ import Test.Hspec (Spec, describe, expectationFailure, it, runIO)
 import Michelson.TypeCheck (SomeContract(..), TCError)
 import Michelson.Typed (Contract)
 import qualified Michelson.Untyped as U
-import Morley.Aliases (UntypedContract)
 import Morley.Ext (typeCheckMorleyContract)
 import Morley.Runtime (prepareContract)
 import Morley.Types (ParserException(..))
@@ -28,7 +27,7 @@ import Morley.Types (ParserException(..))
 -- result will notify about problem).
 specWithContract
   :: (Typeable cp, Typeable st)
-  => FilePath -> ((UntypedContract, Contract cp st) -> Spec) -> Spec
+  => FilePath -> ((U.UntypedContract, Contract cp st) -> Spec) -> Spec
 specWithContract file execSpec =
   either errorSpec (describe ("Test contract " <> file) . execSpec)
     =<< runIO
@@ -53,12 +52,11 @@ specWithTypedContract file execSpec = specWithContract file (execSpec . snd)
 importContract
   :: forall cp st .
     (Typeable cp, Typeable st)
-  => FilePath -> IO (UntypedContract, Contract cp st)
+  => FilePath -> IO (U.UntypedContract, Contract cp st)
 importContract file = do
   contract <- mapException ICEParse $ prepareContract (Just file)
   SomeContract (instr :: Contract cp' st') _ _
-    <- assertEither ICETypeCheck $ pure $ typeCheckMorleyContract $
-        U.unOp <$> contract
+    <- assertEither ICETypeCheck $ pure $ typeCheckMorleyContract contract
   case (eqT @cp @cp', eqT @st @st') of
     (Just Refl, Just Refl) -> pure (contract, instr)
     (Nothing, _) -> throwM $

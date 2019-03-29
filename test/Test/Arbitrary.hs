@@ -14,9 +14,9 @@ import Test.QuickCheck.Instances.Text ()
 
 import Michelson.Untyped
   (Annotation(..), CT(..), Comparable(..), Contract(..), Elt(..), FieldAnn, InstrAbstract(..),
-  InternalByteString(..), Op(..), T(..), Type(..), TypeAnn, Value(..), VarAnn)
+  InternalByteString(..), ExpandedOp (..), T(..), Type(..), TypeAnn, Value(..), VarAnn)
 import Morley.Test ()
-import Morley.Types (StackTypePattern(..), TyVar(..), UExtInstr, UExtInstrAbstract(..), Var(..))
+import Morley.Types (StackTypePattern(..), TyVar(..), ExpandedUExtInstr, UExtInstrAbstract(..), Var(..))
 import Tezos.Core (Mutez(..))
 
 instance Arbitrary InternalByteString where
@@ -31,13 +31,13 @@ instance Arbitrary TyVar where
 instance Arbitrary StackTypePattern where
   arbitrary = oneof [pure StkEmpty, pure StkRest, StkCons <$> arbitrary <*> arbitrary]
 
--- TODO extend Arbitrary UExtInstr with other constructors
-instance Arbitrary UExtInstr where
+-- TODO extend Arbitrary ExpandedUExtInstr with other constructors
+instance Arbitrary ExpandedUExtInstr where
   arbitrary = oneof [STACKTYPE <$> arbitrary]
 
-instance ToADTArbitrary Op
-instance Arbitrary Op where
-  arbitrary = Op <$> arbitrary
+instance ToADTArbitrary ExpandedOp
+instance Arbitrary ExpandedOp where
+  arbitrary = PRIM_EX <$> arbitrary
 
 instance ToADTArbitrary Mutez
 

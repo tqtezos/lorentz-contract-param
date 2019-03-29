@@ -52,7 +52,7 @@ module Morley.Types
   -- * Morley Expanded instruction types
   , ExpandedInstr
   , ExpandedOp (..)
-  , UExtInstr
+  , ExpandedUExtInstr
 
   -- * Michelson Instructions and Instruction Macros
   , PairStruct (..)
@@ -95,9 +95,9 @@ import Michelson.EqParam (eqParam2)
 import Michelson.Typed (instrToOps)
 import qualified Michelson.Typed as T
 import Michelson.Untyped
-  (Annotation(..), CT(..), Comparable(..), Contract(..), Elt(..), ExtU, FieldAnn, Instr,
-  InstrAbstract(..), InternalByteString(..), Op(..), Parameter, Storage, T(..), Type(..), TypeAnn,
-  Value(..), VarAnn, ann, noAnn, unInternalByteString)
+  (Annotation(..), CT(..), Comparable(..), Contract(..), Elt(..), ExpandedInstr, ExpandedOp (..), ExtU,
+  FieldAnn, Instr, InstrAbstract(..), InternalByteString(..), Op(..), Parameter, Storage, T(..),
+  Type(..), TypeAnn, Value(..), VarAnn, ann, noAnn, unInternalByteString)
 import Morley.Default (Default(..))
 
 -------------------------------------
@@ -168,7 +168,7 @@ data UExtInstrAbstract op =
 instance Buildable op => Buildable (UExtInstrAbstract op) where
   build = genericF
 
--- TODO replace ParsedOp in UExtInstr with op
+-- TODO replace ParsedOp in ExpandedUExtInstr with op
 -- to reflect Parsed, Epxanded and Flattened phase
 
 type instance ExtU InstrAbstract = UExtInstrAbstract
@@ -197,24 +197,10 @@ instance Buildable ParsedInstr where
 instance Buildable ParsedOp where
   build = genericF
 
--------------------------------------
--- Types after macroexpander
--------------------------------------
-
-type ExpandedInstr = InstrAbstract ExpandedOp
-
-data ExpandedOp
-  = PRIM_EX ExpandedInstr
-  | SEQ_EX [ExpandedOp]
-  deriving stock (Eq, Show, Data, Generic)
+type ExpandedUExtInstr = UExtInstrAbstract ExpandedOp
 
 instance Buildable ExpandedInstr where
   build = genericF
-
-instance Buildable ExpandedOp where
-  build = genericF
-
-type UExtInstr = UExtInstrAbstract Op
 
 instance Buildable Instr where
   build = genericF
@@ -246,7 +232,7 @@ data ExtInstr
   | PRINT PrintComment
   deriving (Show, Eq)
 
-instance T.Conversible ExtInstr (UExtInstrAbstract Op) where
+instance T.Conversible ExtInstr (UExtInstrAbstract ExpandedOp) where
   convert (PRINT pc) = UPRINT pc
   convert (TEST_ASSERT (TestAssert nm pc i)) =
     UTEST_ASSERT $ UTestAssert nm pc (instrToOps i)
