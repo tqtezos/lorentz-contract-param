@@ -1,14 +1,18 @@
+cabal-version:       2.4
 name:                morley-prelude
 version:             0.1.0.0
 synopsis:            A custom prelude used in Morley
+description:
+  A custom prelude used in Morley. It re-exports the Universum prelude
+  and makes some tiny changes.
 homepage:            https://gitlab.com/camlcase-dev/morley
-license:             AGPL-3
+license:             AGPL-3.0-or-later
 license-file:        LICENSE
 author:              camlCase, Serokell
 maintainer:          john@camlcase.io
 copyright:           2019 Tocqueville Group
+category:            Prelude
 build-type:          Simple
-cabal-version:       >=1.18
 
 source-repository head
   type:     git
