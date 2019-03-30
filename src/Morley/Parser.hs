@@ -8,6 +8,9 @@ module Morley.Parser
   , value
   , stackType
   , printComment
+  , bytesLiteral
+  , pushOp
+  , intLiteral
   ) where
 
 import Prelude hiding (many, note, some, try)
@@ -22,7 +25,7 @@ import qualified Data.Text as T
 
 import Text.Megaparsec
   (choice, customFailure, eitherP, many, manyTill, notFollowedBy, parse, satisfy, sepEndBy, some,
-  takeWhile1P, try)
+  takeWhileP, try)
 import Text.Megaparsec.Char (alphaNumChar, char, lowerChar, string, upperChar)
 import qualified Text.Megaparsec.Char.Lexer as L
 
@@ -221,7 +224,7 @@ varID = lexeme $ do
 
 valueInner :: Parser (Mo.Value Mo.ParsedOp)
 valueInner = choice $
-  [ intLiteral, stringLiteral, bytesLiteral, unitValue
+  [ stringLiteral, bytesLiteral, intLiteral, unitValue
   , trueValue, falseValue, pairValue, leftValue, rightValue
   , someValue, noneValue, nilValue, seqValue, mapValue, lambdaValue
   , dataLetValue
@@ -239,7 +242,7 @@ intLiteral = try $ Mo.ValueInt <$> (L.signed (return ()) L.decimal)
 bytesLiteral :: Parser (Mo.Value a)
 bytesLiteral = try $ do
   symbol "0x"
-  hexdigits <- takeWhile1P Nothing Char.isHexDigit
+  hexdigits <- takeWhileP Nothing Char.isHexDigit
   let (bytes, remain) = B16.decode $ encodeUtf8 hexdigits
   if remain == ""
   then return . Mo.ValueBytes . Mo.InternalByteString $ bytes
