@@ -1,6 +1,6 @@
 cabal-version:       2.4
 name:                morley-prelude
-version:             0.1.0.0
+version:             0.1.0.3
 synopsis:            A custom prelude used in Morley
 description:
   A custom prelude used in Morley. It re-exports the Universum prelude
