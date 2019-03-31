@@ -2,8 +2,7 @@ module Test.Macro
   ( spec
   ) where
 
-import qualified Data.List.NonEmpty as NE
-
+import Michelson.Untyped (UntypedValue)
 import Morley.Macro
 import Morley.Types
 import Test.Hspec (Expectation, Spec, describe, it, shouldBe)
@@ -11,25 +10,25 @@ import Test.Hspec (Expectation, Spec, describe, it, shouldBe)
 spec :: Spec
 spec = describe "Macros tests" $ do
   it "expand test" expandTest
-  it "expandFlat test" expandFlatTest
   it "papair test" expandPapairTest
   it "unpapair test" expandUnpapairTest
   it "expandCadr test" expandCadrTest
   it "expandSetCadr test" expandSetCadrTest
   it "expandMapCadr test" expandMapCadrTest
   it "mapLeaves test" mapLeavesTest
-  it "flatten test" flattenTest
   it "expandValue test" expandValueTest
 
 expandPapairTest :: Expectation
 expandPapairTest = do
-  expandPapair pair n n `shouldBe` [PRIM $ PAIR n n n n]
+  expandPapair pair n n `shouldBe` [Prim $ PAIR n n n n]
   expandPapair (P leaf pair) n n `shouldBe`
-    [PRIM $ DIP [MAC $ PAPAIR pair n n], PRIM $ PAIR n n n n]
-  expandFlat [MAC $ PAPAIR (P pair leaf) n n] `shouldBe`
-    Op <$> [PAIR n n n n, PAIR n n n n]
-  expandFlat [MAC $ PAPAIR (P pair pair) n n] `shouldBe`
-    Op <$> [PAIR n n n n, DIP [Op $ PAIR n n n n], PAIR n n n n]
+    [Prim $ DIP [Mac $ PAPAIR pair n n], Prim $ PAIR n n n n]
+  expandList [Mac $ PAPAIR (P pair leaf) n n] `shouldBe`
+    [SeqEx [SeqEx [PrimEx $ PAIR n n n n], PrimEx $ PAIR n n n n]]
+  expandList [Mac $ PAPAIR (P pair pair) n n] `shouldBe`
+    [SeqEx [SeqEx [PrimEx (PAIR n n n n)],
+             PrimEx (DIP [SeqEx [PrimEx (PAIR n n n n)]]),
+             PrimEx (PAIR n n n n)]]
   where
     n = noAnn
     leaf = F (n, n)
@@ -38,25 +37,35 @@ expandPapairTest = do
 expandUnpapairTest :: Expectation
 expandUnpapairTest = do
   expandUnpapair pair `shouldBe`
-    [PRIM $ DUP n, PRIM $ CAR n n, PRIM $ DIP [PRIM $ CDR n n]]
-  expandFlat [MAC $ UNPAIR $ P leaf pair] `shouldBe`
-    Op <$> [DUP n, CAR n n, DIP $ Op <$> [CDR n n, DUP n, CAR n n, DIP [Op $ CDR n n]]]
-  expandFlat [MAC $ UNPAIR $ P pair leaf] `shouldBe`
-    Op <$> [DUP n, DIP [Op $ CDR n n],  CAR n n, DUP n, CAR n n, DIP [Op $ CDR n n]]
-  expandFlat [MAC $ UNPAIR $ P pair pair] `shouldBe`
-    fmap Op ( expandP ++ [DIP $ Op <$> expandP] ++ expandP)
+    [Prim $ DUP n, Prim $ CAR n n, Prim $ DIP [Prim $ CDR n n]]
+  expandList [Mac $ UNPAIR $ P leaf pair] `shouldBe`
+    [SeqEx [PrimEx (DUP n),
+             PrimEx (CAR n n),
+             PrimEx (DIP [PrimEx (CDR n n),
+                           SeqEx [PrimEx (DUP n),
+                                   PrimEx (CAR n n),
+                                   PrimEx (DIP [PrimEx (CDR n n)])]])]]
+  expandList [Mac $ UNPAIR $ P pair leaf] `shouldBe`
+    [SeqEx [PrimEx (DUP n),
+             PrimEx (DIP [PrimEx (CDR n n)]),
+             PrimEx (CAR n n),
+             SeqEx [PrimEx (DUP n),
+                     PrimEx (CAR n n),
+                     PrimEx (DIP [PrimEx (CDR n n)])]]]
+  expandList [Mac $ UNPAIR $ P pair pair] `shouldBe`
+     [SeqEx $ one expandP ++ [PrimEx $ DIP $ one expandP] ++ one expandP]
   where
-    expandP = [DUP n, CAR n n, DIP [Op $ CDR n n]]
+    expandP = SeqEx $ PrimEx <$> [DUP n, CAR n n, DIP [PrimEx $ CDR n n]]
     n = noAnn
     leaf = F (n, n)
     pair = P leaf leaf
 
 expandCadrTest :: Expectation
 expandCadrTest = do
-  expandCadr (A:[]) v f `shouldBe` [PRIM $ CAR v f]
-  expandCadr (D:[]) v f `shouldBe` [PRIM $ CDR v f]
-  expandCadr (A:xs) v f `shouldBe` [PRIM $ CAR n n, MAC $ CADR xs v f]
-  expandCadr (D:xs) v f `shouldBe` [PRIM $ CDR n n, MAC $ CADR xs v f]
+  expandCadr ([A]) v f `shouldBe` [Prim $ CAR v f]
+  expandCadr ([D]) v f `shouldBe` [Prim $ CDR v f]
+  expandCadr (A:xs) v f `shouldBe` [Prim $ CAR n n, Mac $ CADR xs v f]
+  expandCadr (D:xs) v f `shouldBe` [Prim $ CDR n n, Mac $ CADR xs v f]
   where
     v = ann "var"
     f = ann "field"
@@ -65,14 +74,14 @@ expandCadrTest = do
 
 expandSetCadrTest :: Expectation
 expandSetCadrTest = do
-  expandSetCadr [A] v f `shouldBe` PRIM <$> [ DUP noAnn, CAR noAnn f, DROP
+  expandSetCadr [A] v f `shouldBe` Prim <$> [ DUP noAnn, CAR noAnn f, DROP
                                             , CDR (ann "%%") noAnn, SWAP, PAIR noAnn v f (ann "@")]
-  expandSetCadr [D] v f `shouldBe` PRIM <$> [ DUP noAnn, CDR noAnn f, DROP
+  expandSetCadr [D] v f `shouldBe` Prim <$> [ DUP noAnn, CDR noAnn f, DROP
                                             , CAR (ann "%%") noAnn, PAIR noAnn v (ann "@") f]
   expandSetCadr (A:xs) v f `shouldBe`
-    PRIM <$> [DUP noAnn, DIP [PRIM carN, MAC $ SET_CADR xs noAnn f], cdrN, SWAP, pairN]
+    Prim <$> [DUP noAnn, DIP [Prim carN, Mac $ SET_CADR xs noAnn f], cdrN, SWAP, pairN]
   expandSetCadr (D:xs) v f `shouldBe`
-    PRIM <$> [DUP noAnn, DIP [PRIM cdrN, MAC $ SET_CADR xs noAnn f], carN, pairN]
+    Prim <$> [DUP noAnn, DIP [Prim cdrN, Mac $ SET_CADR xs noAnn f], carN, pairN]
   where
     v = ann "var"
     f = ann "field"
@@ -84,19 +93,19 @@ expandSetCadrTest = do
 expandMapCadrTest :: Expectation
 expandMapCadrTest = do
   expandMapCadr [A] v f ops `shouldBe`
-    PRIM <$> [DUP noAnn, cdrN, DIP [PRIM $ CAR noAnn f, SEQ ops], SWAP, pairN]
+    Prim <$> [DUP noAnn, cdrN, DIP [Prim $ CAR noAnn f, Seq ops], SWAP, pairN]
   expandMapCadr [D] v f ops `shouldBe`
-    concat [PRIM <$> [DUP noAnn, CDR noAnn f], [SEQ ops], PRIM <$> [SWAP, carN, pairN]]
+    concat [Prim <$> [DUP noAnn, CDR noAnn f], [Seq ops], Prim <$> [SWAP, carN, pairN]]
   expandMapCadr (A:xs) v f ops `shouldBe`
-    PRIM <$> [DUP noAnn, DIP [PRIM $ carN, MAC $ MAP_CADR xs noAnn f ops], cdrN, SWAP, pairN]
+    Prim <$> [DUP noAnn, DIP [Prim $ carN, Mac $ MAP_CADR xs noAnn f ops], cdrN, SWAP, pairN]
   expandMapCadr (D:xs) v f ops `shouldBe`
-    PRIM <$> [DUP noAnn, DIP [PRIM $ cdrN, MAC $ MAP_CADR xs noAnn f ops], carN, pairN]
+    Prim <$> [DUP noAnn, DIP [Prim $ cdrN, Mac $ MAP_CADR xs noAnn f ops], carN, pairN]
   where
     v = ann "var"
     f = ann "field"
     n = noAnn
     xs = [A, D]
-    ops = [PRIM $ DUP n]
+    ops = [Prim $ DUP n]
     carN = CAR noAnn noAnn
     cdrN = CDR noAnn noAnn
     pairN = PAIR noAnn v noAnn noAnn
@@ -116,35 +125,16 @@ mapLeavesTest = do
     leaf v' f' = F (ann v', ann f')
     pair = P (F (n, n)) (F (n, n))
 
-flattenTest :: Expectation
-flattenTest = do
-  flatten (SEQ_EX [PRIM_EX $ SWAP, PRIM_EX $ SWAP]) `shouldBe`
-    [SWAP, SWAP]
-  flatten (SEQ_EX [SEQ_EX [SEQ_EX [PRIM_EX $ SWAP], PRIM_EX $ SWAP], PRIM_EX $ SWAP]) `shouldBe`
-    [SWAP, SWAP, SWAP]
-
-expandFlatTest :: Expectation
-expandFlatTest = do
-  expandFlat [papair] `shouldBe` Op <$> [DIP [Op $ PAIR n n n n], PAIR n n n n]
-  expandFlat [diiiip] `shouldBe` Op <$> [DIP [Op $ DIP [Op $ DIP [Op $ DIP[Op $ SWAP]]]]]
-  where
-    n = noAnn
-    papair :: ParsedOp
-    papair =
-      MAC (PAPAIR (P (F (n, n)) (P (F (n, n)) (F (n, n)))) n n)
-    diiiip :: ParsedOp
-    diiiip = MAC (DIIP 4 [PRIM SWAP])
-
 expandTest :: Expectation
 expandTest = do
   expand diip `shouldBe` expandedDiip
-  expand (PRIM $ IF [diip] [diip]) `shouldBe` (PRIM_EX $ IF [expandedDiip] [expandedDiip])
-  expand (SEQ [diip, diip]) `shouldBe` (SEQ_EX $ [expandedDiip, expandedDiip])
+  expand (Prim $ IF [diip] [diip]) `shouldBe` (PrimEx $ IF [expandedDiip] [expandedDiip])
+  expand (Seq [diip, diip]) `shouldBe` (SeqEx $ [expandedDiip, expandedDiip])
   where
     diip :: ParsedOp
-    diip = MAC (DIIP 2 [PRIM SWAP])
+    diip = Mac (DIIP 2 [Prim SWAP])
     expandedDiip :: ExpandedOp
-    expandedDiip = SEQ_EX [PRIM_EX (DIP [SEQ_EX [PRIM_EX (DIP [PRIM_EX SWAP])]])]
+    expandedDiip = SeqEx [PrimEx (DIP [SeqEx [PrimEx (DIP [PrimEx SWAP])]])]
 
 expandValueTest :: Expectation
 expandValueTest = do
@@ -155,21 +145,21 @@ expandValueTest = do
     parsedPair :: Value ParsedOp
     parsedPair = ValuePair (ValueInt 5) (ValueInt 5)
 
-    expandedPair :: Value Op
+    expandedPair :: UntypedValue
     expandedPair = ValuePair (ValueInt 5) (ValueInt 5)
 
     parsedPapair :: Value ParsedOp
     parsedPapair = ValuePair (ValuePair (ValueInt 5) (ValueInt 5)) (ValueInt 5)
 
-    expandedPapair :: Value Op
+    expandedPapair :: UntypedValue
     expandedPapair = ValuePair (ValuePair (ValueInt 5) (ValueInt 5)) (ValueInt 5)
 
     parsedLambdaWithMac :: Value ParsedOp
     parsedLambdaWithMac = ValueLambda $
-      one (MAC (PAPAIR (P (F (noAnn, noAnn)) (P (F (noAnn, noAnn)) (F (noAnn, noAnn)))) noAnn noAnn))
+      one (Mac (PAPAIR (P (F (noAnn, noAnn)) (P (F (noAnn, noAnn)) (F (noAnn, noAnn)))) noAnn noAnn))
 
-    expandedLambdaWithMac :: Value Op
-    expandedLambdaWithMac = ValueLambda . NE.fromList $
-      [ Op {unOp = DIP [Op {unOp = PAIR noAnn noAnn noAnn noAnn}]}
-      , Op {unOp = PAIR noAnn noAnn noAnn noAnn}
+    expandedLambdaWithMac :: UntypedValue
+    expandedLambdaWithMac = ValueLambda . one $ SeqEx
+      [ PrimEx $ DIP [SeqEx $ one $ PrimEx $ PAIR noAnn noAnn noAnn noAnn]
+      , PrimEx $ PAIR noAnn noAnn noAnn noAnn
       ]

@@ -26,11 +26,11 @@ import Tezos.Crypto (formatKeyHash, formatPublicKey, formatSignature)
 class Conversible ext1 ext2 where
   convert :: ext1 -> ext2
 
-type ConversibleExt = Conversible (ExtT Instr) (Un.ExtU Un.InstrAbstract Un.Op)
+type ConversibleExt = Conversible (ExtT Instr) (Un.ExtU Un.InstrAbstract Un.ExpandedOp)
 
 convertContract
   :: forall param store . (SingI param, SingI store, ConversibleExt)
-  => Contract param store -> Un.Contract Un.Op
+  => Contract param store -> Un.UntypedContract
 convertContract contract =
   Un.Contract
     { para = toUType $ fromSingT (sing @param)
@@ -43,7 +43,7 @@ convertContract contract =
 --
 -- VOp cannot be represented in @Value@ from untyped types, so calling this function
 -- on it will cause an error
-unsafeValToValue :: (ConversibleExt, HasCallStack) => Val Instr t -> Un.Value Un.Op
+unsafeValToValue :: (ConversibleExt, HasCallStack) => Val Instr t -> Un.UntypedValue
 unsafeValToValue = fromMaybe (error err) . valToOpOrValue
   where
     err =
@@ -54,7 +54,7 @@ unsafeValToValue = fromMaybe (error err) . valToOpOrValue
 valToOpOrValue ::
      forall t . ConversibleExt
   => Val Instr t
-  -> Maybe (Un.Value Un.Op)
+  -> Maybe Un.UntypedValue
 valToOpOrValue = \case
   VC cVal -> Just $ cValToValue cVal
   VKey b -> Just $ Un.ValueString $ formatPublicKey b
@@ -81,7 +81,7 @@ valToOpOrValue = \case
   where
     valueList ctor = maybe Un.ValueNil ctor . nonEmpty
 
-cValToValue :: CVal t -> Un.Value Un.Op
+cValToValue :: CVal t -> Un.UntypedValue
 cValToValue cVal = case cVal of
   CvInt i -> Un.ValueInt i
   CvNat i -> Un.ValueInt $ toInteger i
@@ -94,19 +94,22 @@ cValToValue cVal = case cVal of
   CvTimestamp t -> Un.ValueString $ show t
   CvAddress a -> Un.ValueString $ formatAddress a
 
-instrToOps :: ConversibleExt => Instr inp out -> [Un.Op]
-instrToOps instr = Un.Op <$> handleInstr instr
+instrToOps :: ConversibleExt => Instr inp out -> [Un.ExpandedOp]
+instrToOps instr = case instr of
+  Nested sq -> one $ Un.SeqEx $ instrToOps sq
+  i -> Un.PrimEx <$> handleInstr i
   where
-    handleInstr :: Instr inp out -> [Un.Instr]
+    handleInstr :: Instr inp out -> [Un.ExpandedInstr]
     handleInstr (Seq i1 i2) = handleInstr i1 <> handleInstr i2
     handleInstr Nop = []
     handleInstr (Ext nop) = [Un.EXT $ convert nop]
+    handleInstr (Nested _) = error "impossible"
     handleInstr DROP = [Un.DROP]
     handleInstr DUP = [Un.DUP Un.noAnn]
     handleInstr SWAP = [Un.SWAP]
     handleInstr i@(PUSH val) = handle i
       where
-        handle :: Instr inp1 (t ': s) -> [Un.Instr]
+        handle :: Instr inp1 (t ': s) -> [Un.ExpandedInstr]
         handle (PUSH _ :: Instr inp1 (t ': s)) =
           let value = unsafeValToValue val
               --- ^ safe because PUSH cannot have operation as argument
@@ -114,7 +117,7 @@ instrToOps instr = Un.Op <$> handleInstr instr
         handle _ = error "unexcepted call"
     handleInstr i@NONE = handle i
       where
-        handle :: Instr inp1 ('TOption a ': inp1) -> [Un.Instr]
+        handle :: Instr inp1 ('TOption a ': inp1) -> [Un.ExpandedInstr]
         handle (NONE :: Instr inp1 ('TOption a ': inp1)) =
           [Un.NONE Un.noAnn Un.noAnn Un.noAnn (toUType $ fromSingT (sing @a))]
         handle _ = error "unexcepted call"
@@ -126,13 +129,13 @@ instrToOps instr = Un.Op <$> handleInstr instr
     handleInstr CDR = [Un.CDR Un.noAnn Un.noAnn]
     handleInstr i@LEFT = handle i
       where
-        handle :: Instr (a ': s) ('TOr a b ': s) -> [Un.Instr]
+        handle :: Instr (a ': s) ('TOr a b ': s) -> [Un.ExpandedInstr]
         handle (LEFT :: Instr (a ': s) ('TOr a b ': s)) =
           [Un.LEFT Un.noAnn Un.noAnn Un.noAnn Un.noAnn (toUType $ fromSingT (sing @b))]
         handle _ = error "unexcepted call"
     handleInstr i@(RIGHT) = handle i
       where
-        handle :: Instr (b ': s) ('TOr a b ': s) -> [Un.Instr]
+        handle :: Instr (b ': s) ('TOr a b ': s) -> [Un.ExpandedInstr]
         handle (RIGHT :: Instr (b ': s) ('TOr a b ': s)) =
           [Un.RIGHT Un.noAnn Un.noAnn Un.noAnn Un.noAnn (toUType $ fromSingT (sing @a))]
         handle _ = error "unexcepted call"
@@ -140,7 +143,7 @@ instrToOps instr = Un.Op <$> handleInstr instr
     handleInstr (IF_RIGHT i1 i2) = [Un.IF_RIGHT (instrToOps i1) (instrToOps i2)]
     handleInstr i@(NIL) = handle i
       where
-        handle :: Instr s ('TList p ': s) -> [Un.Instr]
+        handle :: Instr s ('TList p ': s) -> [Un.ExpandedInstr]
         handle (NIL :: Instr s ('TList p ': s)) =
           [Un.NIL Un.noAnn Un.noAnn (toUType $ fromSingT (sing @p))]
         handle _ = error "unexcepted call"
@@ -149,13 +152,13 @@ instrToOps instr = Un.Op <$> handleInstr instr
     handleInstr SIZE = [Un.SIZE Un.noAnn]
     handleInstr i@EMPTY_SET = handle i
       where
-        handle :: Instr s ('TSet e ': s) -> [Un.Instr]
+        handle :: Instr s ('TSet e ': s) -> [Un.ExpandedInstr]
         handle (EMPTY_SET :: Instr s ('TSet e ': s)) =
           [Un.EMPTY_SET Un.noAnn Un.noAnn (Un.Comparable (fromSingCT (sing @e)) Un.noAnn)]
         handle _ = error "unexcepted call"
     handleInstr i@EMPTY_MAP = handle i
       where
-        handle :: Instr s ('TMap a b ': s) -> [Un.Instr]
+        handle :: Instr s ('TMap a b ': s) -> [Un.ExpandedInstr]
         handle (EMPTY_MAP :: Instr s ('TMap a b ': s)) =
           [Un.EMPTY_MAP Un.noAnn Un.noAnn (Un.Comparable (fromSingCT (sing @a)) Un.noAnn)
            (toUType $ fromSingT (sing @b))
@@ -171,20 +174,20 @@ instrToOps instr = Un.Op <$> handleInstr instr
     handleInstr (LOOP_LEFT op) = [Un.LOOP_LEFT (instrToOps op)]
     handleInstr i@(LAMBDA l) = handle i
       where
-        handle :: Instr s ('TLambda i o ': s) -> [Un.Instr]
+        handle :: Instr s ('TLambda i o ': s) -> [Un.ExpandedInstr]
         handle (LAMBDA _ :: Instr s ('TLambda i o ': s)) =
           [Un.LAMBDA Un.noAnn (toUType $ fromSingT (sing @i))
             (toUType $ fromSingT (sing @i)) (convertLambdaBody l)
           ]
         handle _ = error "unexcepted call"
-        convertLambdaBody :: Val Instr ('TLambda i o) -> [Un.Op]
+        convertLambdaBody :: Val Instr ('TLambda i o) -> [Un.ExpandedOp]
         convertLambdaBody (VLam ops) = instrToOps ops
     handleInstr EXEC = [Un.EXEC Un.noAnn]
     handleInstr (DIP op) = [Un.DIP (instrToOps op)]
     handleInstr FAILWITH = [Un.FAILWITH]
     handleInstr i@(CAST) = handle i
       where
-        handle :: Instr (a ': s) (a ': s) -> [Un.Instr]
+        handle :: Instr (a ': s) (a ': s) -> [Un.ExpandedInstr]
         handle (CAST :: Instr (a ': s) (a ': s)) =
           [Un.CAST Un.noAnn (toUType $ fromSingT (sing @a))]
         handle _ = error "unexcepted call"
@@ -192,7 +195,7 @@ instrToOps instr = Un.Op <$> handleInstr instr
     handleInstr PACK = [Un.PACK Un.noAnn]
     handleInstr i@(UNPACK) = handle i
       where
-        handle :: Instr ('Tc 'CBytes ': s) ('TOption a ': s) -> [Un.Instr]
+        handle :: Instr ('Tc 'CBytes ': s) ('TOption a ': s) -> [Un.ExpandedInstr]
         handle (UNPACK :: Instr ('Tc 'CBytes ': s) ('TOption a ': s)) =
           [Un.UNPACK Un.noAnn (toUType $ fromSingT (sing @a))]
         handle _ = error "unexcepted call"
@@ -224,7 +227,7 @@ instrToOps instr = Un.Op <$> handleInstr instr
     handleInstr i@CONTRACT = handle i
       where
         handle :: Instr ('Tc 'CAddress ': s) ('TOption ('TContract p) ': s)
-               -> [Un.Instr]
+               -> [Un.ExpandedInstr]
         handle (CONTRACT :: Instr ('Tc 'CAddress ': s) ('TOption ('TContract p) ': s)) =
           [Un.CONTRACT Un.noAnn (toUType $ fromSingT (sing @p))]
         handle _ = error "unexcepted call"
@@ -236,7 +239,7 @@ instrToOps instr = Un.Op <$> handleInstr instr
       where
         handle :: Instr ('Tc 'CKeyHash ': 'TOption ('Tc 'CKeyHash)
                     ': 'Tc 'CBool ': 'Tc 'CBool ': 'Tc 'CMutez ': g ': s)
-                   ('TOperation ': 'Tc 'CAddress ': s) -> [Un.Instr]
+                   ('TOperation ': 'Tc 'CAddress ': s) -> [Un.ExpandedInstr]
         handle (CREATE_CONTRACT2 ops :: Instr ('Tc 'CKeyHash
                     ': 'TOption ('Tc 'CKeyHash)
                     ': 'Tc 'CBool ': 'Tc 'CBool ': 'Tc 'CMutez ': g ': s)
@@ -265,5 +268,5 @@ instrToOps instr = Un.Op <$> handleInstr instr
 -- We can also move this convertion to the place where `Instr` is defined,
 -- but then there will be a very large module (as we'll have to move a lot of
 -- stuff as well).
-instance (ConversibleExt, Eq Un.InstrExtU) => Eq (Instr inp out) where
+instance (ConversibleExt, Eq Un.ExpandedInstrExtU) => Eq (Instr inp out) where
   i1 == i2 = instrToOps i1 == instrToOps i2

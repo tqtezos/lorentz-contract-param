@@ -45,20 +45,19 @@ import Michelson.Typed
   Lsl, Lsr, Lt, MapOp(..), Neg, Neq, Not, Notes(..), Notes'(..), Or, Sing(..), T(..), Val(..), Xor,
   converge, convergeAnns, extractNotes, fromUType, mkNotes, notesCase, orAnn, withSomeSingCT,
   withSomeSingT, ( # ))
-
 import qualified Michelson.Untyped as Un
 import Michelson.Untyped.Annotation (VarAnn)
 
 typeCheckContract
   :: ExtC
   => TcExtHandler
-  -> Un.Contract Un.Instr
+  -> Un.UntypedContract
   -> Either TCError SomeContract
 typeCheckContract nh c = runTypeCheckT nh (Un.para c) $ typeCheckContractImpl c
 
 typeCheckContractImpl
   :: ExtC
-  => Un.Contract Un.Instr
+  => Un.UntypedContract
   -> TypeCheckT SomeContract
 typeCheckContractImpl (Un.Contract mParam mStorage pCode) = do
   code <- maybe (throwError $ TCOtherError "no instructions in contract code")
@@ -98,7 +97,7 @@ typeCheckContractImpl (Un.Contract mParam mStorage pCode) = do
 -- | Like 'typeCheck', but for non-empty lists.
 typeCheckNE
   :: ExtC
-  => NonEmpty Un.Instr
+  => NonEmpty Un.ExpandedOp
   -> SomeHST
   -> TypeCheckT SomeInstr
 typeCheckNE (x :| xs) = typeCheckImpl typeCheckInstr (x : xs)
@@ -113,7 +112,7 @@ typeCheckNE (x :| xs) = typeCheckImpl typeCheckInstr (x : xs)
 -- As a second argument, @typeCheckList@ accepts input stack type representation.
 typeCheckList
   :: ExtC
-  => [Un.Instr]
+  => [Un.ExpandedOp]
   -> SomeHST
   -> TypeCheckT SomeInstr
 typeCheckList = typeCheckImpl typeCheckInstr
@@ -132,7 +131,7 @@ typeCheckList = typeCheckImpl typeCheckInstr
 -- error.
 typeCheckVal
   :: ExtC
-  => Un.Value Un.Op
+  => Un.UntypedValue
   -> T
   -> TypeCheckT SomeVal
 typeCheckVal = typeCheckValImpl typeCheckInstr
@@ -301,7 +300,7 @@ typeCheckInstr instr@(Un.EMPTY_MAP tn vn (Un.Comparable mk ktn) mv) (SomeHST i) 
 
 typeCheckInstr instr@(Un.MAP vn mp) (SomeHST i@((STList v, ns, _vn) ::& rs) ) = do
   let vns = notesCase NStar (\(NTList _ v') -> v') ns
-  typeCheckList (Un.unOp <$> mp)
+  typeCheckList mp
                       (SomeHST $ (v, vns, def) ::& rs) >>= \case
     SiFail -> pure SiFail
     someInstr@(_ ::: (_, (out :: HST out))) ->
@@ -315,8 +314,7 @@ typeCheckInstr instr@(Un.MAP vn mp) (SomeHST i@((STList v, ns, _vn) ::& rs) ) = 
 typeCheckInstr instr@(Un.MAP vn mp) (SomeHST i@((STMap k v, ns, _vn) ::& rs) ) = do
   let (kns, vns) = notesCase (def, NStar) (\(NTMap _ k' v') -> (k', v')) ns
       pns = mkNotes $ NTPair def def def (mkNotes $ NTc kns) vns
-  typeCheckList (Un.unOp <$> mp)
-                      (SomeHST $ ((STPair (STc k) v), pns, def) ::& rs) >>= \case
+  typeCheckList mp (SomeHST $ ((STPair (STc k) v), pns, def) ::& rs) >>= \case
     SiFail -> pure SiFail
     someInstr@(_ ::: (_, (out :: HST out))) ->
       case out of
@@ -368,7 +366,7 @@ typeCheckInstr (Un.IF mp mq) (SomeHST i@((STc SCBool, _, _) ::& rs) ) =
 
 typeCheckInstr instr@(Un.LOOP is)
            (SomeHST i@((STc SCBool, _, _) ::& (rs :: HST rs)) ) = do
-  typeCheckList (fmap Un.unOp is) (SomeHST rs) >>= \case
+  typeCheckList is (SomeHST rs) >>= \case
     SiFail -> pure SiFail
     subI ::: ((_ :: HST rs'), (o :: HST o)) -> liftEither $ do
       Refl <- assertEqT @rs @rs' instr i
@@ -387,7 +385,7 @@ typeCheckInstr instr@(Un.LOOP_LEFT is)
                       ::& (rs :: HST rs)) ) = do
   let (an, bn, avn, bvn) = deriveNsOr ons ovn
       ait = (at, an, avn) ::& rs
-  typeCheckList (fmap Un.unOp is) (SomeHST ait) >>= \case
+  typeCheckList is (SomeHST ait) >>= \case
     SiFail -> pure SiFail
     subI ::: ((_ :: HST rs'), (o :: HST o)) -> liftEither $ do
       Refl <- assertEqT @(a ': rs) @rs' instr i
@@ -425,7 +423,7 @@ typeCheckInstr instr@(Un.EXEC vn) (SomeHST i@(((_ :: Sing t1), _, _)
                 "lambda is given argument with wrong type: " <> m
 
 typeCheckInstr instr@(Un.DIP is) (SomeHST i@(a ::& (s :: HST s))) =
-  typeCheckList (fmap Un.unOp is) (SomeHST s) >>= \case
+  typeCheckList is (SomeHST s) >>= \case
     SiFail -> pure SiFail
     subI ::: ((_ :: HST s'), t) -> liftEither $ do
       Refl <- assertEqT @s @s' instr i
@@ -623,7 +621,7 @@ typeCheckInstr instr@(Un.CREATE_CONTRACT2 ovn avn contract)
              ::& (STc SCMutez, _, _)
              ::& ((_ :: Sing g), gn, _) ::& rs)) = do
   (SomeContract (contr :: Contract i' g') _ out) <-
-      flip withExceptT (typeCheckContractImpl $ fmap Un.unOp contract)
+      flip withExceptT (typeCheckContractImpl contract)
                        (\err -> TCFailedOnInstr instr (SomeHST i)
                                     ("failed to type check contract: " <> show err))
   liftEither $ do
@@ -694,16 +692,16 @@ genericIf
         Instr bfi s' ->
         Instr (cond ': rs) s'
      )
-  -> ([Un.Op] -> [Un.Op] -> Un.Instr)
-  -> [Un.Op]
-  -> [Un.Op]
+  -> ([Un.ExpandedOp] -> [Un.ExpandedOp] -> Un.ExpandedInstr)
+  -> [Un.ExpandedOp]
+  -> [Un.ExpandedOp]
   -> HST bti
   -> HST bfi
   -> HST (cond ': rs)
   -> TypeCheckT SomeInstr
 genericIf cons mCons mbt mbf bti bfi i@(_ ::& _) =
-  liftA2 (,) (typeCheckList (Un.unOp <$> mbt) (SomeHST bti))
-             (typeCheckList (Un.unOp <$> mbf) (SomeHST bfi)) >>= liftEither . \case
+  liftA2 (,) (typeCheckList mbt (SomeHST bti))
+             (typeCheckList mbf (SomeHST bfi)) >>= liftEither . \case
   (p ::: ((_ :: HST pi), (po :: HST po)), q ::: ((_ :: HST qi), (qo :: HST qo))) -> do
     Refl <- assertEqT @bti @pi instr i
     Refl <- assertEqT @bfi @qi instr i
@@ -731,7 +729,7 @@ mapImpl
   , Typeable (MapOpInp c)
   , Typeable (MapOpRes c b)
   )
-  => Un.Instr
+  => Un.ExpandedInstr
   -> SomeInstr
   -> HST (c ': rs)
   -> (forall v' . (Typeable v', SingI v') =>
@@ -761,13 +759,13 @@ iterImpl
     )
   => Sing (IterOpEl c)
   -> Notes (IterOpEl c)
-  -> Un.Instr
-  -> NonEmpty Un.Op
+  -> Un.ExpandedInstr
+  -> NonEmpty Un.ExpandedOp
   -> HST (c ': rs)
   -> TypeCheckT SomeInstr
 iterImpl et en instr mp i@((_, _, lvn) ::& rs) = do
   let evn = deriveVN "elt" lvn
-  typeCheckNE (fmap Un.unOp mp) (SomeHST ((et, en, evn) ::& rs)) >>= \case
+  typeCheckNE mp (SomeHST ((et, en, evn) ::& rs)) >>= \case
     SiFail -> pure SiFail
     subI ::: ((_ :: HST i), (o :: HST o)) -> liftEither $ do
       Refl <- assertEqT @i @(IterOpEl c ': rs) instr i
@@ -781,14 +779,15 @@ lamImpl
     , ExtC
     , SingI it, SingI ot
     )
-  => Un.Instr
-  -> [Un.Op]  -> VarAnn
+  => Un.ExpandedInstr
+  -> [Un.ExpandedOp]
+  -> VarAnn
   -> Sing it -> Notes it
   -> Sing ot -> Notes ot
   -> HST ts
   -> TypeCheckT SomeInstr
 lamImpl instr is vn it ins ot ons i = do
-  typeCheckList (fmap Un.unOp is) (SomeHST $ (it, ins, def) ::& SNil) >>=
+  typeCheckList is (SomeHST $ (it, ins, def) ::& SNil) >>=
     \case
       SiFail -> pure SiFail
       lam ::: ((_ :: HST li), (lo :: HST lo)) -> liftEither $ do

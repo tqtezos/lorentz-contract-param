@@ -4,10 +4,13 @@
 
 module Michelson.Untyped.Instr
   ( InstrAbstract (..)
-  , Instr
   , Op (..)
+  , Instr
+  , ExpandedOp (..)
+  , ExpandedInstr
   , ExtU
   , InstrExtU
+  , ExpandedInstrExtU
 
   -- * Contract's address
   , OriginationOperation (..)
@@ -19,6 +22,7 @@ import qualified Data.ByteString.Lazy as BSL
 import Data.Data (Data(..))
 import qualified Data.Kind as K
 import Formatting.Buildable (Buildable)
+import Fmt (Buildable(build), genericF)
 
 import Michelson.Untyped.Annotation (FieldAnn, TypeAnn, VarAnn)
 import Michelson.Untyped.Contract (Contract)
@@ -39,6 +43,25 @@ newtype Op = Op {unOp :: Instr}
 deriving instance Eq (ExtU InstrAbstract Op) => Eq Op
 deriving instance Show (ExtU InstrAbstract Op) => Show Op
 deriving instance Buildable Instr => Buildable Op
+
+-------------------------------------
+-- Types after macroexpander
+-------------------------------------
+
+type ExpandedInstrExtU = ExtU InstrAbstract ExpandedOp
+type ExpandedInstr = InstrAbstract ExpandedOp
+
+data ExpandedOp
+  = PrimEx ExpandedInstr
+  | SeqEx [ExpandedOp]
+  deriving stock (Generic)
+
+deriving instance Eq ExpandedInstr => Eq ExpandedOp
+deriving instance Show ExpandedInstr => Show ExpandedOp
+deriving instance Data ExpandedInstr => Data ExpandedOp
+
+instance Buildable ExpandedInstr => Buildable ExpandedOp where
+  build = genericF
 
 -------------------------------------
 -- Abstract instruction
@@ -167,20 +190,20 @@ data OriginationOperation = OriginationOperation
   -- ^ Whether the contract is delegatable.
   , ooBalance :: !Mutez
   -- ^ Initial balance of the contract.
-  , ooStorage :: !(Value Op)
+  , ooStorage :: !(Value ExpandedOp)
   -- ^ Initial storage value of the contract.
-  , ooContract :: !(Contract Op)
+  , ooContract :: !(Contract ExpandedOp)
   -- ^ The contract itself.
   } deriving (Generic)
 
-deriving instance Show (ExtU InstrAbstract Op) => Show OriginationOperation
+deriving instance Show ExpandedInstrExtU => Show OriginationOperation
 
 -- | Compute address of a contract from its origination operation.
 --
 -- TODO [TM-62] It's certainly imprecise, real Tezos implementation doesn't
 -- use JSON, but we don't need precise format yet, so we just use some
 -- serialization format (JSON because we have necessary instances already).
-mkContractAddress :: Aeson.ToJSON InstrExtU => OriginationOperation -> Address
+mkContractAddress :: Aeson.ToJSON ExpandedInstrExtU => OriginationOperation -> Address
 mkContractAddress = mkContractAddressRaw . BSL.toStrict . Aeson.encode
 
 ----------------------------------------------------------------------------
@@ -189,7 +212,9 @@ mkContractAddress = mkContractAddressRaw . BSL.toStrict . Aeson.encode
 
 instance Aeson.ToJSON Instr => Aeson.ToJSON Op
 instance Aeson.FromJSON Instr => Aeson.FromJSON Op
+instance Aeson.ToJSON ExpandedInstr => Aeson.ToJSON ExpandedOp
+instance Aeson.FromJSON ExpandedInstr => Aeson.FromJSON ExpandedOp
 instance (Aeson.ToJSON op, Aeson.ToJSON (ExtU InstrAbstract op)) => Aeson.ToJSON (InstrAbstract op)
 instance (Aeson.FromJSON op, Aeson.FromJSON (ExtU InstrAbstract op)) => Aeson.FromJSON (InstrAbstract op)
-instance Aeson.FromJSON Op => Aeson.FromJSON OriginationOperation
-instance Aeson.ToJSON Op => Aeson.ToJSON OriginationOperation
+instance Aeson.FromJSON ExpandedOp => Aeson.FromJSON OriginationOperation
+instance Aeson.ToJSON ExpandedOp => Aeson.ToJSON OriginationOperation

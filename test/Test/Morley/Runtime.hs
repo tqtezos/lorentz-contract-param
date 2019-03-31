@@ -43,10 +43,10 @@ spec = describe "Morley.Runtime" $ do
 --
 -- This type is mostly used for testing purposes.
 data ContractAux = ContractAux
-  { caContract :: !(Contract Op)
+  { caContract :: !UntypedContract
   , caEnv :: !ContractEnv
-  , caStorage :: !(Value Op)
-  , caParameter :: !(Value Op)
+  , caStorage :: !UntypedValue
+  , caParameter :: !UntypedValue
   }
 
 data UnexpectedFailed =
@@ -75,7 +75,7 @@ updatesStorageValue ca = either throwM handleResult $ do
       ]
   (addr,) <$> interpreterPure dummyNow dummyMaxSteps initGState interpreterOps
   where
-    toNewStorage :: InterpretUntypedResult MorleyLogs -> Value Op
+    toNewStorage :: InterpretUntypedResult MorleyLogs -> UntypedValue
     toNewStorage InterpretUntypedResult {..} = unsafeValToValue iurNewStorage
 
     handleResult :: (Address, InterpreterRes) -> Expectation
@@ -99,7 +99,7 @@ failsToOriginateTwice =
     isAlreadyOriginated (Left (IEAlreadyOriginated {})) = True
     isAlreadyOriginated _ = False
 
-failsToOriginateIllTyped :: Value Op -> Contract Op -> Expectation
+failsToOriginateIllTyped :: UntypedValue -> UntypedContract -> Expectation
 failsToOriginateIllTyped initialStorage illTypedContract =
   simpleTest ops isIllTypedContract
   where
@@ -128,14 +128,14 @@ contractAux1 = ContractAux
   , caParameter = ValueString "aaa"
   }
   where
-    contract :: Contract Op
+    contract :: UntypedContract
     contract = Contract
       { para = Type tstring noAnn
       , stor = Type tbool noAnn
       , code =
-        [ Op $ CDR noAnn noAnn
-        , Op $ NIL noAnn noAnn $ Type TOperation noAnn
-        , Op $ PAIR noAnn noAnn noAnn noAnn
+        [ PrimEx $ CDR noAnn noAnn
+        , PrimEx $ NIL noAnn noAnn $ Type TOperation noAnn
+        , PrimEx $ PAIR noAnn noAnn noAnn noAnn
         ]
       }
 
@@ -143,10 +143,10 @@ contractAux2 :: ContractAux
 contractAux2 = contractAux1
   { caContract = (caContract contractAux1)
     { code =
-      [ Op $ CDR noAnn noAnn
-      , Op $ NOT noAnn
-      , Op $ NIL noAnn noAnn $ Type TOperation noAnn
-      , Op $ PAIR noAnn noAnn noAnn noAnn
+      [ PrimEx $ CDR noAnn noAnn
+      , PrimEx $ NOT noAnn
+      , PrimEx $ NIL noAnn noAnn $ Type TOperation noAnn
+      , PrimEx $ PAIR noAnn noAnn noAnn noAnn
       ]
     }
   }

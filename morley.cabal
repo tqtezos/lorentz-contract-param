@@ -31,7 +31,6 @@ library
                      , Michelson.Typed
                      , Michelson.Typed.Value
                      , Michelson.Untyped
-                     , Morley.Aliases
                      , Morley.Default
                      , Morley.Lexer
                      , Morley.Macro
@@ -68,6 +67,7 @@ library
                      , Michelson.Typed.Polymorphic
                      , Michelson.Typed.Sing
                      , Michelson.Typed.T
+                     , Michelson.Untyped.Aliases
                      , Michelson.Untyped.Annotation
                      , Michelson.Untyped.Contract
                      , Michelson.Untyped.Instr
@@ -100,7 +100,6 @@ library
                      , parser-combinators >= 1.0.0
                      , directory
                      , singletons
-                     , syb
                      , mtl
                      , vinyl
   ghc-options:        -Weverything

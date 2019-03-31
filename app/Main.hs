@@ -17,7 +17,7 @@ import Text.Pretty.Simple (pPrint)
 import Michelson.Untyped hiding (OriginationOperation(..))
 import qualified Michelson.Untyped as Un
 import Morley.Ext (typeCheckMorleyContract)
-import Morley.Macro (expandFlattenContract, expandValue)
+import Morley.Macro (expandContract, expandValue)
 import qualified Morley.Parser as P
 import Morley.Runtime
   (TxData(..), originateContract, prepareContract, readAndParseContract, runContract, transfer)
@@ -37,7 +37,7 @@ data CmdLnArgs
 data RunOptions = RunOptions
   { roContractFile :: !(Maybe FilePath)
   , roDBPath :: !FilePath
-  , roStorageValue :: !(Value Op)
+  , roStorageValue :: !Un.UntypedValue
   , roTxData :: !TxData
   , roVerbose :: !Bool
   , roNow :: !(Maybe Timestamp)
@@ -53,7 +53,7 @@ data OriginateOptions = OriginateOptions
   , ooDelegate :: !(Maybe KeyHash)
   , ooSpendable :: !Bool
   , ooDelegatable :: !Bool
-  , ooStorageValue :: !(Value Op)
+  , ooStorageValue :: !Un.UntypedValue
   , ooBalance :: !Mutez
   , ooVerbose :: !Bool
   }
@@ -219,12 +219,12 @@ keyHashOption defaultValue name hInfo =
   maybeAddDefault pretty defaultValue <>
   help hInfo
 
-valueOption :: String -> String -> Opt.Parser (Value Op)
+valueOption :: String -> String -> Opt.Parser Un.UntypedValue
 valueOption name hInfo = option (eitherReader parseValue) $
   long name <>
   help hInfo
   where
-    parseValue :: String -> Either String (Value Op)
+    parseValue :: String -> Either String Un.UntypedValue
     parseValue s =
       either (Left . mappend "Failed to parse value: " . show)
              (Right . expandValue)
@@ -258,7 +258,7 @@ txData =
     <*> valueOption "parameter" "Parameter of passed contract"
     <*> mutezOption (Just minBound) "amount" "Amout sent by a transaction"
   where
-    mkTxData :: Address -> Value Op -> Mutez -> TxData
+    mkTxData :: Address -> UntypedValue -> Mutez -> TxData
     mkTxData addr param amount =
       TxData
         { tdSenderAddress = addr
@@ -292,12 +292,12 @@ main = do
       Parse mFilename hasExpandMacros -> do
         contract <- readAndParseContract mFilename
         if hasExpandMacros
-          then pPrint $ expandFlattenContract contract
+          then pPrint $ expandContract contract
           else pPrint contract
       TypeCheck mFilename _hasVerboseFlag -> do
         michelsonContract <- prepareContract mFilename
         void $ either throwM pure $
-          (typeCheckMorleyContract . fmap unOp) michelsonContract
+          typeCheckMorleyContract michelsonContract
         putTextLn "Contract is well-typed"
       Run RunOptions {..} -> do
         michelsonContract <- prepareContract roContractFile

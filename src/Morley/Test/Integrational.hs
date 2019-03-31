@@ -23,7 +23,7 @@ import Test.Hspec (Expectation, expectationFailure)
 import Test.QuickCheck (Property)
 
 import Michelson.Interpret (InterpretUntypedError(..), MichelsonFailed(..), RemainingSteps)
-import Morley.Aliases (UntypedValue)
+import Michelson.Untyped (UntypedValue)
 import Morley.Runtime (InterpreterError(..), InterpreterOp(..), InterpreterRes(..), interpreterPure)
 import Morley.Runtime.GState
 import Morley.Test.Dummy

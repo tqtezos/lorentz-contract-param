@@ -24,13 +24,13 @@ import Michelson.TypeCheck.Helpers (convergeHST, eqT')
 import Michelson.TypeCheck.Types (HST)
 import Michelson.Typed (Val, converge, extractNotes, mkUType)
 import qualified Michelson.Typed as T
-import Michelson.Untyped (CT(..), InstrAbstract(..))
+import Michelson.Untyped (CT(..), InstrAbstract(..), UntypedContract, UntypedValue)
 import Morley.Types
 
 interpretMorleyUntyped
-  :: Contract Op
-  -> Value Op
-  -> Value Op
+  :: UntypedContract
+  -> UntypedValue
+  -> UntypedValue
   -> ContractEnv
   -> Either (InterpretUntypedError MorleyLogs) (InterpretUntypedResult MorleyLogs)
 interpretMorleyUntyped c v1 v2 cenv =
@@ -46,10 +46,10 @@ interpretMorley
 interpretMorley c param initSt env =
   interpret c param initSt (InterpreterEnv env interpretHandler) def
 
-typeCheckMorleyContract :: Contract Instr -> Either TCError SomeContract
+typeCheckMorleyContract :: UntypedContract -> Either TCError SomeContract
 typeCheckMorleyContract = typeCheckContract typeCheckHandler
 
-typeCheckHandler :: UExtInstr -> TcExtFrames -> SomeHST -> TypeCheckT (TcExtFrames, Maybe ExtInstr)
+typeCheckHandler :: ExpandedUExtInstr -> TcExtFrames -> SomeHST -> TypeCheckT (TcExtFrames, Maybe ExtInstr)
 typeCheckHandler ext nfs hst@(SomeHST hs) =
   case ext of
     STACKTYPE s -> fitError $ const (nfs, Nothing) <$> checkStackType noBoundVars s hs
@@ -58,7 +58,7 @@ typeCheckHandler ext nfs hst@(SomeHST hs) =
     UPRINT pc   -> verifyPrint pc $> (nfs, Just $ PRINT pc)
     UTEST_ASSERT UTestAssert{..} -> do
       verifyPrint tassComment
-      si <- typeCheckList (unOp <$> tassInstrs) hst
+      si <- typeCheckList tassInstrs hst
       case si of
         SiFail -> thErr "TEST_ASSERT has to return Bool, but it's failed"
         instr ::: (_ :: HST inp, ((_ :: (Sing b, T.Notes b, VarAnn)) ::& (_ :: HST out1))) -> do
@@ -109,9 +109,9 @@ data UExtError =
   | VarError Text StackFn
   | TypeMismatch StackTypePattern Int Text
   | TyVarMismatch Var Type StackTypePattern Int Text
-  | FnEndMismatch (Maybe (UExtInstr, SomeHST))
+  | FnEndMismatch (Maybe (ExpandedUExtInstr, SomeHST))
   | StkRestMismatch StackTypePattern SomeHST SomeHST Text
-  | UnexpectedUExt UExtInstr
+  | UnexpectedUExt ExpandedUExtInstr
 
 -- | Print error messages
 uextErrorText :: UExtError -> HST xs -> Text

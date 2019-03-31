@@ -123,11 +123,11 @@ deriving instance Show InstrExtT => Show SomeContract
 
 -- | Type check error
 data TCError =
-    TCFailedOnInstr U.Instr SomeHST Text
-  | TCFailedOnValue (U.Value U.Op) T Text
+    TCFailedOnInstr U.ExpandedInstr SomeHST Text
+  | TCFailedOnValue U.UntypedValue T Text
   | TCOtherError Text
 
-instance Buildable U.Instr => Buildable TCError where
+instance Buildable U.ExpandedInstr => Buildable TCError where
   build = \case
     TCFailedOnInstr instr (SomeHST t) custom ->
       "Error checking expression " +| instr
@@ -140,22 +140,23 @@ instance Buildable U.Instr => Buildable TCError where
     TCOtherError e ->
       "Error occurred during type check: " +| e |+ ""
 
-instance Buildable U.Instr => Show TCError where
+instance Buildable U.ExpandedInstr => Show TCError where
   show = pretty
 
-instance Buildable U.Instr => Exception TCError
+instance Buildable U.ExpandedInstr => Exception TCError
 
 -- | State for type checking @nop@
-type TcExtFrames = [(U.InstrExtU, SomeHST)]
+type TcExtFrames = [(U.ExpandedInstrExtU, SomeHST)]
 
 -- | Constraints on InstrExtT and untyped Instr
 -- which are required for type checking
 type ExtC
    = ( Show InstrExtT
-     , Eq U.InstrExtU
+     , Eq U.ExpandedInstrExtU
      , Typeable InstrExtT
-     , Buildable U.Instr
-     , ConversibleExt)
+     , Buildable U.ExpandedInstr
+     , ConversibleExt
+     )
 
 type TypeCheckT a =
   ExceptT TCError
@@ -165,7 +166,7 @@ type TypeCheckT a =
 -- TypeCheckT is used because inside
 -- inside of TEST_ASSERT could be PRINT/STACKTYPE/etc extended instructions.
 type TcExtHandler
-  = U.InstrExtU -> TcExtFrames -> SomeHST -> TypeCheckT (TcExtFrames, Maybe InstrExtT)
+  = U.ExpandedInstrExtU -> TcExtFrames -> SomeHST -> TypeCheckT (TcExtFrames, Maybe InstrExtT)
 
 -- | The typechecking state
 data TypeCheckEnv = TypeCheckEnv
@@ -180,6 +181,6 @@ runTypeCheckT nh param act = evaluatingState (TypeCheckEnv nh [] param) $ runExc
 type TcResult = Either TCError SomeInstr
 
 type TcInstrHandler
-   = U.Instr
+   = U.ExpandedInstr
     -> SomeHST
       -> TypeCheckT SomeInstr

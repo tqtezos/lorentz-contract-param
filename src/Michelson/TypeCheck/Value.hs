@@ -69,9 +69,9 @@ typeCheckCVals mvs t = traverse check mvs
 -- that is interpreted as input of wrong type and type check finishes with
 -- error.
 typeCheckValImpl
-  :: (Show InstrExtT, ConversibleExt, Eq Un.InstrExtU)
+  :: (Show InstrExtT, ConversibleExt, Eq Un.ExpandedInstrExtU)
   => TcInstrHandler
-  -> Un.Value Un.Op
+  -> Un.UntypedValue
   -> T
   -> TypeCheckT SomeVal
 typeCheckValImpl _ mv t@(Tc ct) =
@@ -154,7 +154,7 @@ typeCheckValImpl tcDo sq@(Un.ValueMap (toList -> mels)) (TMap kt vt) =
 typeCheckValImpl tcDo v t@(TLambda mi mo) = do
   mp <- case v of
     Un.ValueNil -> pure []
-    Un.ValueLambda mp -> pure $ fmap Un.unOp (toList mp)
+    Un.ValueLambda mp -> pure $ toList mp
     _ -> throwError $ TCFailedOnValue v t ""
 
   withSomeSingT mi $ \(it :: Sing it) ->
@@ -183,9 +183,9 @@ typeCheckValImpl tcDo v t@(TLambda mi mo) = do
 typeCheckValImpl _ v t = throwError $ TCFailedOnValue v t ""
 
 typeCheckValsImpl
-  :: forall t . (Typeable t, Show InstrExtT, ConversibleExt, Eq Un.InstrExtU)
+  :: forall t . (Typeable t, Show InstrExtT, ConversibleExt, Eq Un.ExpandedInstrExtU)
   => TcInstrHandler
-  -> [Un.Value Un.Op]
+  -> [Un.UntypedValue]
   -> T
   -> TypeCheckT ([Val Instr t], Notes t)
 typeCheckValsImpl tcDo mvs t = foldM check ([], NStar) mvs

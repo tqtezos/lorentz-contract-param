@@ -150,7 +150,7 @@ ensureDistinctAsc = \case
 
 checkEqT
   :: forall a b ts . (Typeable a, Typeable b, Typeable ts)
-  => Un.Instr
+  => Un.ExpandedInstr
   -> HST ts
   -> Text
   -> Either TCError (a :~: b)
@@ -159,7 +159,7 @@ checkEqT instr i m =
 
 assertEqT
   :: forall a b ts . (Typeable a, Typeable b, Typeable ts)
-  => Un.Instr
+  => Un.ExpandedInstr
   -> HST ts
   -> Either TCError (a :~: b)
 assertEqT instr i = checkEqT instr i "unexpected"
@@ -174,29 +174,39 @@ eqT' = maybe (Left $
                   <> show (typeRep (Proxy @b))
                   ) pure eqT
 
-typeCheckInstrErr :: Un.Instr -> SomeHST -> Text -> Either TCError a
+typeCheckInstrErr :: Un.ExpandedInstr -> SomeHST -> Text -> Either TCError a
 typeCheckInstrErr = Left ... TCFailedOnInstr
 
-typeCheckInstrErrM :: Un.Instr -> SomeHST -> Text -> TypeCheckT a
+typeCheckInstrErrM :: Un.ExpandedInstr -> SomeHST -> Text -> TypeCheckT a
 typeCheckInstrErrM = throwError ... TCFailedOnInstr
 
 typeCheckImpl
   :: TcInstrHandler
-  -> [Un.Instr]
+  -> [Un.ExpandedOp]
   -> SomeHST
   -> TypeCheckT SomeInstr
-typeCheckImpl tcInstr [a] t = tcInstr a t
-typeCheckImpl tcInstr (p_ : (r : rs)) (SomeHST (a :: HST a)) = do
-  tcInstr p_ (SomeHST a) >>= \case
-    p ::: ((_ :: HST a'), (b :: HST b)) ->
-      typeCheckImpl tcInstr (r : rs) (SomeHST b) >>= \case
-        q ::: ((_ :: HST b'), c) -> do
-          Refl <- liftEither $ eqT' @a @a' `onLeft` TCOtherError
-          Refl <- liftEither $ eqT' @b @b' `onLeft` TCOtherError
-          pure $ (Seq p q) ::: (a, c)
+typeCheckImpl tcInstr instrs t@(SomeHST (a :: HST a)) =
+  case instrs of
+    [Un.PrimEx i]       -> tcInstr i t
+    (Un.SeqEx sq  : rs) -> typeCheckImplDo (typeCheckImpl tcInstr sq) Nested rs
+    (Un.PrimEx p_ : rs) -> typeCheckImplDo (tcInstr p_) id rs
+    []                   -> pure $ Nop ::: (a, a)
+  where
+    typeCheckImplDo
+      :: (SomeHST -> TypeCheckT SomeInstr)
+      -> (forall inp out . Instr inp out -> Instr inp out)
+      -> [Un.ExpandedOp]
+      -> TypeCheckT SomeInstr
+    typeCheckImplDo f wrap rs =
+      f t >>= \case
+        p ::: ((_ :: HST a'), (b :: HST b)) ->
+          typeCheckImpl tcInstr rs (SomeHST b) >>= \case
+            q ::: ((_ :: HST b'), c) -> do
+              Refl <- liftEither $ eqT' @a @a' `onLeft` TCOtherError
+              Refl <- liftEither $ eqT' @b @b' `onLeft` TCOtherError
+              pure $ Seq (wrap p) q ::: (a, c)
+            SiFail -> pure SiFail
         SiFail -> pure SiFail
-    SiFail -> pure SiFail
-typeCheckImpl _ [] (SomeHST s) = pure $ Nop ::: (s, s)
 
 --------------------------------------------
 -- Some generic instruction implementation
@@ -206,7 +216,7 @@ typeCheckImpl _ [] (SomeHST s) = pure $ Nop ::: (s, s)
 memImpl
   :: forall (q :: CT) (c :: T) ts .
     (Typeable ts, Typeable q, Typeable (MemOpKey c), MemOp c)
-  => Un.Instr
+  => Un.ExpandedInstr
   -> HST ('Tc q ': c ': ts)
   -> VarAnn
   -> TcResult
@@ -222,7 +232,7 @@ getImpl
     , Typeable (GetOpVal c)
     , SingI (GetOpVal c)
     )
-  => Un.Instr
+  => Un.ExpandedInstr
   -> HST (getKey ': c ': rs)
   -> Sing (GetOpVal c)
   -> Notes (GetOpVal c)
@@ -239,7 +249,7 @@ getImpl instr i@(_ ::& _ ::& rs) rt vns vn = do
 updImpl
   :: forall c updKey updParams rs .
     (UpdOp c, Typeable (UpdOpKey c), Typeable (UpdOpParams c))
-  => Un.Instr
+  => Un.ExpandedInstr
   -> HST (updKey ': updParams ': c ': rs)
   -> TcResult
 updImpl instr i@(_ ::& _ ::& crs) = do
