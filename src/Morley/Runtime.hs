@@ -25,10 +25,9 @@ module Morley.Runtime
 
 import Control.Lens (at, makeLenses, (%=), (.=), (<>=))
 import Control.Monad.Except (Except, runExcept, throwError)
-import Data.Default (def)
 import qualified Data.Map.Strict as Map
 import Data.Text.IO (getContents)
-import Fmt (Buildable(build), blockListF, fmtLn, nameF, pretty, (+|), (|+))
+import Fmt (Buildable(build), blockListF, fmt, fmtLn, nameF, pretty, (+|), (|+))
 import Named ((:!), (:?), arg, argDef, defaults, (!))
 import Text.Megaparsec (parse)
 
@@ -46,7 +45,7 @@ import Morley.Macro (expandContract)
 import qualified Morley.Parser as P
 import Morley.Runtime.GState
 import Morley.Runtime.TxData
-import Morley.Types (MorleyLogs(..), ParsedOp, noMorleyLogs)
+import Morley.Types (MorleyLogs(..), ParsedOp)
 import Tezos.Address (Address(..))
 import Tezos.Core (Mutez, Timestamp(..), getCurrentTime, unsafeAddMutez, unsafeSubMutez)
 import Tezos.Crypto (parseKeyHash)
@@ -79,13 +78,15 @@ data InterpreterRes = InterpreterRes
   -- ^ List of operations to be added to the operations queue.
   , _irUpdates :: ![GStateUpdate]
   -- ^ Updates applied to 'GState'.
-  , _irPrintedLogs :: [MorleyLogs]
-  -- ^ During execution a contract can print logs,
-  -- all logs are kept until all called contracts are executed
+  , _irInterpretResults :: [(Address, InterpretUntypedResult MorleyLogs)]
+  -- ^ During execution a contract can print logs and in the end it returns
+  -- a pair. All logs and returned values are kept until all called contracts
+  -- are executed. In the end they are printed.
   , _irSourceAddress :: !(Maybe Address)
   -- ^ As soon as transfer operation is encountered, this address is
   -- set to its input.
   , _irRemainingSteps :: !RemainingSteps
+  -- ^ Now much gas all remaining executions can consume.
   } deriving (Show)
 
 makeLenses ''InterpreterRes
@@ -236,14 +237,26 @@ interpreter maybeNow maxSteps dbPath operations
   let eitherRes =
         interpreterPure now (RemainingSteps maxSteps) gState operations
   InterpreterRes {..} <- either throwM pure eitherRes
+  mapM_ printInterpretResult _irInterpretResults
   when (verbose && not (null _irUpdates)) $ do
     fmtLn $ nameF "Updates:" (blockListF _irUpdates)
     putTextLn $ "Remaining gas: " <> pretty _irRemainingSteps
-  forM_ _irPrintedLogs $ \(MorleyLogs logs) -> do
-    mapM_ putTextLn logs
-    putTextLn "" -- extra break line to separate logs from two sequence contracts
   unless dryRun $
     writeGState dbPath _irGState
+  where
+    printInterpretResult
+      :: (Address, InterpretUntypedResult MorleyLogs) -> IO ()
+    printInterpretResult (addr, InterpretUntypedResult {..}) = do
+      putTextLn $ "Executed contract " <> pretty addr
+      case iurOps of
+        [] -> putTextLn "It didn't return any operations"
+        _ -> fmt $ nameF "It returned operations:" (blockListF iurOps)
+      putTextLn $
+        "It returned storage: " <> pretty (unsafeValToValue iurNewStorage)
+      let MorleyLogs logs = isExtState iurNewState
+      unless (null logs) $
+        mapM_ putTextLn logs
+      putTextLn "" -- extra break line to separate logs from two sequence contracts
 
 -- | Implementation of interpreter outside 'IO'.  It reads operations,
 -- interprets them one by one and updates state accordingly.
@@ -256,7 +269,7 @@ interpreterPure now maxSteps gState ops =
       { _irGState = gState
       , _irOperations = ops
       , _irUpdates = mempty
-      , _irPrintedLogs = def
+      , _irInterpretResults = []
       , _irSourceAddress = Nothing
       , _irRemainingSteps = maxSteps
       }
@@ -278,7 +291,7 @@ statefulInterpreter now = do
       irGState .= _irGState
       irOperations .= opsTail <> _irOperations
       irUpdates <>= _irUpdates
-      irPrintedLogs <>= _irPrintedLogs
+      irInterpretResults <>= _irInterpretResults
       irSourceAddress %= (<|> _irSourceAddress)
       irRemainingSteps .= _irRemainingSteps
       statefulInterpreter now
@@ -316,7 +329,7 @@ interpretOneOp _ remainingSteps _ gs (OriginateOp origination) = do
       { _irGState = newGS
       , _irOperations = mempty
       , _irUpdates = updates
-      , _irPrintedLogs = def
+      , _irInterpretResults = []
       , _irSourceAddress = Nothing
       , _irRemainingSteps = remainingSteps
       }
@@ -339,8 +352,9 @@ interpretOneOp now remainingSteps mSourceAddr gs (TransferOp addr txData) = do
           -- Subtraction is safe because we have checked its
           -- precondition in guard.
           Right (GSSetBalance senderAddr (balance `unsafeSubMutez` tdAmount txData))
-    let onlyUpdates updates = Right (updates, [], noMorleyLogs, remainingSteps)
-    (otherUpdates, sideEffects, logs, newRemSteps) <- case (addresses ^. at addr, addr) of
+    let onlyUpdates updates = Right (updates, [], Nothing, remainingSteps)
+    (otherUpdates, sideEffects, maybeInterpretRes, newRemSteps)
+        <- case (addresses ^. at addr, addr) of
       (Nothing, ContractAddress _) ->
         Left (IEUnknownContract addr)
       (Nothing, KeyAddress _) -> do
@@ -368,10 +382,10 @@ interpretOneOp now remainingSteps mSourceAddr gs (TransferOp addr txData) = do
             , ceSender = senderAddr
             , ceAmount = tdAmount txData
             }
-        InterpretUntypedResult
+        iur@InterpretUntypedResult
           { iurOps = sideEffects
           , iurNewStorage = newValue
-          , iurNewState = InterpreterState printedLogs newRemainingSteps
+          , iurNewState = InterpreterState _ newRemainingSteps
           }
           <- first (IEInterpreterFailed addr) $
                 interpretMorleyUntyped contract (tdParameter txData)
@@ -387,7 +401,7 @@ interpretOneOp now remainingSteps mSourceAddr gs (TransferOp addr txData) = do
             [ updBalance
             , updStorage
             ]
-        Right (updates, sideEffects, printedLogs, newRemainingSteps)
+        Right (updates, sideEffects, Just iur, newRemainingSteps)
 
     let
       updates = decreaseSenderBalance:otherUpdates
@@ -398,7 +412,7 @@ interpretOneOp now remainingSteps mSourceAddr gs (TransferOp addr txData) = do
       { _irGState = newGState
       , _irOperations = mapMaybe (convertOp addr) sideEffects
       , _irUpdates = updates
-      , _irPrintedLogs = [logs]
+      , _irInterpretResults = maybe mempty (one . (addr,)) maybeInterpretRes
       , _irSourceAddress = Just sourceAddr
       , _irRemainingSteps = newRemSteps
       }

@@ -120,6 +120,8 @@ data InterpretUntypedResult s where
        }
     -> InterpretUntypedResult s
 
+deriving instance Show s => Show (InterpretUntypedResult s)
+
 -- | Interpret a contract without performing any side effects.
 interpretUntyped
   :: forall s . (ExtC, Aeson.ToJSON U.ExpandedInstrExtU)
