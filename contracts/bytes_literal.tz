@@ -1,0 +1,3 @@
+parameter unit;
+storage bytes;
+code {DROP; PUSH bytes 0x; NIL operation; PAIR};
