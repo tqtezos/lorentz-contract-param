@@ -96,6 +96,8 @@ library
                      , text
                      , time
                      , timerep
+                     -- Otherwise Hackage fails
+                     , transformers-compat == 0.6.2
                      , parser-combinators >= 1.0.0
                      , directory
                      , singletons
