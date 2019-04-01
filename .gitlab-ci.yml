@@ -28,9 +28,9 @@ build-and-test:
       - .gitlab-ci.yml
       - morley.cabal
       - stack.yaml
-      - app/*
-      - src/*
-      - prelude/*
+      - app/**/*
+      - src/**/*
+      - prelude/**/*
   script:
     - cp /usr/lib/gcc/x86_64-linux-gnu/6/crtbeginT.o /usr/lib/gcc/x86_64-linux-gnu/6/crtbeginT.o.orig
     - cp /usr/lib/gcc/x86_64-linux-gnu/6/crtbeginS.o /usr/lib/gcc/x86_64-linux-gnu/6/crtbeginT.o
@@ -73,9 +73,9 @@ build-docker:
       - .gitlab-ci.yml
       - morley.cabal
       - stack.yaml
-      - app/*
-      - src/*
-      - prelude/*
+      - app/**/*
+      - src/**/*
+      - prelude/**/*
   script:
     - docker build -t $IMAGE_TAG .
     - docker push $IMAGE_TAG
