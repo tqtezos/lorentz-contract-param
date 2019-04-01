@@ -96,12 +96,6 @@ instance (Arbitrary op, Arbitrary (UExtInstrAbstract op)) => Arbitrary (InstrAbs
             l2 <- vector size2
             pure $ IF_LEFT l1 l2
         )
-      , (do size1 <- smallSize
-            size2 <- smallSize
-            l1 <- vector size1
-            l2 <- vector size2
-            pure $ IF_RIGHT l1 l2
-        )
       , NIL <$> arbitrary <*> arbitrary <*> arbitrary
       , CONS <$> arbitrary
       , (do size1 <- smallSize

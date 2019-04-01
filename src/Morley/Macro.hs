@@ -73,6 +73,7 @@ expandMacro = \case
   IFX i bt bf        -> [xo i, PrimEx (IF (xp bt) (xp bf))]
   IFCMP i v bt bf    -> PrimEx <$> [COMPARE v, expand <$> i, IF (xp bt) (xp bf)]
   IF_SOME bt bf      -> [PrimEx (IF_NONE (xp bf) (xp bt))]
+  IF_RIGHT bt bf     -> [PrimEx (IF_LEFT (xp bf) (xp bt))]
   FAIL               -> PrimEx <$> [UNIT noAnn noAnn, FAILWITH]
   ASSERT             -> xol $ IF [] [Mac FAIL]
   ASSERTX i          -> [expand $ Mac $ IFX i [] [Mac FAIL]]

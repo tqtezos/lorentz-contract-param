@@ -84,11 +84,6 @@ data Instr (inp :: [T]) (out :: [T]) where
     => Instr (a ': s) s'
     -> Instr (b ': s) s'
     -> Instr ('TOr a b ': s) s'
-  IF_RIGHT
-    :: (Typeable s, Typeable b, Typeable a)
-    => Instr (b ': s) s'
-    -> Instr (a ': s) s'
-    -> Instr ('TOr a b ': s) s'
   NIL :: SingI p => Instr s ('TList p ': s)
   CONS :: Instr (a ': 'TList a ': s) ('TList a ': s)
   IF_CONS

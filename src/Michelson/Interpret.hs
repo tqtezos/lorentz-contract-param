@@ -273,8 +273,6 @@ runInstrImpl _ LEFT (a :& r) = pure $ (VOr $ Left a) :& r
 runInstrImpl _ RIGHT (b :& r) = pure $ (VOr $ Right b) :& r
 runInstrImpl runner (IF_LEFT bLeft _) (VOr (Left a) :& r) = runner bLeft (a :& r)
 runInstrImpl runner (IF_LEFT _ bRight) (VOr (Right a) :& r) = runner bRight (a :& r)
-runInstrImpl runner (IF_RIGHT bRight _) (VOr (Right a) :& r) = runner bRight (a :& r)
-runInstrImpl runner (IF_RIGHT _ bLeft) (VOr (Left a) :& r) = runner bLeft (a :& r)
 -- More here
 runInstrImpl _ NIL r = pure $ VList [] :& r
 runInstrImpl _ CONS (a :& VList l :& r) = pure $ VList (a : l) :& r

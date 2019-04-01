@@ -500,7 +500,7 @@ t_big_map fp = (do symbol "big_map"; (f, t) <- fieldType fp; a <- comparable; b 
 prim :: Parser Mo.ParsedInstr
 prim = choice
   [ dropOp, dupOp, swapOp, pushOp, someOp, noneOp, unitOp, ifNoneOp
-  , carOp, cdrOp, leftOp, rightOp, ifLeftOp, ifRightOp, nilOp, consOp, ifConsOp
+  , carOp, cdrOp, leftOp, rightOp, ifLeftOp, nilOp, consOp, ifConsOp
   , sizeOp, emptySetOp, emptyMapOp, iterOp, memOp, getOp, updateOp
   , loopLOp, loopOp, lambdaOp, execOp, dipOp, failWithOp, castOp, renameOp
   , concatOp, packOp, unpackOp, sliceOp, isNatOp, addressOp, addOp, subOp
@@ -704,9 +704,6 @@ rightOp = do symbol' "RIGHT"; (t, v, (f, f')) <- notesTVF2;
 ifLeftOp :: Parser Mo.ParsedInstr
 ifLeftOp = do symbol' "IF_LEFT"; a <- ops; Mo.IF_LEFT a <$> ops
 
-ifRightOp :: Parser Mo.ParsedInstr
-ifRightOp = do symbol' "IF_RIGHT"; a <- ops; Mo.IF_RIGHT a <$> ops
-
 -- Operations on contracts
 
 createContractOp :: Parser Mo.ParsedInstr
@@ -799,7 +796,8 @@ cmpOp = eqOp <|> neqOp <|> ltOp <|> gtOp <|> leOp <|> gtOp <|> geOp
 
 macro :: Parser Mo.Macro
 macro = do symbol' "CMP"; a <- cmpOp; Mo.CMP a <$> noteVDef
-  <|> do symbol' "IF_SOME"; a <- ops; Mo.IF_SOME a <$> ops
+  <|> do void $ symbol' "IF_SOME"; Mo.IF_SOME <$> ops <*> ops
+  <|> do void $ symbol' "IF_RIGHT"; Mo.IF_RIGHT <$> ops <*> ops
   <|> do symbol' "FAIL"; return Mo.FAIL
   <|> do void $ symbol' "ASSERT_CMP"; Mo.ASSERT_CMP <$> cmpOp
   <|> do symbol' "ASSERT_NONE"; return Mo.ASSERT_NONE

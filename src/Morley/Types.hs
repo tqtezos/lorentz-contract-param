@@ -289,6 +289,7 @@ data Macro
   | ASSERT_LEFT
   | ASSERT_RIGHT
   | IF_SOME [ParsedOp] [ParsedOp]
+  | IF_RIGHT [ParsedOp] [ParsedOp]
   deriving (Eq, Show, Data, Generic)
 
 instance Buildable Macro where
@@ -311,6 +312,7 @@ instance Buildable Macro where
   build ASSERT_LEFT  = "ASSERT_LEFT"
   build ASSERT_RIGHT = "ASSERT_RIGHT"
   build (IF_SOME parsedOps1 parsedOps2) = "<IF_SOME: "+|parsedOps1|+", "+|parsedOps2|+">"
+  build (IF_RIGHT parsedOps1 parsedOps2) = "<IF_RIGHT: "+|parsedOps1|+", "+|parsedOps2|+">"
 
 ---------------------------------------------------
 

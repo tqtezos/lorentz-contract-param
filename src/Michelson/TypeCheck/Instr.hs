@@ -260,12 +260,6 @@ typeCheckInstr (U.IF_LEFT mp mq) i@((STOr a b, ons, ovn) ::& rs) = do
       bit = (b, bn, bvn) ::& rs
   genericIf IF_LEFT U.IF_LEFT mp mq ait bit i
 
-typeCheckInstr (U.IF_RIGHT mq mp) i@((STOr a b, ons, ovn) ::& rs) = do
-  let (an, bn, avn, bvn) = deriveNsOr ons ovn
-      ait = (a, an, avn) ::& rs
-      bit = (b, bn, bvn) ::& rs
-  genericIf IF_RIGHT U.IF_RIGHT mq mp bit ait i
-
 typeCheckInstr instr@(U.NIL tn vn elMt) i =
   withSomeSingT (fromUType elMt) $ \elT -> liftEither $ do
     let t = STList elT
