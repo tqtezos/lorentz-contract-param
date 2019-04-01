@@ -2,4 +2,6 @@
 .git
 .gitlab-ci.yml
 .dockerignore
-
+.stack-work
+db.json
+.DS_Store

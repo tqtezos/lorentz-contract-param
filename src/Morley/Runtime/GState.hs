@@ -125,7 +125,10 @@ readGState :: FilePath -> IO GState
 readGState fp = (LBS.readFile fp >>= parseFile) `catch` onExc
   where
     parseFile :: LByteString -> IO GState
-    parseFile = either (throwM . GStateParseError) pure . Aeson.eitherDecode'
+    parseFile lByteString =
+      if length lByteString == 0
+      then pure initGState
+      else (either (throwM . GStateParseError) pure . Aeson.eitherDecode') lByteString
     onExc :: IOError -> IO GState
     onExc exc
       | isDoesNotExistError exc = pure initGState
