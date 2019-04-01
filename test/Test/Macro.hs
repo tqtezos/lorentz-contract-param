@@ -24,10 +24,10 @@ expandPapairTest = do
   expandPapair (P leaf pair) n n `shouldBe`
     [Prim $ DIP [Mac $ PAPAIR pair n n], Prim $ PAIR n n n n]
   expandList [Mac $ PAPAIR (P pair leaf) n n] `shouldBe`
-    [SeqEx [SeqEx [PrimEx $ PAIR n n n n], PrimEx $ PAIR n n n n]]
+    [SeqEx [PrimEx $ PAIR n n n n, PrimEx $ PAIR n n n n]]
   expandList [Mac $ PAPAIR (P pair pair) n n] `shouldBe`
-    [SeqEx [SeqEx [PrimEx (PAIR n n n n)],
-             PrimEx (DIP [SeqEx [PrimEx (PAIR n n n n)]]),
+    [SeqEx [PrimEx (PAIR n n n n),
+             PrimEx (DIP [PrimEx (PAIR n n n n)]),
              PrimEx (PAIR n n n n)]]
   where
     n = noAnn
@@ -160,6 +160,6 @@ expandValueTest = do
 
     expandedLambdaWithMac :: UntypedValue
     expandedLambdaWithMac = ValueLambda . one $ SeqEx
-      [ PrimEx $ DIP [SeqEx $ one $ PrimEx $ PAIR noAnn noAnn noAnn noAnn]
+      [ PrimEx $ DIP [PrimEx $ PAIR noAnn noAnn noAnn noAnn]
       , PrimEx $ PAIR noAnn noAnn noAnn noAnn
       ]

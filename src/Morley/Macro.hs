@@ -50,6 +50,11 @@ expandElt :: Elt ParsedOp -> Elt ExpandedOp
 expandElt (Elt l r) = Elt (expandValue l) (expandValue r)
 
 expand :: ParsedOp -> ExpandedOp
+-- We handle this case specially, because it's essentially just PAIR.
+-- It's needed because we have a hack in parser: we parse PAIR as PAPAIR.
+-- We need to do something better eventually.
+expand (Mac (PAPAIR (P (F a) (F b)) t v)) =
+  PrimEx $ PAIR t v (snd a) (snd b)
 expand (Mac m)  = SeqEx $ expandMacro m
 expand (Prim i) = PrimEx $ expand <$> i
 expand (Seq s)  = SeqEx $ expand <$> s
