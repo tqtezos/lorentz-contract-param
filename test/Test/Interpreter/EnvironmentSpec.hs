@@ -54,7 +54,7 @@ shouldReturn fixture
   | fMaxSteps fixture - consumedGas > 1000 = Untyped.ValueTrue
   | otherwise = Untyped.ValueFalse
   where
-    consumedGas = 20
+    consumedGas = 19
 
 specImpl ::
     (UntypedContract, Contract ('Tc 'CAddress) ('Tc 'CBool))
