@@ -20,8 +20,11 @@ import Data.Aeson.TH (defaultOptions, deriveJSON)
 import Data.Data (Data(..))
 import Data.Default (Default(..))
 import qualified Data.Text as T
-import Fmt (Buildable(build), Builder, (+|), (|+))
+import Fmt (Buildable(build))
+import Text.PrettyPrint.Leijen.Text (Doc, textStrict)
 import qualified Text.Show
+
+import Michelson.Printer.Util (RenderDoc(..), buildRenderDoc)
 
 newtype Annotation tag = Annotation T.Text
   deriving stock (Eq, Data, Functor, Generic)
@@ -47,19 +50,29 @@ type TypeAnn = Annotation TypeTag
 type FieldAnn = Annotation FieldTag
 type VarAnn = Annotation VarTag
 
+
+instance RenderDoc TypeAnn where
+  renderDoc = renderAnnotation ":"
+
+instance RenderDoc FieldAnn where
+  renderDoc = renderAnnotation "%"
+
+instance RenderDoc VarAnn where
+  renderDoc = renderAnnotation "@"
+
+renderAnnotation :: Doc -> Annotation tag -> Doc
+renderAnnotation prefix a@(Annotation text)
+  | a == noAnn = ""
+  | otherwise = prefix <> (textStrict text)
+
 instance Buildable TypeAnn where
-  build = buildAnnotation ":"
+  build = buildRenderDoc
 
 instance Buildable FieldAnn where
-  build = buildAnnotation "%"
+  build = buildRenderDoc
 
 instance Buildable VarAnn where
-  build = buildAnnotation "@"
-
-buildAnnotation :: Builder -> Annotation tag -> Builder
-buildAnnotation prefix a@(Annotation text)
-  | a == noAnn = ""
-  | otherwise = prefix +| text |+ ""
+  build = buildRenderDoc
 
 noAnn :: Annotation a
 noAnn = Annotation ""

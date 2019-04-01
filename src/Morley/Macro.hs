@@ -15,20 +15,18 @@ module Morley.Macro
   , expandCadr
   , expandSetCadr
   , expandMapCadr
-
   ) where
-
 
 import Michelson.Untyped (UntypedContract, UntypedValue)
 import Morley.Types
-  (CadrStruct(..), Contract(..), Elt(..), ExpandedOp(..), FieldAnn,
-  InstrAbstract(..), LetMacro(..), Macro(..), PairStruct(..), ParsedOp(..), TypeAnn,
-  UExtInstrAbstract(..), Value(..), VarAnn, ann, noAnn)
+  (CadrStruct(..), Contract(..), Elt(..), ExpandedOp(..), FieldAnn, InstrAbstract(..),
+  LetMacro(..), Macro(..), PairStruct(..), ParsedOp(..), TypeAnn, UExtInstrAbstract(..), Value(..),
+  VarAnn, ann, noAnn)
 
 expandList :: [ParsedOp] -> [ExpandedOp]
 expandList = fmap expand
 
--- | Expand and flatten and instructions in parsed contract.
+-- | Expand all macros in parsed contract.
 expandContract :: Contract ParsedOp -> UntypedContract
 expandContract Contract {..} =
   Contract para stor (expandList $ code)

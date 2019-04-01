@@ -87,17 +87,19 @@ import qualified Data.Map as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Data.Text as T
-import Fmt (Buildable(build), Builder, genericF, listF)
+import Fmt (Buildable(build), Builder, genericF, listF, (+|), (|+))
 import Text.Megaparsec (ParseErrorBundle, Parsec, ShowErrorComponent(..), errorBundlePretty)
+import qualified Text.PrettyPrint.Leijen.Text as PP (empty)
 import qualified Text.Show (show)
 
 import Michelson.EqParam (eqParam2)
+import Michelson.Printer (RenderDoc(..))
 import Michelson.Typed (instrToOps)
 import qualified Michelson.Typed as T
 import Michelson.Untyped
-  (Annotation(..), CT(..), Comparable(..), Contract(..), Elt(..), ExpandedInstr, ExpandedOp (..), ExtU,
-  FieldAnn, Instr, InstrAbstract(..), InternalByteString(..), Op(..), Parameter, Storage, T(..),
-  Type(..), TypeAnn, Value(..), VarAnn, ann, noAnn, unInternalByteString)
+  (Annotation(..), CT(..), Comparable(..), Contract(..), Elt(..), ExpandedInstr, ExpandedOp(..),
+  ExtU, FieldAnn, Instr, InstrAbstract(..), InternalByteString(..), Op(..), Parameter, Storage,
+  T(..), Type(..), TypeAnn, Value(..), VarAnn, ann, noAnn, unInternalByteString)
 import Morley.Default (Default(..))
 
 -------------------------------------
@@ -169,7 +171,7 @@ instance Buildable op => Buildable (UExtInstrAbstract op) where
   build = genericF
 
 -- TODO replace ParsedOp in ExpandedUExtInstr with op
--- to reflect Parsed, Epxanded and Flattened phase
+-- to reflect Parsed, Expanded and Flattened phase
 
 type instance ExtU InstrAbstract = UExtInstrAbstract
 type instance T.ExtT T.Instr = ExtInstr
@@ -191,19 +193,17 @@ data ParsedOp
   | Seq [ParsedOp]   -- ^ A sequence of instructions
   deriving (Eq, Show, Data, Generic)
 
-instance Buildable ParsedInstr where
-  build = genericF
+-- dummy value
+instance RenderDoc ParsedOp where
+  renderDoc _ = PP.empty
 
 instance Buildable ParsedOp where
-  build = genericF
+  build (Prim parseInstr) = "<Prim: "+|parseInstr|+">"
+  build (Mac macro)       = "<Mac: "+|macro|+">"
+  build (LMac letMacro)   = "<LMac: "+|letMacro|+">"
+  build (Seq parsedOps)   = "<Seq: "+|parsedOps|+">"
 
 type ExpandedUExtInstr = UExtInstrAbstract ExpandedOp
-
-instance Buildable ExpandedInstr where
-  build = genericF
-
-instance Buildable Instr where
-  build = genericF
 
 ---------------------------------------------------
 
@@ -290,7 +290,25 @@ data Macro
   deriving (Eq, Show, Data, Generic)
 
 instance Buildable Macro where
-  build = genericF
+  build (CMP parsedInstr carAnn) = "<CMP: "+|parsedInstr|+", "+|carAnn|+">"
+  build (IFX parsedInstr parsedOps1 parsedOps2) = "<IFX: "+|parsedInstr|+", "+|parsedOps1|+", "+|parsedOps2|+">"
+  build (IFCMP parsedInstr varAnn parsedOps1 parsedOps2) = "<IFCMP: "+|parsedInstr|+", "+|varAnn|+", "+|parsedOps1|+", "+|parsedOps2|+">"
+  build FAIL = "FAIL"
+  build (PAPAIR pairStruct typeAnn varAnn) = "<PAPAIR: "+|pairStruct|+", "+|typeAnn|+", "+|varAnn|+">"
+  build (UNPAIR pairStruct) = "<UNPAIR: "+|pairStruct|+">"
+  build (CADR cadrStructs varAnn fieldAnn) = "<CADR: "+|cadrStructs|+", "+|varAnn|+", "+|fieldAnn|+">"
+  build (SET_CADR cadrStructs varAnn fieldAnn) = "<SET_CADR: "+|cadrStructs|+", "+|varAnn|+", "+|fieldAnn|+">"
+  build (MAP_CADR cadrStructs varAnn fieldAnn parsedOps) = "<MAP_CADR: "+|cadrStructs|+", "+|varAnn|+", "+|fieldAnn|+", "+|parsedOps|+">"
+  build (DIIP integer parsedOps) = "<DIIP: "+|integer|+", "+|parsedOps|+">"
+  build (DUUP integer varAnn) = "<DUUP: "+|integer|+", "+|varAnn|+">"
+  build ASSERT = "ASSERT"
+  build (ASSERTX parsedInstr) = "<ASSERTX: "+|parsedInstr|+">"
+  build (ASSERT_CMP parsedInstr) = "<ASSERT_CMP: "+|parsedInstr|+">"
+  build ASSERT_NONE  = "ASSERT_NONE"
+  build ASSERT_SOME  = "ASSERT_SOME"
+  build ASSERT_LEFT  = "ASSERT_LEFT"
+  build ASSERT_RIGHT = "ASSERT_RIGHT"
+  build (IF_SOME parsedOps1 parsedOps2) = "<IF_SOME: "+|parsedOps1|+", "+|parsedOps2|+">"
 
 ---------------------------------------------------
 

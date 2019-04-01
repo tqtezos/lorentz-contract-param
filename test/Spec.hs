@@ -10,6 +10,7 @@ import qualified Test.Macro as Macro
 import qualified Test.Morley.Runtime as Morley.Runtime
 import qualified Test.Ext as Ext
 import qualified Test.Parser as Parser
+import qualified Test.Printer.Michelson as Printer.Michelson
 import qualified Test.Serialization.Aeson as Serialization.Aeson
 import qualified Test.Tezos.Address as Tezos.Address
 import qualified Test.Tezos.Crypto as Tezos.Crypto
@@ -31,3 +32,4 @@ main = hspec $ do
   Interpreter.spec
   Val.spec
   CVal.spec
+  Printer.Michelson.spec
