@@ -221,6 +221,7 @@ runInstr
   -> EvalOp state (Rec (Val Instr) out)
 runInstr i@(Seq _i1 _i2) r = runInstrImpl runInstr i r
 runInstr i@Nop r = runInstrImpl runInstr i r
+runInstr i@(Nested _) r = runInstrImpl runInstr i r
 runInstr i r = do
   rs <- gets isRemainingSteps
   if rs == 0
