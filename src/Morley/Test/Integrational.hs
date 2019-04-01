@@ -5,6 +5,7 @@ module Morley.Test.Integrational
   (
     -- * Re-exports
     TxData (..)
+  , genesisAddress
 
   -- * Testing engine
   , IntegrationalValidator
