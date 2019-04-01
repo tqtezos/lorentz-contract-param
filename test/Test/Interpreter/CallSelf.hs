@@ -10,13 +10,14 @@ import Test.QuickCheck (Gen, choose, forAll)
 
 import Michelson.Interpret (ContractEnv(..), InterpreterState(..), RemainingSteps(..))
 import Michelson.Typed
-import Michelson.Untyped (OriginationOperation(..), mkContractAddress, UntypedContract)
+import Michelson.Untyped (UntypedContract)
 import qualified Michelson.Untyped as Untyped
-import Morley.Runtime (InterpreterOp(..), TxData(..))
 import Morley.Runtime.GState
 import Morley.Test (ContractPropValidator, contractProp, specWithContract)
 import Morley.Test.Dummy
 import Morley.Test.Integrational
+import Tezos.Address (Address)
+import Tezos.Core (unsafeMkMutez)
 
 selfCallerSpec :: Spec
 selfCallerSpec =
@@ -68,8 +69,7 @@ specImpl (uSelfCaller, selfCaller) = modifyMaxSuccess (min 10) $ do
 
   prop propertyDescription $
     forAll genFixture $ \fixture ->
-      integrationalTestProperty dummyNow (fMaxSteps fixture)
-      (operations fixture) (integValidator fixture)
+      integrationalTestProperty (integrationalScenario uSelfCaller fixture)
   where
     -- Environment for unit test
     unitContractEnv = dummyContractEnv
@@ -84,26 +84,24 @@ specImpl (uSelfCaller, selfCaller) = modifyMaxSuccess (min 10) $ do
       "it fails due to gas limit if the number is large, otherwise the " <>
       "storage is updated to the number of calls"
 
-    operations :: Fixture -> [InterpreterOp]
-    operations fixture = [originateOp, transferOp fixture]
-
-    origination :: OriginationOperation
-    origination = dummyOrigination (Untyped.ValueInt 0) uSelfCaller
-    address = mkContractAddress origination
-    originateOp = OriginateOp origination
-
-    txData :: Fixture -> TxData
-    txData fixture = TxData
+integrationalScenario :: UntypedContract -> Fixture -> IntegrationalScenario
+integrationalScenario uSelfCaller fixture = do
+  setMaxSteps (fMaxSteps fixture)
+  address <- originate uSelfCaller (Untyped.ValueInt 0) (unsafeMkMutez 1)
+  let
+    txData :: TxData
+    txData = TxData
       { tdSenderAddress = genesisAddress
       , tdParameter = Untyped.ValueInt (fromIntegral $ fParameter fixture)
       , tdAmount = minBound
       }
-    transferOp fixture = TransferOp address (txData fixture)
-
-    integValidator :: Fixture -> IntegrationalValidator
-    integValidator fixture
+  transfer txData address
+  validate (validator address)
+  where
+    validator :: Address -> IntegrationalValidator
+    validator address
       | fExpectSuccess fixture =
         let expectedStorage =
               Untyped.ValueInt (fromIntegral $ fParameter fixture)
-         in Right $ expectStorageConstant address expectedStorage
+         in Right $ expectStorageUpdateConst address expectedStorage
       | otherwise = Left expectGasExhaustion

@@ -8,6 +8,7 @@ module Tezos.Address
   -- * Formatting
   , formatAddress
   , parseAddress
+  , unsafeParseAddress
   ) where
 
 import Data.Aeson (FromJSON(..), FromJSONKey, ToJSON(..), ToJSONKey)
@@ -84,6 +85,9 @@ instance Buildable.Buildable ParseAddressError where
         , ")"
         ]
 
+-- | Parse an address from its human-readable textual representation
+-- used by Tezos (e. g. "tz1faswCTDciRzE4oJ9jn2Vm2dvjeyA9fUzU"). Or
+-- fail if it's invalid.
 parseAddress :: Text -> Either ParseAddressError Address
 parseAddress addressText =
   case parseKeyHash addressText of
@@ -91,6 +95,11 @@ parseAddress addressText =
     Left keyAddrErr -> first (ParseAddressBothFailed keyAddrErr) $
       parseContractAddress addressText
     Right keyHash -> Right (KeyAddress keyHash)
+
+-- | Partial version of 'parseAddress' which assumes that the address
+-- is correct. Can be used in tests.
+unsafeParseAddress :: HasCallStack => Text -> Address
+unsafeParseAddress = either (error . pretty) id . parseAddress
 
 data ParseContractAddressError
   = ParseContractAddressWrongBase58Check

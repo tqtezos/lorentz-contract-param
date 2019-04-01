@@ -1,4 +1,6 @@
--- | Tests for the 'stringCaller.tz' contract.
+-- | Tests for the 'stringCaller.tz' contract and its interaction with
+-- the 'failOrStoreAndTransfer.tz' contract. Both of them have comments describing
+-- their behavior.
 
 module Test.Interpreter.StringCaller
   ( stringCallerSpec
@@ -9,76 +11,133 @@ import Test.Hspec.QuickCheck (modifyMaxSuccess, prop)
 import Test.QuickCheck.Instances.Text ()
 
 import Michelson.Typed
-import Michelson.Untyped
-  (OriginationOperation(..), UntypedContract, UntypedValue, mkContractAddress)
+import Michelson.Untyped (UntypedContract)
 import qualified Michelson.Untyped as Untyped
-import Morley.Runtime (InterpreterOp(..), TxData(..))
 import Morley.Runtime.GState
 import Morley.Test (specWithContract)
-import Morley.Test.Dummy
 import Morley.Test.Integrational
-import Tezos.Address (formatAddress)
+import Tezos.Address
 import Tezos.Core
 
 stringCallerSpec :: Spec
 stringCallerSpec =
   parallel $
   specWithContract "contracts/stringCaller.tz" $ \stringCaller ->
-  specWithContract "contracts/idString.tz" $ \idString ->
-  specImpl stringCaller idString
+  specWithContract "contracts/failOrStoreAndTransfer.tz" $ \failOrStoreAndTransfer ->
+  specImpl stringCaller failOrStoreAndTransfer
 
 specImpl ::
      (UntypedContract, Contract ('Tc 'CString) ('Tc 'CAddress))
   -> (UntypedContract, Contract ('Tc 'CString) ('Tc 'CString))
   -> Spec
-specImpl (uStringCaller, _stringCaller) (uIdString, _idString) = do
-  it "stringCaller calls idString and updates its storage with a constant" $
-    simplerIntegrationalTestExpectation
-      (operations newValueConstant)
-      (Right (updatesValidator newValueConstant))
+specImpl (uStringCaller, _stringCaller) (uFailOrStore, _failOrStoreAndTransfer) = do
+  let scenario = integrationalScenario uStringCaller uFailOrStore
+  let prefix =
+        "stringCaller calls failOrStoreAndTransfer and updates its storage with "
+  let suffix =
+        " and properly updates balances. But fails if failOrStoreAndTransfer's"
+        <> " balance is ≥ 1000 and NOW is ≥ 500"
+  it (prefix <> "a constant" <> suffix) $
+    integrationalTestExpectation (scenario constStr)
 
   -- The test is trivial, so it's kinda useless to run it many times
   modifyMaxSuccess (const 2) $
-    prop "stringCaller calls idString and updates its storage with an arbitrary value" $
-      \(Untyped.ValueString -> newValue) -> simplerIntegrationalTestProperty
-        (operations newValue)
-        (Right (updatesValidator newValue))
+    prop (prefix <> "an arbitrary value" <> suffix) $
+      \str -> integrationalTestProperty (scenario str)
   where
-    newValueConstant = Untyped.ValueString "caller"
+    constStr = "caller"
 
-    idStringOrigination :: OriginationOperation
-    idStringOrigination =
-      dummyOrigination (Untyped.ValueString "hello") uIdString
-    originateIdString = OriginateOp idStringOrigination
-    idStringAddress = mkContractAddress idStringOrigination
+integrationalScenario :: UntypedContract -> UntypedContract -> Text -> IntegrationalScenario
+integrationalScenario stringCaller failOrStoreAndTransfer str = do
+  let
+    initFailOrStoreBalance = unsafeMkMutez 900
+    initStringCallerBalance = unsafeMkMutez 500
 
-    stringCallerOrigination :: OriginationOperation
-    stringCallerOrigination =
-      dummyOrigination (Untyped.ValueString $ formatAddress idStringAddress)
-      uStringCaller
-    originateStringCaller = OriginateOp stringCallerOrigination
-    stringCallerAddress = mkContractAddress stringCallerOrigination
+  -- Originate both contracts
+  failOrStoreAndTransferAddress <-
+    originate failOrStoreAndTransfer (Untyped.ValueString "hello") initFailOrStoreBalance
+  stringCallerAddress <-
+    originate stringCaller
+    (Untyped.ValueString $ formatAddress failOrStoreAndTransferAddress)
+    initStringCallerBalance
 
-    txData :: UntypedValue -> TxData
-    txData newValue = TxData
+  -- NOW = 500, so stringCaller shouldn't fail
+  setNow (timestampFromSeconds @Int 500)
+
+  -- Transfer 100 tokens to stringCaller, it should transfer 300 tokens
+  -- to failOrStoreAndTransfer
+  let
+    newValue = Untyped.ValueString str
+    txData = TxData
       { tdSenderAddress = genesisAddress
       , tdParameter = newValue
-      , tdAmount = minBound
+      , tdAmount = unsafeMkMutez 100
       }
-    transferToStringCaller newValue =
-      TransferOp stringCallerAddress (txData newValue)
+    transferToStringCaller = transfer txData stringCallerAddress
+  transferToStringCaller
 
-    operations newValue =
-      [ originateIdString
-      , originateStringCaller
-      , transferToStringCaller newValue
-      ]
+  -- Execute operations and check balances and storage of 'failOrStoreAndTransfer'
+  do
+    let
+      -- `stringCaller.tz` transfers 300 mutez.
+      -- 'failOrStoreAndTransfer.tz' transfers 5 tokens.
+      -- Also 100 tokens are transferred from the genesis address.
+      expectedStringCallerBalance = unsafeMkMutez (500 - 300 + 100)
+      expectedFailOrStoreBalance = unsafeMkMutez (900 + 300 - 5)
+      expectedConstAddrBalance = unsafeMkMutez 5
 
-    -- `stringCaller.tz` transfers 2 mutez.
-    expectedIdStringBalance =
-      ooBalance idStringOrigination `unsafeAddMutez` unsafeMkMutez 2
+      updatesValidator :: SuccessValidator
+      updatesValidator = composeValidatorsList
+        [ expectStorageUpdateConst failOrStoreAndTransferAddress newValue
+        , expectBalance failOrStoreAndTransferAddress expectedFailOrStoreBalance
+        , expectBalance stringCallerAddress expectedStringCallerBalance
+        , expectBalance constAddr expectedConstAddrBalance
+        ]
+    validate (Right updatesValidator)
 
-    updatesValidator :: UntypedValue -> SuccessValidator
-    updatesValidator newValue =
-      expectStorageConstant idStringAddress newValue `composeValidators`
-      expectBalance idStringAddress expectedIdStringBalance
+  -- Now let's transfer 100 tokens to stringCaller again.
+  transferToStringCaller
+
+  -- This time execution should fail, because failOrStoreAndTransfer should fail
+  -- because its balance is greater than 1000.
+  void $ validate (Left $ expectMichelsonFailed failOrStoreAndTransferAddress)
+
+  -- We can also send tokens from failOrStoreAndTransfer to tz1 address directly
+  let
+    txDataToConst = TxData
+      { tdSenderAddress = failOrStoreAndTransferAddress
+      , tdParameter = Untyped.ValueUnit
+      , tdAmount = unsafeMkMutez 200
+      }
+  transfer txDataToConst constAddr
+
+  -- Let's check balance of failOrStoreAndTransfer and tz1 address.
+  -- We transferred 200 tokens from failOrStoreAndTransferAddress to constAddr.
+  do
+    let
+      expectedFailOrStoreBalance = unsafeMkMutez (900 + 300 - 5 - 200)
+      expectedConstAddrBalance = unsafeMkMutez (5 + 200)
+
+      updatesValidator :: SuccessValidator
+      updatesValidator = composeValidatorsList
+        [ expectBalance failOrStoreAndTransferAddress expectedFailOrStoreBalance
+        , expectBalance constAddr expectedConstAddrBalance
+        ]
+
+    void $ validate (Right updatesValidator)
+
+  -- Now we can transfer to stringCaller again and it should succeed
+  -- this time, because the balance of failOrStoreAndTransfer decreased
+  transferToStringCaller
+
+  -- Let's simply assert that it should succeed to keep the scenario shorter
+  void $ validate (Right expectAnySuccess)
+
+  -- Now let's set NOW to 600 and expect stringCaller to fail
+  setNow (timestampFromSeconds @Int 600)
+  transferToStringCaller
+  validate (Left $ expectMichelsonFailed stringCallerAddress)
+
+-- Address hardcoded in 'failOrStoreAndTransfer.tz'.
+constAddr :: Address
+constAddr = unsafeParseAddress "tz1faswCTDciRzE4oJ9jn2Vm2dvjeyA9fUzU"
