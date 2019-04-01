@@ -19,6 +19,7 @@ module Michelson.Typed.Value
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.Singletons (SingI)
+import Fmt (Buildable(build), (+|), (|+))
 
 import Michelson.EqParam
 import Michelson.Typed.CValue (CVal(..), FromCVal, ToCVal, fromCVal, toCVal)
@@ -42,6 +43,14 @@ data Operation instr where
     => CreateContract instr t cp st
     -> Operation instr
 
+instance Buildable (Operation instr) where
+  build =
+    \case
+      OpTransferTokens tt -> build tt
+      OpSetDelegate sd -> build sd
+      OpCreateAccount ca -> build ca
+      OpCreateContract cc -> build cc
+
 deriving instance Show (Operation instr)
 instance Eq (Operation instr) where
   op1 == op2 = case (op1, op2) of
@@ -60,9 +69,19 @@ data TransferTokens instr p = TransferTokens
   , ttContract :: !(Val instr ('TContract p))
   } deriving (Show, Eq)
 
+instance Buildable (TransferTokens instr p) where
+  build TransferTokens {..} =
+    "Transfer " +| ttAmount |+ " tokens to " +| destAddr |+ ""
+    where
+      destAddr = case ttContract of VContract addr -> addr
+
 data SetDelegate = SetDelegate
   { sdMbKeyHash :: !(Maybe KeyHash)
   } deriving (Show, Eq)
+
+instance Buildable SetDelegate where
+  build (SetDelegate mbDelegate) =
+    "Set delegate to " <> maybe "<nobody>" build mbDelegate
 
 data CreateAccount = CreateAccount
   { caManager :: !KeyHash
@@ -70,6 +89,13 @@ data CreateAccount = CreateAccount
   , caSpendable :: !Bool
   , caBalance :: !Mutez
   } deriving (Show, Eq)
+
+instance Buildable CreateAccount where
+  build CreateAccount {..} =
+    "Create a new account with manager " +| caManager |+
+    " and delegate " +| maybe "<nobody>" build caDelegate |+
+    ", spendable: " +| caSpendable |+
+    " and balance = " +| caBalance |+ ""
 
 data CreateContract instr t cp st
   = ( Show (instr (ContractInp cp st) (ContractOut st))
@@ -84,6 +110,14 @@ data CreateContract instr t cp st
   , ccStorageVal :: !(Val instr t)
   , ccContractCode :: !(instr (ContractInp cp st) (ContractOut st))
   }
+
+instance Buildable (CreateContract instr t cp st) where
+  build CreateContract {..} =
+    "Create a new contract with manager " +| ccManager |+
+    " and delegate " +| maybe "<nobody>" build ccDelegate |+
+    ", spendable: " +| ccSpendable |+
+    ", delegatable: " +| ccDelegatable |+
+    " and balance = " +| ccBalance |+ ""
 
 deriving instance Show (CreateContract instr t cp st)
 deriving instance Eq (CreateContract instr t cp st)
