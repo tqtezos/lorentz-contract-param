@@ -34,7 +34,7 @@ data Fixture = Fixture
 instance Arbitrary Fixture where
   arbitrary = do
     fNow <- timestampFromSeconds @Int <$> choose (100000, 111111)
-    fMaxSteps <- RemainingSteps <$> choose (1000, 1200)
+    fMaxSteps <- RemainingSteps <$> choose (1015, 1028)
     fPassOriginatedAddress <- arbitrary
     fBalance <- unsafeMkMutez <$> choose (1, 1234)
     fAmount <- unsafeMkMutez <$> choose (1, 42)
@@ -61,7 +61,7 @@ specImpl ::
   -> Spec
 specImpl (uEnvironment, _environment)  = do
   let scenario = integrationalScenario uEnvironment
-  modifyMaxSuccess (min 12) $
+  modifyMaxSuccess (min 50) $
     prop description $
       integrationalTestExpectation . scenario
   where
