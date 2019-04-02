@@ -22,7 +22,7 @@ build-and-test:
     refs:
       - merge_requests
       - master
-    changes:
+    changes: &changes
       - Dockerfile
       - .dockerignore
       - .gitlab-ci.yml
@@ -31,6 +31,7 @@ build-and-test:
       - app/**/*
       - src/**/*
       - prelude/**/*
+      - examples/EDSL/**/*
   script:
     - cp /usr/lib/gcc/x86_64-linux-gnu/6/crtbeginT.o /usr/lib/gcc/x86_64-linux-gnu/6/crtbeginT.o.orig
     - cp /usr/lib/gcc/x86_64-linux-gnu/6/crtbeginS.o /usr/lib/gcc/x86_64-linux-gnu/6/crtbeginT.o
@@ -43,6 +44,10 @@ build-and-test:
         --haddock --no-haddock-deps
     - stack $STACK_OPTIONS
         test morley
+    # Test EDSL examples
+    - stack $STACK_OPTIONS
+        --stack-yaml examples/EDSL/stack.yaml
+        test
     - rm -rf "$STACK_ROOT/programs"  # Faster to download them again
   artifacts:
     paths:
@@ -67,15 +72,7 @@ build-docker:
   only:
     refs:
       - master
-    changes:
-      - Dockerfile
-      - .dockerignore
-      - .gitlab-ci.yml
-      - morley.cabal
-      - stack.yaml
-      - app/**/*
-      - src/**/*
-      - prelude/**/*
+    changes: *changes
   script:
     - docker build -t $IMAGE_TAG .
     - docker push $IMAGE_TAG
