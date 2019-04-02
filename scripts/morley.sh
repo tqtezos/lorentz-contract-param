@@ -86,7 +86,7 @@ if [ "$user_db_filepath" = "" ];
 then
     user_db_filepath=$default_db_filepath
 fi
-if [ "$subcommand" != "parse" ] && [ "$subcommand" != "typecheck" ];
+if [ "$subcommand" != "parse" ] && [ "$subcommand" != "typecheck" ] && [ "$subcommand" != "print" ];
 then
     args+=("--db" "$mnt_dir/db/$user_db_filepath")
 fi
