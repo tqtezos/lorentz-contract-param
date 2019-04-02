@@ -17,9 +17,11 @@ It consists of the following parts:
 
 ## II: Morley extensions
 
-The Morley Language is a superset of the Michelson language, which means that each Michelson contract is also a valid Morley contract but not vice versa.
+One way to test Michelson contracts is to use the Morley language.
+It is a superset of the Michelson language, which means that each Michelson contract is also a valid Morley contract but not vice versa.
 There are several extensions which make it more convenient to write Michelson contracts and test them.
-See [the document](/docs/morleyLanguage.md) about these extensions.
+For example, one can write inline assertions in their contracts for testing.
+All the details can be found in [the document](/docs/morleyLanguage.md) about these extensions.
 Also there is a transpiler from Morley to Michelson.
 
 ## III: Morley-to-Michelson transpiler
@@ -33,10 +35,10 @@ Workflow is the following:
 
 ## IV: Testing EDSL
 
-Testing EDSL makes it possible to write tests in Haskell.
+Another way to test Michelson contracts is to write tests in Haskell using testing EDSL provided by Morley.
 It supports both integrational and unit tests.
 Tests of both types can use static data or arbitrary data.
-There is [a document](/docs/testingEDSL.md) with a detailed description of EDSL and a tutorial about its usage.
+There is [a document](/docs/testingEDSL.md) with a detailed description of the EDSL and a tutorial about its usage.
 
 ## Running and building
 
