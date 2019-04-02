@@ -6,6 +6,7 @@ module Morley.Test
   ( -- * Importing a contract
     specWithContract
   , specWithTypedContract
+  , specWithUntypedContract
 
   -- * Unit testing
   , ContractReturn

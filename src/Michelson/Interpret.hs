@@ -79,7 +79,7 @@ data MichelsonFailed where
 
 deriving instance Show MichelsonFailed
 
-instance (ConversibleExt, Buildable U.ExpandedInstr) => Buildable MichelsonFailed where
+instance (ConversibleExt) => Buildable MichelsonFailed where
   build =
     \case
       MichelsonFailedWith (v :: Val Instr t) ->
@@ -106,7 +106,7 @@ data InterpretUntypedError s
 
 deriving instance (Buildable U.ExpandedInstr, Show s) => Show (InterpretUntypedError s)
 
-instance (ConversibleExt, Buildable U.ExpandedInstr, Buildable s) => Buildable (InterpretUntypedError s) where
+instance (ConversibleExt, Buildable s) => Buildable (InterpretUntypedError s) where
   build = genericF
 
 data InterpretUntypedResult s where

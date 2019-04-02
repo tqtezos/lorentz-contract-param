@@ -15,20 +15,18 @@ module Morley.Macro
   , expandCadr
   , expandSetCadr
   , expandMapCadr
-
   ) where
-
 
 import Michelson.Untyped (UntypedContract, UntypedValue)
 import Morley.Types
-  (CadrStruct(..), Contract(..), Elt(..), ExpandedOp(..), FieldAnn,
-  InstrAbstract(..), LetMacro(..), Macro(..), PairStruct(..), ParsedOp(..), TypeAnn,
-  UExtInstrAbstract(..), Value(..), VarAnn, ann, noAnn)
+  (CadrStruct(..), Contract(..), Elt(..), ExpandedOp(..), FieldAnn, InstrAbstract(..),
+  LetMacro(..), Macro(..), PairStruct(..), ParsedOp(..), TypeAnn, UExtInstrAbstract(..), Value(..),
+  VarAnn, ann, noAnn)
 
 expandList :: [ParsedOp] -> [ExpandedOp]
 expandList = fmap expand
 
--- | Expand and flatten and instructions in parsed contract.
+-- | Expand all macros in parsed contract.
 expandContract :: Contract ParsedOp -> UntypedContract
 expandContract Contract {..} =
   Contract para stor (expandList $ code)
@@ -52,6 +50,11 @@ expandElt :: Elt ParsedOp -> Elt ExpandedOp
 expandElt (Elt l r) = Elt (expandValue l) (expandValue r)
 
 expand :: ParsedOp -> ExpandedOp
+-- We handle this case specially, because it's essentially just PAIR.
+-- It's needed because we have a hack in parser: we parse PAIR as PAPAIR.
+-- We need to do something better eventually.
+expand (Mac (PAPAIR (P (F a) (F b)) t v)) =
+  PrimEx $ PAIR t v (snd a) (snd b)
 expand (Mac m)  = SeqEx $ expandMacro m
 expand (Prim i) = PrimEx $ expand <$> i
 expand (Seq s)  = SeqEx $ expand <$> s

@@ -26,6 +26,8 @@ library
   hs-source-dirs:      src
   default-language:    Haskell2010
   exposed-modules:     Michelson.Interpret
+                     , Michelson.Printer
+                     , Michelson.Printer.Util
                      , Michelson.TypeCheck
                      , Michelson.Typed
                      , Michelson.Typed.Value
@@ -86,6 +88,7 @@ library
                      , data-default
                      , fmt
                      , formatting
+                     , hex-text
                      , hspec
                      , lens
                      , megaparsec >= 7.0.0
@@ -103,6 +106,7 @@ library
                      , singletons
                      , mtl
                      , vinyl
+                     , wl-pprint-text
   ghc-options:        -Weverything
                       -Wno-missing-exported-signatures
                       -Wno-missing-import-lists
@@ -230,6 +234,7 @@ test-suite morley-test
                      , Test.Ext
                      , Test.Morley.Runtime
                      , Test.Parser
+                     , Test.Printer.Michelson
                      , Test.Serialization.Aeson
                      , Test.Tezos.Address
                      , Test.Tezos.Crypto

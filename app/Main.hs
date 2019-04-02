@@ -15,6 +15,7 @@ import qualified Options.Applicative as Opt
 import Paths_morley (version)
 import Text.Pretty.Simple (pPrint)
 
+import Michelson.Printer (printUntypedContract)
 import Michelson.Untyped hiding (OriginationOperation(..))
 import qualified Michelson.Untyped as Un
 import Morley.Ext (typeCheckMorleyContract)
@@ -30,6 +31,7 @@ import Tezos.Crypto
 
 data CmdLnArgs
   = Parse (Maybe FilePath) Bool
+  | Print (Maybe FilePath)
   | TypeCheck (Maybe FilePath) Bool
   | Run !RunOptions
   | Originate !OriginateOptions
@@ -72,6 +74,7 @@ data TransferOptions = TransferOptions
 argParser :: Opt.Parser CmdLnArgs
 argParser = subparser $
   parseSubCmd <>
+  printSubCmd <>
   typecheckSubCmd <>
   runSubCmd <>
   originateSubCmd <>
@@ -91,6 +94,12 @@ argParser = subparser $
       mkCommandParser "typecheck"
       (uncurry TypeCheck <$> typecheckOptions)
       "Typecheck passed contract"
+
+    printSubCmd =
+      mkCommandParser "print"
+      (Print <$> printOptions)
+      ("Parse a Morley contract and print corresponding Michelson " <>
+       "contract that can be parsed the OCaml reference client")
 
     runSubCmd =
       mkCommandParser "run"
@@ -138,6 +147,9 @@ argParser = subparser $
 
     defaultBalance :: Mutez
     defaultBalance = unsafeMkMutez 4000000
+
+    printOptions :: Opt.Parser (Maybe FilePath)
+    printOptions = contractFileOption
 
     runOptions :: Opt.Parser RunOptions
     runOptions =
@@ -296,6 +308,9 @@ main = do
         if hasExpandMacros
           then pPrint $ expandContract contract
           else pPrint contract
+      Print mFilename -> do
+        contract <- prepareContract mFilename
+        putStrLn $ printUntypedContract contract
       TypeCheck mFilename _hasVerboseFlag -> do
         michelsonContract <- prepareContract mFilename
         void $ either throwM pure $

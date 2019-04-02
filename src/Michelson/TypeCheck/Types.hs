@@ -127,7 +127,7 @@ data TCError =
   | TCFailedOnValue U.UntypedValue T Text
   | TCOtherError Text
 
-instance Buildable U.ExpandedInstr => Buildable TCError where
+instance Buildable TCError where
   build = \case
     TCFailedOnInstr instr (SomeHST t) custom ->
       "Error checking expression " +| instr

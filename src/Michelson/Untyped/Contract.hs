@@ -10,9 +10,10 @@ module Michelson.Untyped.Contract
 
 import Data.Aeson.TH (defaultOptions, deriveJSON)
 import Data.Data (Data(..))
-import Fmt (genericF)
 import Formatting.Buildable (Buildable(build))
+import Text.PrettyPrint.Leijen.Text (nest, semi, (<$$>), (<+>))
 
+import Michelson.Printer.Util (RenderDoc(..), buildRenderDoc, renderOpsList)
 import Michelson.Untyped.Type (Type)
 
 type Parameter = Type
@@ -23,7 +24,13 @@ data Contract op = Contract
   , code :: [op]
   } deriving stock (Eq, Show, Functor, Data, Generic)
 
-instance Buildable op => Buildable (Contract op) where
-  build = genericF
+instance (RenderDoc op) => RenderDoc (Contract op) where
+  renderDoc (Contract parameter storage code) =
+    "parameter" <+> renderDoc parameter  <> semi <$$>
+    "storage"   <+> renderDoc storage    <> semi <$$>
+    "code"      <+> nest (length ("code {" :: Text)) (renderOpsList False code <> semi)
+
+instance RenderDoc op => Buildable (Contract op) where
+  build = buildRenderDoc
 
 deriveJSON defaultOptions ''Contract

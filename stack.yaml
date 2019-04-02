@@ -40,8 +40,9 @@ packages:
 # using the same syntax as the packages field.
 # (e.g., acme-missiles-0.3)
 extra-deps:
-  - aeson-options-0.1.0
-  - base58-bytestring-0.1.0
+- aeson-options-0.1.0
+- base58-bytestring-0.1.0
+- hex-text-0.1.0.0
 
 nix:
   shell-file: shell.nix

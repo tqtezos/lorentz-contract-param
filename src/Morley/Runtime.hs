@@ -8,6 +8,8 @@ module Morley.Runtime
        , transfer
 
        -- * Other helpers
+       , parseContract
+       , parseExpandContract
        , readAndParseContract
        , prepareContract
 
@@ -137,14 +139,23 @@ instance Exception InterpreterError where
 -- Interface
 ----------------------------------------------------------------------------
 
+-- | Parse a contract from 'Text'.
+parseContract ::
+     Maybe FilePath -> Text -> Either P.ParserException (Contract ParsedOp)
+parseContract mFileName =
+  first P.ParserException . parse P.program (fromMaybe "<stdin>" mFileName)
+
+-- | Parse a contract from 'Text' and expand macros.
+parseExpandContract ::
+     Maybe FilePath -> Text -> Either P.ParserException UntypedContract
+parseExpandContract mFileName = fmap expandContract . parseContract mFileName
+
 -- | Read and parse a contract from give path or `stdin` (if the
 -- argument is 'Nothing'). The contract is not expanded.
 readAndParseContract :: Maybe FilePath -> IO (Contract ParsedOp)
 readAndParseContract mFilename = do
   code <- readCode mFilename
-  let filename = fromMaybe "<stdin>" mFilename
-  either (throwM . P.ParserException) pure $
-    parse P.program filename code
+  either throwM pure $ parseContract mFilename code
   where
     readCode :: Maybe FilePath -> IO Text
     readCode = maybe getContents readFile
