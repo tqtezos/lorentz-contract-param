@@ -8,6 +8,7 @@ cache:
 
 stages:
   - test
+  - test-script
   - build
 
 variables:
@@ -28,10 +29,12 @@ build-and-test:
       - .gitlab-ci.yml
       - morley.cabal
       - stack.yaml
+      - test.bats
       - app/**/*
       - src/**/*
       - prelude/**/*
       - examples/EDSL/**/*
+      - scripts/morley.sh
   script:
     - cp /usr/lib/gcc/x86_64-linux-gnu/6/crtbeginT.o /usr/lib/gcc/x86_64-linux-gnu/6/crtbeginT.o.orig
     - cp /usr/lib/gcc/x86_64-linux-gnu/6/crtbeginS.o /usr/lib/gcc/x86_64-linux-gnu/6/crtbeginT.o
@@ -52,6 +55,22 @@ build-and-test:
   artifacts:
     paths:
       - tmp/morley
+
+test-shell-script:
+  image: alpine
+  stage: test-script
+  tags:
+    - docker-executor
+  dependencies:
+    - build-and-test
+  only:
+    refs:
+      - merge_requests
+    changes: *changes
+  script:
+    - apk add bats
+    - bats test.bats
+
 
 build-docker:
   image: docker:stable
