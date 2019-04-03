@@ -53,21 +53,23 @@ Morley executable provides following functionality:
 You can get more info about this command by running `morley <command> --help`
 
 There are two ways to get morley executable:
-- [Docker](https://docs.docker.com/) based (preferable). Get [script](/scripts/morley.sh)
+- [Docker](https://docs.docker.com/) based (preferable).
+  * Get [script](/scripts/morley.sh)
  (e. g. using `curl https://gitlab.com/camlcase-dev/morley/raw/master/scripts/morley.sh > morley.sh`)
   and run it `./morley.sh <args>`. This script will pull docker image that contains latest version of morley executable from master branch and run it with given arguments.
-  Usage example:
-  `./morley.sh` to see help message
-  `./morley.sh run --contract add1.tz --storage 1 --parameter 1 --amount 1`
-- [Stack](https://docs.haskellstack.org/en/stable/README/) based. Clone this git repository and run `stack build` command,
-  after that you can do `stack exec -- morley <args>` to run morley executable built from source code.
-  Usage example:
-  `stack exec -- morley --help` to see help message
-  `stack exec -- morley originate --contract contracts/add1.tz --storage 1 --verbose`
+  * Usage example:
+    + `./morley.sh` to see help message
+    + `./morley.sh run --contract add1.tz --storage 1 --parameter 1 --amount 1`
+- [Stack](https://docs.haskellstack.org/en/stable/README/) based.
+  * Clone this git repository and run `stack build` command,
+    after that you can do `stack exec -- morley <args>` to run morley executable built from source code.
+  * Usage example:
+    + `stack exec -- morley --help` to see help message
+    + `stack exec -- morley originate --contract contracts/add1.tz --storage 1 --verbose`
 
-For more information about morley commands check out following docs:
-- [interpreter doc](/docs/morleyInterpreter.md)
-- [typechecker doc](/docs/morleyTypechecker.md)
+For more information about morley commands check out the following docs:
+- [Interpreter doc](/docs/morleyInterpreter.md)
+- [Typechecker doc](/docs/morleyTypechecker.md)
 
 ## Issue Tracker
 
