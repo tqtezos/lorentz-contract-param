@@ -23,6 +23,7 @@ build-and-test:
     refs:
       - merge_requests
       - master
+      - production
     changes: &changes
       - Dockerfile
       - .dockerignore
@@ -71,14 +72,13 @@ test-shell-script:
     - apk add bats
     - bats test.bats
 
-
-build-docker:
+build-docker-latest:
   image: docker:stable
 
   tags:
     - shell-executor
 
-  before_script:
+  before_script: &docker_login
     - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
 
 
@@ -92,6 +92,26 @@ build-docker:
     refs:
       - master
     changes: *changes
-  script:
+  script: &docker_script
     - docker build -t $IMAGE_TAG .
     - docker push $IMAGE_TAG
+
+build-docker-production:
+  image: docker:stable
+
+  tags:
+    - shell-executor
+
+  before_script: *docker_login
+
+  variables:
+    IMAGE_TAG: $CI_REGISTRY_IMAGE:production
+
+  stage: build
+  dependencies:
+    - build-and-test
+  only:
+    refs:
+      - production
+    changes: *changes
+  script: *docker_script

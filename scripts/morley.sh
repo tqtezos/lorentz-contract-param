@@ -4,7 +4,6 @@ set -e
 docker_dir="$HOME/.morley"
 mnt_dir="/mnt"
 mkdir -p "$docker_dir"
-docker_pull_timestamp="$docker_dir/docker_pull.timestamp"
 docker_image=registry.gitlab.com/tezos-standards/morley
 
 maybe_pull_image() {
@@ -29,9 +28,32 @@ else
         echo "Docker does not seem to be installed."
         exit 1
     fi
+    typeset -a newargs;
+
+    for arg in "$@"
+    do
+        if [ "$arg" = "--latest" ];
+        then
+            latest_flag=true
+        else
+            newargs+=("$arg")
+        fi
+    done
+
+    # Drop --latest from arguments if it is presented
+    set -- "${newargs[@]}"
+
+    if [ -n "$latest_flag" ];
+    then
+        docker_image="$docker_image:latest"
+        docker_pull_timestamp="$docker_dir/docker_pull_latest.timestamp"
+    else
+        docker_image="$docker_image:production"
+        docker_pull_timestamp="$docker_dir/docker_pull_production.timestamp"
+    fi
+
     maybe_pull_image
 fi
-
 
 manpage() {
     if [ "$executable_filepath" = "" ]
@@ -46,9 +68,13 @@ manpage() {
     echo ""
     echo "Also you can use --docker_debug to see additional informations such as"
     echo "arguments that are being passed to docker run"
+    echo ""
+    echo "You can pass --latest to use docker image that is built from latest version"
+    echo "of master branch. Otherwise latest version from production branch"
+    echo "will be used"
 }
 
-if [ "$#" -eq 0 ];
+if [[ "$#" -eq 0 ]] || [[ "$#" -eq 1 && "$1" = "--latest" ]];
 then
     manpage
     exit 0
