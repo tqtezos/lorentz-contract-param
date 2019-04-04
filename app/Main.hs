@@ -7,11 +7,11 @@ import Data.Version (showVersion)
 import Fmt (pretty)
 import Named ((!))
 import Options.Applicative
-  (auto, command, eitherReader, execParser, footerDoc, fullDesc, header, help, helper, info, infoOption,
-  long, maybeReader, metavar, option, progDesc, readerError, short, showDefault, showDefaultWith,
-  strOption, subparser, switch, value)
-import Options.Applicative.Help.Pretty (Doc, linebreak)
+  (auto, command, eitherReader, execParser, footerDoc, fullDesc, header, help, helper, info,
+  infoOption, long, maybeReader, metavar, option, progDesc, readerError, short, showDefault,
+  showDefaultWith, strOption, subparser, switch, value)
 import qualified Options.Applicative as Opt
+import Options.Applicative.Help.Pretty (Doc, linebreak)
 import Paths_morley (version)
 import Text.Pretty.Simple (pPrint)
 
@@ -346,11 +346,11 @@ usageDoc = Just $ mconcat
    , "  morley run --help", linebreak
    , linebreak
    , "Documentation for morley tools can be found at the following links:", linebreak
-   , "  https://gitlab.com/camlcase-dev/morley/blob/master/README.md", linebreak
-   , "  https://gitlab.com/camlcase-dev/morley/tree/master/docs", linebreak
+   , "  https://gitlab.com/tezos-standards/morley/blob/master/README.md", linebreak
+   , "  https://gitlab.com/tezos-standards/morley/tree/master/docs", linebreak
    , linebreak
    , "Sample contracts for running can be found at the following link:", linebreak
-   , "  https://gitlab.com/camlcase-dev/morley/tree/master/contracts", linebreak
+   , "  https://gitlab.com/tezos-standards/morley/tree/master/contracts", linebreak
    , linebreak
    , "USAGE EXAMPLE:", linebreak
    , "  morley parse --contract add1.tz", linebreak

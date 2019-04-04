@@ -5,11 +5,11 @@ synopsis:            Developer tools for the Michelson Language
 description:
   A library to make writing smart contracts in Michelson — the smart contract
   language of the Tezos blockchain — pleasant and effective.
-homepage:            https://gitlab.com/camlcase-dev/morley
+homepage:            https://gitlab.com/tezos-standards/morley
 license:             AGPL-3.0-or-later
 license-file:        LICENSE
-author:              camlCase, Serokell
-maintainer:          john@camlcase.io
+author:              camlCase, Serokell, Tocqueville Group
+maintainer:          john.c.burnham@gmail.com
 copyright:           2018 camlCase, 2019 Tocqueville Group
 category:            Language
 build-type:          Simple
@@ -20,7 +20,7 @@ extra-doc-files:     CHANGES.md
 
 source-repository head
   type:     git
-  location: git@gitlab.com:camlcase-dev/morley.git
+  location: git@gitlab.com:tezos-standards/morley.git
 
 library
   hs-source-dirs:      src

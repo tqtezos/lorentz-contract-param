@@ -31,7 +31,7 @@ You should use it if you want to develop contracts in Morley and submit them to 
 Workflow is the following:
 
 1. If your contract is called `foo.mtz`, use `morley print --contract foo.mtz > foo.tz`. Note that normally you should not use `morley` directly, you should use `morley.sh` or `stack exec -- morley`. See usage instructions below.
-2. After that, you can use existing Tezos tools to deploy your contract. You can also typecheck or interpret it using a reference implementation. If you are not familiar with the Tezos tooling, please read [Tezos documentation](http://tezos.gitlab.io/zeronet/index.html) or [Michelson tutorial](https://gitlab.com/camlcase-dev/michelson-tutorial).
+2. After that, you can use existing Tezos tools to deploy your contract. You can also typecheck or interpret it using a reference implementation. If you are not familiar with the Tezos tooling, please read [Tezos documentation](http://tezos.gitlab.io/zeronet/index.html) or [Michelson tutorial](https://gitlab.com/tezos-standards/michelson-tutorial).
 
 ## IV: Testing EDSL
 
@@ -55,7 +55,7 @@ You can get more info about this command by running `morley <command> --help`
 There are two ways to get Morley executable:
 - [Docker](https://docs.docker.com/) based (preferable).
   * Get [script](/scripts/morley.sh)
- (e. g. using `curl https://gitlab.com/camlcase-dev/morley/raw/master/scripts/morley.sh > morley.sh`)
+ (e. g. using `curl https://gitlab.com/tezos-standards/morley/raw/master/scripts/morley.sh > morley.sh`)
   and run it `./morley.sh <args>`. This script will pull a docker image that contains the latest version of Morley executable from the master branch and run it with the given arguments.
   * Usage example:
     + `./morley.sh` to see help message
