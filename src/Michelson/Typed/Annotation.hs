@@ -27,11 +27,12 @@ module Michelson.Typed.Annotation
   ) where
 
 import Data.Default (Default(..))
+import qualified Data.Kind as Kind
 import Fmt (Buildable(..), (+|), (|+))
 
+import Michelson.EqParam
 import Michelson.Typed.T (T(..))
-import Michelson.Untyped.Annotation
-  (Annotation, FieldAnn, TypeAnn, unifyAnn)
+import Michelson.Untyped.Annotation (Annotation, FieldAnn, TypeAnn, unifyAnn)
 
 -- | Data type, holding annotation data for a given Michelson type @t@
 -- or @*@ in case no data is provided for the tree.
@@ -45,6 +46,7 @@ import Michelson.Untyped.Annotation
 -- no-annotation case completely for free (see 'converge' and 'mkNotes'
 -- functions).
 data Notes t = N (Notes' t) | NStar
+  deriving (Eq)
 
 deriving instance Show (Notes p)
 
@@ -89,7 +91,8 @@ data Notes' t where
   NTMap       :: TypeAnn -> TypeAnn -> Notes v -> Notes' ('TMap k v)
   NTBigMap   :: TypeAnn -> TypeAnn -> Notes v -> Notes' ('TBigMap k v)
 
-deriving instance Show (Notes' p)
+deriving instance Show (Notes' t)
+deriving instance Eq (Notes' t)
 
 -- | Check whether given annotations object is @*@.
 isStar :: Notes t -> Bool
@@ -167,10 +170,15 @@ converge (N a) (N b) = N <$> converge' a b
 
 data AnnConvergeError where
   AnnConvergeError
-    :: (Buildable (Annotation tag), Show (Annotation tag))
+    :: forall (tag :: Kind.Type).
+       (Buildable (Annotation tag), Show (Annotation tag), Typeable tag)
     => Annotation tag -> Annotation tag -> AnnConvergeError
 
 deriving instance Show AnnConvergeError
+
+instance Eq AnnConvergeError where
+  AnnConvergeError ann1 ann2 == AnnConvergeError ann1' ann2' =
+    (ann1 `eqParam1` ann1') && (ann2 `eqParam1` ann2')
 
 instance Buildable AnnConvergeError where
   build (AnnConvergeError ann1 ann2) =
@@ -178,7 +186,8 @@ instance Buildable AnnConvergeError where
 
 -- | Converge two type or field notes (which may be wildcards).
 convergeAnns
-  :: (Buildable (Annotation tag), Show (Annotation tag))
+  :: forall (tag :: Kind.Type).
+     (Buildable (Annotation tag), Show (Annotation tag), Typeable tag)
   => Annotation tag -> Annotation tag -> Either AnnConvergeError (Annotation tag)
 convergeAnns a b = maybe (Left $ AnnConvergeError a b)
                           pure $ unifyAnn a b

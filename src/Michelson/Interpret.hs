@@ -31,6 +31,7 @@ import Data.Singletons (SingI(..))
 import Data.Typeable ((:~:)(..))
 import Data.Vinyl (Rec(..), (<+>))
 import Fmt (Buildable(build), Builder, genericF)
+import Michelson.EqParam (eqParam1, eqParam2)
 
 import Michelson.Interpret.Pack (packValue')
 import Michelson.TypeCheck
@@ -73,12 +74,22 @@ data ContractEnv = ContractEnv
 -- | Represents `[FAILED]` state of a Michelson program. Contains
 -- value that was on top of the stack when `FAILWITH` was called.
 data MichelsonFailed where
-  MichelsonFailedWith :: SingI t => T.Value t -> MichelsonFailed
-  MichelsonArithError :: ArithError (CValue n) (CValue m) -> MichelsonFailed
+  MichelsonFailedWith :: (Typeable t, SingI t) => T.Value t -> MichelsonFailed
+  MichelsonArithError :: (Typeable n, Typeable m) => ArithError (CValue n) (CValue m) -> MichelsonFailed
   MichelsonGasExhaustion :: MichelsonFailed
   MichelsonFailedOther :: Text -> MichelsonFailed
 
 deriving instance Show MichelsonFailed
+
+instance Eq MichelsonFailed where
+  MichelsonFailedWith v1 == MichelsonFailedWith v2 = v1 `eqParam1` v2
+  MichelsonFailedWith _ == _ = False
+  MichelsonArithError ae1 == MichelsonArithError ae2 = ae1 `eqParam2` ae2
+  MichelsonArithError _ == _ = False
+  MichelsonGasExhaustion == MichelsonGasExhaustion = True
+  MichelsonGasExhaustion == _ = False
+  MichelsonFailedOther t1 == MichelsonFailedOther t2 = t1 == t2
+  MichelsonFailedOther _ == _ = False
 
 instance ConversibleExt => Buildable MichelsonFailed where
   build =
@@ -418,7 +429,7 @@ runInstrImpl _ ADDRESS (VContract a :& r) = pure $ VC (CvAddress a) :& r
 
 -- | Evaluates an arithmetic operation and either fails or proceeds.
 runArithOp
-  :: ArithOp aop n m
+  :: (ArithOp aop n m, Typeable n, Typeable m)
   => proxy aop
   -> CValue n
   -> CValue m

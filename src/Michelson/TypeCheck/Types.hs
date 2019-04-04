@@ -1,6 +1,7 @@
 module Michelson.TypeCheck.Types
     ( HST (..)
     , SomeHST (..)
+    , SomeInstrOut (..)
     , SomeInstr (..)
     , SomeValue (..)
     , SomeContract (..)
@@ -15,6 +16,7 @@ import Fmt (Buildable(..))
 import Prelude hiding (EQ, GT, LT)
 import qualified Text.Show
 
+import Michelson.EqParam (eqParam1)
 import Michelson.Typed (ConversibleExt, HasNoOp, Notes(..), Sing(..), T(..), fromSingT)
 import qualified Michelson.Typed as T
 import Michelson.Typed.Instr
@@ -66,30 +68,57 @@ instance Show (HST ts) where
 
 infixr 7 ::&
 
+instance Eq (HST ts) where
+  SNil == SNil = True
+  (_, n1, a1) ::& h1 == (_, n2, a2) ::& h2 =
+    n1 == n2 && a1 == a2 && h1 == h2
+
 -- | No-argument type wrapper for @HST@ data type.
 data SomeHST where
   SomeHST :: Typeable ts => HST ts -> SomeHST
 
 deriving instance Show SomeHST
 
--- | Data type holding both instruction and
--- type representations of instruction's input and output.
---
--- Intput and output stack types are wrapped inside the type and @Typeable@
--- constraints are provided to allow convenient unwrapping.
-data SomeInstr inp where
-  (:::) :: Typeable out
-        => Instr inp out
-        -> (HST inp, HST out)
-        -> SomeInstr inp
-  SiFail :: SomeInstr inp
+instance Eq SomeHST where
+  SomeHST hst1 == SomeHST hst2 = hst1 `eqParam1` hst2
 
-  -- TODO use this constructor (to have closer reflection of expression)
-  -- SiFail :: Typeable inp => Instr cp inp out -> HST inp -> SomeInstr cp
+-- | This data type keeps part of type check result - instruction and
+-- corresponding output stack.
+data SomeInstrOut inp where
+  -- | Type-check result with concrete output stack, most common case.
+  --
+  -- Output stack type is wrapped inside the type and @Typeable@
+  -- constraint is provided to allow convenient unwrapping.
+  (:::)
+    :: (Typeable out)
+    => Instr inp out
+    -> HST out
+    -> SomeInstrOut inp
+
+  -- | Type-check result which matches against arbitrary output stack.
+  -- Information about annotations in the output stack is absent.
+  --
+  -- This case is only possible when the corresponding code terminates
+  -- with @FAILWITH@ instruction in all possible executions.
+  -- The opposite may be not true though (example: you push always-failing
+  -- lambda and immediatelly execute it - stack type is known).
+  AnyOutInstr
+    :: (forall out. Instr inp out)
+    -> SomeInstrOut inp
+infix 9 :::
+
+instance Show InstrExtT => Show (SomeInstrOut inp) where
+  show (i ::: out) = show i <> " :: " <> show out
+  show (AnyOutInstr i) = show i <> " :: *"
+
+-- | Data type keeping the whole type check result: instruction and
+-- type representations of instruction's input and output.
+data SomeInstr inp where
+  (:/) :: HST inp -> SomeInstrOut inp -> SomeInstr inp
+infix 8 :/
 
 instance Show InstrExtT => Show (SomeInstr inp) where
-  show (i ::: (inp, out)) = show i <> " :: " <> show inp <> " -> " <> show out
-  show SiFail = "failed"
+  show (inp :/ out) = show inp <> " -> " <> show out
 
 -- | Data type, holding strictly-typed Michelson value along with its
 -- type singleton.

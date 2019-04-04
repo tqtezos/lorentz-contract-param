@@ -7,13 +7,13 @@ module Michelson.TypeCheck.Error
 
 
 import Data.Data (TypeRep)
-import Fmt (Buildable(..), (+|), (|+), (+||), (||+), pretty)
+import Fmt (Buildable(..), pretty, (+|), (+||), (|+), (||+))
 import qualified Text.Show (show)
 
 import Michelson.TypeCheck.Types (SomeHST(..))
+import qualified Michelson.Typed as T
 import Michelson.Typed.Annotation (AnnConvergeError(..))
 import Michelson.Typed.Extract (TypeConvergeError(..), toUType)
-import qualified Michelson.Typed as T
 import qualified Michelson.Untyped as U
 
 import Morley.Types
@@ -34,7 +34,7 @@ data TCTypeError
   -- have support for some types
   | UnknownType TypeRep
   -- ^ Error that happens when we meet unknown type
-  deriving (Show)
+  deriving (Show, Eq)
 
 instance Buildable TCTypeError where
   build (AnnError e)= build e
@@ -51,7 +51,9 @@ data TCError
   = TCFailedOnInstr U.ExpandedInstr SomeHST Text (Maybe TCTypeError)
   | TCFailedOnValue U.Value T.T Text (Maybe TCTypeError)
   | TCContractError Text (Maybe TCTypeError)
+  | TCUnreachableCode (NonEmpty U.ExpandedOp)
   | TCExtError SomeHST ExtError
+  deriving (Eq)
 
 instance Buildable TCError where
   build = \case
@@ -68,6 +70,8 @@ instance Buildable TCError where
     TCContractError msg typeError ->
       "Error occured during contract typecheck: "
       +|| msg ||+ (maybe "" (\e -> " " +| e |+ "") typeError)
+    TCUnreachableCode instrs ->
+      "Unreachable code: " +| take 3 (toList instrs) |+ " ..."
     TCExtError (SomeHST t) e ->
       "Error occured during Morley extension typecheck: "
       +| e |+ " on stack " +| t ||+ ""
@@ -77,7 +81,8 @@ instance Buildable U.ExpandedInstr => Show TCError where
 
 instance Buildable U.ExpandedInstr => Exception TCError
 
-newtype StackSize = StackSize Natural deriving (Show)
+newtype StackSize = StackSize Natural
+  deriving (Show, Eq)
 
 -- | Various type errors possible when checking Morley extension commands
 data ExtError =
@@ -90,6 +95,7 @@ data ExtError =
   | UnexpectedUExt ExpandedUExtInstr
   | TestAssertError Text
   | InvalidStackReference StackRef StackSize
+  deriving (Eq)
 
 instance Buildable ExtError where
   build = \case

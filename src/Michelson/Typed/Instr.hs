@@ -121,7 +121,7 @@ data Instr (inp :: [T]) (out :: [T]) where
          => Value' Instr ('TLambda i o) -> Instr s ('TLambda i o ': s)
   EXEC :: Typeable t1 => Instr (t1 ': 'TLambda t1 t2 ': s) (t2 ': s)
   DIP :: Typeable a => Instr a c -> Instr (b ': a) (b ': c)
-  FAILWITH :: SingI a => Instr (a ': s) t
+  FAILWITH :: (Typeable a, SingI a) => Instr (a ': s) t
   CAST :: forall a s . SingI a => Instr (a ': s) (a ': s)
   RENAME :: Instr (a ': s) (a ': s)
   PACK :: (SingI a, HasNoOp a) => Instr (a ': s) ('Tc 'CBytes ': s)
@@ -133,13 +133,13 @@ data Instr (inp :: [T]) (out :: [T]) where
     => Instr ('Tc 'CNat ': 'Tc 'CNat ': c ': s) ('TOption c ': s)
   ISNAT :: Instr ('Tc 'CInt ': s) ('TOption ('Tc 'CNat) ': s)
   ADD
-    :: ArithOp Add n m
+    :: (ArithOp Add n m, Typeable n, Typeable m)
     => Instr ('Tc n ': 'Tc m ': s) ('Tc (ArithRes Add n m) ': s)
   SUB
-    :: ArithOp Sub n m
+    :: (ArithOp Sub n m, Typeable n, Typeable m)
     => Instr ('Tc n ': 'Tc m ': s) ('Tc (ArithRes Sub n m) ': s)
   MUL
-    :: ArithOp Mul n m
+    :: (ArithOp Mul n m, Typeable n, Typeable m)
     => Instr ('Tc n ': 'Tc m ': s) ('Tc (ArithRes Mul n m) ': s)
   EDIV
     :: EDivOp n m
@@ -153,25 +153,25 @@ data Instr (inp :: [T]) (out :: [T]) where
     :: UnaryArithOp Neg n
     => Instr ('Tc n ': s) ('Tc (UnaryArithRes Neg n) ': s)
   LSL
-    :: ArithOp Lsl n m
+    :: (ArithOp Lsl n m, Typeable n, Typeable m)
     => Instr ('Tc n ': 'Tc m ': s) ('Tc (ArithRes Lsl n m) ': s)
   LSR
-    :: ArithOp Lsr n m
+    :: (ArithOp Lsr n m, Typeable n, Typeable m)
     => Instr ('Tc n ': 'Tc m ': s) ('Tc (ArithRes Lsr n m) ': s)
   OR
-    :: ArithOp Or n m
+    :: (ArithOp Or n m, Typeable n, Typeable m)
     => Instr ('Tc n ': 'Tc m ': s) ('Tc (ArithRes Or n m) ': s)
   AND
-    :: ArithOp And n m
+    :: (ArithOp And n m, Typeable n, Typeable m)
     => Instr ('Tc n ': 'Tc m ': s) ('Tc (ArithRes And n m) ': s)
   XOR
-    :: ArithOp Xor n m
+    :: (ArithOp Xor n m, Typeable n, Typeable m)
     => Instr ('Tc n ': 'Tc m ': s) ('Tc (ArithRes Xor n m) ': s)
   NOT
     :: UnaryArithOp Not n
     => Instr ('Tc n ': s) ('Tc (UnaryArithRes Not n) ': s)
   COMPARE
-    :: ArithOp Compare n m
+    :: (ArithOp Compare n m, Typeable n, Typeable m)
     => Instr ('Tc n ': 'Tc m ': s) ('Tc (ArithRes Compare n m) ': s)
   EQ
     :: UnaryArithOp Eq' n

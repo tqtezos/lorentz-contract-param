@@ -1,0 +1,7 @@
+parameter (pair bool string);
+storage unit;
+code { CAR;
+       DUP;
+       CAR;
+       IF { CDR; FAILWITH } { DROP };
+       UNIT; NIL operation; PAIR}

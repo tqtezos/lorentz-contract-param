@@ -7,12 +7,11 @@ import Prelude hiding (Ordering(..))
 import Data.Singletons (SingI(..))
 import qualified Data.Text as T
 import Data.Typeable ((:~:)(..), Typeable, eqT, typeRep)
-import Fmt ((+|), (|+))
-import Test.Hspec (Spec, describe, expectationFailure, it, shouldBe)
+import Test.Hspec (Spec, describe, it, shouldBe)
 import Text.Hex (encodeHex)
 
 import Michelson.Interpret.Pack (packValue')
-import Michelson.TypeCheck (HST(..), SomeInstr(..), typeCheckList)
+import Michelson.TypeCheck (HST(..), SomeInstr(..), SomeInstrOut(..), typeCheckList)
 import Michelson.Typed
 import Michelson.Untyped (noAnn)
 import Morley.Macro (expandList)
@@ -83,16 +82,16 @@ parsePackSpec name suites =
     it (toString codeText) $ do
       parsed <- Parser.codeEntry `shouldParse` codeText
       let code = expandList parsed
-      let typed = typeCheckList code initStack
+      let _ :/ typed = typeCheckList code initStack
             & runExceptT
             & evaluatingState initTypeCheckST
             & leftToShowPanic
 
       case typed of
-        SiFail ->
-          expectationFailure $
-          "SiFail is too sad to handle (" +| codeText |+ ")"
-          -- TODO [TM-27] Handle differently
+        AnyOutInstr instr ->
+          -- TODO: [TM-35] remove duplication
+          encodeHex (packValue' $ VLam @inp @out instr)
+          `shouldBe` stripOptional0x packed
 
         (instr :: Instr '[inp] outs) ::: _ ->
           case eqT @'[out] @outs of
@@ -407,8 +406,8 @@ instrTest = do
        ~: "0x05020000001f093100000011035b035b02000000080743035b0001032000000000034c0326"
     , "{ DIP {} }"
        ~: "0x050200000007051f0200000000"
-    -- , "{ PUSH bool True; IF { FAILWITH } {} }"  -- TODO [TM-27]: uncomment
-    --    ~: "0x05020000001407430359030a072c020000000203270200000000"
+    , "{ FAILWITH }"
+       ~: "0x0502000000020327"
     , "{ CAST int }"
        ~: "0x0502000000040557035b"
     , "{ RENAME }"

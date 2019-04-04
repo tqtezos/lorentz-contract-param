@@ -88,7 +88,8 @@ mkUType sing notes = case (sing, notes) of
   mt = Un.Type
   na = Un.noAnn
 
-data TypeConvergeError = TypeConvergeError Un.T T deriving (Show)
+data TypeConvergeError = TypeConvergeError Un.T T
+  deriving (Show, Eq)
 
 instance Buildable TypeConvergeError where
   build (TypeConvergeError type1 type2) =

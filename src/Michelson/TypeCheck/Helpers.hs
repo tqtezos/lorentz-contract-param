@@ -45,11 +45,11 @@ import Data.Typeable ((:~:)(..), eqT, typeRep)
 import Fmt ((+||), (||+))
 
 import Michelson.TypeCheck.Error (TCError(..), TCTypeError(..))
-import Michelson.TypeCheck.Types
 import Michelson.TypeCheck.TypeCheck
+import Michelson.TypeCheck.Types
 import Michelson.Typed
-  (extractNotes, fromUType, CT(..), Instr(..), Notes(..), Notes'(..), Sing(..), T(..), converge, mkNotes, notesCase, orAnn,
-  withSomeSingT)
+  (CT(..), Instr(..), Notes(..), Notes'(..), Sing(..), T(..), converge, extractNotes, fromUType,
+  mkNotes, notesCase, orAnn, withSomeSingT)
 import Michelson.Typed.Annotation (AnnConvergeError)
 import Michelson.Typed.Arith (Add, ArithOp(..), Compare, Mul, Sub, UnaryArithOp(..))
 import Michelson.Typed.Extract (TypeConvergeError)
@@ -208,21 +208,30 @@ typeCheckImpl tcInstr instrs t@(a :: HST a) =
     [Un.PrimEx i]       -> tcInstr i t
     (Un.SeqEx sq  : rs) -> typeCheckImplDo (typeCheckImpl tcInstr sq) Nested rs
     (Un.PrimEx p_ : rs) -> typeCheckImplDo (tcInstr p_) id rs
-    []                   -> pure $ Nop ::: (a, a)
+    []                  -> pure $ a :/ Nop ::: a
   where
     typeCheckImplDo
       :: (HST inp -> TypeCheckT (SomeInstr inp))
       -> (forall inp' out . Instr inp' out -> Instr inp' out)
       -> [Un.ExpandedOp]
       -> TypeCheckT (SomeInstr inp)
-    typeCheckImplDo f wrap rs =
-      f t >>= \case
-        p ::: ((_ :: HST a'), (b :: HST b)) ->
-          typeCheckImpl @b tcInstr rs b >>= \case
-            q ::: ((_ :: HST b'), c) ->
-              pure $ Seq (wrap p) q ::: (a, c)
-            SiFail -> pure SiFail
-        SiFail -> pure SiFail
+    typeCheckImplDo f wrap rs = do
+      _ :/ pi' <- f t
+      case pi' of
+        p ::: b -> do
+          _ :/ qi <- typeCheckImpl tcInstr rs b
+          case qi of
+            q ::: c ->
+              pure $ a :/ Seq (wrap p) q ::: c
+            AnyOutInstr q ->
+              pure $ a :/ AnyOutInstr (Seq (wrap p) q)
+
+        AnyOutInstr instr ->
+          case rs of
+            [] ->
+              pure $ a :/ AnyOutInstr instr
+            r : rr ->
+              throwError $ TCUnreachableCode (r :| rr)
 
 -- | Check whether typed and untyped types converge
 compareTypes :: forall t . Typeable t => (Sing t, Notes t) -> Un.Type -> Either TCTypeError ()
@@ -247,7 +256,7 @@ memImpl
   -> TcResult inp
 memImpl instr i@(_ ::& _ ::& rs) vn =
   case eqType @q @(MemOpKey c) of
-    Right Refl -> pure (MEM ::: (i, (STc SCBool, NStar, vn) ::& rs))
+    Right Refl -> pure $ i :/ MEM ::: ((STc SCBool, NStar, vn) ::& rs)
     Left m     -> Left $ TCFailedOnInstr instr (SomeHST i)
                 "query element type is not equal to set's element type" (Just m)
 
@@ -268,7 +277,7 @@ getImpl instr i@(_ ::& _ ::& rs) rt vns vn = do
   case eqType @getKey @('Tc (GetOpKey c)) of
     Right Refl -> do
       let rn = mkNotes $ NTOption def def vns
-      pure $ GET ::: (i, (STOption rt, rn, vn) ::& rs)
+      pure $ i :/ GET ::: ((STOption rt, rn, vn) ::& rs)
     Left m -> Left $ TCFailedOnInstr instr (SomeHST i) "wrong key stack type" (Just m)
 
 updImpl
@@ -281,9 +290,9 @@ updImpl
   -> TcResult inp
 updImpl instr i@(_ ::& _ ::& crs) = do
   case (eqType @updKey @('Tc (UpdOpKey c)), eqType @updParams @(UpdOpParams c)) of
-    (Right Refl, Right Refl) -> pure $ UPDATE ::: (i, crs)
+    (Right Refl, Right Refl) -> pure $ i :/ UPDATE ::: crs
     (Left m, _) -> Left $ TCFailedOnInstr instr (SomeHST i)
-      "wrong key stack type" (Just m)
+                      "wrong key stack type" (Just m)
     (_, Left m) -> Left $ TCFailedOnInstr instr (SomeHST i)
                       "wrong update value stack type" (Just m)
 
@@ -293,7 +302,7 @@ sizeImpl
   -> VarAnn
   -> TcResult inp
 sizeImpl i@(_ ::& rs) vn =
-  pure $ SIZE ::: (i, (STc SCNat, NStar, vn) ::& rs)
+  pure $ i :/ SIZE ::: ((STc SCNat, NStar, vn) ::& rs)
 
 sliceImpl
   :: (SliceOp c, Typeable c, inp ~ ('Tc 'CNat ': 'Tc 'CNat ': c ': rs))
@@ -303,7 +312,7 @@ sliceImpl
 sliceImpl i@(_ ::& _ ::& (c, cn, cvn) ::& rs) vn = do
   let vn' = vn `orAnn` deriveVN "slice" cvn
       rn = mkNotes $ NTOption def def cn
-  pure $ SLICE ::: (i, (STOption c, rn, vn') ::& rs)
+  pure $ i :/ SLICE ::: ((STOption c, rn, vn') ::& rs)
 
 concatImpl'
   :: (ConcatOp c, Typeable c, inp ~ ('TList c : rs))
@@ -312,7 +321,7 @@ concatImpl'
   -> TcResult inp
 concatImpl' i@((STList c, ln, _) ::& rs) vn = do
   let cn = notesCase NStar (\(NTList _ n) -> n) ln
-  pure $ CONCAT' ::: (i, (c, cn, vn) ::& rs)
+  pure $ i :/ CONCAT' ::: ((c, cn, vn) ::& rs)
 
 concatImpl
   :: (ConcatOp c, Typeable c, inp ~ (c ': c ': rs))
@@ -322,7 +331,7 @@ concatImpl
 concatImpl i@((c, cn1, _) ::& (_, cn2, _) ::& rs) vn = do
   cn <- converge cn1 cn2 `onLeft`
     ((TCFailedOnInstr (Un.CONCAT vn) (SomeHST i) "wrong operand types for concat operation") . Just . AnnError)
-  pure $ CONCAT ::: (i, (c, cn, vn) ::& rs)
+  pure $ i :/ CONCAT ::: ((c, cn, vn) ::& rs)
 
 -- | Helper function to construct instructions for binary arithmetic
 -- operations.
@@ -337,7 +346,7 @@ arithImpl
   -> VarAnn
   -> TcResult inp
 arithImpl mkInstr i@(_ ::& _ ::& rs) vn =
-  pure $ mkInstr ::: (i, (sing, NStar, vn) ::& rs)
+  pure $ i :/ mkInstr ::: ((sing, NStar, vn) ::& rs)
 
 addImpl
   :: forall a b inp rs.
@@ -387,7 +396,7 @@ edivImplDo
   -> VarAnn
   -> TcResult inp
 edivImplDo i@(_ ::& _ ::& rs) vn =
-  pure $ EDIV ::: (i, (sing, NStar, vn) ::& rs)
+  pure $ i :/ EDIV ::: ((sing, NStar, vn) ::& rs)
 
 subImpl
   :: forall a b inp rs.
@@ -456,4 +465,4 @@ unaryArithImpl
   -> VarAnn
   -> TcResult inp
 unaryArithImpl mkInstr i@(_ ::& rs) vn =
-  pure $ mkInstr ::: (i, (sing, NStar, vn) ::& rs)
+  pure $ i :/ mkInstr ::: ((sing, NStar, vn) ::& rs)

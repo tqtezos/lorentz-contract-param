@@ -2,13 +2,16 @@ module Test.Typecheck
   ( typeCheckSpec
   ) where
 
-import Test.Hspec (Expectation, Spec, describe, expectationFailure, it)
 import qualified Data.Map as M
+import Test.Hspec (Expectation, Spec, describe, expectationFailure, it, shouldBe)
 
-import Michelson.Untyped (Contract)
+import Michelson.TypeCheck (TCError(..))
+import qualified Michelson.Typed as T
+import Michelson.Untyped (CT(..), T(..), Type(..), noAnn)
+import qualified Michelson.Untyped as Un
 import Morley.Ext (typeCheckMorleyContract)
 import Morley.Runtime (prepareContract)
-import Michelson.Untyped (Type (..), T (..), CT (..), noAnn)
+import Morley.Test.Import (ImportContractError(..), readContract)
 import Tezos.Address (unsafeParseAddress)
 
 import Test.Util.Contracts (getIllTypedContracts, getWellTypedContracts)
@@ -26,6 +29,12 @@ typeCheckSpec = describe "Typechecker tests" $ do
     checkFile (doTC [(cAddr, tPair intP intP)]) False pushContrFile
     checkFile (doTC [(cAddr, tPair intQ intQ)]) False pushContrFile
     checkFile (doTC [(cAddr, tPair string intQ)]) False pushContrFile
+
+  it "Unreachable code is handled properly" $ do
+    let file = "contracts/ill-typed/fail-before-nop.tz"
+    econtract <- readContract @'T.TUnit @'T.TUnit file <$> readFile file
+    econtract `shouldBe` Left (ICETypeCheck $ TCUnreachableCode (one $ Un.SeqEx []))
+
   where
     pushContrFile = "contracts/ill-typed/push_contract.tz"
     tPair t1 t2 = Type (TPair noAnn noAnn t1 t2) noAnn
@@ -46,7 +55,7 @@ typeCheckSpec = describe "Typechecker tests" $ do
     badContractsTest = mapM_ (checkFile doTCSimple False) =<< getIllTypedContracts
 
 
-checkFile :: (Contract -> Either String ()) -> Bool -> FilePath -> Expectation
+checkFile :: (Un.Contract -> Either String ()) -> Bool -> FilePath -> Expectation
 checkFile doTypeCheck wellTyped file = do
   c <- prepareContract (Just file)
   case doTypeCheck c of
