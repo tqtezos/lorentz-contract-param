@@ -159,26 +159,18 @@ typeCheckValImpl tcDo v t@(TLambda mi mo) = do
 
   withSomeSingT mi $ \(it :: Sing it) ->
     withSomeSingT mo $ \(ot :: Sing ot) ->
-      typeCheckImpl tcDo mp (SomeHST $ (it, NStar, def) ::& SNil) >>= \case
+      typeCheckImpl tcDo mp ((it, NStar, def) ::& SNil) >>= \case
         SiFail -> pure $ VLam FAILWITH :::: (STLambda it ot, NStar)
-        lam ::: ((li :: HST li), (lo :: HST lo)) -> do
-          Refl <- liftEither $ eqT' @li @'[ it ] `onLeft` unexpectedErr
-          case (eqT' @'[ ot ] @lo, SomeHST lo, SomeHST li) of
-            (Right Refl,
-             SomeHST ((_, ons, _) ::& SNil :: HST lo'),
-             SomeHST ((_, ins, _) ::& SNil :: HST li')) -> do
-              Refl <- liftEither $ eqT' @lo @lo' `onLeft` unexpectedErr
-              Refl <- liftEither $ eqT' @li @li' `onLeft` unexpectedErr
+        lam ::: (li, (lo :: HST lo)) -> do
+          case eqT' @'[ ot ] @lo of
+            Right Refl -> do
+              let (_, ons, _) ::& SNil = lo
+              let (_, ins, _) ::& SNil = li
               let ns = mkNotes $ NTLambda def ins ons
               pure $ VLam lam :::: (STLambda it ot, ns)
-            (Right _, _, _) ->
-              throwError $ TCFailedOnValue v t
-                      "wrong output type of lambda's value (wrong stack size)"
-            (Left m, _, _) ->
+            Left m ->
               throwError $ TCFailedOnValue v t $
                       "wrong output type of lambda's value: " <> m
-  where
-    unexpectedErr m = TCFailedOnValue v t ("unexpected " <> m)
 
 typeCheckValImpl _ v t = throwError $ TCFailedOnValue v t ""
 

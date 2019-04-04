@@ -289,7 +289,7 @@ runInstrImpl runner (MAP ops) (a :& r) =
         res <- runner code (val :& r)
         case res of
           ((newVal :: Val Instr b) :& _) -> pure newVal)
-        $ mapOpToList @c @b a
+        $ mapOpToList @c a
       pure $ mapOpFromList a newList :& r
 runInstrImpl runner (ITER ops) (a :& r) =
   case ops of
