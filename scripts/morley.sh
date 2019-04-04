@@ -9,7 +9,7 @@ docker_dir="$HOME/.morley"
 mnt_dir="/mnt"
 mkdir -p "$docker_dir"
 docker_pull_timestamp="$docker_dir/docker_pull.timestamp"
-docker_image=registry.gitlab.com/camlcase-dev/morley
+docker_image=registry.gitlab.com/tezos-standards/morley
 
 maybe_pull_image() {
     if [ ! -f "$docker_pull_timestamp" ] \

@@ -12,13 +12,12 @@ enabled
 
 ## Syntax Sugar
 
-[See `morleySyntaxSugar.md`](https://gitlab.com/camlcase-dev/morley/blob/master/docs/morleySyntaxSugar.md)
+[See `morleySyntaxSugar.md`](./morleySyntaxSugar.md)
 
 ## Extended NOP Instructions
 
-[See `morleyInstructions.md`](https://gitlab.com/camlcase-dev/morley/blob/master/docs/morleyInstructions.md)
+[See `morleyInstructions.md`](./morleyInstructions.md)
 
 ## Let-block Definitions
 
-[See `morleyLet.md`](https://gitlab.com/camlcase-dev/morley/blob/master/docs/morleyLet.md)
-
+[See `morleyLet.md`](./morleyLet.md)
