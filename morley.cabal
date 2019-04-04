@@ -1,6 +1,6 @@
 cabal-version:       2.4
 name:                morley
-version:             0.2.0
+version:             0.2.0.1
 synopsis:            Developer tools for the Michelson Language
 description:
   A library to make writing smart contracts in Michelson — the smart contract

@@ -1,3 +1,8 @@
+0.2.0.1
+======
+
+* Update documentation and metadata.
+
 0.2.0
 =====
 
