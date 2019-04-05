@@ -1,0 +1,3 @@
+parameter (list operation);
+storage unit;
+code {DROP; UNIT; NIL operation; PAIR};

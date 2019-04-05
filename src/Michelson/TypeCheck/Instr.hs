@@ -33,6 +33,7 @@ module Michelson.TypeCheck.Instr
 import Prelude hiding (EQ, GT, LT)
 
 import Control.Monad.Except (liftEither, throwError, withExceptT)
+import Data.Constraint (Dict(..))
 import Data.Default (def)
 import Data.Singletons (SingI(sing))
 import Data.Typeable ((:~:)(..))
@@ -43,8 +44,9 @@ import Michelson.TypeCheck.Value
 import Michelson.Typed
   (Abs, And, CT(..), Contract, ContractInp, ContractOut, Eq', Ge, Gt, Instr(..), IterOp(..), Le,
   Lsl, Lsr, Lt, MapOp(..), Neg, Neq, Not, Notes(..), Notes'(..), Or, Sing(..), T(..), Val(..), Xor,
-  converge, convergeAnns, extractNotes, fromUType, mkNotes, notesCase, orAnn, withSomeSingCT,
-  withSomeSingT, ( # ))
+  converge, convergeAnns, extractNotes, fromUType, mkNotes, notesCase, opAbsense, orAnn,
+  withSomeSingCT, withSomeSingT, ( # ))
+
 import qualified Michelson.Untyped as Un
 import Michelson.Untyped.Annotation (VarAnn)
 
@@ -70,6 +72,12 @@ typeCheckContractImpl (Un.Contract mParam mStorage pCode) = do
       paramNote <-
         liftEither $ extractNotes mParam paramS `onLeft` \m -> TCOtherError $
                         "failed to extract annotations for parameter: " <> m
+      Dict <-
+        liftEither . maybeToRight (TCOtherError $ hasOpError "parameter") $
+        opAbsense paramS
+      Dict <-
+        liftEither . maybeToRight (TCOtherError $ hasOpError "storage") $
+        opAbsense storageS
       let inpNote = mkNotes (NTPair def def def paramNote storageNote)
       let inp = (STPair paramS storageS, inpNote, def) ::& SNil
       typeCheckNE code (SomeHST inp) >>= \case
@@ -93,6 +101,7 @@ typeCheckContractImpl (Un.Contract mParam mStorage pCode) = do
   where
     outNotes :: HST '[o] -> Notes o
     outNotes ((_, n, _) ::& SNil) = n
+    hasOpError name = "contract " <> name <> " type cannot contain operations"
 
 -- | Like 'typeCheck', but for non-empty lists.
 typeCheckNE
@@ -172,9 +181,12 @@ typeCheckInstr Un.SWAP (SomeHST i@(a ::& b ::& rs)) =
 
 typeCheckInstr instr@(Un.PUSH vn mt mval) (SomeHST i) = do
   val :::: (t, n) <- typeCheckVal mval (fromUType mt)
-  notes <- liftEither $ (extractNotes mt t >>= converge n)
-              `onLeft` TCFailedOnInstr instr (SomeHST i)
-  pure $ PUSH val ::: (i, (t, notes, vn) ::& i)
+  let failure = TCFailedOnInstr instr (SomeHST i)
+  notes <- liftEither $ (extractNotes mt t >>= converge n) `onLeft` failure
+  proof <- maybe (throwError $ failure "Operations in constant are not allowed")
+           pure (opAbsense t)
+  case proof of
+    Dict -> pure $ PUSH val ::: (i, (t, notes, vn) ::& i)
 
 typeCheckInstr (Un.SOME tn vn fn) (SomeHST i@((at, an, _) ::& rs)) = do
   let n = mkNotes (NTOption tn fn an)
@@ -574,12 +586,16 @@ typeCheckInstr instr@(Un.CONTRACT vn mt)
     pure $ CONTRACT ::: (i, (STOption $ STContract t, ns, vn) ::& rs)
 
 typeCheckInstr instr@(Un.TRANSFER_TOKENS vn) (SomeHST i@(((_ :: Sing p'), _, _)
-  ::& (STc SCMutez, _, _) ::& (STContract (_ :: Sing p), _, _) ::& rs)) = do
-  case eqT' @p @p' of
-    Right Refl ->
+  ::& (STc SCMutez, _, _) ::& (STContract (p :: Sing p), _, _) ::& rs)) = do
+  case (eqT' @p @p', opAbsense p) of
+    (Right Refl, Just Dict) ->
       pure $ TRANSFER_TOKENS ::: (i, (STOperation, NStar, vn) ::& rs)
-    Left m ->
-      typeCheckInstrErrM instr (SomeHST i) $ "mismatch of contract param type: " <> m
+    (Left m, _) ->
+      typeCheckInstrErrM instr (SomeHST i) $
+        "mismatch of contract param type: " <> m
+    (_, Nothing) ->
+      typeCheckInstrErrM instr (SomeHST i) $
+        "contract param type cannot contain operation"
 
 typeCheckInstr (Un.SET_DELEGATE vn)
            (SomeHST i@((STOption (STc SCKeyHash), _, _) ::& rs)) = do
@@ -597,21 +613,29 @@ typeCheckInstr instr@(Un.CREATE_CONTRACT ovn avn)
              ::& (STOption (STc SCKeyHash), _, _)
              ::& (STc SCBool, _, _) ::& (STc SCBool, _, _)
              ::& (STc SCMutez, _, _)
-             ::& (STLambda (STPair _ (_ :: Sing g1))
+             ::& (STLambda (STPair p1 (g1 :: Sing g1))
                    (STPair (STList STOperation) (_ :: Sing g2)), ln, _)
                         ::& ((_ :: Sing g3), gn3, _) ::& rs)) = do
   let (gn1, gn2) = notesCase (NStar, NStar)
                     (\(NTLambda _ l r) ->
                       (,) (notesCase NStar (\(NTPair _ _ _ _ n) -> n) l)
                           (notesCase NStar (\(NTPair _ _ _ _ n) -> n) r)) ln
+  gd1 <- liftEither $ maybeToRight (hasOpFailure "storage") (opAbsense g1)
+  pd1 <- liftEither $ maybeToRight (hasOpFailure "parameter") (opAbsense p1)
   liftEither $ either (\m -> typeCheckInstrErr instr (SomeHST i) $
                   "mismatch of contract storage type: " <> m) pure $ do
     Refl <- eqT' @g1 @g2
     Refl <- eqT' @g2 @g3
     gn12 <- converge gn1 gn2
     _ <- converge gn12 gn3
-    pure $ CREATE_CONTRACT ::: (i, (STOperation, NStar, ovn) ::&
+    case (gd1, pd1) of
+      (Dict, Dict) ->
+        pure $ CREATE_CONTRACT ::: (i, (STOperation, NStar, ovn) ::&
                                      (STc SCAddress, NStar, avn) ::& rs)
+  where
+    hasOpFailure desc =
+      TCFailedOnInstr instr (SomeHST i) $
+        "contract " <> desc <> " type cannot contain operation"
 
 typeCheckInstr instr@(Un.CREATE_CONTRACT2 ovn avn contract)
            (SomeHST i@((STc SCKeyHash, _, _)
@@ -620,7 +644,7 @@ typeCheckInstr instr@(Un.CREATE_CONTRACT2 ovn avn contract)
              ::& (STc SCBool, _, _)
              ::& (STc SCMutez, _, _)
              ::& ((_ :: Sing g), gn, _) ::& rs)) = do
-  (SomeContract (contr :: Contract i' g') _ out) <-
+  (SomeContract (contr :: Contract p' g') _ out) <-
       flip withExceptT (typeCheckContractImpl contract)
                        (\err -> TCFailedOnInstr instr (SomeHST i)
                                     ("failed to type check contract: " <> show err))

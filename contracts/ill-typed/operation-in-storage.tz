@@ -1,0 +1,3 @@
+parameter unit;
+storage (option operation);
+code {DROP; NONE operation; NIL operation; PAIR};

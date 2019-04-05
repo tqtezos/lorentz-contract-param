@@ -66,6 +66,7 @@ library
                      , Michelson.Typed.Extract
                      , Michelson.Typed.Instr
                      , Michelson.Typed.Polymorphic
+                     , Michelson.Typed.Scope
                      , Michelson.Typed.Sing
                      , Michelson.Typed.T
                      , Michelson.Untyped.Aliases
@@ -83,6 +84,7 @@ library
                      , base58-bytestring
                      , bifunctors
                      , bytestring
+                     , constraints
                      , containers
                      , cryptonite
                      , data-default

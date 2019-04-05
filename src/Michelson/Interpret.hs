@@ -37,11 +37,10 @@ import Michelson.TypeCheck
   typeCheckContract, typeCheckVal)
 import Michelson.Typed
   (CVal(..), Contract, ConversibleExt, CreateAccount(..), CreateContract(..), Instr(..),
-  Operation(..), SetDelegate(..), Sing(..), T(..), TransferTokens(..), Val(..), fromUType,
-  valToOpOrValue)
+  Operation(..), SetDelegate(..), Sing(..), T(..), TransferTokens(..), Val(..), fromUType, OpPresence(..), HasNoOp)
 import qualified Michelson.Typed as T
 import Michelson.Typed.Arith
-import Michelson.Typed.Convert (convertContract, unsafeValToValue)
+import Michelson.Typed.Convert (convertContract, valToValue)
 import Michelson.Typed.Polymorphic
 import qualified Michelson.Untyped as U
 import Tezos.Address (Address(..))
@@ -72,7 +71,7 @@ data ContractEnv = ContractEnv
 -- | Represents `[FAILED]` state of a Michelson program. Contains
 -- value that was on top of the stack when `FAILWITH` was called.
 data MichelsonFailed where
-  MichelsonFailedWith :: Val Instr t -> MichelsonFailed
+  MichelsonFailedWith :: SingI t => Val Instr t -> MichelsonFailed
   MichelsonArithError :: ArithError (CVal n) (CVal m) -> MichelsonFailed
   MichelsonGasExhaustion :: MichelsonFailed
   MichelsonFailedOther :: Text -> MichelsonFailed
@@ -89,11 +88,11 @@ instance (ConversibleExt) => Buildable MichelsonFailed where
         "Gas limit exceeded on contract execution"
       MichelsonFailedOther t -> build t
     where
-      formatValue :: forall t . Val Instr t -> Builder
+      formatValue :: forall t . SingI t => Val Instr t -> Builder
       formatValue v =
-        case valToOpOrValue v of
-          Nothing -> "<value with operations>"
-          Just untypedV -> build untypedV
+        case T.checkOpPresence (sing @t) of
+          OpPresent -> "<value with operations>"
+          OpAbsent -> build (valToValue v)
 
 data InterpretUntypedError s
   = RuntimeFailure (MichelsonFailed, s)
@@ -113,6 +112,7 @@ data InterpretUntypedResult s where
   InterpretUntypedResult
     :: ( Typeable st
        , SingI st
+       , HasNoOp st
        )
     => { iurOps :: [ Operation Instr ]
        , iurNewStorage :: Val Instr st
@@ -150,7 +150,7 @@ interpretUntyped typeCheckHandler U.Contract{..} paramU initStU env initState = 
     toRes (ei, s) = bimap (,isExtState s) (,s) ei
 
     constructIUR ::
-      (Typeable st, SingI st) =>
+      (Typeable st, SingI st, HasNoOp st) =>
       (([Operation Instr], Val Instr st), InterpreterState s) ->
       InterpretUntypedResult s
     constructIUR ((ops, val), st) =
@@ -427,12 +427,12 @@ runArithOp op l r = case evalOp op l r of
   Right res -> pure (VC res)
 
 createOrigOp
-  :: (SingI param, SingI store, ConversibleExt)
+  :: (SingI param, SingI store, HasNoOp store, ConversibleExt)
   => KeyHash
   -> Maybe (Val Instr ('Tc 'U.CKeyHash))
   -> Bool -> Bool -> Mutez
   -> Contract param store
-  -> Val Instr t
+  -> Val Instr store
   -> U.OriginationOperation
 createOrigOp k mbKeyHash delegetable spendable m contract g =
   U.OriginationOperation
@@ -441,7 +441,7 @@ createOrigOp k mbKeyHash delegetable spendable m contract g =
     , ooSpendable = spendable
     , ooDelegatable = delegetable
     , ooBalance = m
-    , ooStorage = unsafeValToValue g
+    , ooStorage = valToValue g
     , ooContract = convertContract contract
     }
 

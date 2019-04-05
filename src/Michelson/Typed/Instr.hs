@@ -13,6 +13,7 @@ import Data.Singletons (SingI)
 
 import Michelson.Typed.Arith
 import Michelson.Typed.Polymorphic
+import Michelson.Typed.Scope
 import Michelson.Typed.T (CT(..), T(..))
 import Michelson.Typed.Value (ContractInp, ContractOut, Val(..))
 
@@ -64,7 +65,7 @@ data Instr (inp :: [T]) (out :: [T]) where
   DROP :: Instr (a ': s) s
   DUP  :: Instr (a ': s) (a ': a ': s)
   SWAP :: Instr (a ': b ': s) (b ': a ': s)
-  PUSH :: forall t s . SingI t => Val Instr t -> Instr s (t ': s)
+  PUSH :: forall t s . (SingI t, HasNoOp t) => Val Instr t -> Instr s (t ': s)
   SOME :: Instr (a ': s) ('TOption a ': s)
   NONE :: forall a s . SingI a => Instr s ('TOption a ': s)
   UNIT :: Instr s ('TUnit ': s)
@@ -124,7 +125,7 @@ data Instr (inp :: [T]) (out :: [T]) where
          => Val Instr ('TLambda i o) -> Instr s ('TLambda i o ': s)
   EXEC :: Typeable t1 => Instr (t1 ': 'TLambda t1 t2 ': s) (t2 ': s)
   DIP :: Typeable a => Instr a c -> Instr (b ': a) (b ': c)
-  FAILWITH :: Instr (a ': s) t
+  FAILWITH :: SingI a => Instr (a ': s) t
   CAST :: forall a s . SingI a => Instr (a ': s) (a ': s)
   RENAME :: Instr (a ': s) (a ': s)
   PACK :: Instr (a ': s) ('Tc 'CBytes ': s)
@@ -199,7 +200,8 @@ data Instr (inp :: [T]) (out :: [T]) where
   CONTRACT
     :: SingI p => Instr ('Tc 'CAddress ': s) ('TOption ('TContract p) ': s)
   TRANSFER_TOKENS
-    :: Typeable p => Instr (p ': 'Tc 'CMutez ': 'TContract p ': s)
+    :: (Typeable p, SingI p, HasNoOp p) =>
+       Instr (p ': 'Tc 'CMutez ': 'TContract p ': s)
                    ('TOperation ': s)
   SET_DELEGATE
     :: Instr ('TOption ('Tc 'CKeyHash) ': s) ('TOperation ': s)
@@ -210,7 +212,7 @@ data Instr (inp :: [T]) (out :: [T]) where
          ': 'Tc 'CMutez ': s) ('TOperation ': 'Tc 'CAddress ': s)
 
   CREATE_CONTRACT
-    :: (SingI p, SingI g, Typeable p, Typeable g)
+    :: (Each [Typeable, SingI, HasNoOp] [p, g])
     => Instr
         ('Tc 'CKeyHash ': 'TOption ('Tc 'CKeyHash) ': 'Tc 'CBool
           ': 'Tc 'CBool ': 'Tc 'CMutez
@@ -218,7 +220,7 @@ data Instr (inp :: [T]) (out :: [T]) where
                        ('TPair ('TList 'TOperation) g) ': g ': s)
         ('TOperation ': 'Tc 'CAddress ': s)
   CREATE_CONTRACT2
-    :: (SingI p, SingI g, Typeable p, Typeable g)
+    :: (Each [Typeable, SingI, HasNoOp] [p, g])
     => Instr '[ 'TPair p g ] '[ 'TPair ('TList 'TOperation) g ]
     -> Instr ('Tc 'CKeyHash ':
               'TOption ('Tc 'CKeyHash) ':
