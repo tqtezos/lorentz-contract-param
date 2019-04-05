@@ -37,22 +37,25 @@ instance MemOp ('TBigMap k v) where
   type MemOpKey ('TBigMap k v) = k
   evalMem k (VBigMap m) = k `M.member` m
 
-class MapOp (c :: T) (b :: T) where
+class MapOp (c :: T) where
   type MapOpInp c :: T
-  type MapOpRes c b :: T
+  type MapOpRes c :: T -> T
   mapOpToList :: Val instr c -> [Val instr (MapOpInp c)]
   mapOpFromList :: Val instr c -> [Val instr b] -> Val instr (MapOpRes c b)
-instance MapOp ('TMap k v) v' where
+instance MapOp ('TMap k v) where
   type MapOpInp ('TMap k v) = 'TPair ('Tc k) v
-  type MapOpRes ('TMap k v) v' = 'TMap k v'
+  type MapOpRes ('TMap k v) = 'TMap k
   mapOpToList (VMap m) = map (\(k, v) -> VPair (VC k, v)) $ M.toAscList m
   mapOpFromList (VMap m) l =
     VMap $ M.fromList $ zip (map fst $ M.toAscList m) l
-instance MapOp ('TList e) e' where
+instance MapOp ('TList e) where
   type MapOpInp ('TList e) = e
-  type MapOpRes ('TList e) e' = 'TList e'
+  type MapOpRes ('TList e) = 'TList
   mapOpToList (VList l) = l
   mapOpFromList (VList _) l' = VList l'
+-- If you find it difficult to implement 'MapOp' for your datatype
+-- because of order of type arguments in it, consider wrapping it
+-- into a newtype.
 
 class IterOp (c :: T) where
   type IterOpEl c :: T

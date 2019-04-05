@@ -58,7 +58,7 @@ typeCheckHandler ext nfs hst@(SomeHST hs) =
     UPRINT pc   -> verifyPrint pc $> (nfs, Just $ PRINT pc)
     UTEST_ASSERT UTestAssert{..} -> do
       verifyPrint tassComment
-      si <- typeCheckList tassInstrs hst
+      si <- typeCheckList tassInstrs hs
       case si of
         SiFail -> thErr "TEST_ASSERT has to return Bool, but it's failed"
         instr ::: (_ :: HST inp, ((_ :: (Sing b, T.Notes b, VarAnn)) ::& (_ :: HST out1))) -> do

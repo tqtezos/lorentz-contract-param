@@ -83,17 +83,17 @@ deriving instance Show SomeHST
 --
 -- Intput and output stack types are wrapped inside the type and @Typeable@
 -- constraints are provided to allow convenient unwrapping.
-data SomeInstr where
-  (:::) :: (Typeable inp, Typeable out)
+data SomeInstr inp where
+  (:::) :: Typeable out
         => Instr inp out
         -> (HST inp, HST out)
-        -> SomeInstr
-  SiFail :: SomeInstr
+        -> SomeInstr inp
+  SiFail :: SomeInstr inp
 
   -- TODO use this constructor (to have closer reflection of expression)
   -- SiFail :: Typeable inp => Instr cp inp out -> HST inp -> SomeInstr cp
 
-instance Show InstrExtT => Show SomeInstr where
+instance Show InstrExtT => Show (SomeInstr inp) where
   show (i ::: (inp, out)) = show i <> " :: " <> show inp <> " -> " <> show out
   show SiFail = "failed"
 
@@ -178,9 +178,10 @@ data TypeCheckEnv = TypeCheckEnv
 runTypeCheckT :: TcExtHandler -> U.Type -> TypeCheckT a -> Either TCError a
 runTypeCheckT nh param act = evaluatingState (TypeCheckEnv nh [] param) $ runExceptT act
 
-type TcResult = Either TCError SomeInstr
+type TcResult inp = Either TCError (SomeInstr inp)
 
 type TcInstrHandler
-   = U.ExpandedInstr
-    -> SomeHST
-      -> TypeCheckT SomeInstr
+   = forall inp. Typeable inp
+      => U.ExpandedInstr
+      -> HST inp
+      -> TypeCheckT (SomeInstr inp)

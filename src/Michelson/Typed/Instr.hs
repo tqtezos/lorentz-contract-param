@@ -99,7 +99,7 @@ data Instr (inp :: [T]) (out :: [T]) where
   SIZE :: SizeOp c => Instr (c ': s) ('Tc 'CNat ': s)
   EMPTY_SET :: SingI e => Instr s ('TSet e ': s)
   EMPTY_MAP :: (SingI a, SingI b) => Instr s ('TMap a b ': s)
-  MAP :: (Typeable (MapOpInp c ': s), MapOp c b)
+  MAP :: (Typeable (MapOpInp c ': s), MapOp c)
       => Instr (MapOpInp c ': s) (b ': s)
       -> Instr (c ': s) (MapOpRes c b ': s)
   ITER :: (Typeable (IterOpEl c ': s), IterOp c) => Instr (IterOpEl c ': s) s -> Instr (c ': s) s
