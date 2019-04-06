@@ -19,8 +19,6 @@ variables:
 
 build-and-test:
   stage: test
-  tags:
-    - docker-executor
   only:
     refs:
       - merge_requests
