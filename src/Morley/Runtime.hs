@@ -38,10 +38,10 @@ import Michelson.Interpret
   RemainingSteps(..))
 import Michelson.TypeCheck (TCError)
 import Michelson.Typed
-  (CreateContract(..), Instr, Operation(..), TransferTokens(..), Val(..), convertContract,
-  valToValue)
-import Michelson.Untyped
-  (Contract(..), OriginationOperation(..), UntypedContract, UntypedValue, mkContractAddress)
+  (CreateContract(..), Instr, Operation(..), TransferTokens(..), convertContract, untypeValue)
+import qualified Michelson.Typed as T
+import Michelson.Untyped (Contract, OriginationOperation(..), mkContractAddress)
+import qualified Michelson.Untyped as U
 import Morley.Ext (interpretMorleyUntyped, typeCheckMorleyContract)
 import Morley.Macro (expandContract)
 import qualified Morley.Parser as P
@@ -141,18 +141,18 @@ instance Exception InterpreterError where
 
 -- | Parse a contract from 'Text'.
 parseContract ::
-     Maybe FilePath -> Text -> Either P.ParserException (Contract ParsedOp)
+     Maybe FilePath -> Text -> Either P.ParserException (U.Contract' ParsedOp)
 parseContract mFileName =
   first P.ParserException . parse P.program (fromMaybe "<stdin>" mFileName)
 
 -- | Parse a contract from 'Text' and expand macros.
 parseExpandContract ::
-     Maybe FilePath -> Text -> Either P.ParserException UntypedContract
+     Maybe FilePath -> Text -> Either P.ParserException Contract
 parseExpandContract mFileName = fmap expandContract . parseContract mFileName
 
 -- | Read and parse a contract from give path or `stdin` (if the
 -- argument is 'Nothing'). The contract is not expanded.
-readAndParseContract :: Maybe FilePath -> IO (Contract ParsedOp)
+readAndParseContract :: Maybe FilePath -> IO (U.Contract' ParsedOp)
 readAndParseContract mFilename = do
   code <- readCode mFilename
   either throwM pure $ parseContract mFilename code
@@ -162,7 +162,7 @@ readAndParseContract mFilename = do
 
 -- | Read a contract using 'readAndParseContract', expand and
 -- flatten. The contract is not type checked.
-prepareContract :: Maybe FilePath -> IO UntypedContract
+prepareContract :: Maybe FilePath -> IO Contract
 prepareContract mFile = expandContract <$> readAndParseContract mFile
 
 -- | Originate a contract. Returns the address of the originated
@@ -183,8 +183,8 @@ runContract
   -> Word64
   -> Mutez
   -> FilePath
-  -> UntypedValue
-  -> UntypedContract
+  -> U.Value
+  -> Contract
   -> TxData
   -> "verbose" :! Bool
   -> "dryRun" :! Bool
@@ -263,7 +263,7 @@ interpreter maybeNow maxSteps dbPath operations
         [] -> putTextLn "It didn't return any operations"
         _ -> fmt $ nameF "It returned operations:" (blockListF iurOps)
       putTextLn $
-        "It returned storage: " <> pretty (valToValue iurNewStorage)
+        "It returned storage: " <> pretty (untypeValue iurNewStorage)
       let MorleyLogs logs = isExtState iurNewState
       unless (null logs) $
         mapM_ putTextLn logs
@@ -402,7 +402,7 @@ interpretOneOp now remainingSteps mSourceAddr gs (TransferOp addr txData) = do
                 interpretMorleyUntyped contract (tdParameter txData)
                                  (csStorage cs) contractEnv
         let
-          newValueU = valToValue newValue
+          newValueU = untypeValue newValue
           -- can't overflow if global state is correct (because we can't
           -- create money out of nowhere)
           newBalance = csBalance cs `unsafeAddMutez` tdAmount txData
@@ -431,7 +431,7 @@ interpretOneOp now remainingSteps mSourceAddr gs (TransferOp addr txData) = do
     addresses :: Map Address AddressState
     addresses = gsAddresses gs
 
-    extractContract :: AddressState -> Maybe UntypedContract
+    extractContract :: AddressState -> Maybe Contract
     extractContract =
       \case ASSimple {} -> Nothing
             ASContract cs -> Just (csContract cs)
@@ -448,10 +448,10 @@ convertOp interpretedAddr =
       let txData =
             TxData
               { tdSenderAddress = interpretedAddr
-              , tdParameter = valToValue (ttContractParameter tt)
+              , tdParameter = untypeValue (ttContractParameter tt)
               , tdAmount = ttAmount tt
               }
-          VContract destAddress = ttContract tt
+          T.VContract destAddress = ttContract tt
        in Just (TransferOp destAddress txData)
     OpSetDelegate {} -> Nothing
     OpCreateAccount {} -> Nothing
@@ -462,7 +462,7 @@ convertOp interpretedAddr =
             , ooSpendable = ccSpendable cc
             , ooDelegatable = ccDelegatable cc
             , ooBalance = ccBalance cc
-            , ooStorage = valToValue (ccStorageVal cc)
+            , ooStorage = untypeValue (ccStorageVal cc)
             , ooContract = convertContract (ccContractCode cc)
             }
        in Just (OriginateOp origination)

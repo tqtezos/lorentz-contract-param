@@ -31,7 +31,7 @@ module Michelson.Typed.Arith
 import Data.Bits (complement, shift, xor, (.&.), (.|.))
 import Fmt (Buildable(build))
 
-import Michelson.Typed.CValue (CVal(..))
+import Michelson.Typed.CValue (CValue(..))
 import Michelson.Typed.T (CT(..))
 import Tezos.Core (addMutez, mulMutez, subMutez, timestampFromSeconds, timestampToSeconds)
 
@@ -50,7 +50,7 @@ class ArithOp aop (n :: CT) (m :: CT) where
   type ArithRes aop n m :: CT
 
   -- | Evaluate arithmetic operation on given operands.
-  evalOp :: proxy aop -> CVal n -> CVal m -> Either (ArithError (CVal n) (CVal m)) (CVal (ArithRes aop n m))
+  evalOp :: proxy aop -> CValue n -> CValue m -> Either (ArithError (CValue n) (CValue m)) (CValue (ArithRes aop n m))
 
 -- | Denotes the error type occured in the arithmetic operation.
 data ArithErrorType
@@ -67,7 +67,7 @@ data ArithError n m
 -- | Marker data type for add operation.
 class UnaryArithOp aop (n :: CT) where
   type UnaryArithRes aop n :: CT
-  evalUnaryArithOp :: proxy aop -> CVal n -> CVal (UnaryArithRes aop n)
+  evalUnaryArithOp :: proxy aop -> CValue n -> CValue (UnaryArithRes aop n)
 
 data Add
 data Sub

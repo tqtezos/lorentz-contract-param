@@ -11,8 +11,8 @@ import Test.Hspec.QuickCheck (modifyMaxSuccess, prop)
 import Test.QuickCheck.Instances.Text ()
 
 import Michelson.Typed
-import Michelson.Untyped (UntypedContract)
-import qualified Michelson.Untyped as Untyped
+import qualified Michelson.Typed as T
+import qualified Michelson.Untyped as U
 import Morley.Runtime.GState
 import Morley.Test (specWithContract)
 import Morley.Test.Integrational
@@ -27,8 +27,8 @@ stringCallerSpec =
   specImpl stringCaller failOrStoreAndTransfer
 
 specImpl ::
-     (UntypedContract, Contract ('Tc 'CString) ('Tc 'CAddress))
-  -> (UntypedContract, Contract ('Tc 'CString) ('Tc 'CString))
+     (U.Contract, T.Contract ('Tc 'CString) ('Tc 'CAddress))
+  -> (U.Contract, T.Contract ('Tc 'CString) ('Tc 'CString))
   -> Spec
 specImpl (uStringCaller, _stringCaller) (uFailOrStore, _failOrStoreAndTransfer) = do
   let scenario = integrationalScenario uStringCaller uFailOrStore
@@ -47,7 +47,7 @@ specImpl (uStringCaller, _stringCaller) (uFailOrStore, _failOrStoreAndTransfer) 
   where
     constStr = "caller"
 
-integrationalScenario :: UntypedContract -> UntypedContract -> Text -> IntegrationalScenario
+integrationalScenario :: U.Contract -> U.Contract -> Text -> IntegrationalScenario
 integrationalScenario stringCaller failOrStoreAndTransfer str = do
   let
     initFailOrStoreBalance = unsafeMkMutez 900
@@ -55,10 +55,10 @@ integrationalScenario stringCaller failOrStoreAndTransfer str = do
 
   -- Originate both contracts
   failOrStoreAndTransferAddress <-
-    originate failOrStoreAndTransfer (Untyped.ValueString "hello") initFailOrStoreBalance
+    originate failOrStoreAndTransfer (U.ValueString "hello") initFailOrStoreBalance
   stringCallerAddress <-
     originate stringCaller
-    (Untyped.ValueString $ formatAddress failOrStoreAndTransferAddress)
+    (U.ValueString $ formatAddress failOrStoreAndTransferAddress)
     initStringCallerBalance
 
   -- NOW = 500, so stringCaller shouldn't fail
@@ -67,7 +67,7 @@ integrationalScenario stringCaller failOrStoreAndTransfer str = do
   -- Transfer 100 tokens to stringCaller, it should transfer 300 tokens
   -- to failOrStoreAndTransfer
   let
-    newValue = Untyped.ValueString str
+    newValue = U.ValueString str
     txData = TxData
       { tdSenderAddress = genesisAddress
       , tdParameter = newValue
@@ -106,7 +106,7 @@ integrationalScenario stringCaller failOrStoreAndTransfer str = do
   let
     txDataToConst = TxData
       { tdSenderAddress = failOrStoreAndTransferAddress
-      , tdParameter = Untyped.ValueUnit
+      , tdParameter = U.ValueUnit
       , tdAmount = unsafeMkMutez 200
       }
   transfer txDataToConst constAddr

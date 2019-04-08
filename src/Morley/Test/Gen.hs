@@ -13,25 +13,25 @@ import Data.Time.Clock (UTCTime(..))
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import Test.QuickCheck (Arbitrary(..), choose)
 
-import Michelson.Typed (CT(..), CVal(..), T(..), Val(..))
+import Michelson.Typed (CT(..), CValue(..), T(..), Value'(..))
 import Tezos.Core
   (Mutez(..), Timestamp, timestampFromSeconds, timestampFromUTCTime, timestampToSeconds,
   unsafeMkMutez)
 
-instance Arbitrary (CVal 'CKeyHash) where
+instance Arbitrary (CValue 'CKeyHash) where
   arbitrary = CvKeyHash <$> arbitrary
-instance Arbitrary (CVal 'CMutez) where
+instance Arbitrary (CValue 'CMutez) where
   arbitrary = CvMutez <$> arbitrary
-instance Arbitrary (CVal 'CInt) where
+instance Arbitrary (CValue 'CInt) where
   arbitrary = CvInt <$> arbitrary
-instance Arbitrary (CVal a) => Arbitrary (Val instr ('Tc a)) where
+instance Arbitrary (CValue a) => Arbitrary (Value' instr ('Tc a)) where
   arbitrary = VC <$> arbitrary
-instance Arbitrary (Val instr a) => Arbitrary (Val instr ('TList a)) where
+instance Arbitrary (Value' instr a) => Arbitrary (Value' instr ('TList a)) where
   arbitrary = VList <$> arbitrary
-instance Arbitrary (Val instr 'TUnit) where
+instance Arbitrary (Value' instr 'TUnit) where
   arbitrary = pure VUnit
-instance (Arbitrary (Val instr a), Arbitrary (Val instr b))
-    => Arbitrary (Val instr ('TPair a b)) where
+instance (Arbitrary (Value' instr a), Arbitrary (Value' instr b))
+    => Arbitrary (Value' instr ('TPair a b)) where
   arbitrary = VPair ... (,) <$> arbitrary <*> arbitrary
 
 minDay :: Day
@@ -48,11 +48,11 @@ minSec = 0
 maxSec :: Integer
 maxSec = 86399
 
--- | Minimal (earliest) timestamp used for @Arbitrary (CVal 'CTimestamp)@
+-- | Minimal (earliest) timestamp used for @Arbitrary (CValue 'CTimestamp)@
 minTimestamp :: Timestamp
 minTimestamp = timestampFromUTCTime $ UTCTime minDay (fromInteger minSec)
 
--- | Maximal (latest) timestamp used for @Arbitrary (CVal 'CTimestamp)@
+-- | Maximal (latest) timestamp used for @Arbitrary (CValue 'CTimestamp)@
 maxTimestamp :: Timestamp
 maxTimestamp = timestampFromUTCTime $ UTCTime maxDay (fromInteger maxSec)
 
@@ -64,7 +64,7 @@ midTimestamp = timestampFromUTCTime $
   UTCTime ( ((maxDay `diffDays` minDay) `div` 2) `addDays` minDay)
           (fromInteger $ (maxSec - minSec) `div` 2)
 
-instance Arbitrary (CVal 'CTimestamp) where
+instance Arbitrary (CValue 'CTimestamp) where
   arbitrary = CvTimestamp <$> arbitrary
 
 instance Arbitrary Mutez where

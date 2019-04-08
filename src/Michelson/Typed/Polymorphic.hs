@@ -18,15 +18,15 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.Text as T
 
-import Michelson.Typed.CValue (CVal(..))
+import Michelson.Typed.CValue (CValue(..))
 import Michelson.Typed.T (CT(..), T(..))
-import Michelson.Typed.Value (Val(..))
+import Michelson.Typed.Value (Value'(..))
 
 import Tezos.Core (divModMutez, divModMutezInt)
 
 class MemOp (c :: T) where
   type MemOpKey c :: CT
-  evalMem :: CVal (MemOpKey c) -> Val cp c -> Bool
+  evalMem :: CValue (MemOpKey c) -> Value' cp c -> Bool
 instance MemOp ('TSet e) where
   type MemOpKey ('TSet e) = e
   evalMem e (VSet s) = e `S.member` s
@@ -40,8 +40,8 @@ instance MemOp ('TBigMap k v) where
 class MapOp (c :: T) where
   type MapOpInp c :: T
   type MapOpRes c :: T -> T
-  mapOpToList :: Val instr c -> [Val instr (MapOpInp c)]
-  mapOpFromList :: Val instr c -> [Val instr b] -> Val instr (MapOpRes c b)
+  mapOpToList :: Value' instr c -> [Value' instr (MapOpInp c)]
+  mapOpFromList :: Value' instr c -> [Value' instr b] -> Value' instr (MapOpRes c b)
 instance MapOp ('TMap k v) where
   type MapOpInp ('TMap k v) = 'TPair ('Tc k) v
   type MapOpRes ('TMap k v) = 'TMap k
@@ -60,7 +60,7 @@ instance MapOp ('TList e) where
 class IterOp (c :: T) where
   type IterOpEl c :: T
   iterOpDetachOne ::
-    Val instr c -> (Maybe (Val instr (IterOpEl c)), Val instr c)
+    Value' instr c -> (Maybe (Value' instr (IterOpEl c)), Value' instr c)
 instance IterOp ('TMap k v) where
   type IterOpEl ('TMap k v) = 'TPair ('Tc k) v
   iterOpDetachOne (VMap m) =
@@ -76,7 +76,7 @@ instance IterOp ('TSet e) where
   iterOpDetachOne (VSet s) = (VC <$> S.lookupMin s, VSet $ S.deleteMin s)
 
 class SizeOp (c :: T) where
-  evalSize :: Val cp c -> Int
+  evalSize :: Value' cp c -> Int
 instance SizeOp ('Tc 'CString) where
   evalSize (VC (CvString s)) = length s
 instance SizeOp ('Tc 'CBytes) where
@@ -92,8 +92,8 @@ class UpdOp (c :: T) where
   type UpdOpKey c :: CT
   type UpdOpParams c :: T
   evalUpd
-    :: CVal (UpdOpKey c)
-    -> Val cp (UpdOpParams c) -> Val cp c -> Val cp c
+    :: CValue (UpdOpKey c)
+    -> Value' cp (UpdOpParams c) -> Value' cp c -> Value' cp c
 instance UpdOp ('TMap k v) where
   type UpdOpKey ('TMap k v) = k
   type UpdOpParams ('TMap k v) = 'TOption v
@@ -119,7 +119,7 @@ instance UpdOp ('TSet a) where
 class GetOp (c :: T) where
   type GetOpKey c :: CT
   type GetOpVal c :: T
-  evalGet :: CVal (GetOpKey c) -> Val cp c -> Maybe (Val cp (GetOpVal c))
+  evalGet :: CValue (GetOpKey c) -> Value' cp c -> Maybe (Value' cp (GetOpVal c))
 instance GetOp ('TBigMap k v) where
   type GetOpKey ('TBigMap k v) = k
   type GetOpVal ('TBigMap k v) = v
@@ -130,8 +130,8 @@ instance GetOp ('TMap k v) where
   evalGet k (VMap m) = k `M.lookup` m
 
 class ConcatOp (c :: T) where
-  evalConcat :: Val cp c -> Val cp c -> Val cp c
-  evalConcat' :: [Val cp c] -> Val cp c
+  evalConcat :: Value' cp c -> Value' cp c -> Value' cp c
+  evalConcat' :: [Value' cp c] -> Value' cp c
 instance ConcatOp ('Tc 'CString) where
   evalConcat (VC (CvString s1)) (VC (CvString s2)) = (VC . CvString) (s1 <> s2)
   evalConcat' l =
@@ -142,7 +142,7 @@ instance ConcatOp ('Tc 'CBytes) where
     (VC . CvBytes) $ foldr (<>) mempty (map (\(VC (CvBytes b)) -> b) l)
 
 class SliceOp (c :: T) where
-  evalSlice :: Natural -> Natural -> Val cp c -> Maybe (Val cp c)
+  evalSlice :: Natural -> Natural -> Value' cp c -> Maybe (Value' cp c)
 instance SliceOp ('Tc 'CString) where
   evalSlice o l (VC (CvString s)) =
     if o > fromIntegral (length s) || o + l > fromIntegral (length s)
@@ -168,9 +168,9 @@ class EDivOp (n :: CT) (m :: CT) where
   type EDivOpRes n m :: CT
   type EModOpRes n m :: CT
   evalEDivOp
-    :: CVal n
-    -> CVal m
-    -> Val instr ('TOption ('TPair ('Tc (EDivOpRes n m))
+    :: CValue n
+    -> CValue m
+    -> Value' instr ('TOption ('TPair ('Tc (EDivOpRes n m))
                                      ('Tc (EModOpRes n m))))
 
 instance EDivOp 'CInt 'CInt where

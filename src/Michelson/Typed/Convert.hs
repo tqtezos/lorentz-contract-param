@@ -3,7 +3,7 @@
 module Michelson.Typed.Convert
   ( convertContract
   , instrToOps
-  , valToValue
+  , untypeValue
   , Conversible (..)
   , ConversibleExt
   ) where
@@ -18,7 +18,7 @@ import Michelson.Typed.Scope
 import Michelson.Typed.Sing (Sing(..), fromSingCT, fromSingT)
 import Michelson.Typed.T (CT(..), T(..))
 import Michelson.Typed.Value
-import qualified Michelson.Untyped as Un
+import qualified Michelson.Untyped as U
 import Tezos.Address (formatAddress)
 import Tezos.Core (unMutez)
 import Tezos.Crypto (formatKeyHash, formatPublicKey, formatSignature)
@@ -26,13 +26,13 @@ import Tezos.Crypto (formatKeyHash, formatPublicKey, formatSignature)
 class Conversible ext1 ext2 where
   convert :: ext1 -> ext2
 
-type ConversibleExt = Conversible (ExtT Instr) (Un.ExtU Un.InstrAbstract Un.ExpandedOp)
+type ConversibleExt = Conversible (ExtT Instr) (U.ExtU U.InstrAbstract U.ExpandedOp)
 
 convertContract
   :: forall param store . (SingI param, SingI store, ConversibleExt)
-  => Contract param store -> Un.UntypedContract
+  => Contract param store -> U.Contract
 convertContract contract =
-  Un.Contract
+  U.Contract
     { para = toUType $ fromSingT (sing @param)
     , stor = toUType $ fromSingT (sing @store)
     , code = instrToOps contract
@@ -43,244 +43,243 @@ convertContract contract =
 -- For full isomorphism type of the given 'Val' should not contain
 -- 'TOperation' - a compile error will be raised otherwise.
 -- You can analyse its presence with 'checkOpPresence' function.
-valToValue ::
+untypeValue ::
      forall t . (ConversibleExt, SingI t, HasNoOp t)
-  => Val Instr t
-  -> Un.UntypedValue
-valToValue val = case (val, sing @t) of
+  => Value' Instr t
+  -> U.Value
+untypeValue val = case (val, sing @t) of
   (VC cVal, _) ->
-    cValToValue cVal
+    untypeCValue cVal
   (VKey b, _) ->
-    Un.ValueString $ formatPublicKey b
+    U.ValueString $ formatPublicKey b
   (VUnit, _) ->
-    Un.ValueUnit
+    U.ValueUnit
   (VSignature b, _) ->
-    Un.ValueString $ formatSignature b
+    U.ValueString $ formatSignature b
   (VOption (Just x), STOption _) ->
-    Un.ValueSome (valToValue x)
+    U.ValueSome (untypeValue x)
   (VOption Nothing, STOption _) ->
-    Un.ValueNone
+    U.ValueNone
   (VList l, STList _) ->
-    vList Un.ValueSeq $ map valToValue l
+    vList U.ValueSeq $ map untypeValue l
   (VSet s, _) ->
-    vList Un.ValueSeq $ map cValToValue $ toList s
+    vList U.ValueSeq $ map untypeCValue $ toList s
   (VContract b, _) ->
-    Un.ValueString $ formatAddress b
+    U.ValueString $ formatAddress b
 
   (VPair (l, r), STPair lt _) ->
     case checkOpPresence lt of
-      OpAbsent -> Un.ValuePair (valToValue l) (valToValue r)
+      OpAbsent -> U.ValuePair (untypeValue l) (untypeValue r)
 
   (VOr (Left x), STOr lt _) ->
     case checkOpPresence lt of
-      OpAbsent -> Un.ValueLeft (valToValue x)
+      OpAbsent -> U.ValueLeft (untypeValue x)
 
   (VOr (Right x), STOr lt _) ->
     case checkOpPresence lt of
-      OpAbsent -> Un.ValueRight (valToValue x)
+      OpAbsent -> U.ValueRight (untypeValue x)
 
   (VLam ops, _) ->
-    vList Un.ValueLambda $ instrToOps ops
+    vList U.ValueLambda $ instrToOps ops
 
   (VMap m, STMap _ vt) ->
     case checkOpPresence vt of
       OpAbsent ->
-        vList Un.ValueMap $ Map.toList m <&> \(k, v) ->
-        Un.Elt (cValToValue k) (valToValue v)
+        vList U.ValueMap $ Map.toList m <&> \(k, v) ->
+        U.Elt (untypeCValue k) (untypeValue v)
 
   (VBigMap m, STBigMap _ vt) ->
     case checkOpPresence vt of
       OpAbsent ->
-        vList Un.ValueMap $ Map.toList m <&> \(k, v) ->
-        Un.Elt (cValToValue k) (valToValue v)
+        vList U.ValueMap $ Map.toList m <&> \(k, v) ->
+        U.Elt (untypeCValue k) (untypeValue v)
   where
-    vList ctor = maybe Un.ValueNil ctor . nonEmpty
+    vList ctor = maybe U.ValueNil ctor . nonEmpty
+untypeCValue :: CValue t -> U.Value
+untypeCValue cVal = case cVal of
+  CvInt i -> U.ValueInt i
+  CvNat i -> U.ValueInt $ toInteger i
+  CvString s -> U.ValueString s
+  CvBytes b -> U.ValueBytes $ U.InternalByteString b
+  CvMutez m -> U.ValueInt $ toInteger $ unMutez m
+  CvBool True -> U.ValueTrue
+  CvBool False -> U.ValueFalse
+  CvKeyHash h -> U.ValueString $ formatKeyHash h
+  CvTimestamp t -> U.ValueString $ show t
+  CvAddress a -> U.ValueString $ formatAddress a
 
-cValToValue :: CVal t -> Un.UntypedValue
-cValToValue cVal = case cVal of
-  CvInt i -> Un.ValueInt i
-  CvNat i -> Un.ValueInt $ toInteger i
-  CvString s -> Un.ValueString s
-  CvBytes b -> Un.ValueBytes $ Un.InternalByteString b
-  CvMutez m -> Un.ValueInt $ toInteger $ unMutez m
-  CvBool True -> Un.ValueTrue
-  CvBool False -> Un.ValueFalse
-  CvKeyHash h -> Un.ValueString $ formatKeyHash h
-  CvTimestamp t -> Un.ValueString $ show t
-  CvAddress a -> Un.ValueString $ formatAddress a
-
-instrToOps :: ConversibleExt => Instr inp out -> [Un.ExpandedOp]
+instrToOps :: ConversibleExt => Instr inp out -> [U.ExpandedOp]
 instrToOps instr = case instr of
-  Nested sq -> one $ Un.SeqEx $ instrToOps sq
-  i -> Un.PrimEx <$> handleInstr i
+  Nested sq -> one $ U.SeqEx $ instrToOps sq
+  i -> U.PrimEx <$> handleInstr i
   where
-    handleInstr :: Instr inp out -> [Un.ExpandedInstr]
+    handleInstr :: Instr inp out -> [U.ExpandedInstr]
     handleInstr (Seq i1 i2) = handleInstr i1 <> handleInstr i2
     handleInstr Nop = []
-    handleInstr (Ext nop) = [Un.EXT $ convert nop]
+    handleInstr (Ext nop) = [U.EXT $ convert nop]
     handleInstr (Nested _) = error "impossible"
-    handleInstr DROP = [Un.DROP]
-    handleInstr DUP = [Un.DUP Un.noAnn]
-    handleInstr SWAP = [Un.SWAP]
+    handleInstr DROP = [U.DROP]
+    handleInstr DUP = [U.DUP U.noAnn]
+    handleInstr SWAP = [U.SWAP]
     handleInstr i@(PUSH val) = handle i
       where
-        handle :: Instr inp1 (t ': s) -> [Un.ExpandedInstr]
+        handle :: Instr inp1 (t ': s) -> [U.ExpandedInstr]
         handle (PUSH _ :: Instr inp1 (t ': s)) =
-          let value = valToValue val
-          in [Un.PUSH Un.noAnn (toUType $ fromSingT (sing @t)) value]
+          let value = untypeValue val
+          in [U.PUSH U.noAnn (toUType $ fromSingT (sing @t)) value]
         handle _ = error "unexcepted call"
     handleInstr i@NONE = handle i
       where
-        handle :: Instr inp1 ('TOption a ': inp1) -> [Un.ExpandedInstr]
+        handle :: Instr inp1 ('TOption a ': inp1) -> [U.ExpandedInstr]
         handle (NONE :: Instr inp1 ('TOption a ': inp1)) =
-          [Un.NONE Un.noAnn Un.noAnn Un.noAnn (toUType $ fromSingT (sing @a))]
+          [U.NONE U.noAnn U.noAnn U.noAnn (toUType $ fromSingT (sing @a))]
         handle _ = error "unexcepted call"
-    handleInstr SOME = [Un.SOME Un.noAnn Un.noAnn Un.noAnn]
-    handleInstr UNIT = [Un.UNIT Un.noAnn Un.noAnn]
-    handleInstr (IF_NONE i1 i2) = [Un.IF_NONE (instrToOps i1) (instrToOps i2)]
-    handleInstr PAIR = [Un.PAIR Un.noAnn Un.noAnn Un.noAnn Un.noAnn]
-    handleInstr CAR = [Un.CAR Un.noAnn Un.noAnn]
-    handleInstr CDR = [Un.CDR Un.noAnn Un.noAnn]
+    handleInstr SOME = [U.SOME U.noAnn U.noAnn U.noAnn]
+    handleInstr UNIT = [U.UNIT U.noAnn U.noAnn]
+    handleInstr (IF_NONE i1 i2) = [U.IF_NONE (instrToOps i1) (instrToOps i2)]
+    handleInstr PAIR = [U.PAIR U.noAnn U.noAnn U.noAnn U.noAnn]
+    handleInstr CAR = [U.CAR U.noAnn U.noAnn]
+    handleInstr CDR = [U.CDR U.noAnn U.noAnn]
     handleInstr i@LEFT = handle i
       where
-        handle :: Instr (a ': s) ('TOr a b ': s) -> [Un.ExpandedInstr]
+        handle :: Instr (a ': s) ('TOr a b ': s) -> [U.ExpandedInstr]
         handle (LEFT :: Instr (a ': s) ('TOr a b ': s)) =
-          [Un.LEFT Un.noAnn Un.noAnn Un.noAnn Un.noAnn (toUType $ fromSingT (sing @b))]
+          [U.LEFT U.noAnn U.noAnn U.noAnn U.noAnn (toUType $ fromSingT (sing @b))]
         handle _ = error "unexcepted call"
     handleInstr i@(RIGHT) = handle i
       where
-        handle :: Instr (b ': s) ('TOr a b ': s) -> [Un.ExpandedInstr]
+        handle :: Instr (b ': s) ('TOr a b ': s) -> [U.ExpandedInstr]
         handle (RIGHT :: Instr (b ': s) ('TOr a b ': s)) =
-          [Un.RIGHT Un.noAnn Un.noAnn Un.noAnn Un.noAnn (toUType $ fromSingT (sing @a))]
+          [U.RIGHT U.noAnn U.noAnn U.noAnn U.noAnn (toUType $ fromSingT (sing @a))]
         handle _ = error "unexcepted call"
-    handleInstr (IF_LEFT i1 i2) = [Un.IF_LEFT (instrToOps i1) (instrToOps i2)]
-    handleInstr (IF_RIGHT i1 i2) = [Un.IF_RIGHT (instrToOps i1) (instrToOps i2)]
+    handleInstr (IF_LEFT i1 i2) = [U.IF_LEFT (instrToOps i1) (instrToOps i2)]
+    handleInstr (IF_RIGHT i1 i2) = [U.IF_RIGHT (instrToOps i1) (instrToOps i2)]
     handleInstr i@(NIL) = handle i
       where
-        handle :: Instr s ('TList p ': s) -> [Un.ExpandedInstr]
+        handle :: Instr s ('TList p ': s) -> [U.ExpandedInstr]
         handle (NIL :: Instr s ('TList p ': s)) =
-          [Un.NIL Un.noAnn Un.noAnn (toUType $ fromSingT (sing @p))]
+          [U.NIL U.noAnn U.noAnn (toUType $ fromSingT (sing @p))]
         handle _ = error "unexcepted call"
-    handleInstr CONS = [Un.CONS Un.noAnn]
-    handleInstr (IF_CONS i1 i2) = [Un.IF_CONS (instrToOps i1) (instrToOps i2)]
-    handleInstr SIZE = [Un.SIZE Un.noAnn]
+    handleInstr CONS = [U.CONS U.noAnn]
+    handleInstr (IF_CONS i1 i2) = [U.IF_CONS (instrToOps i1) (instrToOps i2)]
+    handleInstr SIZE = [U.SIZE U.noAnn]
     handleInstr i@EMPTY_SET = handle i
       where
-        handle :: Instr s ('TSet e ': s) -> [Un.ExpandedInstr]
+        handle :: Instr s ('TSet e ': s) -> [U.ExpandedInstr]
         handle (EMPTY_SET :: Instr s ('TSet e ': s)) =
-          [Un.EMPTY_SET Un.noAnn Un.noAnn (Un.Comparable (fromSingCT (sing @e)) Un.noAnn)]
+          [U.EMPTY_SET U.noAnn U.noAnn (U.Comparable (fromSingCT (sing @e)) U.noAnn)]
         handle _ = error "unexcepted call"
     handleInstr i@EMPTY_MAP = handle i
       where
-        handle :: Instr s ('TMap a b ': s) -> [Un.ExpandedInstr]
+        handle :: Instr s ('TMap a b ': s) -> [U.ExpandedInstr]
         handle (EMPTY_MAP :: Instr s ('TMap a b ': s)) =
-          [Un.EMPTY_MAP Un.noAnn Un.noAnn (Un.Comparable (fromSingCT (sing @a)) Un.noAnn)
+          [U.EMPTY_MAP U.noAnn U.noAnn (U.Comparable (fromSingCT (sing @a)) U.noAnn)
            (toUType $ fromSingT (sing @b))
           ]
         handle _ = error "unexcepted call"
-    handleInstr (MAP op) = [Un.MAP Un.noAnn $ instrToOps op]
-    handleInstr (ITER op) = [Un.ITER $ instrToOps op]
-    handleInstr MEM = [Un.MEM Un.noAnn]
-    handleInstr GET = [Un.GET Un.noAnn]
-    handleInstr UPDATE = [Un.UPDATE]
-    handleInstr (IF op1 op2) = [Un.IF (instrToOps op1) (instrToOps op2)]
-    handleInstr (LOOP op) = [Un.LOOP (instrToOps op)]
-    handleInstr (LOOP_LEFT op) = [Un.LOOP_LEFT (instrToOps op)]
+    handleInstr (MAP op) = [U.MAP U.noAnn $ instrToOps op]
+    handleInstr (ITER op) = [U.ITER $ instrToOps op]
+    handleInstr MEM = [U.MEM U.noAnn]
+    handleInstr GET = [U.GET U.noAnn]
+    handleInstr UPDATE = [U.UPDATE]
+    handleInstr (IF op1 op2) = [U.IF (instrToOps op1) (instrToOps op2)]
+    handleInstr (LOOP op) = [U.LOOP (instrToOps op)]
+    handleInstr (LOOP_LEFT op) = [U.LOOP_LEFT (instrToOps op)]
     handleInstr i@(LAMBDA l) = handle i
       where
-        handle :: Instr s ('TLambda i o ': s) -> [Un.ExpandedInstr]
+        handle :: Instr s ('TLambda i o ': s) -> [U.ExpandedInstr]
         handle (LAMBDA _ :: Instr s ('TLambda i o ': s)) =
-          [Un.LAMBDA Un.noAnn (toUType $ fromSingT (sing @i))
+          [U.LAMBDA U.noAnn (toUType $ fromSingT (sing @i))
             (toUType $ fromSingT (sing @i)) (convertLambdaBody l)
           ]
         handle _ = error "unexcepted call"
-        convertLambdaBody :: Val Instr ('TLambda i o) -> [Un.ExpandedOp]
+        convertLambdaBody :: Value' Instr ('TLambda i o) -> [U.ExpandedOp]
         convertLambdaBody (VLam ops) = instrToOps ops
-    handleInstr EXEC = [Un.EXEC Un.noAnn]
-    handleInstr (DIP op) = [Un.DIP (instrToOps op)]
-    handleInstr FAILWITH = [Un.FAILWITH]
+    handleInstr EXEC = [U.EXEC U.noAnn]
+    handleInstr (DIP op) = [U.DIP (instrToOps op)]
+    handleInstr FAILWITH = [U.FAILWITH]
     handleInstr i@(CAST) = handle i
       where
-        handle :: Instr (a ': s) (a ': s) -> [Un.ExpandedInstr]
+        handle :: Instr (a ': s) (a ': s) -> [U.ExpandedInstr]
         handle (CAST :: Instr (a ': s) (a ': s)) =
-          [Un.CAST Un.noAnn (toUType $ fromSingT (sing @a))]
+          [U.CAST U.noAnn (toUType $ fromSingT (sing @a))]
         handle _ = error "unexcepted call"
-    handleInstr RENAME = [Un.RENAME Un.noAnn]
-    handleInstr PACK = [Un.PACK Un.noAnn]
+    handleInstr RENAME = [U.RENAME U.noAnn]
+    handleInstr PACK = [U.PACK U.noAnn]
     handleInstr i@(UNPACK) = handle i
       where
-        handle :: Instr ('Tc 'CBytes ': s) ('TOption a ': s) -> [Un.ExpandedInstr]
+        handle :: Instr ('Tc 'CBytes ': s) ('TOption a ': s) -> [U.ExpandedInstr]
         handle (UNPACK :: Instr ('Tc 'CBytes ': s) ('TOption a ': s)) =
-          [Un.UNPACK Un.noAnn (toUType $ fromSingT (sing @a))]
+          [U.UNPACK U.noAnn (toUType $ fromSingT (sing @a))]
         handle _ = error "unexcepted call"
-    handleInstr CONCAT = [Un.CONCAT Un.noAnn]
-    handleInstr CONCAT' = [Un.CONCAT Un.noAnn]
-    handleInstr SLICE = [Un.SLICE Un.noAnn]
-    handleInstr ISNAT = [Un.ISNAT Un.noAnn]
-    handleInstr ADD = [Un.ADD Un.noAnn]
-    handleInstr SUB = [Un.SUB Un.noAnn]
-    handleInstr MUL = [Un.MUL Un.noAnn]
-    handleInstr EDIV = [Un.EDIV Un.noAnn]
-    handleInstr ABS = [Un.ABS Un.noAnn]
-    handleInstr NEG = [Un.NEG]
-    handleInstr LSL = [Un.LSL Un.noAnn]
-    handleInstr LSR = [Un.LSR Un.noAnn]
-    handleInstr OR = [Un.OR Un.noAnn]
-    handleInstr AND = [Un.AND Un.noAnn]
-    handleInstr XOR = [Un.XOR Un.noAnn]
-    handleInstr NOT = [Un.NOT Un.noAnn]
-    handleInstr COMPARE = [Un.COMPARE Un.noAnn]
-    handleInstr Instr.EQ = [Un.EQ Un.noAnn]
-    handleInstr NEQ = [Un.NEQ Un.noAnn]
-    handleInstr Instr.LT = [Un.LT Un.noAnn]
-    handleInstr Instr.GT = [Un.GT Un.noAnn]
-    handleInstr LE = [Un.LE Un.noAnn]
-    handleInstr GE = [Un.GE Un.noAnn]
-    handleInstr INT = [Un.INT Un.noAnn]
-    handleInstr SELF = [Un.SELF Un.noAnn]
+    handleInstr CONCAT = [U.CONCAT U.noAnn]
+    handleInstr CONCAT' = [U.CONCAT U.noAnn]
+    handleInstr SLICE = [U.SLICE U.noAnn]
+    handleInstr ISNAT = [U.ISNAT U.noAnn]
+    handleInstr ADD = [U.ADD U.noAnn]
+    handleInstr SUB = [U.SUB U.noAnn]
+    handleInstr MUL = [U.MUL U.noAnn]
+    handleInstr EDIV = [U.EDIV U.noAnn]
+    handleInstr ABS = [U.ABS U.noAnn]
+    handleInstr NEG = [U.NEG]
+    handleInstr LSL = [U.LSL U.noAnn]
+    handleInstr LSR = [U.LSR U.noAnn]
+    handleInstr OR = [U.OR U.noAnn]
+    handleInstr AND = [U.AND U.noAnn]
+    handleInstr XOR = [U.XOR U.noAnn]
+    handleInstr NOT = [U.NOT U.noAnn]
+    handleInstr COMPARE = [U.COMPARE U.noAnn]
+    handleInstr Instr.EQ = [U.EQ U.noAnn]
+    handleInstr NEQ = [U.NEQ U.noAnn]
+    handleInstr Instr.LT = [U.LT U.noAnn]
+    handleInstr Instr.GT = [U.GT U.noAnn]
+    handleInstr LE = [U.LE U.noAnn]
+    handleInstr GE = [U.GE U.noAnn]
+    handleInstr INT = [U.INT U.noAnn]
+    handleInstr SELF = [U.SELF U.noAnn]
     handleInstr i@CONTRACT = handle i
       where
         handle :: Instr ('Tc 'CAddress ': s) ('TOption ('TContract p) ': s)
-               -> [Un.ExpandedInstr]
+               -> [U.ExpandedInstr]
         handle (CONTRACT :: Instr ('Tc 'CAddress ': s) ('TOption ('TContract p) ': s)) =
-          [Un.CONTRACT Un.noAnn (toUType $ fromSingT (sing @p))]
+          [U.CONTRACT U.noAnn (toUType $ fromSingT (sing @p))]
         handle _ = error "unexcepted call"
-    handleInstr TRANSFER_TOKENS = [Un.TRANSFER_TOKENS Un.noAnn]
-    handleInstr SET_DELEGATE = [Un.SET_DELEGATE Un.noAnn]
-    handleInstr CREATE_ACCOUNT = [Un.CREATE_ACCOUNT Un.noAnn Un.noAnn]
-    handleInstr CREATE_CONTRACT = [Un.CREATE_CONTRACT Un.noAnn Un.noAnn]
+    handleInstr TRANSFER_TOKENS = [U.TRANSFER_TOKENS U.noAnn]
+    handleInstr SET_DELEGATE = [U.SET_DELEGATE U.noAnn]
+    handleInstr CREATE_ACCOUNT = [U.CREATE_ACCOUNT U.noAnn U.noAnn]
+    handleInstr CREATE_CONTRACT = [U.CREATE_CONTRACT U.noAnn U.noAnn]
     handleInstr i@(CREATE_CONTRACT2 _) = handle i
       where
         handle :: Instr ('Tc 'CKeyHash ': 'TOption ('Tc 'CKeyHash)
                     ': 'Tc 'CBool ': 'Tc 'CBool ': 'Tc 'CMutez ': g ': s)
-                   ('TOperation ': 'Tc 'CAddress ': s) -> [Un.ExpandedInstr]
+                   ('TOperation ': 'Tc 'CAddress ': s) -> [U.ExpandedInstr]
         handle (CREATE_CONTRACT2 ops :: Instr ('Tc 'CKeyHash
                     ': 'TOption ('Tc 'CKeyHash)
                     ': 'Tc 'CBool ': 'Tc 'CBool ': 'Tc 'CMutez ': g ': s)
                    ('TOperation ': 'Tc 'CAddress ': s)) =
           case ops of
             (code :: Instr '[ 'TPair p g ] '[ 'TPair ('TList 'TOperation) g ]) ->
-              let contract = Un.Contract (toUType $ fromSingT (sing @p))
+              let contract = U.Contract (toUType $ fromSingT (sing @p))
                     (toUType $ fromSingT (sing @g)) (instrToOps code) in
-              [Un.CREATE_CONTRACT2 Un.noAnn Un.noAnn contract]
+              [U.CREATE_CONTRACT2 U.noAnn U.noAnn contract]
         handle _ = error "unexcepted call"
-    handleInstr IMPLICIT_ACCOUNT = [Un.IMPLICIT_ACCOUNT Un.noAnn]
-    handleInstr NOW = [Un.NOW Un.noAnn]
-    handleInstr AMOUNT = [Un.AMOUNT Un.noAnn]
-    handleInstr BALANCE = [Un.BALANCE Un.noAnn]
-    handleInstr CHECK_SIGNATURE = [Un.CHECK_SIGNATURE Un.noAnn]
-    handleInstr SHA256 = [Un.SHA256 Un.noAnn]
-    handleInstr SHA512 = [Un.SHA512 Un.noAnn]
-    handleInstr BLAKE2B = [Un.BLAKE2B Un.noAnn]
-    handleInstr HASH_KEY = [Un.HASH_KEY Un.noAnn]
-    handleInstr STEPS_TO_QUOTA = [Un.STEPS_TO_QUOTA Un.noAnn]
-    handleInstr SOURCE = [Un.SOURCE Un.noAnn]
-    handleInstr SENDER = [Un.SENDER Un.noAnn]
-    handleInstr ADDRESS = [Un.ADDRESS Un.noAnn]
+    handleInstr IMPLICIT_ACCOUNT = [U.IMPLICIT_ACCOUNT U.noAnn]
+    handleInstr NOW = [U.NOW U.noAnn]
+    handleInstr AMOUNT = [U.AMOUNT U.noAnn]
+    handleInstr BALANCE = [U.BALANCE U.noAnn]
+    handleInstr CHECK_SIGNATURE = [U.CHECK_SIGNATURE U.noAnn]
+    handleInstr SHA256 = [U.SHA256 U.noAnn]
+    handleInstr SHA512 = [U.SHA512 U.noAnn]
+    handleInstr BLAKE2B = [U.BLAKE2B U.noAnn]
+    handleInstr HASH_KEY = [U.HASH_KEY U.noAnn]
+    handleInstr STEPS_TO_QUOTA = [U.STEPS_TO_QUOTA U.noAnn]
+    handleInstr SOURCE = [U.SOURCE U.noAnn]
+    handleInstr SENDER = [U.SENDER U.noAnn]
+    handleInstr ADDRESS = [U.ADDRESS U.noAnn]
 
 -- It's an orphan instance, but it's better than checking all cases manually.
 -- We can also move this convertion to the place where `Instr` is defined,
 -- but then there will be a very large module (as we'll have to move a lot of
 -- stuff as well).
-instance (ConversibleExt, Eq Un.ExpandedInstrExtU) => Eq (Instr inp out) where
+instance (ConversibleExt, Eq U.ExpandedInstrExtU) => Eq (Instr inp out) where
   i1 == i2 = instrToOps i1 == instrToOps i2

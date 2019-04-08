@@ -5,10 +5,10 @@ module Main
 import Test.Hspec (hspec)
 
 import qualified Test.CValConversion as CVal
+import qualified Test.Ext as Ext
 import qualified Test.Interpreter as Interpreter
 import qualified Test.Macro as Macro
 import qualified Test.Morley.Runtime as Morley.Runtime
-import qualified Test.Ext as Ext
 import qualified Test.Parser as Parser
 import qualified Test.Printer.Michelson as Printer.Michelson
 import qualified Test.Serialization.Aeson as Serialization.Aeson

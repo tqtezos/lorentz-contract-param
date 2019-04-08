@@ -11,7 +11,7 @@ import Test.Hspec
   shouldSatisfy, specify)
 
 import Michelson.Interpret (ContractEnv(..), InterpretUntypedError(..), InterpretUntypedResult(..))
-import Michelson.Typed (valToValue)
+import Michelson.Typed (untypeValue)
 import Michelson.Untyped
 import Morley.Ext (interpretMorleyUntyped)
 import Morley.Runtime
@@ -43,10 +43,10 @@ spec = describe "Morley.Runtime" $ do
 --
 -- This type is mostly used for testing purposes.
 data ContractAux = ContractAux
-  { caContract :: !UntypedContract
+  { caContract :: !Contract
   , caEnv :: !ContractEnv
-  , caStorage :: !UntypedValue
-  , caParameter :: !UntypedValue
+  , caStorage :: !Value
+  , caParameter :: !Value
   }
 
 data UnexpectedFailed =
@@ -75,8 +75,8 @@ updatesStorageValue ca = either throwM handleResult $ do
       ]
   (addr,) <$> interpreterPure dummyNow dummyMaxSteps initGState interpreterOps
   where
-    toNewStorage :: InterpretUntypedResult MorleyLogs -> UntypedValue
-    toNewStorage InterpretUntypedResult {..} = valToValue iurNewStorage
+    toNewStorage :: InterpretUntypedResult MorleyLogs -> Value
+    toNewStorage InterpretUntypedResult {..} = untypeValue iurNewStorage
 
     handleResult :: (Address, InterpreterRes) -> Expectation
     handleResult (addr, ir) = do
@@ -99,7 +99,7 @@ failsToOriginateTwice =
     isAlreadyOriginated (Left (IEAlreadyOriginated {})) = True
     isAlreadyOriginated _ = False
 
-failsToOriginateIllTyped :: UntypedValue -> UntypedContract -> Expectation
+failsToOriginateIllTyped :: Value -> Contract -> Expectation
 failsToOriginateIllTyped initialStorage illTypedContract =
   simpleTest ops isIllTypedContract
   where
@@ -128,7 +128,7 @@ contractAux1 = ContractAux
   , caParameter = ValueString "aaa"
   }
   where
-    contract :: UntypedContract
+    contract :: Contract
     contract = Contract
       { para = Type tstring noAnn
       , stor = Type tbool noAnn

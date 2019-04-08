@@ -11,8 +11,8 @@ import Test.QuickCheck.Instances.Text ()
 
 import Michelson.Interpret (RemainingSteps(..))
 import Michelson.Typed
-import Michelson.Untyped (UntypedContract, UntypedValue)
-import qualified Michelson.Untyped as Untyped
+import qualified Michelson.Typed as T
+import qualified Michelson.Untyped as U
 import Morley.Runtime.GState
 import Morley.Test (specWithContract)
 import Morley.Test.Integrational
@@ -49,15 +49,15 @@ shouldExpectFailed fixture =
     , fAmount fixture < unsafeMkMutez 15
     ]
 
-shouldReturn :: Fixture -> UntypedValue
+shouldReturn :: Fixture -> U.Value
 shouldReturn fixture
-  | fMaxSteps fixture - consumedGas > 1000 = Untyped.ValueTrue
-  | otherwise = Untyped.ValueFalse
+  | fMaxSteps fixture - consumedGas > 1000 = U.ValueTrue
+  | otherwise = U.ValueFalse
   where
     consumedGas = 19
 
 specImpl ::
-    (UntypedContract, Contract ('Tc 'CAddress) ('Tc 'CBool))
+    (U.Contract, T.Contract ('Tc 'CAddress) ('Tc 'CBool))
   -> Spec
 specImpl (uEnvironment, _environment)  = do
   let scenario = integrationalScenario uEnvironment
@@ -70,7 +70,7 @@ specImpl (uEnvironment, _environment)  = do
       "beginning of this contract and returns whether remaining gas is " <>
       "greater than 1000"
 
-integrationalScenario :: UntypedContract -> Fixture -> IntegrationalScenario
+integrationalScenario :: U.Contract -> Fixture -> IntegrationalScenario
 integrationalScenario contract fixture = do
   -- First of all let's set desired gas limit and NOW
   setNow $ fNow fixture
@@ -78,7 +78,7 @@ integrationalScenario contract fixture = do
 
   -- Then let's originated the 'environment.tz' contract
   environmentAddress <-
-    originate contract Untyped.ValueFalse (fBalance fixture)
+    originate contract U.ValueFalse (fBalance fixture)
 
   -- And transfer tokens to it
   let
@@ -87,7 +87,7 @@ integrationalScenario contract fixture = do
       | otherwise = genesisAddress
     txData = TxData
       { tdSenderAddress = genesisAddress
-      , tdParameter = Untyped.ValueString (formatAddress param)
+      , tdParameter = U.ValueString (formatAddress param)
       , tdAmount = fAmount fixture
       }
   transfer txData environmentAddress

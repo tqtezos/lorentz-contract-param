@@ -18,7 +18,6 @@ import Test.Hspec (Spec, describe, expectationFailure, it, runIO)
 import Michelson.TypeCheck (SomeContract(..), TCError)
 import Michelson.Typed (Contract)
 import qualified Michelson.Untyped as U
-import Michelson.Untyped.Aliases (UntypedContract)
 import Morley.Ext (typeCheckMorleyContract)
 import Morley.Runtime (parseExpandContract, prepareContract)
 import Morley.Types (ParserException(..))
@@ -31,7 +30,7 @@ import Morley.Types (ParserException(..))
 -- result will notify about problem).
 specWithContract
   :: (Typeable cp, Typeable st)
-  => FilePath -> ((UntypedContract, Contract cp st) -> Spec) -> Spec
+  => FilePath -> ((U.Contract, Contract cp st) -> Spec) -> Spec
 specWithContract = specWithContractImpl importContract
 
 -- | A version of 'specWithContract' which passes only the typed
@@ -41,7 +40,7 @@ specWithTypedContract
   => FilePath -> (Contract cp st -> Spec) -> Spec
 specWithTypedContract = specWithContractImpl (fmap snd . importContract)
 
-specWithUntypedContract :: FilePath -> (UntypedContract -> Spec) -> Spec
+specWithUntypedContract :: FilePath -> (U.Contract -> Spec) -> Spec
 specWithUntypedContract = specWithContractImpl importUntypedContract
 
 specWithContractImpl
@@ -58,7 +57,7 @@ specWithContractImpl doImport file execSpec =
 readContract
   :: forall cp st .
     (Typeable cp, Typeable st)
-  => FilePath -> Text -> Either ImportContractError (UntypedContract, Contract cp st)
+  => FilePath -> Text -> Either ImportContractError (U.Contract, Contract cp st)
 readContract filePath txt = do
   contract <- first ICEParse $ parseExpandContract (Just filePath) txt
   SomeContract (instr :: Contract cp' st') _ _
@@ -77,10 +76,10 @@ readContract filePath txt = do
 importContract
   :: forall cp st .
     (Typeable cp, Typeable st)
-  => FilePath -> IO (UntypedContract, Contract cp st)
+  => FilePath -> IO (U.Contract, Contract cp st)
 importContract file = either throwM pure =<< readContract file <$> readFile file
 
-importUntypedContract :: FilePath -> IO UntypedContract
+importUntypedContract :: FilePath -> IO U.Contract
 importUntypedContract = prepareContract . Just
 
 -- | Error type for 'importContract' function.

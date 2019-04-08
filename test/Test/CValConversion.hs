@@ -7,7 +7,7 @@ module Test.CValConversion
 import Test.Hspec (Spec, describe, it, shouldBe)
 import Test.Hspec.QuickCheck (prop)
 
-import Michelson.Typed (CVal(..), fromCVal, toCVal)
+import Michelson.Typed (CValue(..), fromCVal, toCVal)
 
 -- | Spec to test toCVal / fromCVal conversions.
 spec :: Spec

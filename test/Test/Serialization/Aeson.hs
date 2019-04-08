@@ -8,8 +8,7 @@ import Test.Hspec (Spec)
 import Test.QuickCheck (Arbitrary)
 
 import Michelson.Untyped
-  (Elt, FieldAnn, InstrAbstract, TypeAnn, UntypedContract, UntypedValue,
-  VarAnn, ExpandedOp)
+  (Elt, ExpandedOp, FieldAnn, InstrAbstract, TypeAnn, Contract, Value, VarAnn)
 import Tezos.Core (Mutez, Timestamp)
 
 import Test.Arbitrary ()
@@ -49,7 +48,7 @@ spec = do
   test (Proxy @FieldAnn)
   test (Proxy @VarAnn)
 
-  test (Proxy @UntypedContract)
+  test (Proxy @Contract)
   testADT (Proxy @(InstrAbstract ExpandedOp))
-  test (Proxy @UntypedValue)
+  test (Proxy @Value)
   test (Proxy @(Elt ExpandedOp))

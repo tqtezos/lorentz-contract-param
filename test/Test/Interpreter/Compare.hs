@@ -9,7 +9,8 @@ import Test.QuickCheck (Property, (===))
 import Test.QuickCheck.Property (withMaxSuccess)
 
 import Michelson.Interpret (InterpreterState, MichelsonFailed)
-import Michelson.Typed (ToT, Val(..), fromVal)
+import Michelson.Typed (ToT, fromVal)
+import qualified Michelson.Typed as T
 import Morley.Test (contractProp, specWithTypedContract)
 import Morley.Test.Dummy
 import Morley.Test.Util (failedProp)
@@ -17,9 +18,9 @@ import Morley.Types (MorleyLogs)
 import Tezos.Core (Mutez, unsafeMkMutez)
 
 type Param = (Mutez, Mutez)
-type ContractStorage instr = Val instr (ToT [Bool])
-type ContractResult x instr
-   = ( Either MichelsonFailed ([x], ContractStorage instr)
+type ContractStorage = T.Value (ToT [Bool])
+type ContractResult x
+   = ( Either MichelsonFailed ([x], ContractStorage)
      , InterpreterState MorleyLogs)
 
 -- | Spec to test compare.tz contract.
@@ -45,7 +46,7 @@ compareSpec = parallel $ do
 
     validate
       :: [Bool]
-      -> ContractResult x instr
+      -> ContractResult x
       -> Property
     validate e (Right ([], fromVal -> l), _) = l === e
     validate _ (Left _, _) = failedProp "Unexpected fail of sctipt."

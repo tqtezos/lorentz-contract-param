@@ -34,7 +34,7 @@ import Fmt (genericF, pretty, (+|), (|+))
 import Formatting.Buildable (Buildable(build))
 import System.IO.Error (IOError, isDoesNotExistError)
 
-import Michelson.Untyped (UntypedContract, UntypedValue)
+import Michelson.Untyped (Contract, Value)
 import Morley.Types ()
 import Tezos.Address (Address(..))
 import Tezos.Core (Mutez)
@@ -44,9 +44,9 @@ import Tezos.Crypto (KeyHash, parseKeyHash)
 data ContractState = ContractState
   { csBalance :: !Mutez
   -- ^ Amount of mutez owned by this contract.
-  , csStorage :: !UntypedValue
+  , csStorage :: !Value
   -- ^ Storage value associated with this contract.
-  , csContract :: !UntypedContract
+  , csContract :: !Contract
   -- ^ Contract itself (untyped).
   } deriving (Show, Generic, Eq)
 
@@ -148,7 +148,7 @@ data GStateUpdate
   = GSAddAddress !Address
                  !AddressState
   | GSSetStorageValue !Address
-                      !UntypedValue
+                      !Value
   | GSSetBalance !Address
                  !Mutez
   deriving (Show, Eq)
@@ -199,7 +199,7 @@ addAddress addr st gs
 
 -- | Updare storage value associated with given address.
 setStorageValue ::
-     Address -> UntypedValue -> GState -> Either GStateUpdateError GState
+     Address -> Value -> GState -> Either GStateUpdateError GState
 setStorageValue addr newValue = updateAddressState addr modifier
   where
     modifier (ASSimple _) = Left (GStateNotContract addr)

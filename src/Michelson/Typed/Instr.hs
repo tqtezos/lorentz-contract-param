@@ -15,7 +15,7 @@ import Michelson.Typed.Arith
 import Michelson.Typed.Polymorphic
 import Michelson.Typed.Scope
 import Michelson.Typed.T (CT(..), T(..))
-import Michelson.Typed.Value (ContractInp, ContractOut, Val(..))
+import Michelson.Typed.Value (ContractInp, ContractOut, Value'(..))
 
 -- | Infix version of @Seq@ constructor.
 --
@@ -65,7 +65,7 @@ data Instr (inp :: [T]) (out :: [T]) where
   DROP :: Instr (a ': s) s
   DUP  :: Instr (a ': s) (a ': a ': s)
   SWAP :: Instr (a ': b ': s) (b ': a ': s)
-  PUSH :: forall t s . (SingI t, HasNoOp t) => Val Instr t -> Instr s (t ': s)
+  PUSH :: forall t s . (SingI t, HasNoOp t) => Value' Instr t -> Instr s (t ': s)
   SOME :: Instr (a ': s) ('TOption a ': s)
   NONE :: forall a s . SingI a => Instr s ('TOption a ': s)
   UNIT :: Instr s ('TUnit ': s)
@@ -122,7 +122,7 @@ data Instr (inp :: [T]) (out :: [T]) where
     => Instr (a ': s) ('TOr a b ': s)
     -> Instr ('TOr a b ': s) (b ': s)
   LAMBDA :: forall i o s . (SingI i, SingI o)
-         => Val Instr ('TLambda i o) -> Instr s ('TLambda i o ': s)
+         => Value' Instr ('TLambda i o) -> Instr s ('TLambda i o ': s)
   EXEC :: Typeable t1 => Instr (t1 ': 'TLambda t1 t2 ': s) (t2 ': s)
   DIP :: Typeable a => Instr a c -> Instr (b ': a) (b ': c)
   FAILWITH :: SingI a => Instr (a ': s) t
