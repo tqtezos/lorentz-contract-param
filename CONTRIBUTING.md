@@ -30,3 +30,7 @@ We have a [Makefile](/Makefile) which provides shortcuts for the most
 common developers' activities, like building with flags suitable for
 development, testing, applying `stylish-haskell` and `hlint`, building
 Haddock documentation.
+
+## Branching policy
+
+Our branching policy is described [here](/docs/branching.md).
