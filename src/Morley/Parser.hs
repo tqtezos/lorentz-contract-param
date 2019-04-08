@@ -239,8 +239,11 @@ dataLetValue = do
 intLiteral :: Parser (Mo.Value' a)
 intLiteral = try $ Mo.ValueInt <$> (L.signed (return ()) L.decimal)
 
+
+-- It is safe not to use `try` here because bytesLiteral is the only
+-- thing that starts from 0x (at least for now)
 bytesLiteral :: Parser (Mo.Value' a)
-bytesLiteral = try $ do
+bytesLiteral = do
   symbol "0x"
   hexdigits <- takeWhileP Nothing Char.isHexDigit
   let (bytes, remain) = B16.decode $ encodeUtf8 hexdigits
