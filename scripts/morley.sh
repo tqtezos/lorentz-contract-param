@@ -1,9 +1,5 @@
 #! /usr/bin/env bash
-
-if ! docker -v > /dev/null 2>&1 ; then
-    echo "Docker does not seem to be installed."
-    exit 1
-fi
+set -e
 
 docker_dir="$HOME/.morley"
 mnt_dir="/mnt"
@@ -13,7 +9,8 @@ docker_image=registry.gitlab.com/tezos-standards/morley
 
 maybe_pull_image() {
     if [ ! -f "$docker_pull_timestamp" ] \
-         || [ 3600 -le $(($(date "+%s") - $(cat "$docker_pull_timestamp"))) ]; then
+           || [ 3600 -le $(($(date "+%s") - $(cat "$docker_pull_timestamp"))) ];
+    then
         pull_image
     fi
 }
@@ -23,10 +20,29 @@ pull_image() {
     date "+%s" >| "$docker_pull_timestamp"
 }
 
-maybe_pull_image
+if [ "$1" = "--morley_executable" ];
+then
+    executable_filepath="$2"
+    shift 2
+else
+    if ! docker -v > /dev/null 2>&1 ; then
+        echo "Docker does not seem to be installed."
+        exit 1
+    fi
+    maybe_pull_image
+fi
+
 
 manpage() {
-    docker run $docker_image morley --help
+    if [ "$executable_filepath" = "" ]
+    then
+        docker run $docker_image morley --help
+    else
+        $executable_filepath --help
+    fi
+    echo ""
+    echo "You can pass --morley_executable fith filepath as a first argument to provide"
+    echo "custom morley executable (it's mostly used for testing this shell script)"
     echo ""
     echo "Also you can use --docker_debug to see additional informations such as"
     echo "arguments that are being passed to docker run"
@@ -55,10 +71,16 @@ do
   case $arg in
     --contract )
         contract_filepath="$2"
-        dn=$(dirname "$contract_filepath")
-        mkdir -p "$docker_dir/contract/$dn/"
-        cp "$contract_filepath" "$docker_dir/contract/$contract_filepath"
-        args+=("$arg" "$mnt_dir/contract/$contract_filepath")
+        if [ "$executable_filepath" = "" ]
+        then
+            dn=$(dirname "$contract_filepath")
+            mkdir -p "$docker_dir/contract/$dn/"
+            cp "$contract_filepath" "$docker_dir/contract/$contract_filepath"
+            args+=("$arg" "$mnt_dir/contract/$contract_filepath")
+        else
+            args+=("$arg" "$contract_filepath")
+        fi
+
         shift 2
         ;;
     --db )
@@ -74,7 +96,7 @@ do
         shift
   esac
 done
-if [ "$user_db_filepath" != "" ];
+if [ "$user_db_filepath" != "" ] && [ "$executable_filepath" = "" ];
 then
     dn=$(dirname "$user_db_filepath")
     mkdir -p "$docker_dir/db/$dn"
@@ -88,17 +110,33 @@ then
 fi
 if [ "$subcommand" != "parse" ] && [ "$subcommand" != "typecheck" ] && [ "$subcommand" != "print" ];
 then
-    args+=("--db" "$mnt_dir/db/$user_db_filepath")
+    if [ "$executable_filepath" = "" ]
+    then
+        args+=("--db" "$mnt_dir/db/$user_db_filepath")
+    else
+        args+=("--db" "$user_db_filepath")
+    fi
+
 fi
 if [ -n "$debug_flag" ];
 then
     echo "docker run arguments: ${args[*]}"
 fi
-docker run -v "$docker_dir:$mnt_dir" -i $docker_image morley "${args[@]}"
-run_exitcode=$?
-rm -rf "$docker_dir/contract"
-if [ "$user_db_filepath" != "$default_db_filepath" ];
+
+set +e
+if [ "$executable_filepath" = "" ];
 then
-    rm "$docker_dir/db/$user_db_filepath"
+    docker run -v "$docker_dir:$mnt_dir" -i $docker_image morley "${args[@]}"
+else
+    $executable_filepath "${args[@]}"
+fi
+
+run_exitcode=$?
+set -e
+
+rm -rf "$docker_dir/contract"
+if [ "$user_db_filepath" != "$default_db_filepath" ] && [ "$executable_filepath" = "" ];
+then
+    rm -rf "$docker_dir/db/"
 fi
 exit "$run_exitcode"
