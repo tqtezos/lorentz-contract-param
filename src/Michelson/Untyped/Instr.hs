@@ -154,8 +154,7 @@ data InstrAbstract op
   | TRANSFER_TOKENS   VarAnn
   | SET_DELEGATE      VarAnn
   | CREATE_ACCOUNT    VarAnn VarAnn
-  | CREATE_CONTRACT   VarAnn VarAnn
-  | CREATE_CONTRACT2  VarAnn VarAnn (Contract' op)
+  | CREATE_CONTRACT   VarAnn VarAnn (Contract' op)
   | IMPLICIT_ACCOUNT  VarAnn
   | NOW               VarAnn
   | AMOUNT            VarAnn
@@ -244,8 +243,8 @@ instance (RenderDoc op) => RenderDoc (InstrAbstract op) where
     TRANSFER_TOKENS va    -> "TRANSFER_TOKENS" <+> renderDoc va
     SET_DELEGATE va       -> "SET_DELEGATE" <+> renderDoc va
     CREATE_ACCOUNT va1 va2  -> "CREATE_ACCOUNT" <+> renderDoc va1 <+> renderDoc va2
-    CREATE_CONTRACT va1 va2 -> "CREATE_CONTRACT" <+> renderDoc va1 <+> renderDoc va2
-    CREATE_CONTRACT2 va1 va2 contract -> "CREATE_CONTRACT" <+> renderDoc va1 <+> renderDoc va2 <$$> braces (renderDoc contract)
+    CREATE_CONTRACT va1 va2 contract ->
+      "CREATE_CONTRACT" <+> renderDoc va1 <+> renderDoc va2 <$$> braces (renderDoc contract)
     IMPLICIT_ACCOUNT va   -> "IMPLICIT_ACCOUNT" <+> renderDoc va
     NOW va                -> "NOW" <+> renderDoc va
     AMOUNT va             -> "AMOUNT" <+> renderDoc va

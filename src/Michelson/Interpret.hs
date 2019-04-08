@@ -36,8 +36,9 @@ import Michelson.TypeCheck
   (ExtC, SomeContract(..), SomeValue(..), TCError, TcExtHandler, eqT', runTypeCheckT,
   typeCheckContract, typeCheckValue)
 import Michelson.Typed
-  (CValue(..), Contract, ConversibleExt, CreateAccount(..), CreateContract(..), Instr(..),
-  Operation(..), SetDelegate(..), Sing(..), T(..), TransferTokens(..), Value'(..), fromUType, OpPresence(..), HasNoOp)
+  (CValue(..), Contract, ConversibleExt, CreateAccount(..), CreateContract(..), HasNoOp, Instr(..),
+  OpPresence(..), Operation(..), SetDelegate(..), Sing(..), T(..), TransferTokens(..), Value'(..),
+  fromUType)
 import qualified Michelson.Typed as T
 import Michelson.Typed.Arith
 import Michelson.Typed.Convert (convertContract, untypeValue)
@@ -373,14 +374,7 @@ runInstrImpl _ CREATE_ACCOUNT
     (VC (CvBool spendable)) :& (VC (CvMutez m)) :& r) =
   pure (VOp (OpCreateAccount $ CreateAccount k (unwrapMbKeyHash mbKeyHash) spendable m)
     :& (VC . CvAddress) (KeyAddress k) :& r)
-runInstrImpl _ CREATE_CONTRACT
-  (VC (CvKeyHash k) :& VOption mbKeyHash :& (VC (CvBool spendable)) :&
-    (VC (CvBool delegetable)) :& (VC (CvMutez m)) :& VLam ops :& g :& r) =
-  pure (VOp (OpCreateContract $
-    CreateContract k (unwrapMbKeyHash mbKeyHash) spendable delegetable m g ops)
-    :& (VC . CvAddress) (U.mkContractAddress $
-      createOrigOp k mbKeyHash spendable delegetable m ops g) :& r)
-runInstrImpl _ (CREATE_CONTRACT2 ops)
+runInstrImpl _ (CREATE_CONTRACT ops)
   (VC (CvKeyHash k) :& VOption mbKeyHash :& (VC (CvBool spendable)) :&
     (VC (CvBool delegetable)) :& (VC (CvMutez m)) :& g :& r) =
   pure (VOp (OpCreateContract $

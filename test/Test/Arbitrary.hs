@@ -180,8 +180,7 @@ instance (Arbitrary op, Arbitrary (UExtInstrAbstract op)) => Arbitrary (InstrAbs
       , TRANSFER_TOKENS <$> arbitrary
       , SET_DELEGATE <$> arbitrary
       , CREATE_ACCOUNT <$> arbitrary <*> arbitrary
-      , CREATE_CONTRACT <$> arbitrary <*> arbitrary
-      , CREATE_CONTRACT2 <$> arbitrary <*> arbitrary <*> arbitrary
+      , CREATE_CONTRACT <$> arbitrary <*> arbitrary <*> arbitrary
       , IMPLICIT_ACCOUNT <$> arbitrary
       , NOW <$> arbitrary
       , AMOUNT <$> arbitrary

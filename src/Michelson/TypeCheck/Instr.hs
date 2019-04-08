@@ -584,36 +584,7 @@ typeCheckInstr (U.CREATE_ACCOUNT ovn avn)
   pure $ CREATE_ACCOUNT ::: (i, (STOperation, NStar, ovn) ::&
                                  (STc SCAddress, NStar, avn) ::& rs)
 
-typeCheckInstr instr@(U.CREATE_CONTRACT ovn avn)
-           i@((STc SCKeyHash, _, _)
-             ::& (STOption (STc SCKeyHash), _, _)
-             ::& (STc SCBool, _, _) ::& (STc SCBool, _, _)
-             ::& (STc SCMutez, _, _)
-             ::& (STLambda (STPair p1 (g1 :: Sing g1))
-                   (STPair (STList STOperation) (_ :: Sing g2)), ln, _)
-                        ::& ((_ :: Sing g3), gn3, _) ::& rs) = do
-  let (gn1, gn2) = notesCase (NStar, NStar)
-                    (\(NTLambda _ l r) ->
-                      (,) (notesCase NStar (\(NTPair _ _ _ _ n) -> n) l)
-                          (notesCase NStar (\(NTPair _ _ _ _ n) -> n) r)) ln
-  gd1 <- liftEither $ maybeToRight (hasOpFailure "storage") (opAbsense g1)
-  pd1 <- liftEither $ maybeToRight (hasOpFailure "parameter") (opAbsense p1)
-  liftEither $ either (\m -> typeCheckInstrErr instr (SomeHST i) $
-                  "mismatch of contract storage type: " <> m) pure $ do
-    Refl <- eqT' @g1 @g2
-    Refl <- eqT' @g2 @g3
-    gn12 <- converge gn1 gn2
-    _ <- converge gn12 gn3
-    case (gd1, pd1) of
-      (Dict, Dict) ->
-        pure $ CREATE_CONTRACT ::: (i, (STOperation, NStar, ovn) ::&
-                                     (STc SCAddress, NStar, avn) ::& rs)
-  where
-    hasOpFailure desc =
-      TCFailedOnInstr instr (SomeHST i) $
-        "contract " <> desc <> " type cannot contain operation"
-
-typeCheckInstr instr@(U.CREATE_CONTRACT2 ovn avn contract)
+typeCheckInstr instr@(U.CREATE_CONTRACT ovn avn contract)
            i@((STc SCKeyHash, _, _)
              ::& (STOption (STc SCKeyHash), _, _)
              ::& (STc SCBool, _, _)
@@ -627,7 +598,7 @@ typeCheckInstr instr@(U.CREATE_CONTRACT2 ovn avn contract)
   liftEither $ do
     Refl <- checkEqT @g @g' instr i "contract storage type mismatch"
     void $ converge gn (outNotes out) `onLeft` TCFailedOnInstr instr (SomeHST i)
-    pure $ CREATE_CONTRACT2 contr ::: (i, (STOperation, NStar, ovn) ::&
+    pure $ CREATE_CONTRACT contr ::: (i, (STOperation, NStar, ovn) ::&
                                           (STc SCAddress, NStar, avn) ::& rs)
   where
     outNotes :: HST '[ 'TPair ('TList 'TOperation) g' ] -> Notes g'
