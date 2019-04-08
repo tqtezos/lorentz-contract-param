@@ -16,6 +16,7 @@ module Michelson.TypeCheck.Types
     , runTypeCheckT
     ) where
 
+import Data.Data (Data)
 import Data.Singletons (SingI)
 import Fmt (Buildable(..), pretty, (+|), (|+), (||+))
 import Prelude hiding (EQ, GT, LT)
@@ -156,6 +157,7 @@ type ExtC
      , Typeable InstrExtT
      , Buildable U.ExpandedInstr
      , ConversibleExt
+     , Data U.ExpandedInstrExtU
      )
 
 type TypeCheckT a =

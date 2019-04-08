@@ -106,6 +106,7 @@ library
                      , parser-combinators >= 1.0.0
                      , directory
                      , singletons
+                     , syb
                      , mtl
                      , vinyl
                      , wl-pprint-text

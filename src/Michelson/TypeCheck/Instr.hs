@@ -35,6 +35,7 @@ import Prelude hiding (EQ, GT, LT)
 import Control.Monad.Except (liftEither, throwError, withExceptT)
 import Data.Constraint (Dict(..))
 import Data.Default (def)
+import Data.Generics (everything, mkQ)
 import Data.Singletons (SingI(sing))
 import Data.Typeable ((:~:)(..))
 
@@ -777,6 +778,8 @@ lamImpl
   -> HST ts
   -> TypeCheckT (SomeInstr ts)
 lamImpl instr is vn it ins ot ons i = do
+  when (any hasSelf is) $ typeCheckInstrErrM instr (SomeHST i)
+    "The SELF instruction cannot appear in a lambda"
   typeCheckList is ((it, ins, def) ::& SNil) >>=
     \case
       SiFail -> pure SiFail
@@ -790,3 +793,12 @@ lamImpl instr is vn it ins ot ons i = do
               pure (LAMBDA (VLam lam) ::: (i, (STLambda it ot, ns, vn) ::& i))
           Left m -> typeCheckInstrErr instr (SomeHST i) $
                       "wrong output type of lambda's expression: " <> m
+  where
+    hasSelf :: Un.ExpandedOp -> Bool
+    hasSelf = everything (||)
+      (mkQ False
+       (\x -> case x of
+           (Un.SELF _ :: Un.InstrAbstract Un.ExpandedOp) -> True
+           _ -> False
+       )
+      )
