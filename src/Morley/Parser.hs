@@ -45,10 +45,10 @@ import qualified Morley.Types as Mo
 ------------------
 
 -- | Michelson contract with let definitions
-program :: Mo.Parsec CustomParserException T.Text (Mo.Contract ParsedOp)
+program :: Mo.Parsec CustomParserException T.Text (Mo.Contract' ParsedOp)
 program = runReaderT programInner Mo.noLetEnv
 
-programInner :: Parser (Mo.Contract ParsedOp)
+programInner :: Parser (Mo.Contract' ParsedOp)
 programInner = do
   mSpace
   env <- fromMaybe Mo.noLetEnv <$> (optional letBlock)
@@ -60,7 +60,7 @@ parseNoEnv :: Parser a -> String -> T.Text
 parseNoEnv p = parse (runReaderT p Mo.noLetEnv)
 
 -- | Michelson contract
-contract :: Parser (Mo.Contract ParsedOp)
+contract :: Parser (Mo.Contract' ParsedOp)
 contract = do
   mSpace
   (p,s,c) <- intercalateEffect semicolon $
@@ -93,7 +93,7 @@ code = do void $ symbol "code"; ops
 
 -- Michelson expressions
 ------------------------
-value :: Parser (Mo.Value ParsedOp)
+value :: Parser Mo.ParsedValue
 value = lexeme $ valueInner <|> parens valueInner
 
 type_ :: Parser Mo.Type
@@ -222,7 +222,7 @@ varID = lexeme $ do
 -- Value Parsers
 -------------------------------------------------------------------------------
 
-valueInner :: Parser (Mo.Value Mo.ParsedOp)
+valueInner :: Parser Mo.ParsedValue
 valueInner = choice $
   [ stringLiteral, bytesLiteral, intLiteral, unitValue
   , trueValue, falseValue, pairValue, leftValue, rightValue
@@ -230,16 +230,16 @@ valueInner = choice $
   , dataLetValue
   ]
 
-dataLetValue :: Parser (Mo.Value ParsedOp)
+dataLetValue :: Parser Mo.ParsedValue
 dataLetValue = do
   lvs <- asks Mo.letValues
   Mo.lvVal <$> (mkLetVal lvs)
 
 -- Literals
-intLiteral :: Parser (Mo.Value a)
+intLiteral :: Parser (Mo.Value' a)
 intLiteral = try $ Mo.ValueInt <$> (L.signed (return ()) L.decimal)
 
-bytesLiteral :: Parser (Mo.Value a)
+bytesLiteral :: Parser (Mo.Value' a)
 bytesLiteral = try $ do
   symbol "0x"
   hexdigits <- takeWhileP Nothing Char.isHexDigit
@@ -248,7 +248,7 @@ bytesLiteral = try $ do
   then return . Mo.ValueBytes . Mo.InternalByteString $ bytes
   else customFailure OddNumberBytesException
 
-stringLiteral :: Parser (Mo.Value ParsedOp)
+stringLiteral :: Parser Mo.ParsedValue
 stringLiteral = try $ Mo.ValueString <$>
   (T.pack <$>
     ( (++) <$>
@@ -275,16 +275,16 @@ strEscape = char '\\' >> esc
       <|> (char 'r' >> return "\r")
 
 
-unitValue :: Parser (Mo.Value ParsedOp)
+unitValue :: Parser Mo.ParsedValue
 unitValue = do symbol "Unit"; return Mo.ValueUnit
 
-trueValue :: Parser (Mo.Value ParsedOp)
+trueValue :: Parser Mo.ParsedValue
 trueValue = do symbol "True"; return Mo.ValueTrue
 
-falseValue :: Parser (Mo.Value ParsedOp)
+falseValue :: Parser Mo.ParsedValue
 falseValue = do symbol "False"; return Mo.ValueFalse
 
-pairValue :: Parser (Mo.Value ParsedOp)
+pairValue :: Parser Mo.ParsedValue
 pairValue = core <|> tuple
   where
     core = do symbol "Pair"; a <- value; Mo.ValuePair a <$> value
@@ -301,31 +301,31 @@ pairValue = core <|> tuple
       b <- tupleInner <|> value
       return $ Mo.ValuePair a b
 
-leftValue :: Parser (Mo.Value ParsedOp)
+leftValue :: Parser Mo.ParsedValue
 leftValue = do void $ symbol "Left"; Mo.ValueLeft <$> value
 
-rightValue :: Parser (Mo.Value ParsedOp)
+rightValue :: Parser Mo.ParsedValue
 rightValue = do void $ symbol "Right"; Mo.ValueRight <$> value
 
-someValue :: Parser (Mo.Value ParsedOp)
+someValue :: Parser Mo.ParsedValue
 someValue = do void $ symbol "Some"; Mo.ValueSome <$> value
 
-noneValue :: Parser (Mo.Value ParsedOp)
+noneValue :: Parser Mo.ParsedValue
 noneValue = do symbol "None"; return Mo.ValueNone
 
-nilValue :: Parser (Mo.Value ParsedOp)
+nilValue :: Parser Mo.ParsedValue
 nilValue = Mo.ValueNil <$ (try $ braces pass)
 
-lambdaValue :: Parser (Mo.Value ParsedOp)
+lambdaValue :: Parser Mo.ParsedValue
 lambdaValue = Mo.ValueLambda <$> ops1
 
-seqValue :: Parser (Mo.Value ParsedOp)
+seqValue :: Parser Mo.ParsedValue
 seqValue = Mo.ValueSeq <$> (try $ braces $ sepEndBy1 value semicolon)
 
 eltValue :: Parser (Mo.Elt ParsedOp)
 eltValue = do void $ symbol "Elt"; Mo.Elt <$> value <*> value
 
-mapValue :: Parser (Mo.Value ParsedOp)
+mapValue :: Parser Mo.ParsedValue
 mapValue = Mo.ValueMap <$> (try $ braces $ sepEndBy1 eltValue semicolon)
 
 -------------------------------------------------------------------------------

@@ -2,9 +2,9 @@ module Michelson.TypeCheck.Types
     ( HST (..)
     , SomeHST (..)
     , SomeInstr (..)
-    , SomeVal (..)
+    , SomeValue (..)
     , SomeContract (..)
-    , SomeValC (..)
+    , SomeCValue (..)
     , TCError (..)
     , ExtC
     , TcInstrHandler
@@ -23,9 +23,10 @@ import Prelude hiding (EQ, GT, LT)
 import qualified Text.Show
 
 import Michelson.Typed (ConversibleExt, HasNoOp, Notes(..), Sing(..), T(..), fromSingT)
+import qualified Michelson.Typed as T
 import Michelson.Typed.Extract (toUType)
 import Michelson.Typed.Instr
-import Michelson.Typed.Value
+import Michelson.Typed.Value (CValue, ContractInp, ContractOut)
 
 import qualified Michelson.Untyped as U
 import Michelson.Untyped.Annotation (VarAnn)
@@ -100,17 +101,17 @@ instance Show InstrExtT => Show (SomeInstr inp) where
 
 -- | Data type, holding strictly-typed Michelson value along with its
 -- type singleton.
-data SomeVal where
+data SomeValue where
     (::::) :: (SingI t, Typeable t)
-           => Val Instr t
+           => T.Value t
            -> (Sing t, Notes t)
-           -> SomeVal
+           -> SomeValue
 
 -- | Data type, holding strictly-typed Michelson value along with its
 -- type singleton.
-data SomeValC where
+data SomeCValue where
     (:--:) :: (SingI t, Typeable t)
-           => CVal t -> Sing t -> SomeValC
+           => CValue t -> Sing t -> SomeCValue
 
 data SomeContract where
   SomeContract
@@ -125,7 +126,7 @@ deriving instance Show InstrExtT => Show SomeContract
 -- | Type check error
 data TCError =
     TCFailedOnInstr U.ExpandedInstr SomeHST Text
-  | TCFailedOnValue U.UntypedValue T Text
+  | TCFailedOnValue U.Value T Text
   | TCOtherError Text
 
 instance Buildable TCError where

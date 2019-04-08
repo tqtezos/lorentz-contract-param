@@ -22,15 +22,16 @@ import Michelson.Interpret
 import Michelson.TypeCheck
 import Michelson.TypeCheck.Helpers (convergeHST, eqT')
 import Michelson.TypeCheck.Types (HST)
-import Michelson.Typed (Val, converge, extractNotes, mkUType)
+import Michelson.Typed (converge, extractNotes, mkUType)
 import qualified Michelson.Typed as T
-import Michelson.Untyped (CT(..), InstrAbstract(..), UntypedContract, UntypedValue)
+import Michelson.Untyped (CT(..), InstrAbstract(..))
+import qualified Michelson.Untyped as U
 import Morley.Types
 
 interpretMorleyUntyped
-  :: UntypedContract
-  -> UntypedValue
-  -> UntypedValue
+  :: U.Contract
+  -> U.Value
+  -> U.Value
   -> ContractEnv
   -> Either (InterpretUntypedError MorleyLogs) (InterpretUntypedResult MorleyLogs)
 interpretMorleyUntyped c v1 v2 cenv =
@@ -39,14 +40,14 @@ interpretMorleyUntyped c v1 v2 cenv =
 interpretMorley
   :: (Typeable cp, Typeable st)
   => T.Contract cp st
-  -> Val T.Instr cp
-  -> Val T.Instr st
+  -> T.Value cp
+  -> T.Value st
   -> ContractEnv
   -> ContractReturn MorleyLogs st
 interpretMorley c param initSt env =
   interpret c param initSt (InterpreterEnv env interpretHandler) def
 
-typeCheckMorleyContract :: UntypedContract -> Either TCError SomeContract
+typeCheckMorleyContract :: U.Contract -> Either TCError SomeContract
 typeCheckMorleyContract = typeCheckContract typeCheckHandler
 
 typeCheckHandler :: ExpandedUExtInstr -> TcExtFrames -> SomeHST -> TypeCheckT (TcExtFrames, Maybe ExtInstr)
@@ -94,7 +95,7 @@ interpretHandler (PRINT (PrintComment pc), SomeItStack st) = do
         rat st (fromIntegral i)
   modify (\s -> s {isExtState = MorleyLogs $ mconcat (map getEl pc) : unMorleyLogs (isExtState s)})
 interpretHandler (TEST_ASSERT (TestAssert nm pc (instr :: T.Instr inp1 ('T.Tc 'T.CBool ': out1) )),
-            SomeItStack (st :: Rec (Val T.Instr) inp2)) = do
+            SomeItStack (st :: Rec T.Value inp2)) = do
   Refl <- liftEither $ first (error "TEST_ASSERT input stack doesn't match") $ eqT' @inp1 @inp2
   runInstrNoGas instr st >>= \case
     (T.VC (T.CvBool False) :& RNil) -> do
@@ -204,7 +205,7 @@ lengthHST :: HST xs -> Int
 lengthHST (_ ::& xs) = 1 + lengthHST xs
 lengthHST SNil = 0
 
-rat :: Rec (Val T.Instr) xs -> Int -> Maybe Text
+rat :: Rec T.Value xs -> Int -> Maybe Text
 rat (x :& _) 0 = Just $ show x
 rat (_ :& xs) i = rat xs (i - 1)
 rat RNil _ = Nothing

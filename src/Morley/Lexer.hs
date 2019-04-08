@@ -16,7 +16,7 @@ import Morley.Types (Parser)
 
 import Data.Char (toLower)
 import qualified Data.Text as T
-import Text.Megaparsec (between, MonadParsec, Tokens)
+import Text.Megaparsec (MonadParsec, Tokens, between)
 import Text.Megaparsec.Char (space1, string)
 import qualified Text.Megaparsec.Char.Lexer as L
 

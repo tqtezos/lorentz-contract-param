@@ -141,7 +141,7 @@ pairTest = do
   P.parseNoEnv P.value "" "Pair Unit Unit" `shouldBe` Right unitPair
   P.parseNoEnv P.value "" "(Unit, Unit)" `shouldBe` Right unitPair
   where
-    unitPair :: Mo.Value Mo.ParsedOp
+    unitPair :: Mo.Value' Mo.ParsedOp
     unitPair = Mo.ValuePair Mo.ValueUnit Mo.ValueUnit
 
 printCommentParserTest :: Expectation

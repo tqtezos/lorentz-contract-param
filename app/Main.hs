@@ -17,7 +17,7 @@ import Text.Pretty.Simple (pPrint)
 
 import Michelson.Printer (printUntypedContract)
 import Michelson.Untyped hiding (OriginationOperation(..))
-import qualified Michelson.Untyped as Un
+import qualified Michelson.Untyped as U
 import Morley.Ext (typeCheckMorleyContract)
 import Morley.Macro (expandContract, expandValue)
 import qualified Morley.Parser as P
@@ -40,7 +40,7 @@ data CmdLnArgs
 data RunOptions = RunOptions
   { roContractFile :: !(Maybe FilePath)
   , roDBPath :: !FilePath
-  , roStorageValue :: !Un.UntypedValue
+  , roStorageValue :: !U.Value
   , roTxData :: !TxData
   , roVerbose :: !Bool
   , roNow :: !(Maybe Timestamp)
@@ -56,7 +56,7 @@ data OriginateOptions = OriginateOptions
   , ooDelegate :: !(Maybe KeyHash)
   , ooSpendable :: !Bool
   , ooDelegatable :: !Bool
-  , ooStorageValue :: !Un.UntypedValue
+  , ooStorageValue :: !U.Value
   , ooBalance :: !Mutez
   , ooVerbose :: !Bool
   }
@@ -232,12 +232,12 @@ keyHashOption defaultValue name hInfo =
   maybeAddDefault pretty defaultValue <>
   help hInfo
 
-valueOption :: String -> String -> Opt.Parser Un.UntypedValue
+valueOption :: String -> String -> Opt.Parser U.Value
 valueOption name hInfo = option (eitherReader parseValue) $
   long name <>
   help hInfo
   where
-    parseValue :: String -> Either String Un.UntypedValue
+    parseValue :: String -> Either String U.Value
     parseValue s =
       either (Left . mappend "Failed to parse value: " . show)
              (Right . expandValue)
@@ -271,7 +271,7 @@ txData =
     <*> valueOption "parameter" "Parameter of passed contract"
     <*> mutezOption (Just minBound) "amount" "Amout sent by a transaction"
   where
-    mkTxData :: Address -> UntypedValue -> Mutez -> TxData
+    mkTxData :: Address -> Value -> Mutez -> TxData
     mkTxData addr param amount =
       TxData
         { tdSenderAddress = addr
@@ -323,14 +323,14 @@ main = do
           ! #dryRun (not roWrite)
       Originate OriginateOptions {..} -> do
         michelsonContract <- prepareContract ooContractFile
-        let origination = Un.OriginationOperation
-              { Un.ooManager = ooManager
-              , Un.ooDelegate = ooDelegate
-              , Un.ooSpendable = ooSpendable
-              , Un.ooDelegatable = ooDelegatable
-              , Un.ooStorage = ooStorageValue
-              , Un.ooBalance = ooBalance
-              , Un.ooContract = michelsonContract
+        let origination = U.OriginationOperation
+              { U.ooManager = ooManager
+              , U.ooDelegate = ooDelegate
+              , U.ooSpendable = ooSpendable
+              , U.ooDelegatable = ooDelegatable
+              , U.ooStorage = ooStorageValue
+              , U.ooBalance = ooBalance
+              , U.ooContract = michelsonContract
               }
         addr <- originateContract ooDBPath origination ! #verbose ooVerbose
         putTextLn $ "Originated contract " <> pretty addr

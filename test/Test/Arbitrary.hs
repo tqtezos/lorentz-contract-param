@@ -13,10 +13,11 @@ import Test.QuickCheck.Instances.Semigroup ()
 import Test.QuickCheck.Instances.Text ()
 
 import Michelson.Untyped
-  (Annotation(..), CT(..), Comparable(..), Contract(..), Elt(..), FieldAnn, InstrAbstract(..),
-  InternalByteString(..), ExpandedOp (..), T(..), Type(..), TypeAnn, Value(..), VarAnn)
+  (Annotation(..), CT(..), Comparable(..), Contract'(..), Elt(..), ExpandedOp(..), FieldAnn,
+  InstrAbstract(..), InternalByteString(..), T(..), Type(..), TypeAnn, Value'(..), VarAnn)
 import Morley.Test ()
-import Morley.Types (StackTypePattern(..), TyVar(..), ExpandedUExtInstr, UExtInstrAbstract(..), Var(..))
+import Morley.Types
+  (ExpandedUExtInstr, StackTypePattern(..), TyVar(..), UExtInstrAbstract(..), Var(..))
 import Tezos.Core (Mutez(..))
 
 instance Arbitrary InternalByteString where
@@ -62,8 +63,8 @@ smallList = smallSize >>= vector
 smallList1 :: Arbitrary a => Gen (NonEmpty a)
 smallList1 = smallList `suchThatMap` nonEmpty
 
-instance (Arbitrary op, ToADTArbitrary op) => ToADTArbitrary (Contract op)
-instance (Arbitrary op) => Arbitrary (Contract op) where
+instance (Arbitrary op, ToADTArbitrary op) => ToADTArbitrary (Contract' op)
+instance (Arbitrary op) => Arbitrary (Contract' op) where
   arbitrary = Contract <$> arbitrary <*> arbitrary <*> arbitrary
 
 instance (Arbitrary op, ToADTArbitrary op, Arbitrary (UExtInstrAbstract op)) => ToADTArbitrary (InstrAbstract op)
@@ -196,8 +197,8 @@ instance (Arbitrary op, Arbitrary (UExtInstrAbstract op)) => Arbitrary (InstrAbs
       , ADDRESS <$> arbitrary
       ]
 
-instance (Arbitrary op, ToADTArbitrary op) => ToADTArbitrary (Value op)
-instance (Arbitrary op) => Arbitrary (Value op) where
+instance (Arbitrary op, ToADTArbitrary op) => ToADTArbitrary (Value' op)
+instance (Arbitrary op) => Arbitrary (Value' op) where
   arbitrary =
     oneof
       [ ValueInt <$> arbitrary

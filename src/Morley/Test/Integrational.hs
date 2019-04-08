@@ -39,8 +39,7 @@ import Test.Hspec (Expectation, expectationFailure)
 import Test.QuickCheck (Property)
 
 import Michelson.Interpret (InterpretUntypedError(..), MichelsonFailed(..), RemainingSteps)
-import Michelson.Untyped
-  (OriginationOperation(..), UntypedContract, UntypedValue, mkContractAddress)
+import Michelson.Untyped (Contract, OriginationOperation(..), Value, mkContractAddress)
 import Morley.Runtime (InterpreterError(..), InterpreterOp(..), InterpreterRes(..), interpreterPure)
 import Morley.Runtime.GState
 import Morley.Runtime.TxData
@@ -104,8 +103,7 @@ integrationalTestProperty = integrationalTest (maybe succeededProp failedProp)
 
 -- | Originate a contract with given initial storage and balance. Its
 -- address is returned.
-originate ::
-  UntypedContract -> UntypedValue -> Mutez -> IntegrationalScenarioM Address
+originate :: Contract -> Value -> Mutez -> IntegrationalScenarioM Address
 originate contract value balance =
   mkContractAddress origination <$ putOperation originateOp
   where
@@ -158,7 +156,7 @@ expectAnySuccess _ _ = pass
 -- updated more than once).
 expectStorageUpdate ::
      Address
-  -> (UntypedValue -> Either Text ())
+  -> (Value -> Either Text ())
   -> SuccessValidator
 expectStorageUpdate addr predicate _ updates =
   case List.find checkAddr (reverse updates) of
@@ -175,7 +173,7 @@ expectStorageUpdate addr predicate _ updates =
 -- | Like 'expectStorageUpdate', but expects a constant.
 expectStorageUpdateConst ::
      Address
-  -> UntypedValue
+  -> Value
   -> SuccessValidator
 expectStorageUpdateConst addr expected =
   expectStorageUpdate addr predicate
@@ -185,7 +183,7 @@ expectStorageUpdateConst addr expected =
       | otherwise = Left $ "expected " +| expected |+ ""
 
 -- | Check that eventually address has some particular storage value.
-expectStorageConst :: Address -> UntypedValue -> SuccessValidator
+expectStorageConst :: Address -> Value -> SuccessValidator
 expectStorageConst addr expected gs _ =
   case gsAddresses gs ^. at addr of
     Just (ASContract cs)

@@ -27,9 +27,9 @@ import Text.PrettyPrint.Leijen.Text (braces, nest, (<$$>), (<+>))
 
 import Michelson.Printer.Util (RenderDoc(..), buildRenderDoc, renderOpsList, spaces)
 import Michelson.Untyped.Annotation (FieldAnn, TypeAnn, VarAnn)
-import Michelson.Untyped.Contract (Contract(..))
+import Michelson.Untyped.Contract (Contract'(..))
 import Michelson.Untyped.Type (Comparable, Type)
-import Michelson.Untyped.Value (Value(..))
+import Michelson.Untyped.Value (Value'(..))
 import Tezos.Address (Address, mkContractAddressRaw)
 import Tezos.Core (Mutez)
 import Tezos.Crypto (KeyHash)
@@ -90,7 +90,7 @@ data InstrAbstract op
   | DROP
   | DUP               VarAnn
   | SWAP
-  | PUSH              VarAnn Type (Value op)
+  | PUSH              VarAnn Type (Value' op)
   | SOME              TypeAnn VarAnn FieldAnn
   | NONE              TypeAnn VarAnn FieldAnn Type
   | UNIT              TypeAnn VarAnn
@@ -155,7 +155,7 @@ data InstrAbstract op
   | SET_DELEGATE      VarAnn
   | CREATE_ACCOUNT    VarAnn VarAnn
   | CREATE_CONTRACT   VarAnn VarAnn
-  | CREATE_CONTRACT2  VarAnn VarAnn (Contract op)
+  | CREATE_CONTRACT2  VarAnn VarAnn (Contract' op)
   | IMPLICIT_ACCOUNT  VarAnn
   | NOW               VarAnn
   | AMOUNT            VarAnn
@@ -289,9 +289,9 @@ data OriginationOperation = OriginationOperation
   -- ^ Whether the contract is delegatable.
   , ooBalance :: !Mutez
   -- ^ Initial balance of the contract.
-  , ooStorage :: !(Value ExpandedOp)
+  , ooStorage :: !(Value' ExpandedOp)
   -- ^ Initial storage value of the contract.
-  , ooContract :: !(Contract ExpandedOp)
+  , ooContract :: !(Contract' ExpandedOp)
   -- ^ The contract itself.
   } deriving (Generic)
 

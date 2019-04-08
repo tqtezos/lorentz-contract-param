@@ -10,8 +10,7 @@ import Test.QuickCheck (Gen, choose, forAll)
 
 import Michelson.Interpret (ContractEnv(..), InterpreterState(..), RemainingSteps(..))
 import Michelson.Typed
-import Michelson.Untyped (UntypedContract)
-import qualified Michelson.Untyped as Untyped
+import qualified Michelson.Untyped as U
 import Morley.Runtime.GState
 import Morley.Test (ContractPropValidator, contractProp, specWithContract)
 import Morley.Test.Dummy
@@ -54,7 +53,7 @@ type Parameter = 'Tc 'CInt
 type Storage = 'Tc 'CNat
 
 specImpl ::
-     (UntypedContract, Contract Parameter Storage)
+     (U.Contract, Contract Parameter Storage)
   -> Spec
 specImpl (uSelfCaller, selfCaller) = modifyMaxSuccess (min 10) $ do
   it ("With parameter 1 single execution consumes " <>
@@ -84,15 +83,15 @@ specImpl (uSelfCaller, selfCaller) = modifyMaxSuccess (min 10) $ do
       "it fails due to gas limit if the number is large, otherwise the " <>
       "storage is updated to the number of calls"
 
-integrationalScenario :: UntypedContract -> Fixture -> IntegrationalScenario
+integrationalScenario :: U.Contract -> Fixture -> IntegrationalScenario
 integrationalScenario uSelfCaller fixture = do
   setMaxSteps (fMaxSteps fixture)
-  address <- originate uSelfCaller (Untyped.ValueInt 0) (unsafeMkMutez 1)
+  address <- originate uSelfCaller (U.ValueInt 0) (unsafeMkMutez 1)
   let
     txData :: TxData
     txData = TxData
       { tdSenderAddress = genesisAddress
-      , tdParameter = Untyped.ValueInt (fromIntegral $ fParameter fixture)
+      , tdParameter = U.ValueInt (fromIntegral $ fParameter fixture)
       , tdAmount = minBound
       }
   transfer txData address
@@ -102,6 +101,6 @@ integrationalScenario uSelfCaller fixture = do
     validator address
       | fExpectSuccess fixture =
         let expectedStorage =
-              Untyped.ValueInt (fromIntegral $ fParameter fixture)
+              U.ValueInt (fromIntegral $ fParameter fixture)
          in Right $ expectStorageUpdateConst address expectedStorage
       | otherwise = Left expectGasExhaustion

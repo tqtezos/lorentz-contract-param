@@ -14,7 +14,7 @@ An untyped version of types is used to represent a contract after it is parsed.
 It is capable of representing instructions and values with and without macros because it is parameterized by a type parameter for instructions.
 This parameter can be an instruction with macros or without.
 
-`Value` type is used to represent values as they are written in Michelson contracts.
+`U.Value` (a.k.a. `Michelson.Untyped.Value`) type is used to represent values as they are written in Michelson contracts.
 It means that we don't have separate constructors for `address`, `key`, etc.
 All these types are represented as strings.
 The same applies to sets and lists, for example.
@@ -30,7 +30,7 @@ They actively use GHC extensions such as `GADTs` and `DataKinds`.
 These types are more advanced than untyped types and are a bit harder to use.
 However, they are much more powerful.
 
-A typed Michelson value has type `Val Instr t` where `t` has kind `T` and `T` represents one of the Michelson types.
+A typed Michelson value has type `T.Value t` (a.k.a. `Michelson.Typed.Value`) where `t` has kind `T` and `T` represents one of the Michelson types.
 It allows statically knowing the Michelson type of each value.
 As a consequence, we can ensure that a typed list always contains values of the same type.
 

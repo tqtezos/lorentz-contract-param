@@ -1,8 +1,8 @@
--- | Module, containing CVal data type
+-- | Module, containing CValue data type
 -- which represents Michelson comparable values.
 
 module Michelson.Typed.CValue
-  ( CVal (..)
+  ( CValue (..)
   , ToCVal
   , FromCVal
   , toCVal
@@ -23,28 +23,28 @@ import Tezos.Crypto (KeyHash)
 --
 -- Only these values can be used as map keys
 -- or set elements.
-data CVal t where
-  CvInt       :: Integer -> CVal 'CInt
-  CvNat       :: Natural -> CVal 'CNat
-  CvString    :: Text -> CVal 'CString
-  CvBytes     :: ByteString -> CVal 'CBytes
-  CvMutez     :: Mutez -> CVal 'CMutez
-  CvBool      :: Bool -> CVal 'CBool
-  CvKeyHash   :: KeyHash -> CVal 'CKeyHash
-  CvTimestamp :: Timestamp -> CVal 'CTimestamp
-  CvAddress   :: Address -> CVal 'CAddress
+data CValue t where
+  CvInt       :: Integer -> CValue 'CInt
+  CvNat       :: Natural -> CValue 'CNat
+  CvString    :: Text -> CValue 'CString
+  CvBytes     :: ByteString -> CValue 'CBytes
+  CvMutez     :: Mutez -> CValue 'CMutez
+  CvBool      :: Bool -> CValue 'CBool
+  CvKeyHash   :: KeyHash -> CValue 'CKeyHash
+  CvTimestamp :: Timestamp -> CValue 'CTimestamp
+  CvAddress   :: Address -> CValue 'CAddress
 
-deriving instance Show (CVal t)
-deriving instance Eq (CVal t)
-deriving instance Ord (CVal t)
+deriving instance Show (CValue t)
+deriving instance Eq (CValue t)
+deriving instance Ord (CValue t)
 
 -- | Converts a single Haskell value into @CVal@ representation.
 class ToCVal a where
-  toCVal :: a -> CVal (ToCT a)
+  toCVal :: a -> CValue (ToCT a)
 
 -- | Converts a @CVal@ value into a single Haskell value.
 class FromCVal t where
-  fromCVal :: CVal (ToCT t) -> t
+  fromCVal :: CValue (ToCT t) -> t
 
 -- ToCVal, FromCVal instances
 
