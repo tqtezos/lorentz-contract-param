@@ -2,9 +2,9 @@
 
 module Tezos.Crypto
   ( -- * Cryptographic primitive types
-    PublicKey
+    PublicKey (..)
   , SecretKey
-  , Signature
+  , Signature (..)
   , KeyHash (..)
   , toPublic
 

@@ -35,6 +35,7 @@ import Fmt (Buildable(build), Builder, genericF)
 import Michelson.TypeCheck
   (ExtC, SomeContract(..), SomeValue(..), TCError, TcExtHandler, eqT', runTypeCheckT,
   typeCheckContract, typeCheckValue)
+import Michelson.Interpret.Pack (packValue')
 import Michelson.Typed
   (CValue(..), Contract, ConversibleExt, CreateAccount(..), CreateContract(..), HasNoOp, Instr(..),
   OpPresence(..), Operation(..), SetDelegate(..), Sing(..), T(..), TransferTokens(..), Value'(..),
@@ -321,9 +322,8 @@ runInstrImpl runner (DIP i) (a :& r) = do
 runInstrImpl _ FAILWITH (a :& _) = throwError $ MichelsonFailedWith a
 runInstrImpl _ CAST (a :& r) = pure $ a :& r
 runInstrImpl _ RENAME (a :& r) = pure $ a :& r
--- TODO
-runInstrImpl _ PACK (_ :& _) = error "PACK not implemented yet"
-runInstrImpl _ UNPACK (_ :& _) = error "UNPACK not implemented yet"
+runInstrImpl _ PACK (a :& r) = pure $ (VC $ CvBytes $ packValue' a) :& r
+runInstrImpl _ UNPACK (VC (CvBytes _) :& _) = error "Unimplemented yet :/"
 runInstrImpl _ CONCAT (a :& b :& r) = pure $ evalConcat a b :& r
 runInstrImpl _ CONCAT' (VList a :& r) = pure $ evalConcat' a :& r
 runInstrImpl _ SLICE (VC (CvNat o) :& VC (CvNat l) :& s :& r) =

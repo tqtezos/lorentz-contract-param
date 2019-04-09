@@ -138,20 +138,21 @@ data Value' instr t where
   VKey :: PublicKey -> Value' instr 'TKey
   VUnit :: Value' instr 'TUnit
   VSignature :: Signature -> Value' instr 'TSignature
-  VOption :: Maybe (Value' instr t) -> Value' instr ('TOption t)
-  VList :: [Value' instr t] -> Value' instr ('TList t)
-  VSet :: Set (CValue t) -> Value' instr ('TSet t)
+  VOption :: forall t instr. Maybe (Value' instr t) -> Value' instr ('TOption t)
+  VList :: forall t instr. [Value' instr t] -> Value' instr ('TList t)
+  VSet :: forall t instr. Set (CValue t) -> Value' instr ('TSet t)
   VOp :: Operation instr -> Value' instr 'TOperation
-  VContract :: Address -> Value' instr ('TContract p)
-  VPair :: (Value' instr l, Value' instr r) -> Value' instr ('TPair l r)
-  VOr :: Either (Value' instr l) (Value' instr r) -> Value' instr ('TOr l r)
+  VContract :: forall p instr. Address -> Value' instr ('TContract p)
+  VPair :: forall l r instr. (Value' instr l, Value' instr r) -> Value' instr ('TPair l r)
+  VOr :: forall l r instr. Either (Value' instr l) (Value' instr r) -> Value' instr ('TOr l r)
   VLam
-    :: ( Show (instr '[inp] '[out])
+    :: forall inp out instr.
+       ( Show (instr '[inp] '[out])
        , Eq (instr '[inp] '[out])
        )
     => instr (inp ': '[]) (out ': '[]) -> Value' instr ('TLambda inp out)
-  VMap :: Map (CValue k) (Value' instr v) -> Value' instr ('TMap k v)
-  VBigMap :: Map (CValue k) (Value' instr v) -> Value' instr ('TBigMap k v)
+  VMap :: forall k v instr. Map (CValue k) (Value' instr v) -> Value' instr ('TMap k v)
+  VBigMap :: forall k v instr. Map (CValue k) (Value' instr v) -> Value' instr ('TBigMap k v)
 
 deriving instance Show (Value' instr t)
 deriving instance Eq (Value' instr t)

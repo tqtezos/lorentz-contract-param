@@ -77,7 +77,7 @@ data Instr (inp :: [T]) (out :: [T]) where
   PAIR :: Instr (a ': b ': s) ('TPair a b ': s)
   CAR :: Instr ('TPair a b ': s) (a ': s)
   CDR :: Instr ('TPair a b ': s) (b ': s)
-  LEFT :: forall a b s . SingI b => Instr (a ': s) ('TOr a b ': s)
+  LEFT :: forall b a s . SingI b => Instr (a ': s) ('TOr a b ': s)
   RIGHT :: forall a b s . SingI a => Instr (b ': s) ('TOr a b ': s)
   IF_LEFT
     :: (Typeable s, Typeable a, Typeable b)
@@ -92,8 +92,8 @@ data Instr (inp :: [T]) (out :: [T]) where
     -> Instr s s'
     -> Instr ('TList a ': s) s'
   SIZE :: SizeOp c => Instr (c ': s) ('Tc 'CNat ': s)
-  EMPTY_SET :: SingI e => Instr s ('TSet e ': s)
-  EMPTY_MAP :: (SingI a, SingI b) => Instr s ('TMap a b ': s)
+  EMPTY_SET :: (Typeable e, SingI e) => Instr s ('TSet e ': s)
+  EMPTY_MAP :: (Typeable a, Typeable b, SingI a, SingI b) => Instr s ('TMap a b ': s)
   MAP :: (Typeable (MapOpInp c ': s), MapOp c)
       => Instr (MapOpInp c ': s) (b ': s)
       -> Instr (c ': s) (MapOpRes c b ': s)
@@ -116,7 +116,7 @@ data Instr (inp :: [T]) (out :: [T]) where
     :: (Typeable a, Typeable s)
     => Instr (a ': s) ('TOr a b ': s)
     -> Instr ('TOr a b ': s) (b ': s)
-  LAMBDA :: forall i o s . (SingI i, SingI o)
+  LAMBDA :: forall i o s . (Each [Typeable, SingI] [i, o])
          => Value' Instr ('TLambda i o) -> Instr s ('TLambda i o ': s)
   EXEC :: Typeable t1 => Instr (t1 ': 'TLambda t1 t2 ': s) (t2 ': s)
   DIP :: Typeable a => Instr a c -> Instr (b ': a) (b ': c)

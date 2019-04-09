@@ -1,7 +1,7 @@
 module Morley.Parser
   ( program
   , parseNoEnv
-  , ops
+  , codeEntry
   , ParserException (..)
   , stringLiteral
   , type_
@@ -89,7 +89,7 @@ storage :: Parser Mo.Type
 storage = do void $ symbol "storage"; type_
 
 code :: Parser [ParsedOp]
-code = do void $ symbol "code"; ops
+code = do void $ symbol "code"; codeEntry
 
 -- Michelson expressions
 ------------------------
@@ -100,6 +100,12 @@ type_ :: Parser Mo.Type
 type_ = (ti <|> parens ti) <|> (customFailure UnknownTypeException)
   where
     ti = snd <$> (lexeme $ typeInner (pure Mo.noAnn))
+
+-- | Parses code block after "code" keyword of a contract.
+--
+-- This function is part of the module API, its semantics should not change.
+codeEntry :: Parser [ParsedOp]
+codeEntry = ops
 
 op' :: Parser Mo.ParsedOp
 op' = do
