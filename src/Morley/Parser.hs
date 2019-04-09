@@ -506,8 +506,8 @@ prim = choice
   , concatOp, packOp, unpackOp, sliceOp, isNatOp, addressOp, addOp, subOp
   , mulOp, edivOp, absOp, negOp, lslOp, lsrOp, orOp, andOp, xorOp, notOp
   , compareOp, eqOp, neqOp, ltOp, leOp, gtOp, geOp, intOp, selfOp, contractOp
-  , transferTokensOp, setDelegateOp, createAccountOp, createContract2Op
-  , createContractOp, implicitAccountOp, nowOp, amountOp, balanceOp, checkSigOp
+  , transferTokensOp, setDelegateOp, createAccountOp, createContractOp
+  , implicitAccountOp, nowOp, amountOp, balanceOp, checkSigOp
   , sha256Op, sha512Op, blake2BOp, hashKeyOp, stepsToQuotaOp, sourceOp, senderOp
   ]
 
@@ -710,12 +710,8 @@ ifRightOp = do symbol' "IF_RIGHT"; a <- ops; Mo.IF_RIGHT a <$> ops
 -- Operations on contracts
 
 createContractOp :: Parser Mo.ParsedInstr
-createContractOp = do symbol' "CREATE_CONTRACT"; v <- noteVDef;
-                       Mo.CREATE_CONTRACT v <$> noteVDef
-
-createContract2Op :: Parser Mo.ParsedInstr
-createContract2Op = do symbol' "CREATE_CONTRACT"; v <- noteVDef; v' <- noteVDef;
-                       Mo.CREATE_CONTRACT2 v v' <$> braces contract
+createContractOp = do symbol' "CREATE_CONTRACT"; v <- noteVDef; v' <- noteVDef;
+                       Mo.CREATE_CONTRACT v v' <$> braces contract
 
 createAccountOp :: Parser Mo.ParsedInstr
 createAccountOp = do symbol' "CREATE_ACCOUNT"; v <- noteVDef; v' <- noteVDef;

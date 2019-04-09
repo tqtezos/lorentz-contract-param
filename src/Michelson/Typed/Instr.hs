@@ -213,14 +213,6 @@ data Instr (inp :: [T]) (out :: [T]) where
 
   CREATE_CONTRACT
     :: (Each [Typeable, SingI, HasNoOp] [p, g])
-    => Instr
-        ('Tc 'CKeyHash ': 'TOption ('Tc 'CKeyHash) ': 'Tc 'CBool
-          ': 'Tc 'CBool ': 'Tc 'CMutez
-          ': 'TLambda ('TPair p g)
-                       ('TPair ('TList 'TOperation) g) ': g ': s)
-        ('TOperation ': 'Tc 'CAddress ': s)
-  CREATE_CONTRACT2
-    :: (Each [Typeable, SingI, HasNoOp] [p, g])
     => Instr '[ 'TPair p g ] '[ 'TPair ('TList 'TOperation) g ]
     -> Instr ('Tc 'CKeyHash ':
               'TOption ('Tc 'CKeyHash) ':

@@ -247,13 +247,12 @@ instrToOps instr = case instr of
     handleInstr TRANSFER_TOKENS = [U.TRANSFER_TOKENS U.noAnn]
     handleInstr SET_DELEGATE = [U.SET_DELEGATE U.noAnn]
     handleInstr CREATE_ACCOUNT = [U.CREATE_ACCOUNT U.noAnn U.noAnn]
-    handleInstr CREATE_CONTRACT = [U.CREATE_CONTRACT U.noAnn U.noAnn]
-    handleInstr i@(CREATE_CONTRACT2 _) = handle i
+    handleInstr i@(CREATE_CONTRACT _) = handle i
       where
         handle :: Instr ('Tc 'CKeyHash ': 'TOption ('Tc 'CKeyHash)
                     ': 'Tc 'CBool ': 'Tc 'CBool ': 'Tc 'CMutez ': g ': s)
                    ('TOperation ': 'Tc 'CAddress ': s) -> [U.ExpandedInstr]
-        handle (CREATE_CONTRACT2 ops :: Instr ('Tc 'CKeyHash
+        handle (CREATE_CONTRACT ops :: Instr ('Tc 'CKeyHash
                     ': 'TOption ('Tc 'CKeyHash)
                     ': 'Tc 'CBool ': 'Tc 'CBool ': 'Tc 'CMutez ': g ': s)
                    ('TOperation ': 'Tc 'CAddress ': s)) =
@@ -261,7 +260,7 @@ instrToOps instr = case instr of
             (code :: Instr '[ 'TPair p g ] '[ 'TPair ('TList 'TOperation) g ]) ->
               let contract = U.Contract (toUType $ fromSingT (sing @p))
                     (toUType $ fromSingT (sing @g)) (instrToOps code) in
-              [U.CREATE_CONTRACT2 U.noAnn U.noAnn contract]
+              [U.CREATE_CONTRACT U.noAnn U.noAnn contract]
         handle _ = error "unexcepted call"
     handleInstr IMPLICIT_ACCOUNT = [U.IMPLICIT_ACCOUNT U.noAnn]
     handleInstr NOW = [U.NOW U.noAnn]
