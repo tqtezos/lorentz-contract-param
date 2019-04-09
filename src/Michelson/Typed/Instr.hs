@@ -123,8 +123,8 @@ data Instr (inp :: [T]) (out :: [T]) where
   FAILWITH :: SingI a => Instr (a ': s) t
   CAST :: forall a s . SingI a => Instr (a ': s) (a ': s)
   RENAME :: Instr (a ': s) (a ': s)
-  PACK :: Instr (a ': s) ('Tc 'CBytes ': s)
-  UNPACK :: SingI a => Instr ('Tc 'CBytes ': s) ('TOption a ': s)
+  PACK :: (SingI a, HasNoOp a) => Instr (a ': s) ('Tc 'CBytes ': s)
+  UNPACK :: (SingI a, HasNoOp a) => Instr ('Tc 'CBytes ': s) ('TOption a ': s)
   CONCAT :: ConcatOp c => Instr (c ': c ': s) (c ': s)
   CONCAT' :: ConcatOp c => Instr ('TList c ': s) (c ': s)
   SLICE
