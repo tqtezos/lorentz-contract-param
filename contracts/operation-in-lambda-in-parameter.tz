@@ -1,0 +1,7 @@
+parameter (lambda operation int);
+storage unit;
+code { DROP;
+       UNIT;
+       NIL operation;
+       PAIR;
+       };

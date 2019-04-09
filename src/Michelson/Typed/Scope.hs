@@ -23,6 +23,7 @@ import Michelson.Typed.T (T(..))
 --
 -- In some scopes (constants, parameters, storage) appearing for operation type
 -- is prohibited.
+-- Operations in input/output of lambdas are allowed without limits though.
 type family ContainsOp (t :: T) :: Bool where
   ContainsOp ('Tc _) = 'False
   ContainsOp 'TKey = 'False
@@ -35,7 +36,7 @@ type family ContainsOp (t :: T) :: Bool where
   ContainsOp ('TContract t) = ContainsOp t
   ContainsOp ('TPair a b) = ContainsOp a || ContainsOp b
   ContainsOp ('TOr a b) = ContainsOp a || ContainsOp b
-  ContainsOp ('TLambda a b) = ContainsOp a || ContainsOp b
+  ContainsOp ('TLambda _ _) = 'False
   ContainsOp ('TMap _ v) = ContainsOp v
   ContainsOp ('TBigMap _ v) = ContainsOp v
 
@@ -109,10 +110,8 @@ checkOpPresence = \case
     (OpPresent, _) -> OpPresent
     (_, OpPresent) -> OpPresent
     (OpAbsent, OpAbsent) -> OpAbsent
-  STLambda a r -> case (checkOpPresence a, checkOpPresence r) of
-    (OpPresent, _) -> OpPresent
-    (_, OpPresent) -> OpPresent
-    (OpAbsent, OpAbsent) -> OpAbsent
+  STLambda _ _ ->
+    OpAbsent
   STMap _ v -> case checkOpPresence v of
     OpPresent -> OpPresent
     OpAbsent -> OpAbsent
