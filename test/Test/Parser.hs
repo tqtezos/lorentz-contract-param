@@ -68,27 +68,27 @@ stringLiteralTest = do
 
 ifParsersTest :: Expectation
 ifParsersTest = do
-  P.parseNoEnv P.ops "" "{IF {} {};}" `shouldBe`
+  P.parseNoEnv P.codeEntry "" "{IF {} {};}" `shouldBe`
     (Prelude.Right [Mo.Prim $ Mo.IF [] []])
-  P.parseNoEnv P.ops "" "{IFEQ {} {};}" `shouldBe`
+  P.parseNoEnv P.codeEntry "" "{IFEQ {} {};}" `shouldBe`
     (Prelude.Right [Mo.Mac $ Mo.IFX (Mo.EQ noAnn) [] []])
-  P.parseNoEnv P.ops "" "{IFCMPEQ {} {};}" `shouldBe`
+  P.parseNoEnv P.codeEntry "" "{IFCMPEQ {} {};}" `shouldBe`
     (Prelude.Right [Mo.Mac $ Mo.IFCMP (Mo.EQ noAnn) noAnn [] []])
 
 mapParsersTest :: Expectation
 mapParsersTest = do
-  parseNoEnv P.ops "" "{MAP {};}" `shouldBe`
+  parseNoEnv P.codeEntry "" "{MAP {};}" `shouldBe`
     (Prelude.Right [Mo.Prim $ Mo.MAP noAnn []])
-  parseNoEnv P.ops "" "{MAP_CAR {};}" `shouldBe`
+  parseNoEnv P.codeEntry "" "{MAP_CAR {};}" `shouldBe`
     (Prelude.Right [Mo.Mac $ Mo.MAP_CADR [Mo.A] noAnn noAnn []])
 
 pairParsersTest :: Expectation
 pairParsersTest = do
-  P.parseNoEnv P.ops "" "{PAIR;}" `shouldBe`
+  P.parseNoEnv P.codeEntry "" "{PAIR;}" `shouldBe`
     Prelude.Right [Mo.Prim $ PAIR noAnn noAnn noAnn noAnn]
-  P.parseNoEnv P.ops "" "{PAIR %a;}" `shouldBe`
+  P.parseNoEnv P.codeEntry "" "{PAIR %a;}" `shouldBe`
     Prelude.Right [Mac $ PAPAIR (P (F (noAnn, Mo.ann "a")) (F (noAnn,noAnn))) noAnn noAnn]
-  P.parseNoEnv P.ops "" "{PAPAIR;}" `shouldBe`
+  P.parseNoEnv P.codeEntry "" "{PAPAIR;}" `shouldBe`
     Prelude.Right
       [Mac $
         PAPAIR (P (F (noAnn,noAnn)) (P (F (noAnn,noAnn)) (F (noAnn,noAnn))))

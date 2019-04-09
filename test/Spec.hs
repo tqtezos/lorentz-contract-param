@@ -13,6 +13,7 @@ import qualified Test.Parser as Parser
 import qualified Test.Printer.Michelson as Printer.Michelson
 import qualified Test.Serialization.Aeson as Serialization.Aeson
 import qualified Test.Tezos.Address as Tezos.Address
+import qualified Test.Serialization.Michelson as Serialization.Michelson
 import qualified Test.Tezos.Crypto as Tezos.Crypto
 import qualified Test.Typecheck as Typecheck
 import qualified Test.ValConversion as Val
@@ -29,6 +30,7 @@ main = hspec $ do
   Tezos.Address.spec
   Morley.Runtime.spec
   Serialization.Aeson.spec
+  Serialization.Michelson.spec
   Interpreter.spec
   Val.spec
   CVal.spec
