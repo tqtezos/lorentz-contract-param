@@ -3,8 +3,11 @@ module Test.Parser
   ) where
 
 import qualified Data.List.NonEmpty as NE
-import Test.Hspec (Expectation, Spec, describe, it, shouldBe, shouldSatisfy)
+import Test.Hspec
+  (Expectation, Spec, describe, expectationFailure, it, shouldBe, shouldSatisfy)
 import Text.Megaparsec (parse)
+import Text.Megaparsec.Error
+  (ErrorFancy(ErrorCustom), ParseError(FancyError), bundleErrors)
 
 import Morley.Parser as P
 import Morley.Types as Mo
@@ -26,6 +29,7 @@ spec = describe "Parser tests" $ do
   it "pair constructor test" pairTest
   it "value parser test" valueParserTest
   it "printComment parser test" printCommentParserTest
+  it "parserException test" parserExceptionTest
 
 parseContractsTest :: Expectation
 parseContractsTest = do
@@ -158,3 +162,21 @@ printCommentParserTest = do
     Right (PrintComment [Left "xxx"])
   P.parseNoEnv P.printComment "" "\"\"" `shouldBe`
     Right (PrintComment [])
+
+parserExceptionTest :: Expectation
+parserExceptionTest = do
+  handleCustomError "0x000" P.value OddNumberBytesException
+  handleCustomError "Right 0x000" P.value OddNumberBytesException
+  handleCustomError "\"abacaba \\t \n\n\r a\"" P.value UnexpectedLineBreak
+  handleCustomError "kek" P.type_ UnknownTypeException
+  where
+    handleCustomError
+      :: Text -> Parser a -> CustomParserException -> Expectation
+    handleCustomError text parser customException =
+      case P.parseNoEnv parser "" text of
+        Right _ -> expectationFailure "expecting parser to fail"
+        Left bundle -> case toList $ bundleErrors bundle of
+          [FancyError _ errorSet] -> case toList errorSet of
+            [(ErrorCustom e)] -> e `shouldBe` customException
+            _ -> expectationFailure "expecting single ErrorCustom"
+          _ -> expectationFailure "expecting single ErrorCustom"
