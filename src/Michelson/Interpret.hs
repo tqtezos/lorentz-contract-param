@@ -35,7 +35,7 @@ import Fmt (Buildable(build), Builder, genericF)
 import Michelson.Interpret.Pack (packValue')
 import Michelson.TypeCheck
   (ExtC, SomeContract(..), SomeValue(..), TCError, TcExtHandler, TcOriginatedContracts,
-  compareTypes, eqT', runTypeCheckT, typeCheckContract, typeCheckValue)
+  TCTypeError(..), compareTypes, eqType, runTypeCheckT, typeCheckContract, typeCheckValue)
 import Michelson.Typed
   (CValue(..), Contract, ConversibleExt, CreateAccount(..), CreateContract(..), HasNoOp, Instr(..),
   OpPresence(..), Operation(..), SetDelegate(..), Sing(..), T(..), TransferTokens(..), Value'(..),
@@ -101,8 +101,8 @@ data InterpretUntypedError s
   | IllTypedContract TCError
   | IllTypedParam TCError
   | IllTypedStorage TCError
-  | UnexpectedParamType Text
-  | UnexpectedStorageType Text
+  | UnexpectedParamType TCTypeError
+  | UnexpectedStorageType TCTypeError
   deriving (Generic)
 
 deriving instance (Buildable U.ExpandedInstr, Show s) => Show (InterpretUntypedError s)
@@ -140,16 +140,16 @@ interpretUntyped typeCheckHandler U.Contract{..} paramU initStU env@InterpreterE
             (U.Contract para stor code)
   withSomeSingT (fromUType para) $ \sgp ->
     withSomeSingT (fromUType stor) $ \sgs -> do
-      ntp <- first UnexpectedParamType $ extractNotes para sgp
-      nts <- first UnexpectedStorageType $ extractNotes stor sgs
+      ntp <- first (UnexpectedParamType . ExtractionTypeMismatch) $ extractNotes para sgp
+      nts <- first (UnexpectedStorageType . ExtractionTypeMismatch) $ extractNotes stor sgs
       paramV :::: ((_ :: Sing cp1), _)
           <- first IllTypedParam $ runTypeCheckT typeCheckHandler para (ceContracts ieContractEnv) $
                typeCheckValue paramU (sgp, ntp)
       initStV :::: ((_ :: Sing st1), _)
           <- first IllTypedStorage $ runTypeCheckT typeCheckHandler para (ceContracts ieContractEnv) $
                typeCheckValue initStU (sgs, nts)
-      Refl <- first UnexpectedStorageType $ eqT' @st @st1
-      Refl <- first UnexpectedParamType   $ eqT' @cp @cp1
+      Refl <- first UnexpectedStorageType $ eqType @st @st1
+      Refl <- first UnexpectedParamType   $ eqType @cp @cp1
       bimap RuntimeFailure constructIUR $
         toRes $ interpret instr paramV initStV env initState
   where

@@ -17,6 +17,7 @@
 module Michelson.Typed.Annotation
   ( Notes (..)
   , Notes' (..)
+  , AnnConvergeError(..)
   , converge
   , convergeAnns
   , notesCase
@@ -26,9 +27,11 @@ module Michelson.Typed.Annotation
   ) where
 
 import Data.Default (Default(..))
+import Fmt (Buildable(..), (+|), (|+))
 
 import Michelson.Typed.T (T(..))
-import Michelson.Untyped.Annotation (Annotation, FieldAnn, TypeAnn, unifyAnn)
+import Michelson.Untyped.Annotation
+  (Annotation, FieldAnn, TypeAnn, unifyAnn)
 
 -- | Data type, holding annotation data for a given Michelson type @t@
 -- or @*@ in case no data is provided for the tree.
@@ -127,7 +130,7 @@ orAnn a b = bool a b (a == def)
 -- | Combines two annotations trees `a` and `b` into a new one `c`
 -- in such a way that `c` can be obtained from both `a` and `b` by replacing
 -- some @*@ leafs with type or/and field annotations.
-converge' :: Notes' t -> Notes' t -> Either Text (Notes' t)
+converge' :: Notes' t -> Notes' t -> Either AnnConvergeError (Notes' t)
 converge' (NTc a) (NTc b) = NTc <$> convergeAnns a b
 converge' (NTKey a) (NTKey b) = NTKey <$> convergeAnns a b
 converge' (NTUnit a) (NTUnit b) = NTUnit <$> convergeAnns a b
@@ -157,15 +160,25 @@ converge' (NTBigMap a kN vN) (NTBigMap b kM vM) =
   NTBigMap <$> convergeAnns a b <*> convergeAnns kN kM <*> converge vN vM
 
 -- | Same as 'converge'' but works with 'Notes' data type.
-converge :: Notes t -> Notes t -> Either Text (Notes t)
+converge :: Notes t -> Notes t -> Either AnnConvergeError (Notes t)
 converge NStar a = pure a
 converge a NStar = pure a
 converge (N a) (N b) = N <$> converge' a b
 
+data AnnConvergeError where
+  AnnConvergeError
+    :: (Buildable (Annotation tag), Show (Annotation tag))
+    => Annotation tag -> Annotation tag -> AnnConvergeError
+
+deriving instance Show AnnConvergeError
+
+instance Buildable AnnConvergeError where
+  build (AnnConvergeError ann1 ann2) =
+    "Annotations do not converge: " +| ann1 |+ " /= " +| ann2 |+ ""
+
 -- | Converge two type or field notes (which may be wildcards).
 convergeAnns
-  :: Show (Annotation tag)
-  => Annotation tag -> Annotation tag -> Either Text (Annotation tag)
-convergeAnns a b = maybe (Left $ "Annotations do not converge: "
-                            <> show a <> " /= " <> show b)
+  :: (Buildable (Annotation tag), Show (Annotation tag))
+  => Annotation tag -> Annotation tag -> Either AnnConvergeError (Annotation tag)
+convergeAnns a b = maybe (Left $ AnnConvergeError a b)
                           pure $ unifyAnn a b

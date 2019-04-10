@@ -5,30 +5,20 @@ module Michelson.TypeCheck.Types
     , SomeValue (..)
     , SomeContract (..)
     , SomeCValue (..)
-    , TCError (..)
     , ExtC
-    , TcInstrHandler
-    , TcExtHandler
     , TcExtFrames
-    , TcResult
-    , TypeCheckEnv (..)
-    , TypeCheckT
-    , TcOriginatedContracts
-    , runTypeCheckT
     ) where
 
 import Data.Data (Data)
 import Data.Singletons (SingI)
-import Fmt (Buildable(..), pretty, (+|), (|+), (||+))
+import Fmt (Buildable(..))
 import Prelude hiding (EQ, GT, LT)
 import qualified Text.Show
 
 import Michelson.Typed (ConversibleExt, HasNoOp, Notes(..), Sing(..), T(..), fromSingT)
 import qualified Michelson.Typed as T
-import Michelson.Typed.Extract (toUType)
 import Michelson.Typed.Instr
 import Michelson.Typed.Value
-import Tezos.Address (Address)
 
 import qualified Michelson.Untyped as U
 import Michelson.Untyped.Annotation (VarAnn)
@@ -125,30 +115,6 @@ data SomeContract where
 
 deriving instance Show InstrExtT => Show SomeContract
 
--- | Type check error
-data TCError =
-    TCFailedOnInstr U.ExpandedInstr SomeHST Text
-  | TCFailedOnValue U.Value T Text
-  | TCOtherError Text
-
-instance Buildable TCError where
-  build = \case
-    TCFailedOnInstr instr (SomeHST t) custom ->
-      "Error checking expression " +| instr
-          |+ " against input stack type " +| t
-          ||+ bool (": " +| custom |+ "") "" (null custom)
-    TCFailedOnValue v t custom ->
-      "Error checking value " +| v
-          |+ " against type " +| toUType t
-          |+ bool (": " +| custom |+ "") "" (null custom)
-    TCOtherError e ->
-      "Error occurred during type check: " +| e |+ ""
-
-instance Buildable U.ExpandedInstr => Show TCError where
-  show = pretty
-
-instance Buildable U.ExpandedInstr => Exception TCError
-
 -- | State for type checking @nop@
 type TcExtFrames = [(U.ExpandedInstrExtU, SomeHST)]
 
@@ -162,35 +128,3 @@ type ExtC
      , ConversibleExt
      , Data U.ExpandedInstrExtU
      )
-
-type TypeCheckT a =
-  ExceptT TCError
-    (State TypeCheckEnv) a
-
--- | Function for typeChecking a @nop@ and updating state
--- TypeCheckT is used because inside
--- inside of TEST_ASSERT could be PRINT/STACKTYPE/etc extended instructions.
-type TcExtHandler
-  = U.ExpandedInstrExtU -> TcExtFrames -> SomeHST -> TypeCheckT (TcExtFrames, Maybe InstrExtT)
-
-type TcOriginatedContracts = Map Address U.Type
-
--- | The typechecking state
-data TypeCheckEnv = TypeCheckEnv
-  { tcExtHandler    :: TcExtHandler
-  , tcExtFrames     :: TcExtFrames
-  , tcContractParam :: U.Type
-  , tcContracts     :: TcOriginatedContracts
-  }
-
-runTypeCheckT :: TcExtHandler -> U.Type -> TcOriginatedContracts -> TypeCheckT a -> Either TCError a
-runTypeCheckT nh param contracts act =
-  evaluatingState (TypeCheckEnv nh [] param contracts) $ runExceptT act
-
-type TcResult inp = Either TCError (SomeInstr inp)
-
-type TcInstrHandler
-   = forall inp. Typeable inp
-      => U.ExpandedInstr
-      -> HST inp
-      -> TypeCheckT (SomeInstr inp)

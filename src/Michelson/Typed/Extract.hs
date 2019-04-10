@@ -8,11 +8,14 @@
 -- I.e. @Michelson.Types.Type@ is split to value @t :: T@ and value of type
 -- @Notes t@ for which @t@ is a type representation of value @t@.
 module Michelson.Typed.Extract
-  ( extractNotes
+  ( TypeConvergeError(..)
+  , extractNotes
   , fromUType
   , mkUType
   , toUType
   ) where
+
+import Fmt (Buildable(..), (+|), (|+))
 
 import Michelson.Typed.Annotation (Notes(..), Notes'(..), mkNotes)
 import Michelson.Typed.Sing (Sing(..), fromSingCT, fromSingT)
@@ -85,12 +88,19 @@ mkUType sing notes = case (sing, notes) of
   mt = Un.Type
   na = Un.noAnn
 
+data TypeConvergeError = TypeConvergeError Un.T T deriving (Show)
+
+instance Buildable TypeConvergeError where
+  build (TypeConvergeError type1 type2) =
+    "Failed to construct annotation, provided types do not match: "
+    +| type1 |+ " /= " +| show type2
+
 -- | Extracts @Notes t@ type from 'Michelson.Type.Type' and corresponding
 -- singleton.
-extractNotes :: Un.Type -> Sing t -> Either Text (Notes t)
+extractNotes :: Un.Type -> Sing t -> Either TypeConvergeError (Notes t)
 extractNotes (Un.Type wholeT tn) s = conv wholeT s
   where
-    conv :: Un.T -> Sing t -> Either Text (Notes t)
+    conv :: Un.T -> Sing t -> Either TypeConvergeError (Notes t)
     conv (Un.Tc ct) (STc cst)
       | fromSingCT cst == ct = pure $ mkNotes $ NTc tn
     conv Un.TKey STKey = pure $ mkNotes $ NTKey tn
@@ -123,8 +133,7 @@ extractNotes (Un.Type wholeT tn) s = conv wholeT s
       | fromSingCT kst == kt =
         mkNotes . NTBigMap tn kn  <$> extractNotes vt svt
     conv a (fromSingT -> b) =
-      Left $ "failed to construct annotation, provided types do not match: "
-                <> show a <> " /= " <> show b
+      Left $ TypeConvergeError a b
 
 -- | Converts from 'T' to 'Michelson.Type.Type'.
 toUType :: T -> Un.Type

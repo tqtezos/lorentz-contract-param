@@ -9,10 +9,13 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.Typeable ((:~:)(..))
 import Fmt (pretty)
+import Data.Typeable (typeRep)
 import Prelude hiding (EQ, GT, LT)
 
+import Michelson.TypeCheck.Error (TCTypeError(..), TCError(..))
 import Michelson.TypeCheck.Helpers
 import Michelson.TypeCheck.Types
+import Michelson.TypeCheck.TypeCheck (TcInstrHandler, TypeCheckEnv (..), TypeCheckT)
 import Michelson.Typed
   (CT(..), CValue(..), ConversibleExt, Instr(..), InstrExtT, Notes(..), Notes'(..), Sing(..),
   Value'(..), converge, fromSingCT, fromSingT, mkNotes, notesCase)
@@ -48,13 +51,14 @@ typeCheckCVals
   :: forall t op . Typeable t
   => [U.Value' op]
   -> CT
-  -> Either (U.Value' op, Text) [CValue t]
+  -> Either (U.Value' op, TCTypeError) [CValue t]
 typeCheckCVals mvs t = traverse check mvs
   where
     check mv = do
       v :--: (_ :: Sing t') <-
-        maybe (Left (mv, "failed to typecheck cval")) pure $ typeCheckCValue mv t
-      Refl <- eqT' @t @t' `onLeft` (,) mv
+        maybe (Left (mv, UnknownType (typeRep (Proxy @(CValue t))))) pure $
+        typeCheckCValue mv t
+      Refl <- eqType @t @t' `onLeft` (,) mv
       pure v
 
 -- | Function @typeCheckValImpl@ converts a single Michelson value
@@ -77,7 +81,7 @@ typeCheckValImpl
   -> TypeCheckT SomeValue
 typeCheckValImpl _ mv (t@(STc ct), ann) = do
   let nt = notesCase U.noAnn (\(NTc x) -> x) ann
-  maybe (throwError $ TCFailedOnValue mv (fromSingT t) "")
+  maybe (throwError $ TCFailedOnValue mv (fromSingT $ t) "" Nothing)
         (\(v :--: cst) -> pure $ VC v :::: (STc cst, mkNotes $ NTc nt))
         (typeCheckCValue mv (fromSingCT ct))
 typeCheckValImpl _ (U.ValueString (parsePublicKey -> Right s)) t@(STKey, _) =
@@ -90,12 +94,12 @@ typeCheckValImpl _ (U.ValueString (parseAddress -> Right s@(KeyAddress _))) t@(S
     pure $ T.VContract s :::: t
 
 typeCheckValImpl _ cv@(U.ValueString (parseAddress -> Right s)) t@(STContract pc, cn) = do
-  let tcFail = TCFailedOnValue cv (fromSingT $ fst t)
+  let tcFail = \msg ->  TCFailedOnValue cv (fromSingT $ fst t) msg Nothing
   let pn = notesCase NStar (\(NTContract _ x) -> x) cn
   contracts <- gets tcContracts
   case M.lookup s contracts of
     Just contractParam -> do
-      liftEither $ first tcFail $
+      liftEither $ first (TCFailedOnValue cv (fromSingT $ fst t) "invalid contract parameter" . Just) $
         compareTypes (pc, pn) contractParam
       pure $ VContract s :::: t
     _ -> throwError $ tcFail $ "Contract literal " <> pretty s <> " doesn't exist"
@@ -140,45 +144,44 @@ typeCheckValImpl _ U.ValueNil t@(STSet _, _) = pure $ T.VSet S.empty :::: t
 
 typeCheckValImpl _ sq@(U.ValueSeq (toList -> mels)) t@(STSet vt, _) = do
   els <- liftEither $ typeCheckCVals mels (fromSingCT vt)
-          `onLeft` \(cv, err) ->
-                     TCFailedOnValue cv (fromSingT $ STc vt) $ "wrong type of set element: " <> err
+          `onLeft` \(cv, err) -> TCFailedOnValue cv (fromSingT $ STc vt)
+                                      "wrong type of set element:" (Just err)
   elsS <- liftEither $ S.fromDistinctAscList <$> ensureDistinctAsc els
-            `onLeft` TCFailedOnValue sq (fromSingT $ STc vt)
+            `onLeft` \msg -> TCFailedOnValue sq (fromSingT $ STc vt) msg Nothing
   pure $ VSet elsS :::: t
 
 typeCheckValImpl _ U.ValueNil t@(STMap _ _, _) = pure $ T.VMap M.empty :::: t
 
 typeCheckValImpl tcDo sq@(U.ValueMap (toList -> mels)) t@(STMap kt vt, ann) = do
   ks <- liftEither $ typeCheckCVals (map (\(U.Elt k _) -> k) mels) (fromSingCT kt)
-          `onLeft` \(cv, err) -> TCFailedOnValue cv (fromSingT $ STc kt) $
-                                    "wrong type of map key: " <> err
+          `onLeft` \(cv, err) -> TCFailedOnValue cv (fromSingT $ STc kt)
+                                      "wrong type of map key:" (Just err)
   let vn = notesCase NStar (\(NTMap _ _ nt) -> nt) ann
   (vals, _) <- typeCheckValsImpl tcDo (map (\(U.Elt _ v) -> v) mels) (vt, vn)
   ksS <- liftEither $ ensureDistinctAsc ks
-        `onLeft` TCFailedOnValue sq (fromSingT $ STc kt)
+        `onLeft` \msg -> TCFailedOnValue sq (fromSingT $ STc kt) msg Nothing
   pure $ VMap (M.fromDistinctAscList $ zip ksS vals) :::: t
 
 typeCheckValImpl tcDo v (t@(STLambda (it :: Sing it) (ot :: Sing ot)), ann) = do
   mp <- case v of
     U.ValueNil       -> pure []
     U.ValueLambda mp -> pure $ toList mp
-    _ -> throwError $ TCFailedOnValue v (fromSingT t) ""
-
+    _ -> throwError $ TCFailedOnValue v (fromSingT t) "unexpected value" Nothing
   let vn = notesCase U.noAnn (\(NTLambda n1 _ _) -> n1) ann
   typeCheckImpl tcDo mp ((it, NStar, def) ::& SNil) >>= \case
     SiFail -> pure $ VLam FAILWITH :::: (STLambda it ot, NStar)
     lam ::: (li, (lo :: HST lo)) -> do
-      case eqT' @'[ ot ] @lo of
+      case eqType @'[ ot ] @lo of
         Right Refl -> do
           let (_, ons, _) ::& SNil = lo
           let (_, ins, _) ::& SNil = li
           let ns = mkNotes $ NTLambda vn ins ons
           pure $ VLam lam :::: (STLambda it ot, ns)
         Left m ->
-          throwError $ TCFailedOnValue v (fromSingT t) $
-                  "wrong output type of lambda's value: " <> m
+          throwError $ TCFailedOnValue v (fromSingT t)
+                      "wrong output type of lambda's value:" (Just m)
 
-typeCheckValImpl _ v (t, _) = throwError $ TCFailedOnValue v (fromSingT t) ""
+typeCheckValImpl _ v (t, _) = throwError $ TCFailedOnValue v (fromSingT t) "unknown value" Nothing
 
 typeCheckValsImpl
   :: forall t . (Typeable t, Show InstrExtT, ConversibleExt, Eq U.ExpandedInstrExtU)
@@ -191,7 +194,8 @@ typeCheckValsImpl tcDo mvs (t, nt) =
   where
     check (res, ns) mv = do
       v :::: ((_ :: Sing t'), vns) <- typeCheckValImpl tcDo mv (t, nt)
-      Refl <- liftEither $ eqT' @t @t'
-                `onLeft` (TCFailedOnValue mv (fromSingT t) . ("wrong element type " <>))
-      ns' <- liftEither $ converge ns vns `onLeft` TCFailedOnValue mv (fromSingT t)
+      Refl <- liftEither $ eqType @t @t' `onLeft`
+        (TCFailedOnValue mv (fromSingT t) "wrong element type" . Just)
+      ns' <- liftEither $ converge ns vns `onLeft`
+        ((TCFailedOnValue mv (fromSingT t) "wrong element type") . Just . AnnError)
       pure (v : res, ns')

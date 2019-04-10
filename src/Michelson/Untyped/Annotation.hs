@@ -50,7 +50,6 @@ type TypeAnn = Annotation TypeTag
 type FieldAnn = Annotation FieldTag
 type VarAnn = Annotation VarTag
 
-
 instance RenderDoc TypeAnn where
   renderDoc = renderAnnotation ":"
 

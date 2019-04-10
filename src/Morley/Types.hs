@@ -68,6 +68,7 @@ module Morley.Types
   , UTestAssert (..)
   , PrintComment (..)
   , StackTypePattern (..)
+  , stackTypePatternToList
   , StackRef(..)
 
   , MorleyLogs (..)
@@ -317,11 +318,11 @@ instance Buildable Macro where
 ---------------------------------------------------
 
 -- | A reference into the stack
-newtype StackRef = StackRef Integer
+newtype StackRef = StackRef Natural
   deriving (Eq, Show, Data, Generic)
 
 instance Buildable StackRef where
-  build (StackRef i) = "%[" <> build i <> "]"
+  build (StackRef i) = "%[" <> show i <> "]"
 
 newtype Var = Var T.Text deriving (Eq, Show, Ord, Data, Generic)
 
