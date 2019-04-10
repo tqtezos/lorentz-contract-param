@@ -1,0 +1,11 @@
+parameter address;
+storage bool;
+
+code {
+       CAR;
+       CONTRACT (int :q);
+       IF_SOME { DROP; PUSH bool True; }
+               { PUSH bool False; };
+       NIL operation;
+       PAIR;
+     }

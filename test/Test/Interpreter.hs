@@ -20,6 +20,7 @@ import Test.Interpreter.CallSelf (selfCallerSpec)
 import Test.Interpreter.Compare (compareSpec)
 import Test.Interpreter.Conditionals (conditionalsSpec)
 import Test.Interpreter.EnvironmentSpec (environmentSpec)
+import Test.Interpreter.ContractOp (contractOpSpec)
 import Test.Interpreter.StringCaller (stringCallerSpec)
 
 spec :: Spec
@@ -65,6 +66,7 @@ spec = describe "Advanced type interpreter tests" $ do
   stringCallerSpec
   selfCallerSpec
   environmentSpec
+  contractOpSpec
 
   specWithTypedContract "contracts/steps_to_quota_test1.tz" $ \contract -> do
     it "Amount of steps should reduce" $ do
