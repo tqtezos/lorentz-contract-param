@@ -8,6 +8,8 @@ module Michelson.Typed.Convert
   , ConversibleExt
   ) where
 
+import Data.Constraint ((\\))
+import Data.Constraint.Forall (Forall, inst)
 import qualified Data.Map as Map
 import Data.Singletons (SingI(sing))
 
@@ -26,10 +28,11 @@ import Tezos.Crypto (formatKeyHash, formatPublicKey, formatSignature)
 class Conversible ext1 ext2 where
   convert :: ext1 -> ext2
 
-type ConversibleExt = Conversible (ExtT Instr) (U.ExtU U.InstrAbstract U.ExpandedOp)
+class Conversible (ExtT Instr s) (U.ExtU U.InstrAbstract U.ExpandedOp) => ConversibleExt s
+instance Conversible (ExtT Instr s) (U.ExtU U.InstrAbstract U.ExpandedOp) => ConversibleExt s
 
 convertContract
-  :: forall param store . (SingI param, SingI store, ConversibleExt)
+  :: forall param store . (SingI param, SingI store, Forall ConversibleExt)
   => Contract param store -> U.Contract
 convertContract contract =
   U.Contract
@@ -44,7 +47,7 @@ convertContract contract =
 -- 'TOperation' - a compile error will be raised otherwise.
 -- You can analyse its presence with 'checkOpPresence' function.
 untypeValue ::
-     forall t . (ConversibleExt, SingI t, HasNoOp t)
+     forall t . (SingI t, HasNoOp t, Forall ConversibleExt)
   => Value' Instr t
   -> U.Value
 untypeValue val = case (val, sing @t) of
@@ -79,8 +82,8 @@ untypeValue val = case (val, sing @t) of
     case checkOpPresence lt of
       OpAbsent -> U.ValueRight (untypeValue x)
 
-  (VLam ops, _) ->
-    vList U.ValueLambda $ instrToOps ops
+  (VLam (ops :: Instr '[inp] '[out]), _) ->
+    vList U.ValueLambda $ instrToOps ops \\ inst @ConversibleExt @'[out]
 
   (VMap m, STMap _ vt) ->
     case checkOpPresence vt of
@@ -108,7 +111,7 @@ untypeCValue cVal = case cVal of
   CvTimestamp t -> U.ValueString $ show t
   CvAddress a -> U.ValueString $ formatAddress a
 
-instrToOps :: ConversibleExt => Instr inp out -> [U.ExpandedOp]
+instrToOps :: Forall ConversibleExt => Instr inp out -> [U.ExpandedOp]
 instrToOps instr = case instr of
   Nested sq -> one $ U.SeqEx $ instrToOps sq
   i -> U.PrimEx <$> handleInstr i
@@ -116,7 +119,7 @@ instrToOps instr = case instr of
     handleInstr :: Instr inp out -> [U.ExpandedInstr]
     handleInstr (Seq i1 i2) = handleInstr i1 <> handleInstr i2
     handleInstr Nop = []
-    handleInstr (Ext nop) = [U.EXT $ convert nop]
+    handleInstr (Ext (nop :: ExtT Instr inp)) = [U.EXT $ convert nop] \\ inst @ConversibleExt @inp
     handleInstr (Nested _) = error "impossible"
     handleInstr DROP = [U.DROP]
     handleInstr DUP = [U.DUP U.noAnn]
@@ -279,5 +282,5 @@ instrToOps instr = case instr of
 -- We can also move this convertion to the place where `Instr` is defined,
 -- but then there will be a very large module (as we'll have to move a lot of
 -- stuff as well).
-instance (ConversibleExt, Eq U.ExpandedInstrExtU) => Eq (Instr inp out) where
+instance (Forall ConversibleExt, Eq U.ExpandedInstrExtU) => Eq (Instr inp out) where
   i1 == i2 = instrToOps i1 == instrToOps i2

@@ -94,7 +94,7 @@ data ExtError =
   | StkRestMismatch StackTypePattern SomeHST SomeHST TCTypeError
   | UnexpectedUExt ExpandedUExtInstr
   | TestAssertError Text
-  | InvalidStackReference StackRef StackSize
+  | InvalidStackReference UStackRef StackSize
   deriving (Eq)
 
 instance Buildable ExtError where

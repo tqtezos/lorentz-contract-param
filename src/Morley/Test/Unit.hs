@@ -29,7 +29,6 @@ type ContractPropValidator st prop = ContractReturn MorleyLogs st -> prop
 contractProp
   :: ( ToVal param, ToVal storage
      , ToT param ~ cp, ToT storage ~ st
-     , Typeable cp, Typeable st
      )
   => Contract cp st
   -> ContractPropValidator st prop
@@ -43,8 +42,7 @@ contractProp instr check env param initSt =
 -- | Version of 'contractProp' which takes 'Val' as arguments instead
 -- of regular Haskell values.
 contractPropVal
-  :: (Typeable cp, Typeable st)
-  => Contract cp st
+  :: Contract cp st
   -> ContractPropValidator st prop
   -> ContractEnv
   -> T.Value cp

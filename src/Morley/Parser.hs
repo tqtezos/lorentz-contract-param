@@ -912,19 +912,19 @@ testAssert = do
   o <- ops
   return $ Mo.UTestAssert n c o
 
-printComment :: Parser Mo.PrintComment
+printComment :: Parser Mo.UPrintComment
 printComment = do
   string "\""
   let validChar = T.pack <$> some (satisfy (\x -> x /= '%' && x /= '"'))
   c <- many (Right <$> stackRef <|> Left <$> validChar)
   symbol "\""
-  return $ Mo.PrintComment c
+  return $ Mo.UPrintComment c
 
-stackRef :: Parser Mo.StackRef
+stackRef :: Parser Mo.UStackRef
 stackRef = do
   string "%"
   n <- brackets' L.decimal
-  return $ Mo.StackRef n
+  return $ Mo.UStackRef n
 
 stackType :: Parser Mo.StackTypePattern
 stackType = symbol "'[" >> (emptyStk <|> stkCons <|> stkRest)

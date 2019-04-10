@@ -15,7 +15,7 @@ import Morley.Ext (interpretMorley)
 import Morley.Test (ContractPropValidator, contractProp, specWithTypedContract)
 import Morley.Test.Dummy (dummyContractEnv)
 import Morley.Test.Util (failedProp)
-import Morley.Types (MorleyLogs)
+import Morley.Types (ExtInstr(..), MorleyLogs, PrintComment(..), mkStackRef)
 import Test.Interpreter.Auction (auctionSpec)
 import Test.Interpreter.CallSelf (selfCallerSpec)
 import Test.Interpreter.Compare (compareSpec)
@@ -131,6 +131,11 @@ spec = describe "Advanced type interpreter tests" $ do
     prop "Random check" $ \param ->
       contractProp contract (validate param) dummyContractEnv param param
 
+  it "mkStackRef does not segfault" $ do
+    let printI = Ext $ PRINT (PrintComment $ [Right $ mkStackRef @1])
+    let contract = DROP # PUSH (toVal ()) # DUP # printI # DROP # NIL # PAIR
+    contractProp contract (isRight . fst) dummyContractEnv () ()
+
 validateSuccess :: ContractPropValidator t Expectation
 validateSuccess (res, _) = res `shouldSatisfy` isRight
 
@@ -176,7 +181,7 @@ _myInstr =
   PUSH (T.VC $ CvNat 12) #
   ADD
 
-_myInstr2 :: Typeable a => Instr a ('TOption ('Tc 'CInt) : a)
+_myInstr2 :: Instr a ('TOption ('Tc 'CInt) : a)
 _myInstr2 =
   PUSH (T.VOption $ Just $ T.VC $ CvInt 223) #
   Nop

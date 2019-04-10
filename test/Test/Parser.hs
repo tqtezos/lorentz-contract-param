@@ -3,11 +3,9 @@ module Test.Parser
   ) where
 
 import qualified Data.List.NonEmpty as NE
-import Test.Hspec
-  (Expectation, Spec, describe, expectationFailure, it, shouldBe, shouldSatisfy)
+import Test.Hspec (Expectation, Spec, describe, expectationFailure, it, shouldBe, shouldSatisfy)
 import Text.Megaparsec (parse)
-import Text.Megaparsec.Error
-  (ErrorFancy(ErrorCustom), ParseError(FancyError), bundleErrors)
+import Text.Megaparsec.Error (ErrorFancy(ErrorCustom), ParseError(FancyError), bundleErrors)
 
 import Morley.Parser as P
 import Morley.Types as Mo
@@ -151,17 +149,17 @@ pairTest = do
 printCommentParserTest :: Expectation
 printCommentParserTest = do
   P.parseNoEnv P.printComment "" "\"Sides are %[0] x %[1]\"" `shouldBe`
-    Right (PrintComment [Left "Sides are ", Right (StackRef 0), Left " x ", Right (StackRef 1)])
+    Right (UPrintComment [Left "Sides are ", Right (UStackRef 0), Left " x ", Right (UStackRef 1)])
   P.parseNoEnv P.printComment "" "\"%[0] x\"" `shouldBe`
-    Right (PrintComment [Right (StackRef 0), Left " x"])
+    Right (UPrintComment [Right (UStackRef 0), Left " x"])
   P.parseNoEnv P.printComment "" "\"%[0]x%[1]\"" `shouldBe`
-    Right (PrintComment [Right (StackRef 0), Left "x", Right (StackRef 1)])
+    Right (UPrintComment [Right (UStackRef 0), Left "x", Right (UStackRef 1)])
   P.parseNoEnv P.printComment "" "\"%[0]%[1]\"" `shouldBe`
-    Right (PrintComment [Right (StackRef 0), Right (StackRef 1)])
+    Right (UPrintComment [Right (UStackRef 0), Right (UStackRef 1)])
   P.parseNoEnv P.printComment "" "\"xxx\"" `shouldBe`
-    Right (PrintComment [Left "xxx"])
+    Right (UPrintComment [Left "xxx"])
   P.parseNoEnv P.printComment "" "\"\"" `shouldBe`
-    Right (PrintComment [])
+    Right (UPrintComment [])
 
 parserExceptionTest :: Expectation
 parserExceptionTest = do
