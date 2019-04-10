@@ -22,6 +22,7 @@ import Test.Hspec.Expectations (Expectation, expectationFailure, shouldBe, shoul
 import Text.Megaparsec (parse)
 import Text.Megaparsec.Error (ErrorFancy(ErrorCustom), ParseError(FancyError), bundleErrors)
 
+import Michelson.ErrorPos (srcPos)
 import Michelson.Macro as Mo
 import Michelson.Parser as P
 import Michelson.Untyped as Mo
@@ -43,8 +44,8 @@ unit_Value = do
   P.parseNoEnv P.value "" "{}" `shouldBe`
     Right Mo.ValueNil
   P.parseNoEnv P.value "" "{PUSH int 5;}" `shouldBe`
-    (Right . Mo.ValueLambda $ NE.fromList
-      [Mo.Prim (Mo.PUSH noAnn (Mo.Type (Mo.Tc Mo.CInt) noAnn) (Mo.ValueInt 5))]
+    (Right . ValueLambda $ NE.fromList
+      [Mo.Prim (Mo.PUSH noAnn (Mo.Type (Mo.Tc Mo.CInt) noAnn) (Mo.ValueInt 5)) (srcPos 0 1)]
     )
   P.parseNoEnv P.value "" "{1; 2}" `shouldBe`
     (Right . Mo.ValueSeq $ NE.fromList
@@ -66,28 +67,28 @@ unit_string_literal = do
 unit_IF :: Expectation
 unit_IF = do
   P.parseNoEnv P.codeEntry "" "{IF {} {};}" `shouldBe`
-    (Prelude.Right [Mo.Prim $ Mo.IF [] []])
+    Prelude.Right [Mo.Prim (Mo.IF [] []) (srcPos 0 1)]
   P.parseNoEnv P.codeEntry "" "{IFEQ {} {};}" `shouldBe`
-    (Prelude.Right [Mo.Mac $ Mo.IFX (Mo.EQ noAnn) [] []])
+    Prelude.Right [Mo.Mac (Mo.IFX (Mo.EQ noAnn) [] []) (srcPos 0 1)]
   P.parseNoEnv P.codeEntry "" "{IFCMPEQ {} {};}" `shouldBe`
-    (Prelude.Right [Mo.Mac $ Mo.IFCMP (Mo.EQ noAnn) noAnn [] []])
+    Prelude.Right [Mo.Mac (Mo.IFCMP (Mo.EQ noAnn) noAnn [] []) (srcPos 0 1)]
 
 unit_MAP :: Expectation
 unit_MAP = do
   parseNoEnv P.codeEntry "" "{MAP {};}" `shouldBe`
-    (Prelude.Right [Mo.Prim $ Mo.MAP noAnn []])
+    Prelude.Right [Mo.Prim (Mo.MAP noAnn []) (srcPos 0 1)]
   parseNoEnv P.codeEntry "" "{MAP_CAR {};}" `shouldBe`
-    (Prelude.Right [Mo.Mac $ Mo.MAP_CADR [Mo.A] noAnn noAnn []])
+    Prelude.Right [Mo.Mac (Mo.MAP_CADR [Mo.A] noAnn noAnn []) (srcPos 0 1)]
 
 unit_PAIR :: Expectation
 unit_PAIR = do
   P.parseNoEnv P.codeEntry "" "{PAIR;}" `shouldBe`
-    Prelude.Right [Mo.Prim $ PAIR noAnn noAnn noAnn noAnn]
+    Prelude.Right [Mo.Prim (PAIR noAnn noAnn noAnn noAnn) (srcPos 0 1)]
   P.parseNoEnv P.codeEntry "" "{PAIR %a;}" `shouldBe`
-    Prelude.Right [Mac $ PAPAIR (P (F (noAnn, Mo.ann "a")) (F (noAnn,noAnn))) noAnn noAnn]
+    Prelude.Right [Mac (PAPAIR (P (F (noAnn, Mo.ann "a")) (F (noAnn,noAnn))) noAnn noAnn) (srcPos 0 1)]
   P.parseNoEnv P.codeEntry "" "{PAPAIR;}" `shouldBe`
     Prelude.Right
-      [Mac $
+      [flip Mac (srcPos 0 1) $
         PAPAIR (P (F (noAnn,noAnn)) (P (F (noAnn,noAnn)) (F (noAnn,noAnn))))
           noAnn noAnn
       ]

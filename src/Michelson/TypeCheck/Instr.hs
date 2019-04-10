@@ -32,18 +32,18 @@ module Michelson.TypeCheck.Instr
 
 import Prelude hiding (EQ, GT, LT)
 
-import Control.Monad.Except (liftEither, throwError, withExceptT)
+import Control.Monad.Except (MonadError, liftEither, throwError)
 import Data.Constraint (Dict(..))
 import Data.Default (def)
 import Data.Generics (everything, mkQ)
 import Data.Singletons (SingI(sing))
 import Data.Typeable ((:~:)(..), typeRep)
 
+import Michelson.ErrorPos
 import Michelson.TypeCheck.Error
 import Michelson.TypeCheck.Ext
 import Michelson.TypeCheck.Helpers
 import Michelson.TypeCheck.TypeCheck
-  (TcInstrHandler, TcOriginatedContracts, TypeCheckEnv(..), TypeCheckT, runTypeCheckT)
 import Michelson.TypeCheck.Types
 import Michelson.TypeCheck.Value
 
@@ -60,11 +60,11 @@ typeCheckContract
   :: TcOriginatedContracts
   -> U.Contract
   -> Either TCError SomeContract
-typeCheckContract cs c = runTypeCheckT (U.para c) cs $ typeCheckContractImpl c
+typeCheckContract cs c = runTypeCheck (U.para c) cs $ typeCheckContractImpl c
 
 typeCheckContractImpl
   :: U.Contract
-  -> TypeCheckT SomeContract
+  -> TypeCheck SomeContract
 typeCheckContractImpl (U.Contract mParam mStorage pCode) = do
   code <- maybe (throwError $ TCContractError "no instructions in contract code" Nothing)
                 pure (nonEmpty pCode)
@@ -110,8 +110,8 @@ typeCheckNE
   :: (Typeable inp)
   => NonEmpty U.ExpandedOp
   -> HST inp
-  -> TypeCheckT (SomeInstr inp)
-typeCheckNE (x :| xs) = typeCheckImpl typeCheckInstr (x : xs)
+  -> TypeCheck (SomeInstr inp)
+typeCheckNE (x :| xs) = usingReaderT def . typeCheckImpl typeCheckInstr (x : xs)
 
 -- | Function @typeCheckList@ converts list of Michelson instructions
 -- given in representation from @Michelson.Type@ module to representation
@@ -125,8 +125,8 @@ typeCheckList
   :: (Typeable inp)
   => [U.ExpandedOp]
   -> HST inp
-  -> TypeCheckT (SomeInstr inp)
-typeCheckList = typeCheckImpl typeCheckInstr
+  -> TypeCheck (SomeInstr inp)
+typeCheckList = usingReaderT def ... typeCheckImpl typeCheckInstr
 
 -- | Function @typeCheckValue@ converts a single Michelson value
 -- given in representation from @Michelson.Type@ module to representation
@@ -143,7 +143,7 @@ typeCheckList = typeCheckImpl typeCheckInstr
 typeCheckValue
   :: U.Value
   -> (Sing t, Notes t)
-  -> TypeCheckT SomeValue
+  -> TypeCheckInstr SomeValue
 typeCheckValue = typeCheckValImpl typeCheckInstr
 
 -- | Function @typeCheckInstr@ converts a single Michelson instruction
@@ -173,12 +173,10 @@ typeCheckInstr U.SWAP (i@(a ::& b ::& rs)) =
 
 typeCheckInstr instr@(U.PUSH vn mt mval) i =
   withSomeSingT (fromUType mt) $ \t' -> do
-    nt' <- liftEither $ extractNotes mt t' `onLeft`
-      typeCheckInstrTypeErr instr i "wrong push type:"
+    nt' <- onTypeCheckInstrTypeErr instr i "wrong push type:" (extractNotes mt t')
     val :::: (t :: Sing t, nt) <- typeCheckValue mval (t', nt')
-    let failure = \msg -> TCFailedOnInstr instr (SomeHST i) msg Nothing
-    proof <- maybe (throwError $ failure "Operations in constant are not allowed")
-            pure (opAbsense t)
+    proof <- maybe (typeCheckInstrErr instr (SomeHST i) "Operations in constant are not allowed")
+             pure (opAbsense t)
     case proof of
       Dict -> pure $ i :/ PUSH val ::: ((t, nt, vn) ::& i)
 
@@ -186,11 +184,11 @@ typeCheckInstr (U.SOME tn vn fn) i@((at, an, _) ::& rs) = do
   let n = mkNotes (NTOption tn fn an)
   pure (i :/ SOME ::: ((STOption at, n, vn) ::& rs))
 
-typeCheckInstr instr@(U.NONE tn vn fn elMt) i = do
+typeCheckInstr instr@(U.NONE tn vn fn elMt) i =
   withSomeSingT (fromUType elMt) $ \elT -> do
     let t = STOption elT
-    notes <- liftEither $ extractNotes (U.Type (U.TOption fn elMt) tn) t
-              `onLeft` typeCheckInstrTypeErr instr i "wrong none type:"
+    notes <- onTypeCheckInstrTypeErr instr i "wrong none type:"
+                (extractNotes (U.Type (U.TOption fn elMt) tn) t)
     pure $ i :/ NONE ::: ((t, notes, vn) ::& i)
 
 typeCheckInstr (U.UNIT tn vn) i = do
@@ -213,8 +211,7 @@ typeCheckInstr instr@(U.CAR vn fn)
             (i@(( STPair a b
                        , N (NTPair pairTN pfn qfn pns qns)
                        , pairVN ) ::& rs)) = do
-  pfn' <- liftEither $ convergeAnns fn pfn
-              `onLeft` typeCheckInstrAnnErr instr i "wrong car type:"
+  pfn' <- onTypeCheckInstrAnnErr instr i "wrong car type:" (convergeAnns fn pfn)
   let vn' = deriveSpecialVN vn pfn' pairVN
       i' = ( STPair a b
             , N (NTPair pairTN pfn' qfn pns qns)
@@ -227,8 +224,7 @@ typeCheckInstr instr@(U.CDR vn fn)
           (i@(( STPair a b
                       , N (NTPair pairTN pfn qfn pns qns)
                       , pairVN ) ::& rs)) = do
-  qfn' <- liftEither $ convergeAnns fn qfn
-              `onLeft` typeCheckInstrAnnErr instr i "wrong cdr type:"
+  qfn' <- onTypeCheckInstrAnnErr instr i "wrong cdr type:" (convergeAnns fn qfn)
 
   let vn' = deriveSpecialVN vn qfn' pairVN
       i' = ( STPair a b
@@ -238,15 +234,13 @@ typeCheckInstr instr@(U.CDR vn fn)
 
 typeCheckInstr instr@(U.LEFT tn vn pfn qfn bMt) i@((a, an, _) ::& rs) =
   withSomeSingT (fromUType bMt) $ \b -> do
-    bn <- liftEither $ extractNotes bMt b
-              `onLeft` typeCheckInstrTypeErr instr i "wrong left type:"
+    bn <- onTypeCheckInstrTypeErr instr i "wrong left type:" (extractNotes bMt b)
     let ns = mkNotes $ NTOr tn pfn qfn an bn
     pure (i :/ LEFT ::: ((STOr a b, ns, vn) ::& rs))
 
 typeCheckInstr instr@(U.RIGHT tn vn pfn qfn aMt) i@((b, bn, _) ::& rs) =
   withSomeSingT (fromUType aMt) $ \a -> do
-    an <- liftEither $ extractNotes aMt a
-              `onLeft` typeCheckInstrTypeErr instr i "wrong right type:"
+    an <- onTypeCheckInstrTypeErr instr i "wrong right type:" (extractNotes aMt a)
     let ns = mkNotes $ NTOr tn pfn qfn an bn
     pure (i :/ RIGHT ::: ((STOr a b, ns, vn) ::& rs))
 
@@ -257,22 +251,20 @@ typeCheckInstr (U.IF_LEFT mp mq) i@((STOr a b, ons, ovn) ::& rs) = do
   genericIf IF_LEFT U.IF_LEFT mp mq ait bit i
 
 typeCheckInstr instr@(U.NIL tn vn elMt) i =
-  withSomeSingT (fromUType elMt) $ \elT -> liftEither $ do
+  withSomeSingT (fromUType elMt) $ \elT -> do
     let t = STList elT
-    notes <- extractNotes (U.Type (U.TList elMt) tn) t
-              `onLeft` typeCheckInstrTypeErr instr i "wrong nil type:"
+    notes <- onTypeCheckInstrTypeErr instr i "wrong nil type:" (extractNotes (U.Type (U.TList elMt) tn) t)
     pure $ i :/ NIL ::: ((t, notes, vn) ::& i)
 
 typeCheckInstr instr@(U.CONS vn) i@((((at :: Sing a), an, _)
                               ::& (STList (_ :: Sing a'), ln, _) ::& rs)) =
   case eqType @a @a' of
-    Right Refl -> liftEither $  do
-      n <- converge ln (mkNotes $ NTList def an)
-              `onLeft` typeCheckInstrAnnErr instr i "wrong cons type:"
+    Right Refl -> do
+      n <- onTypeCheckInstrAnnErr instr i "wrong cons type:" (converge ln (mkNotes $ NTList def an))
       pure $ i :/ CONS ::: ((STList at, n, vn) ::& rs)
-    Left m -> typeCheckInstrErrM instr (SomeHST i)
+    Left m -> onTypeCheckInstrErr instr (SomeHST i)
                 ("list element type is different from one "
-                <> "that is being CONSed:") m
+                <> "that is being CONSed:") (Left m)
 
 
 typeCheckInstr (U.IF_CONS mp mq) i@((STList a, ns, vn) ::& rs)  = do
@@ -281,11 +273,11 @@ typeCheckInstr (U.IF_CONS mp mq) i@((STList a, ns, vn) ::& rs)  = do
         (a, an, vn <> "hd") ::& (STList a, ns, vn <> "tl") ::& rs
   genericIf IF_CONS U.IF_CONS mp mq ait rs i
 
-typeCheckInstr (U.SIZE vn) i@((STList _, _, _) ::& _)  = liftEither $ sizeImpl i vn
-typeCheckInstr (U.SIZE vn) i@((STSet _, _, _) ::& _)  = liftEither $ sizeImpl i vn
-typeCheckInstr (U.SIZE vn) i@((STMap _ _, _, _) ::& _)  = liftEither $ sizeImpl i vn
-typeCheckInstr (U.SIZE vn) i@((STc SCString, _, _) ::& _)  = liftEither $  sizeImpl i vn
-typeCheckInstr (U.SIZE vn) i@((STc SCBytes, _, _) ::& _)  = liftEither $ sizeImpl i vn
+typeCheckInstr (U.SIZE vn) i@((STList _, _, _) ::& _)  = sizeImpl i vn
+typeCheckInstr (U.SIZE vn) i@((STSet _, _, _) ::& _)  = sizeImpl i vn
+typeCheckInstr (U.SIZE vn) i@((STMap _ _, _, _) ::& _)  = sizeImpl i vn
+typeCheckInstr (U.SIZE vn) i@((STc SCString, _, _) ::& _)  = sizeImpl i vn
+typeCheckInstr (U.SIZE vn) i@((STc SCBytes, _, _) ::& _)  = sizeImpl i vn
 
 typeCheckInstr (U.EMPTY_SET tn vn (U.Comparable mk ktn)) i =
   withSomeSingCT mk $ \k ->
@@ -293,9 +285,8 @@ typeCheckInstr (U.EMPTY_SET tn vn (U.Comparable mk ktn)) i =
 
 typeCheckInstr instr@(U.EMPTY_MAP tn vn (U.Comparable mk ktn) mv) i =
   withSomeSingT (fromUType mv) $ \v ->
-  withSomeSingCT mk $ \k -> liftEither $ do
-    vns <- extractNotes mv v
-              `onLeft` typeCheckInstrTypeErr instr i "wrong empty_map type:"
+  withSomeSingCT mk $ \k -> do
+    vns <- onTypeCheckInstrTypeErr instr i "wrong empty_map type:" (extractNotes mv v)
     let ns = mkNotes $ NTMap tn ktn vns
     pure $ i :/ EMPTY_MAP ::: ((STMap k v, ns, vn) ::& i)
 
@@ -325,61 +316,56 @@ typeCheckInstr instr@(U.ITER (i1 : ir)) (i@((STMap _ _, n, _) ::& _)) = do
   iterImpl en instr (i1 :| ir) i
 
 typeCheckInstr instr@(U.MEM vn)
-           i@((STc _, _, _) ::& (STSet _, _, _) ::& _) =
-  liftEither $ memImpl instr i vn
+           i@((STc _, _, _) ::& (STSet _, _, _) ::& _) = memImpl instr i vn
 typeCheckInstr instr@(U.MEM vn)
-           i@((STc _, _, _) ::& (STMap _ _, _, _) ::& _) =
-  liftEither $ memImpl instr i vn
+           i@((STc _, _, _) ::& (STMap _ _, _, _) ::& _) = memImpl instr i vn
 typeCheckInstr instr@(U.MEM vn)
-           i@((STc _, _, _) ::& (STBigMap _ _, _, _) ::& _) =
-  liftEither $ memImpl instr i vn
+           i@((STc _, _, _) ::& (STBigMap _ _, _, _) ::& _) = memImpl instr i vn
 
 typeCheckInstr instr@(U.GET vn) i@(_ ::& (STMap _ vt, cn, _) ::& _) =
-  liftEither $ getImpl instr i vt (notesCase NStar (\(NTMap _ _ v) -> v) cn) vn
+  getImpl instr i vt (notesCase NStar (\(NTMap _ _ v) -> v) cn) vn
 typeCheckInstr instr@(U.GET vn) i@(_ ::& (STBigMap _ vt, cn, _) ::& _) =
-  liftEither $ getImpl instr i vt (notesCase NStar (\(NTBigMap _ _ v) -> v) cn) vn
+  getImpl instr i vt (notesCase NStar (\(NTBigMap _ _ v) -> v) cn) vn
 
 typeCheckInstr instr@U.UPDATE i@(_ ::& _ ::& (STMap _ _, _, _) ::& _) =
-  liftEither $ updImpl instr i
+  updImpl instr i
 typeCheckInstr instr@U.UPDATE i@(_ ::& _ ::& (STBigMap _ _, _, _)
-                                             ::& _) =
-  liftEither $ updImpl instr i
-typeCheckInstr instr@U.UPDATE i@(_ ::& _ ::& (STSet _, _, _) ::& _) =
-  liftEither $ updImpl instr i
+                                             ::& _) = updImpl instr i
+typeCheckInstr instr@U.UPDATE i@(_ ::& _ ::& (STSet _, _, _) ::& _) = updImpl instr i
 
 typeCheckInstr (U.IF mp mq) i@((STc SCBool, _, _) ::& rs)  =
   genericIf IF U.IF mp mq rs rs i
 
 typeCheckInstr instr@(U.LOOP is)
-           i@((STc SCBool, _, _) ::& (rs :: HST rs))  = do
-  _ :/ tp <- typeCheckList is rs
-  liftEither $ case tp of
-    subI ::: (o :: HST o) -> liftEither $ do
+           i@((STc SCBool, _, _) ::& (rs :: HST rs)) = do
+  _ :/ tp <- lift $ typeCheckList is rs
+  case tp of
+    subI ::: (o :: HST o) -> do
       case eqType @o @('Tc 'CBool ': rs) of
         Right Refl -> do
           let _ ::& rs' = o
           pure $ i :/ LOOP subI ::: rs'
-        Left m -> typeCheckInstrErr instr (SomeHST i)
-                    "iteration expression has wrong output stack type:" m
+        Left m -> onTypeCheckInstrErr instr (SomeHST i)
+                    "iteration expression has wrong output stack type:" (Left m)
     AnyOutInstr subI ->
       pure $ i :/ LOOP subI ::: rs
 
 typeCheckInstr instr@(U.LOOP_LEFT is)
            i@((STOr (at :: Sing a) (bt :: Sing b), ons, ovn)
-                      ::& (rs :: HST rs))  = do
+                      ::& (rs :: HST rs)) = do
   let (an, bn, avn, bvn) = deriveNsOr ons ovn
       ait = (at, an, avn) ::& rs
-  _ :/ tp <- typeCheckList is ait
-  liftEither $ case tp of
-    subI ::: (o :: HST o) -> liftEither $ do
+  _ :/ tp <- lift $ typeCheckList is ait
+  case tp of
+    subI ::: (o :: HST o) -> do
       case (eqType @o @('TOr a b ': rs), o) of
         (Right Refl, ((STOr _ bt', ons', ovn') ::& rs')) -> do
             let (_, bn', _, bvn') = deriveNsOr ons' ovn'
-            br <- convergeHSTEl (bt, bn, bvn) (bt', bn', bvn')
-                    `onLeft` typeCheckInstrAnnErr instr i "wrong LOOP_LEFT input type:"
+            br <- onTypeCheckInstrAnnErr instr i "wrong LOOP_LEFT input type:" $
+                    convergeHSTEl (bt, bn, bvn) (bt', bn', bvn')
             pure $ i :/ LOOP_LEFT subI ::: (br ::& rs')
-        (Left m, _) -> typeCheckInstrErr instr (SomeHST i)
-                        "iteration expression has wrong output stack type:" m
+        (Left m, _) -> onTypeCheckInstrErr instr (SomeHST i)
+                         "iteration expression has wrong output stack type:" (Left m)
     AnyOutInstr subI -> do
       let br = (bt, bn, bvn)
       pure $ i :/ LOOP_LEFT subI ::: (br ::& rs)
@@ -387,10 +373,8 @@ typeCheckInstr instr@(U.LOOP_LEFT is)
 typeCheckInstr instr@(U.LAMBDA vn imt omt is) i = do
   withSomeSingT (fromUType imt) $ \(it :: Sing it) -> do
     withSomeSingT (fromUType omt) $ \(ot :: Sing ot) -> do
-      ins <- liftEither $ extractNotes imt it
-              `onLeft` typeCheckInstrTypeErr instr i "wrong lambda input type:"
-      ons <- liftEither $ extractNotes omt ot
-              `onLeft` typeCheckInstrTypeErr instr i "wrong lambda output type:"
+      ins <- onTypeCheckInstrTypeErr instr i "wrong lambda input type:" (extractNotes imt it)
+      ons <- onTypeCheckInstrTypeErr instr i "wrong lambda output type:" (extractNotes omt ot)
       -- further processing is extracted into another function because
       -- otherwise I encountered some weird GHC error with that code
       -- located right here
@@ -400,161 +384,131 @@ typeCheckInstr instr@(U.EXEC vn) i@(((_ :: Sing t1), _, _)
                               ::& (STLambda (_ :: Sing t1') t2, ln, _)
                               ::& rs) = do
   let t2n = notesCase NStar (\(NTLambda _ _ n) -> n) ln
-  case eqType @t1 @t1' of
-    Right Refl -> pure $ i :/ EXEC ::: ((t2, t2n, vn) ::& rs)
-    Left m -> typeCheckInstrErrM instr (SomeHST i)
-                "lambda is given argument with wrong type:" m
+  Refl <- onTypeCheckInstrErr instr (SomeHST i)
+                "lambda is given argument with wrong type:" (eqType @t1 @t1')
+  pure $ i :/ EXEC ::: ((t2, t2n, vn) ::& rs)
 
 typeCheckInstr instr@(U.DIP is) i@(a ::& (s :: HST s)) = do
-  _ :/ tp <- typeCheckList is s
+  _ :/ tp <- lift (typeCheckList is s)
   case tp of
     subI ::: t ->
       pure $ i :/ DIP subI ::: (a ::& t)
-    AnyOutInstr _ ->
+    AnyOutInstr _ -> do
       -- This may seem like we throw error because of despair, but in fact,
       -- the reference implementation seems to behave exactly in this way -
       -- if output stack of code block within @DIP@ occurs to be any, an
       -- error "FAILWITH must be at tail position" is raised.
-      throwError $
-        TCFailedOnInstr instr (SomeHST i)
-          "Code within DIP instruction always fails, which is not allowed" Nothing
+      typeCheckInstrErr instr (SomeHST i)
+          "Code within DIP instruction always fails, which is not allowed"
 
 typeCheckInstr U.FAILWITH i@(_ ::& _) =
   pure $ i :/ AnyOutInstr FAILWITH
 
 typeCheckInstr instr@(U.CAST vn mt)
            i@(((e :: Sing e), (en :: Notes e), evn) ::& rs) =
-  withSomeSingT (fromUType mt) $ \(_ :: Sing e') ->
-    case eqType @e @e' of
-      Right Refl ->
-        case extractNotes mt e of
-          Right en' ->
-            case converge en en' of
-              Right ns ->
-                pure $ i :/ CAST ::: ((e, ns, vn `orAnn` evn) ::& rs)
-              Left m -> (err . AnnError) m
-          Left m -> (err . ExtractionTypeMismatch) m
-      Left m -> err m
-    where
-      err = \m -> typeCheckInstrErrM instr (SomeHST i)
-                  "cast to incompatible type:" m
+  withSomeSingT (fromUType mt) $ \(_ :: Sing e') -> do
+    Refl <- errM (eqType @e @e')
+    en' <- errM (extractNotes mt e `onLeft` ExtractionTypeMismatch)
+    ns <- errM (converge en en' `onLeft` AnnError)
+    pure $ i :/ CAST ::: ((e, ns, vn `orAnn` evn) ::& rs)
+  where
+    errM :: (MonadReader InstrCallStack m, MonadError TCError m) => Either TCTypeError a -> m a
+    errM = onTypeCheckInstrErr instr (SomeHST i) "cast to incompatible type:"
 
 typeCheckInstr (U.RENAME vn) i@((at, an, _) ::& rs) =
   pure $ i :/ RENAME ::: ((at, an, vn) ::& rs)
 
 typeCheckInstr instr@(U.UNPACK vn mt) i@((STc SCBytes, _, _) ::& rs) =
-  withSomeSingT (fromUType mt) $ \t -> liftEither $ do
-    tns <- extractNotes mt t
-            `onLeft` typeCheckInstrTypeErr instr i "wrong unpack type"
+  withSomeSingT (fromUType mt) $ \t -> do
+    tns <- onTypeCheckInstrTypeErr instr i "wrong unpack type" (extractNotes mt t)
     let ns = mkNotes $ NTOption def def tns
     case opAbsense t of
       Just Dict ->
         pure $ i :/ UNPACK ::: ((STOption t, ns, vn) ::& rs)
       Nothing ->
-        throwError $ TCFailedOnInstr instr (SomeHST i)
-                      "Operations cannot appear in serialized data" Nothing
+        typeCheckInstrErr instr (SomeHST i) "Operations cannot appear in serialized data"
 
 typeCheckInstr instr@(U.PACK vn) i@((a, _, _) ::& rs) = do
   case opAbsense a of
     Just Dict ->
       pure $ i :/ PACK ::: ((STc SCBytes, NStar, vn) ::& rs)
     Nothing ->
-      throwError $ TCFailedOnInstr instr (SomeHST i)
-                    "Operations in serialized data are not allowed" Nothing
+      typeCheckInstrErr instr (SomeHST i) "Operations in serialized data are not allowed"
 
 typeCheckInstr (U.CONCAT vn) i@((STc SCBytes, _, _) ::&
-                                    (STc SCBytes, _, _) ::& _) =
-  liftEither $ concatImpl i vn
+                                    (STc SCBytes, _, _) ::& _) = concatImpl i vn
 typeCheckInstr (U.CONCAT vn) i@((STc SCString, _, _) ::&
-                                    (STc SCString, _, _) ::& _) =
-  liftEither $ concatImpl i vn
-typeCheckInstr (U.CONCAT vn) i@((STList (STc SCBytes), _, _) ::& _) =
-  liftEither $  concatImpl' i vn
-typeCheckInstr (U.CONCAT vn) i@((STList (STc SCString), _, _) ::& _) =
-  liftEither $ concatImpl' i vn
-
-
+                                    (STc SCString, _, _) ::& _) = concatImpl i vn
+typeCheckInstr (U.CONCAT vn) i@((STList (STc SCBytes), _, _) ::& _) = concatImpl' i vn
+typeCheckInstr (U.CONCAT vn) i@((STList (STc SCString), _, _) ::& _) = concatImpl' i vn
 typeCheckInstr (U.SLICE vn) i@((STc SCNat, _, _) ::&
                                    (STc SCNat, _, _) ::&
-                                   (STc SCString, _, _) ::& _) =
-  liftEither $ sliceImpl i vn
+                                   (STc SCString, _, _) ::& _) = sliceImpl i vn
 typeCheckInstr (U.SLICE vn) i@((STc SCNat, _, _) ::&
                                    (STc SCNat, _, _) ::&
-                                   (STc SCBytes, _, _) ::& _) =
-  liftEither $ sliceImpl i vn
+                                   (STc SCBytes, _, _) ::& _) = sliceImpl i vn
 
 typeCheckInstr (U.ISNAT vn') i@((STc SCInt, _, oldVn) ::& rs) = do
   let vn = vn' `orAnn` oldVn
   pure $ i :/ ISNAT ::: ((STOption (STc SCNat), NStar, vn) ::& rs)
 
 typeCheckInstr (U.ADD vn) i@((STc a, _, _) ::&
-                                 (STc b, _, _) ::& _) = liftEither $ addImpl a b i vn
+                                 (STc b, _, _) ::& _) = addImpl a b i vn
 
 typeCheckInstr (U.SUB vn) i@((STc a, _, _) ::&
-                                 (STc b, _, _) ::& _) = liftEither $ subImpl a b i vn
+                                 (STc b, _, _) ::& _) = subImpl a b i vn
 
 typeCheckInstr (U.MUL vn) i@((STc a, _, _) ::&
-                                 (STc b, _, _) ::& _) = liftEither $ mulImpl a b i vn
+                                 (STc b, _, _) ::& _) = mulImpl a b i vn
 
 typeCheckInstr (U.EDIV vn) i@((STc a, _, _) ::&
-                                  (STc b, _, _) ::& _) = liftEither $ edivImpl a b i vn
+                                  (STc b, _, _) ::& _) = edivImpl a b i vn
 
-typeCheckInstr (U.ABS vn) i@((STc SCInt, _, _) ::& _) =
-  liftEither $ unaryArithImpl @Abs ABS i vn
+typeCheckInstr (U.ABS vn) i@((STc SCInt, _, _) ::& _) = unaryArithImpl @Abs ABS i vn
 
-typeCheckInstr U.NEG (i@((STc SCInt, _, _) ::& _)) =
-  liftEither $ unaryArithImpl @Neg NEG i def
+typeCheckInstr U.NEG (i@((STc SCInt, _, _) ::& _)) = unaryArithImpl @Neg NEG i def
 
 typeCheckInstr (U.LSL vn) i@((STc SCNat, _, _) ::&
-                         (STc SCNat, _, _) ::& _) = liftEither $ arithImpl @Lsl LSL i vn
+                         (STc SCNat, _, _) ::& _) = arithImpl @Lsl LSL i vn
 
 typeCheckInstr (U.LSR vn) i@((STc SCNat, _, _) ::&
-                         (STc SCNat, _, _) ::& _) = liftEither $ arithImpl @Lsr LSR i vn
+                         (STc SCNat, _, _) ::& _) = arithImpl @Lsr LSR i vn
 
 typeCheckInstr (U.OR vn) i@((STc SCBool, _, _) ::&
-                         (STc SCBool, _, _) ::& _) = liftEither $ arithImpl @Or OR i vn
+                         (STc SCBool, _, _) ::& _) = arithImpl @Or OR i vn
 typeCheckInstr (U.OR vn) i@((STc SCNat, _, _) ::&
-                         (STc SCNat, _, _) ::& _) = liftEither $ arithImpl @Or OR i vn
+                         (STc SCNat, _, _) ::& _) = arithImpl @Or OR i vn
 
 typeCheckInstr (U.AND vn) i@((STc SCInt, _, _) ::&
-                         (STc SCNat, _, _) ::& _) = liftEither $ arithImpl @And AND i vn
+                         (STc SCNat, _, _) ::& _) = arithImpl @And AND i vn
 typeCheckInstr (U.AND vn) i@((STc SCNat, _, _) ::&
-                         (STc SCNat, _, _) ::& _) = liftEither $ arithImpl @And AND i vn
+                         (STc SCNat, _, _) ::& _) = arithImpl @And AND i vn
 typeCheckInstr (U.AND vn) i@((STc SCBool, _, _) ::&
-                         (STc SCBool, _, _) ::& _) = liftEither $ arithImpl @And AND i vn
+                         (STc SCBool, _, _) ::& _) = arithImpl @And AND i vn
 
 typeCheckInstr (U.XOR vn) i@((STc SCBool, _, _) ::&
-                         (STc SCBool, _, _) ::& _) = liftEither $ arithImpl @Xor XOR i vn
+                         (STc SCBool, _, _) ::& _) = arithImpl @Xor XOR i vn
 typeCheckInstr (U.XOR vn) i@((STc SCNat, _, _) ::&
-                         (STc SCNat, _, _) ::& _) = liftEither $ arithImpl @Xor XOR i vn
+                         (STc SCNat, _, _) ::& _) = arithImpl @Xor XOR i vn
 
-typeCheckInstr (U.NOT vn) i@((STc SCNat, _, _) ::& _) =
-  liftEither $ unaryArithImpl @Not NOT i vn
-typeCheckInstr (U.NOT vn) i@((STc SCBool, _, _) ::& _) =
-  liftEither $ unaryArithImpl @Not NOT i vn
-typeCheckInstr (U.NOT vn) i@((STc SCInt, _, _) ::& _) =
-  liftEither $ unaryArithImpl @Not NOT i vn
+typeCheckInstr (U.NOT vn) i@((STc SCNat, _, _) ::& _) = unaryArithImpl @Not NOT i vn
+typeCheckInstr (U.NOT vn) i@((STc SCBool, _, _) ::& _) = unaryArithImpl @Not NOT i vn
+typeCheckInstr (U.NOT vn) i@((STc SCInt, _, _) ::& _) = unaryArithImpl @Not NOT i vn
 
 typeCheckInstr (U.COMPARE vn) i@((STc a, _, _) ::&
-                                 (STc b, _, _) ::& _) = liftEither $ compareImpl a b i vn
+                                 (STc b, _, _) ::& _) = compareImpl a b i vn
 
-typeCheckInstr (U.EQ vn) i@((STc SCInt, _, _) ::& _) =
-  liftEither $ unaryArithImpl @Eq' EQ i vn
+typeCheckInstr (U.EQ vn) i@((STc SCInt, _, _) ::& _) = unaryArithImpl @Eq' EQ i vn
 
-typeCheckInstr (U.NEQ vn) i@((STc SCInt, _, _) ::& _) =
-  liftEither $ unaryArithImpl @Neq NEQ i vn
+typeCheckInstr (U.NEQ vn) i@((STc SCInt, _, _) ::& _) = unaryArithImpl @Neq NEQ i vn
 
-typeCheckInstr (U.LT vn) i@((STc SCInt, _, _) ::& _) =
-  liftEither $ unaryArithImpl @Lt LT i vn
+typeCheckInstr (U.LT vn) i@((STc SCInt, _, _) ::& _) = unaryArithImpl @Lt LT i vn
 
-typeCheckInstr (U.GT vn) i@((STc SCInt, _, _) ::& _) =
-  liftEither $ unaryArithImpl @Gt GT i vn
+typeCheckInstr (U.GT vn) i@((STc SCInt, _, _) ::& _) = unaryArithImpl @Gt GT i vn
 
-typeCheckInstr (U.LE vn) i@((STc SCInt, _, _) ::& _) =
-  liftEither $ unaryArithImpl @Le LE i vn
+typeCheckInstr (U.LE vn) i@((STc SCInt, _, _) ::& _) = unaryArithImpl @Le LE i vn
 
-typeCheckInstr (U.GE vn) i@((STc SCInt, _, _) ::& _) =
-  liftEither $ unaryArithImpl @Ge GE i vn
+typeCheckInstr (U.GE vn) i@((STc SCInt, _, _) ::& _) = unaryArithImpl @Ge GE i vn
 
 typeCheckInstr (U.INT vn) i@((STc SCNat, _, _) ::& rs) =
   pure $ i :/ INT ::: ((STc SCInt, NStar, vn) ::& rs)
@@ -563,15 +517,13 @@ typeCheckInstr instr@(U.SELF vn) shst@i = do
   cpType <- gets tcContractParam
   let t = fromUType cpType
   withSomeSingT t $ \(singcp :: Sing cp) -> do
-    nt <- liftEither $ extractNotes cpType singcp `onLeft`
-      typeCheckInstrTypeErr instr shst "wrong self type"
+    nt <- onTypeCheckInstrTypeErr instr shst "wrong self type" (extractNotes cpType singcp )
     pure $ i :/ SELF @cp ::: ((sing @('TContract cp), N (NTContract U.noAnn nt), vn) ::& i)
 
 typeCheckInstr instr@(U.CONTRACT vn mt)
            i@((STc SCAddress, _, _) ::& rs) =
-  withSomeSingT (fromUType mt) $ \t -> liftEither $ do
-    tns <- extractNotes mt t
-            `onLeft` typeCheckInstrTypeErr instr i "wrong contract command type"
+  withSomeSingT (fromUType mt) $ \t -> do
+    tns <- onTypeCheckInstrTypeErr instr i "wrong contract command type" (extractNotes mt t)
     let ns = mkNotes $ NTOption def def $ mkNotes $ NTContract def tns
     pure $ i :/ CONTRACT tns ::: ((STOption $ STContract t, ns, vn) ::& rs)
 
@@ -581,11 +533,11 @@ typeCheckInstr instr@(U.TRANSFER_TOKENS vn) i@(((_ :: Sing p'), _, _)
     (Right Refl, Just Dict) ->
       pure $ i :/ TRANSFER_TOKENS ::: ((STOperation, NStar, vn) ::& rs)
     (Left m, _) ->
-      typeCheckInstrErrM instr (SomeHST i)
-        "mismatch of contract param type:" m
+      onTypeCheckInstrErr instr (SomeHST i)
+        "mismatch of contract param type:" (Left m)
     (_, Nothing) ->
-      typeCheckInstrErrM instr (SomeHST i)
-        "contract param type cannot contain operation:" $ UnsupportedTypes [typeRep (Proxy @p)]
+      onTypeCheckInstrErr instr (SomeHST i)
+        "contract param type cannot contain operation:" $ Left $ UnsupportedTypes [typeRep (Proxy @p)]
 
 typeCheckInstr (U.SET_DELEGATE vn)
            i@((STOption (STc SCKeyHash), _, _) ::& rs) = do
@@ -605,13 +557,10 @@ typeCheckInstr instr@(U.CREATE_CONTRACT ovn avn contract)
              ::& (STc SCBool, _, _)
              ::& (STc SCMutez, _, _)
              ::& ((_ :: Sing g), gn, _) ::& rs) = do
-  (SomeContract (contr :: Contract p' g') _ out) <-
-      flip withExceptT (typeCheckContractImpl contract) id
-  liftEither $ do
-    Refl <- checkEqT @g @g' instr i "contract storage type mismatch"
-    void $ converge gn (outNotes out) `onLeft`
-      typeCheckInstrAnnErr instr i "contract storage type mismatch"
-    pure $ i :/ CREATE_CONTRACT contr ::: ((STOperation, NStar, ovn) ::&
+  (SomeContract (contr :: Contract p' g') _ out) <- lift $ typeCheckContractImpl contract
+  Refl <- checkEqT @g @g' instr i "contract storage type mismatch"
+  void $ onTypeCheckInstrAnnErr instr i "contract storage type mismatch" (converge gn (outNotes out) )
+  pure $ i :/ CREATE_CONTRACT contr ::: ((STOperation, NStar, ovn) ::&
                                            (STc SCAddress, NStar, avn) ::& rs)
   where
     outNotes :: HST '[ 'TPair ('TList 'TOperation) g' ] -> Notes g'
@@ -664,8 +613,7 @@ typeCheckInstr (U.SENDER vn) i =
 typeCheckInstr (U.ADDRESS vn) i@((STContract _, _, _) ::& rs) =
   pure $ i :/ ADDRESS ::: ((STc SCAddress, NStar, vn) ::& rs)
 
-typeCheckInstr instr sit = throwError ...
-  TCFailedOnInstr instr (SomeHST sit) "unknown expression" Nothing
+typeCheckInstr instr sit = typeCheckInstrErr instr (SomeHST sit) "unknown expression"
 
 -- | Helper function for two-branch if where each branch is given a single
 -- value.
@@ -683,17 +631,16 @@ genericIf
   -> HST bti
   -> HST bfi
   -> HST (cond ': rs)
-  -> TypeCheckT (SomeInstr (cond ': rs))
+  -> TypeCheckInstr (SomeInstr (cond ': rs))
 genericIf cons mCons mbt mbf bti bfi i@(_ ::& _) = do
-  _ :/ pinstr <- typeCheckList mbt bti
-  _ :/ qinstr <- typeCheckList mbf bfi
-  liftEither . fmap (i :/) $ case (pinstr, qinstr) of
+  _ :/ pinstr <- lift $ typeCheckList mbt bti
+  _ :/ qinstr <- lift $ typeCheckList mbf bfi
+  fmap (i :/) $ case (pinstr, qinstr) of
     (p ::: (po :: HST po), q ::: (qo :: HST qo)) -> do
       let instr = mCons mbt mbf
       Refl <- checkEqT @qo @po instr i
                     "branches have different output stack types:"
-      o <- convergeHST po qo `onLeft`
-        typeCheckInstrAnnErr instr i "branches have different output stack types:"
+      o <- onTypeCheckInstrAnnErr instr i "branches have different output stack types:" (convergeHST po qo)
       pure $ cons p q ::: o
     (AnyOutInstr p, q ::: (qo :: HST qo)) -> do
       pure $ cons p q ::: qo
@@ -715,21 +662,19 @@ mapImpl
   -> HST (c ': rs)
   -> (forall v' . (Typeable v', SingI v') =>
         Sing v' -> Notes v' -> HST rs -> HST (MapOpRes c v' ': rs))
-  -> TypeCheckT (SomeInstr (c ': rs))
+  -> TypeCheckInstr (SomeInstr (c ': rs))
 mapImpl vn instr mp i@(_ ::& rs) mkRes = do
-  _ :/ subp <- typeCheckList mp ((sing, vn, def) ::& rs)
-  liftEither $ case subp of
+  _ :/ subp <- lift $ typeCheckList mp ((sing, vn, def) ::& rs)
+  case subp of
     sub ::: subo ->
       case subo of
         (b, bn, _bvn) ::& (rs' :: HST rs') -> do
           Refl <- checkEqT @rs @rs' instr i $
                       "map expression has changed not only top of the stack"
           pure $ i :/ MAP sub ::: mkRes b bn rs'
-        _ -> Left ... TCFailedOnInstr instr (SomeHST i)
-             "map expression has wrong output stack type (empty stack)" Nothing
+        _ -> typeCheckInstrErr instr (SomeHST i) "map expression has wrong output stack type (empty stack)"
     AnyOutInstr _ ->
-      Left $ TCFailedOnInstr instr (SomeHST i)
-        "MAP code block always fails, which is not allowed" Nothing
+      typeCheckInstrErr instr (SomeHST i) "MAP code block always fails, which is not allowed"
 
 iterImpl
   :: forall c rs .
@@ -741,18 +686,17 @@ iterImpl
   -> U.ExpandedInstr
   -> NonEmpty U.ExpandedOp
   -> HST (c ': rs)
-  -> TypeCheckT (SomeInstr (c ': rs))
+  -> TypeCheckInstr (SomeInstr (c ': rs))
 iterImpl en instr mp i@((_, _, lvn) ::& rs) = do
   let evn = deriveVN "elt" lvn
-  _ :/ subp <- typeCheckNE mp ((sing, en, evn) ::& rs)
-  liftEither $ case subp of
+  _ :/ subp <- lift $ typeCheckNE mp ((sing, en, evn) ::& rs)
+  case subp of
     subI ::: (o :: HST o) -> do
       Refl <- checkEqT @o @rs instr i
                 "iteration expression has wrong output stack type"
       pure $ i :/ ITER subI ::: o
     AnyOutInstr _ ->
-      Left $ TCFailedOnInstr instr (SomeHST i)
-        "ITER code block always fails, which is not allowed" Nothing
+      typeCheckInstrErr instr (SomeHST i) "ITER code block always fails, which is not allowed"
 
 lamImpl
   :: forall it ot ts .
@@ -765,31 +709,29 @@ lamImpl
   -> Sing it -> Notes it
   -> Sing ot -> Notes ot
   -> HST ts
-  -> TypeCheckT (SomeInstr ts)
+  -> TypeCheckInstr (SomeInstr ts)
 lamImpl instr is vn it ins ot ons i = do
-  when (any hasSelf is) $ throwError ... TCFailedOnInstr instr (SomeHST i)
-    "The SELF instruction cannot appear in a lambda" Nothing
-  _ :/ lamI <- typeCheckList is ((it, ins, def) ::& SNil)
+  when (any hasSelf is) $
+    typeCheckInstrErr instr (SomeHST i) "The SELF instruction cannot appear in a lambda"
+  _ :/ lamI <- lift $ typeCheckList is ((it, ins, def) ::& SNil)
   let lamNotes onsr = mkNotes $ NTLambda def ins onsr
   let lamSt onsr = (STLambda it ot, lamNotes onsr, vn) ::& i
-  liftEither . fmap (i :/) $ case lamI of
+  fmap (i :/) $ case lamI of
     lam ::: (lo :: HST lo) -> do
       case eqType @'[ ot ] @lo of
         Right Refl -> do
             let (_, ons', _) ::& SNil = lo
-            onsr <- converge ons ons' `onLeft`
-              typeCheckInstrAnnErr instr i "wrong output type of lambda's expression:"
+            onsr <- onTypeCheckInstrAnnErr instr i "wrong output type of lambda's expression:" (converge ons ons')
             pure (LAMBDA (VLam lam) ::: lamSt onsr)
-        Left m -> typeCheckInstrErr instr (SomeHST i)
-                    "wrong output type of lambda's expression:" m
+        Left m -> onTypeCheckInstrErr instr (SomeHST i)
+                    "wrong output type of lambda's expression:" (Left m)
     AnyOutInstr lam ->
       pure (LAMBDA (VLam lam) ::: lamSt ons)
-
   where
     hasSelf :: U.ExpandedOp -> Bool
     hasSelf = everything (||)
       (mkQ False
-       (\x -> case x of
+       (\case
            (U.SELF _ :: U.InstrAbstract U.ExpandedOp) -> True
            _ -> False
        )

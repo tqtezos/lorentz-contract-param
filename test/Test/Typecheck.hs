@@ -14,6 +14,7 @@ import Test.Tasty (TestTree)
 import Test.Tasty.HUnit (testCase)
 import Test.Tasty.QuickCheck (testProperty)
 
+import Michelson.ErrorPos (defExistingIcs)
 import Michelson.Runtime (prepareContract)
 import Michelson.Test.Import (ImportContractError(..), readContract)
 import Michelson.TypeCheck
@@ -93,8 +94,8 @@ test_StackRef =
     let instr = printStRef 100000000000
         hst = stackEl ::& SNil
     in case
-        runTypeCheckT (error "no contract param") mempty $
-        typeCheckList [Un.PrimEx instr] hst
+        runTypeCheck (error "no contract param") mempty $
+        typeCheckList [Un.PrimEx instr defExistingIcs] hst
       of
         Left err -> total $ show @Text err
         Right _ -> error "Typecheck unexpectedly succeded"

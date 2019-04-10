@@ -23,6 +23,7 @@ import Fmt (Buildable(build), (+|), (|+))
 import Prelude hiding (EQ, GT, LT)
 import Text.PrettyPrint.Leijen.Text (braces, nest, (<$$>), (<+>))
 
+import Michelson.ErrorPos (InstrCallStack)
 import Michelson.Printer.Util (RenderDoc(..), buildRenderDoc, renderOpsList, spaces)
 import Michelson.Untyped.Annotation (FieldAnn, TypeAnn, VarAnn)
 import Michelson.Untyped.Contract (Contract'(..))
@@ -52,16 +53,20 @@ type ExpandedInstr = InstrAbstract ExpandedOp
 data ExpandedOp
   = PrimEx ExpandedInstr
   | SeqEx [ExpandedOp]
+  | WithSrcEx InstrCallStack ExpandedOp
   deriving stock (Show, Eq, Data, Generic)
 
 instance RenderDoc ExpandedOp where
-  renderDoc (PrimEx i)  = renderDoc i
-  renderDoc (SeqEx i)   = renderOpsList True i
+  renderDoc (WithSrcEx _ op) = renderDoc op
+  renderDoc (PrimEx i) = renderDoc i
+  renderDoc (SeqEx i)    = renderOpsList True i
   isRenderable =
     \case PrimEx i -> isRenderable i
+          WithSrcEx _ op -> isRenderable op
           _ -> True
 
 instance Buildable ExpandedOp where
+  build (WithSrcEx _ op) = build op
   build (PrimEx expandedInstr) = "<PrimEx: "+|expandedInstr|+">"
   build (SeqEx expandedOps)    = "<SeqEx: "+|expandedOps|+">"
 

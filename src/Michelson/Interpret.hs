@@ -40,7 +40,7 @@ import Michelson.Interpret.Pack (packValue')
 import Michelson.Interpret.Unpack (UnpackError, unpackValue', UnpackEnv (..))
 import Michelson.TypeCheck
   ( SomeContract(..), SomeValue(..), TCError, TcOriginatedContracts,
-  TCTypeError(..), compareTypes, eqType, runTypeCheckT, typeCheckContract, typeCheckValue)
+  TCTypeError(..), compareTypes, eqType, runTypeCheck, typeCheckContract, typeCheckValue)
 import Michelson.Typed
   (CValue(..), Contract, CreateAccount(..), CreateContract(..), HasNoOp, Instr(..),
   OpPresence(..), Operation'(..), Operation, SetDelegate(..), Sing(..), T(..), TransferTokens(..), Value'(..),
@@ -165,10 +165,10 @@ interpretUntyped U.Contract{..} paramU initStU env = do
       ntp <- first (UnexpectedParamType . ExtractionTypeMismatch) $ extractNotes para sgp
       nts <- first (UnexpectedStorageType . ExtractionTypeMismatch) $ extractNotes stor sgs
       paramV :::: ((_ :: Sing cp1), _)
-          <- first IllTypedParam $ runTypeCheckT para (ceContracts env) $
+          <- first IllTypedParam $ runTypeCheck para (ceContracts env) $ usingReaderT def $
                typeCheckValue paramU (sgp, ntp)
       initStV :::: ((_ :: Sing st1), _)
-          <- first IllTypedStorage $ runTypeCheckT para (ceContracts env) $
+          <- first IllTypedStorage $ runTypeCheck para (ceContracts env) $ usingReaderT def $
                typeCheckValue initStU (sgs, nts)
       Refl <- first UnexpectedStorageType $ eqType @st @st1
       Refl <- first UnexpectedParamType   $ eqType @cp @cp1

@@ -108,6 +108,8 @@ instrToOps instr = case instr of
   Seq i1 i2 -> instrToOps i1 <> instrToOps i2
   Nested sq -> one $ U.SeqEx $ instrToOps sq
   i -> U.PrimEx <$> handleInstr i
+  -- TODO pva701: perphaps, typed instr has to hold a position too
+  -- to make it possible to report a precise location of a runtime error
   where
     handleInstr :: Instr inp out -> [U.ExpandedInstr]
     handleInstr (Seq _ _) = error "impossible"
