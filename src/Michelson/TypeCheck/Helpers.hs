@@ -15,6 +15,7 @@ module Michelson.TypeCheck.Helpers
     , typeCheckInstrErr
     , typeCheckInstrErrM
     , typeCheckImpl
+    , compareTypes
 
     , memImpl
     , getImpl
@@ -43,7 +44,8 @@ import Fmt ((+||), (||+))
 
 import Michelson.TypeCheck.Types
 import Michelson.Typed
-  (CT(..), Instr(..), Notes(..), Notes'(..), Sing(..), T(..), converge, mkNotes, notesCase, orAnn)
+  (extractNotes, fromUType, CT(..), Instr(..), Notes(..), Notes'(..), Sing(..), T(..), converge, mkNotes, notesCase, orAnn,
+  withSomeSingT)
 import Michelson.Typed.Arith (Add, ArithOp(..), Compare, Mul, Sub, UnaryArithOp(..))
 import Michelson.Typed.Polymorphic
   (ConcatOp, EDivOp(..), GetOp(..), MemOp(..), SizeOp, SliceOp, UpdOp(..))
@@ -207,6 +209,13 @@ typeCheckImpl tcInstr instrs t@(a :: HST a) =
               pure $ Seq (wrap p) q ::: (a, c)
             SiFail -> pure SiFail
         SiFail -> pure SiFail
+
+-- | Check whether typed and untyped types converge
+compareTypes :: forall t . Typeable t => (Sing t, Notes t) -> Un.Type -> Either Text ()
+compareTypes (_, n) tp = withSomeSingT (fromUType tp) $ \(t :: Sing ct) -> do
+  Refl <- eqT' @t @ct
+  cnotes <- extractNotes tp t
+  void $ converge n cnotes
 
 --------------------------------------------
 -- Some generic instruction implementation

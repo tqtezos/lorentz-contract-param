@@ -11,6 +11,7 @@ module Michelson.Typed.Instr
 import Data.Kind (Type)
 import Data.Singletons (SingI)
 
+import Michelson.Typed.Annotation (Notes)
 import Michelson.Typed.Arith
 import Michelson.Typed.Polymorphic
 import Michelson.Typed.Scope
@@ -193,7 +194,8 @@ data Instr (inp :: [T]) (out :: [T]) where
   INT :: Instr ('Tc 'CNat ': s) ('Tc 'CInt ': s)
   SELF :: forall (cp :: T) s . Instr s ('TContract cp ': s)
   CONTRACT
-    :: SingI p => Instr ('Tc 'CAddress ': s) ('TOption ('TContract p) ': s)
+    :: (SingI p, Typeable p) => Notes p -> Instr ('Tc 'CAddress ': s) ('TOption ('TContract p) ': s)
+  -- Store Notes to be able to verify CONTRACT in typechecker
   TRANSFER_TOKENS
     :: (Typeable p, SingI p, HasNoOp p) =>
        Instr (p ': 'Tc 'CMutez ': 'TContract p ': s)

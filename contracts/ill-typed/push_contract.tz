@@ -1,0 +1,15 @@
+# This contract is considered ill-typed
+# when it's typechecked without any originated contracts
+# in the context
+
+parameter unit;
+storage unit;
+
+code {
+       DROP;
+       PUSH (contract (pair (int :p) (int :q))) "KT1WsLzQ61xtMNJHfwgCHh2RnALGgFAzeSx9";
+       DROP;
+       UNIT;
+       NIL operation;
+       PAIR;
+     }

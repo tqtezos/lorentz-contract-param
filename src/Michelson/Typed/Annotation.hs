@@ -43,6 +43,8 @@ import Michelson.Untyped.Annotation (Annotation, FieldAnn, TypeAnn, unifyAnn)
 -- functions).
 data Notes t = N (Notes' t) | NStar
 
+deriving instance Show (Notes p)
+
 -- | Helper function for work with 'Notes' data type.
 --
 -- @
@@ -83,6 +85,8 @@ data Notes' t where
   NTLambda    :: TypeAnn -> Notes p -> Notes q -> Notes' ('TLambda p q)
   NTMap       :: TypeAnn -> TypeAnn -> Notes v -> Notes' ('TMap k v)
   NTBigMap   :: TypeAnn -> TypeAnn -> Notes v -> Notes' ('TBigMap k v)
+
+deriving instance Show (Notes' p)
 
 -- | Check whether given annotations object is @*@.
 isStar :: Notes t -> Bool

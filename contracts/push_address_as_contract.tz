@@ -1,0 +1,13 @@
+parameter (pair int int);
+storage unit;
+
+code {
+       DROP;
+       PUSH (contract unit) "tz1faswCTDciRzE4oJ9jn2Vm2dvjeyA9fUzU";
+       DROP;
+       NIL operation;
+       UNIT;
+       SWAP;
+       PAIR;
+     }
+ 

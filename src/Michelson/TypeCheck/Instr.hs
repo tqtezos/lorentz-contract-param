@@ -56,9 +56,10 @@ import Michelson.Untyped.Annotation (VarAnn)
 typeCheckContract
   :: ExtC
   => TcExtHandler
+  -> TcOriginatedContracts
   -> U.Contract
   -> Either TCError SomeContract
-typeCheckContract nh c = runTypeCheckT nh (U.para c) $ typeCheckContractImpl c
+typeCheckContract nh cs c = runTypeCheckT nh (U.para c) cs $ typeCheckContractImpl c
 
 typeCheckContractImpl
   :: ExtC
@@ -141,7 +142,7 @@ typeCheckList = typeCheckImpl typeCheckInstr
 typeCheckValue
   :: ExtC
   => U.Value
-  -> T
+  -> (Sing t, Notes t)
   -> TypeCheckT SomeValue
 typeCheckValue = typeCheckValImpl typeCheckInstr
 
@@ -178,14 +179,15 @@ typeCheckInstr (U.DUP _vn) i@(a ::& rs) =
 typeCheckInstr U.SWAP (i@(a ::& b ::& rs)) =
   pure (SWAP ::: (i, b ::& a ::& rs))
 
-typeCheckInstr instr@(U.PUSH vn mt mval) i = do
-  val :::: (t, n) <- typeCheckValue mval (fromUType mt)
-  let failure = TCFailedOnInstr instr (SomeHST i)
-  notes <- liftEither $ (extractNotes mt t >>= converge n) `onLeft` failure
-  proof <- maybe (throwError $ failure "Operations in constant are not allowed")
-           pure (opAbsense t)
-  case proof of
-    Dict -> pure $ PUSH val ::: (i, (t, notes, vn) ::& i)
+typeCheckInstr instr@(U.PUSH vn mt mval) i =
+  withSomeSingT (fromUType mt) $ \t' -> do
+    nt' <- liftEither $ extractNotes mt t' `onLeft` TCFailedOnInstr instr (SomeHST i)
+    val :::: (t :: Sing t, nt) <- typeCheckValue mval (t', nt')
+    let failure = TCFailedOnInstr instr (SomeHST i)
+    proof <- maybe (throwError $ failure "Operations in constant are not allowed")
+            pure (opAbsense t)
+    case proof of
+      Dict -> pure $ PUSH val ::: (i, (t, nt, vn) ::& i)
 
 typeCheckInstr (U.SOME tn vn fn) i@((at, an, _) ::& rs) = do
   let n = mkNotes (NTOption tn fn an)
@@ -555,7 +557,7 @@ typeCheckInstr instr@(U.SELF vn) shst@i = do
   let t = fromUType cpType
   withSomeSingT t $ \(singcp :: Sing cp) -> do
     nt <- liftEither $ extractNotes cpType singcp `onLeft` TCFailedOnInstr instr (SomeHST shst)
-    pure $ SELF @cp ::: (i, (sing @('TContract cp), N (NTContract U.noAnn nt), vn) ::& i)
+    pure $ SELF @cp ::: (i, (sing @('TContract cp), mkNotes (NTContract U.noAnn nt), vn) ::& i)
 
 typeCheckInstr instr@(U.CONTRACT vn mt)
            i@((STc SCAddress, _, _) ::& rs) =
@@ -563,7 +565,7 @@ typeCheckInstr instr@(U.CONTRACT vn mt)
     tns <- extractNotes mt t
             `onLeft` TCFailedOnInstr instr (SomeHST i)
     let ns = mkNotes $ NTOption def def $ mkNotes $ NTContract def tns
-    pure $ CONTRACT ::: (i, (STOption $ STContract t, ns, vn) ::& rs)
+    pure $ CONTRACT tns ::: (i, (STOption $ STContract t, ns, vn) ::& rs)
 
 typeCheckInstr instr@(U.TRANSFER_TOKENS vn) i@(((_ :: Sing p'), _, _)
   ::& (STc SCMutez, _, _) ::& (STContract (p :: Sing p), _, _) ::& rs) = do

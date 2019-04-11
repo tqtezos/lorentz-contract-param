@@ -13,6 +13,7 @@ module Michelson.TypeCheck.Types
     , TcResult
     , TypeCheckEnv (..)
     , TypeCheckT
+    , TcOriginatedContracts
     , runTypeCheckT
     ) where
 
@@ -26,7 +27,8 @@ import Michelson.Typed (ConversibleExt, HasNoOp, Notes(..), Sing(..), T(..), fro
 import qualified Michelson.Typed as T
 import Michelson.Typed.Extract (toUType)
 import Michelson.Typed.Instr
-import Michelson.Typed.Value (CValue, ContractInp, ContractOut)
+import Michelson.Typed.Value
+import Tezos.Address (Address)
 
 import qualified Michelson.Untyped as U
 import Michelson.Untyped.Annotation (VarAnn)
@@ -171,15 +173,19 @@ type TypeCheckT a =
 type TcExtHandler
   = U.ExpandedInstrExtU -> TcExtFrames -> SomeHST -> TypeCheckT (TcExtFrames, Maybe InstrExtT)
 
+type TcOriginatedContracts = Map Address U.Type
+
 -- | The typechecking state
 data TypeCheckEnv = TypeCheckEnv
   { tcExtHandler    :: TcExtHandler
   , tcExtFrames     :: TcExtFrames
   , tcContractParam :: U.Type
+  , tcContracts     :: TcOriginatedContracts
   }
 
-runTypeCheckT :: TcExtHandler -> U.Type -> TypeCheckT a -> Either TCError a
-runTypeCheckT nh param act = evaluatingState (TypeCheckEnv nh [] param) $ runExceptT act
+runTypeCheckT :: TcExtHandler -> U.Type -> TcOriginatedContracts -> TypeCheckT a -> Either TCError a
+runTypeCheckT nh param contracts act =
+  evaluatingState (TypeCheckEnv nh [] param contracts) $ runExceptT act
 
 type TcResult inp = Either TCError (SomeInstr inp)
 

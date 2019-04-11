@@ -16,7 +16,7 @@ import Data.Typeable ((:~:)(..))
 import Data.Vinyl (Rec(..))
 
 import Michelson.Interpret
-  (ContractEnv, ContractReturn, EvalOp, InterpretUntypedError, InterpretUntypedResult,
+  (ContractEnv(..), ContractReturn, EvalOp, InterpretUntypedError, InterpretUntypedResult,
   InterpreterEnv(..), InterpreterState(..), MichelsonFailed(..), SomeItStack(..), interpret,
   interpretUntyped, runInstrNoGas)
 import Michelson.TypeCheck
@@ -47,15 +47,15 @@ interpretMorley
 interpretMorley c param initSt env =
   interpret c param initSt (InterpreterEnv env interpretHandler) def
 
-typeCheckMorleyContract :: U.Contract -> Either TCError SomeContract
+typeCheckMorleyContract :: TcOriginatedContracts -> U.Contract -> Either TCError SomeContract
 typeCheckMorleyContract = typeCheckContract typeCheckHandler
 
 typeCheckHandler :: ExpandedUExtInstr -> TcExtFrames -> SomeHST -> TypeCheckT (TcExtFrames, Maybe ExtInstr)
 typeCheckHandler ext nfs hst@(SomeHST hs) =
   case ext of
-    STACKTYPE s -> fitError $ const (nfs, Nothing) <$> checkStackType noBoundVars s hs
+    STACKTYPE s -> fitError $ (nfs, Nothing) <$ checkStackType noBoundVars s hs
     FN t sf     -> fitError $ (, Nothing) <$> checkFn t sf hst nfs
-    FN_END      -> fitError $ const (safeTail nfs, Nothing) <$> checkFnEnd hst nfs
+    FN_END      -> fitError $ (safeTail nfs, Nothing) <$ checkFnEnd hst nfs
     UPRINT pc   -> verifyPrint pc $> (nfs, Just $ PRINT pc)
     UTEST_ASSERT UTestAssert{..} -> do
       verifyPrint tassComment

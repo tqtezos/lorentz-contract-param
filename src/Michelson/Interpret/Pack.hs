@@ -269,7 +269,7 @@ encodeInstr = \case
     "\x03\x30"
   SELF ->
     "\x03\x49"
-  CONTRACT | _ :: Proxy ('TOption ('TContract t) ': s) <- Proxy @out ->
+  CONTRACT _ | _ :: Proxy ('TOption ('TContract t) ': s) <- Proxy @out ->
     "\x05\x55" <> encodeT' @t
   TRANSFER_TOKENS ->
     "\x03\x4d"
