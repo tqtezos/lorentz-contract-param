@@ -260,12 +260,6 @@ typeCheckInstr (U.IF_LEFT mp mq) i@((STOr a b, ons, ovn) ::& rs) = do
       bit = (b, bn, bvn) ::& rs
   genericIf IF_LEFT U.IF_LEFT mp mq ait bit i
 
-typeCheckInstr (U.IF_RIGHT mq mp) i@((STOr a b, ons, ovn) ::& rs) = do
-  let (an, bn, avn, bvn) = deriveNsOr ons ovn
-      ait = (a, an, avn) ::& rs
-      bit = (b, bn, bvn) ::& rs
-  genericIf IF_RIGHT U.IF_RIGHT mq mp bit ait i
-
 typeCheckInstr instr@(U.NIL tn vn elMt) i =
   withSomeSingT (fromUType elMt) $ \elT -> liftEither $ do
     let t = STList elT
@@ -444,10 +438,20 @@ typeCheckInstr instr@(U.UNPACK vn mt) i@((STc SCBytes, _, _) ::& rs) =
     tns <- extractNotes mt t
             `onLeft` TCFailedOnInstr instr (SomeHST i)
     let ns = mkNotes $ NTOption def def tns
-    pure $ UNPACK ::: (i, (STOption t, ns, vn) ::& rs)
+    case opAbsense t of
+      Just Dict ->
+        pure $ UNPACK ::: (i, (STOption t, ns, vn) ::& rs)
+      Nothing ->
+        throwError $ TCFailedOnInstr instr (SomeHST i)
+                      "Operations cannot appear in serialized data"
 
-typeCheckInstr (U.PACK vn) i@(_ ::& rs) =
-  pure $ PACK ::: (i, (STc SCBytes, NStar, vn) ::& rs)
+typeCheckInstr instr@(U.PACK vn) i@((a, _, _) ::& rs) = do
+  case opAbsense a of
+    Just Dict ->
+      pure $ PACK ::: (i, (STc SCBytes, NStar, vn) ::& rs)
+    Nothing ->
+      throwError $ TCFailedOnInstr instr (SomeHST i)
+                    "Operations in serialized data are not allowed"
 
 typeCheckInstr (U.CONCAT vn) i@((STc SCBytes, _, _) ::&
                                     (STc SCBytes, _, _) ::& _) =

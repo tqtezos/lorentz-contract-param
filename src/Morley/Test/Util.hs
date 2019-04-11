@@ -2,13 +2,22 @@
 -- intended to be used by test writers.
 
 module Morley.Test.Util
-  ( failedProp
+  ( leftToShowPanic
+  , leftToPrettyPanic
+  , failedProp
   , succeededProp
   , qcIsLeft
   , qcIsRight
   ) where
 
+import Fmt (Buildable, pretty)
 import Test.QuickCheck.Property (Property, Result(..), failed, property)
+
+leftToShowPanic :: (Show e, HasCallStack) => Either e a -> a
+leftToShowPanic = either (error . show) id
+
+leftToPrettyPanic :: (Buildable e, HasCallStack) => Either e a -> a
+leftToPrettyPanic = either (error . pretty) id
 
 ----------------------------------------------------------------------------
 -- Property

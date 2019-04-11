@@ -101,7 +101,6 @@ data InstrAbstract op
   | LEFT              TypeAnn VarAnn FieldAnn FieldAnn Type
   | RIGHT             TypeAnn VarAnn FieldAnn FieldAnn Type
   | IF_LEFT           [op] [op]
-  | IF_RIGHT          [op] [op]
   | NIL               TypeAnn VarAnn Type
   | CONS              VarAnn -- TODO add TypeNote param
   | IF_CONS           [op] [op]
@@ -192,7 +191,6 @@ instance (RenderDoc op) => RenderDoc (InstrAbstract op) where
     LEFT ta va fa1 fa2 t  -> "LEFT" <+> renderDoc ta <+> renderDoc va <+> renderDoc fa1 <+> renderDoc fa2 <+> renderDoc t
     RIGHT ta va fa1 fa2 t -> "RIGHT" <+> renderDoc ta <+> renderDoc va <+> renderDoc fa1 <+> renderDoc fa2 <+> renderDoc t
     IF_LEFT x y           -> "IF_LEFT" <+> nest 9 (renderOps x) <$$> spaces 8 <> nest 9 (renderOps y)
-    IF_RIGHT x y          -> "IF_RIGHT" <+> nest 10 (renderOps x) <$$> spaces 9 <> nest 10 (renderOps y)
     NIL ta va t           -> "NIL" <+> renderDoc ta <+> renderDoc va <+> renderDoc t
     CONS va               -> "CONS" <+> renderDoc va
     IF_CONS x y           -> "IF_CONS" <+> nest 9 (renderOps x) <$$> spaces 8 <> nest 9 (renderOps y)

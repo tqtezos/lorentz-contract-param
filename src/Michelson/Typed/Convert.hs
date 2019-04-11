@@ -153,8 +153,7 @@ instrToOps instr = case instr of
           [U.RIGHT U.noAnn U.noAnn U.noAnn U.noAnn (toUType $ fromSingT (sing @a))]
         handle _ = error "unexcepted call"
     handleInstr (IF_LEFT i1 i2) = [U.IF_LEFT (instrToOps i1) (instrToOps i2)]
-    handleInstr (IF_RIGHT i1 i2) = [U.IF_RIGHT (instrToOps i1) (instrToOps i2)]
-    handleInstr i@(NIL) = handle i
+    handleInstr i@NIL = handle i
       where
         handle :: Instr s ('TList p ': s) -> [U.ExpandedInstr]
         handle (NIL :: Instr s ('TList p ': s)) =

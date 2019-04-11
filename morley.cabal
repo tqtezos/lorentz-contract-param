@@ -28,6 +28,7 @@ library
   exposed-modules:     Michelson.Interpret
                      , Michelson.Printer
                      , Michelson.Printer.Util
+                     , Michelson.Interpret.Pack
                      , Michelson.TypeCheck
                      , Michelson.Typed
                      , Michelson.Typed.Value
@@ -83,6 +84,7 @@ library
                      , base16-bytestring
                      , base58-bytestring
                      , bifunctors
+                     , binary
                      , bytestring
                      , constraints
                      , containers
@@ -240,19 +242,24 @@ test-suite morley-test
                      , Test.Printer.Michelson
                      , Test.Serialization.Aeson
                      , Test.Tezos.Address
+                     , Test.Serialization.Michelson
                      , Test.Tezos.Crypto
                      , Test.Typecheck
                      , Test.Util.Contracts
+                     , Test.Util.Parser
                      , Test.Util.QuickCheck
                      , Test.ValConversion
   build-depends:
                        aeson
                      , base-noprelude >= 4.7 && < 5
+                     , base16-bytestring
+                     , bytestring
                      , containers
                      , directory
                      , filepath
                      , fmt
                      , formatting
+                     , hex-text
                      , hspec
                      , hspec-golden-aeson
                      , HUnit
@@ -263,6 +270,7 @@ test-suite morley-test
                      , QuickCheck
                      , quickcheck-arbitrary-adt
                      , quickcheck-instances
+                     , singletons
                      , text
                      , time
                      , universum
