@@ -173,7 +173,7 @@ letMacro = lexeme $ do
 letType :: Parser Mo.LetType
 letType = lexeme $ do
   symbol "type"
-  n <- letName lowerChar
+  n <- letName upperChar <|> letName lowerChar
   symbol "="
   t <- type_
   case t of
@@ -366,34 +366,34 @@ t_ct :: (Default a) => Parser a -> Parser (a, Mo.Type)
 t_ct fp = do ct' <- ct; (f,t) <- fieldType fp; return (f, Mo.Type (Mo.Tc ct') t)
 
 ct :: Parser Mo.CT
-ct = (symbol "int" >> return Mo.CInt)
-  <|> (symbol "nat" >> return Mo.CNat)
-  <|> (symbol "string" >> return Mo.CString)
-  <|> (symbol "bytes" >> return Mo.CBytes)
-  <|> (symbol "mutez" >> return Mo.CMutez)
-  <|> (symbol "bool" >> return Mo.CBool)
-  <|> (symbol "key_hash" >> return Mo.CKeyHash)
-  <|> (symbol "timestamp" >> return Mo.CTimestamp)
-  <|> (symbol "address" >> return Mo.CAddress)
+ct =  (symbol' "Int" >> return Mo.CInt)
+  <|> (symbol' "Nat" >> return Mo.CNat)
+  <|> (symbol' "String" >> return Mo.CString)
+  <|> (symbol' "Bytes" >> return Mo.CBytes)
+  <|> (symbol' "Mutez" >> return Mo.CMutez)
+  <|> (symbol' "Bool" >> return Mo.CBool)
+  <|> ((symbol' "KeyHash" <|> symbol "key_hash") >> return Mo.CKeyHash)
+  <|> (symbol' "Timestamp" >> return Mo.CTimestamp)
+  <|> (symbol' "Address" >> return Mo.CAddress)
 
 -- Protocol Types
 t_key :: (Default a) => Parser a -> Parser (a, Mo.Type)
-t_key       fp = do symbol "key"; (f,t) <- fieldType fp; return (f, Mo.Type Mo.TKey t)
+t_key fp = do symbol' "Key"; (f,t) <- fieldType fp; return (f, Mo.Type Mo.TKey t)
 
 t_signature :: (Default a) => Parser a -> Parser (a, Mo.Type)
-t_signature fp = do symbol "signature"; (f, t) <- fieldType fp; return (f, Mo.Type Mo.TSignature t)
+t_signature fp = do symbol' "Signature"; (f, t) <- fieldType fp; return (f, Mo.Type Mo.TSignature t)
 
 t_operation :: (Default a) => Parser a -> Parser (a, Mo.Type)
-t_operation fp = do symbol "operation"; (f, t) <- fieldType fp; return (f, Mo.Type Mo.TOperation t)
+t_operation fp = do symbol' "Operation"; (f, t) <- fieldType fp; return (f, Mo.Type Mo.TOperation t)
 
 t_contract :: (Default a) => Parser a -> Parser (a, Mo.Type)
-t_contract  fp = do symbol "contract"; (f, t) <- fieldType fp; a <- type_; return (f, Mo.Type (Mo.TContract a) t)
+t_contract  fp = do symbol' "Contract"; (f, t) <- fieldType fp; a <- type_; return (f, Mo.Type (Mo.TContract a) t)
 --(do symbol "address"; (f, t) <- ft; return (f, Mo.Type Mo.CAddress t)
 
 -- Abstraction Types
 t_unit :: (Default a) => Parser a -> Parser (a, Mo.Type)
 t_unit fp = do
-  symbol "unit" <|> symbol "()"
+  symbol' "Unit" <|> symbol "()"
   (f,t) <- fieldType fp
   return (f, Mo.Type Mo.TUnit t)
 
@@ -401,7 +401,7 @@ t_pair :: (Default a) => Parser a -> Parser (a, Mo.Type)
 t_pair fp = core <|> tuple
   where
     core = do
-      symbol "pair"
+      symbol' "Pair"
       (f, t) <- fieldType fp
       (l, a) <- field
       (r, b) <- field
@@ -424,7 +424,7 @@ t_or :: (Default a) => Parser a -> Parser (a, Mo.Type)
 t_or fp = core <|> bar
   where
     core = do
-      symbol "or"
+      symbol' "Or"
       (f, t) <- fieldType fp
       (l, a) <- field
       (r, b) <- field
@@ -445,7 +445,7 @@ t_or fp = core <|> bar
 
 t_option :: (Default a) => Parser a -> Parser (a, Mo.Type)
 t_option fp = do
-  symbol "option"
+  symbol' "Option"
   (f, t) <- fieldType fp
   (fa, a) <- field
   return (f, Mo.Type (Mo.TOption fa a) t)
@@ -454,7 +454,7 @@ t_lambda :: (Default a) => Parser a -> Parser (a, Mo.Type)
 t_lambda fp = core <|> slashLambda
   where
     core = do
-      symbol "lambda"
+      symbol' "Lambda"
       (f, t) <- fieldType fp
       a <- type_
       b <- type_
@@ -472,7 +472,7 @@ t_list :: (Default a) => Parser a -> Parser (a, Mo.Type)
 t_list fp = core <|> bracketList
   where
     core = do
-      symbol "list"
+      symbol' "List"
       (f, t) <- fieldType fp
       a <- type_
       return (f, Mo.Type (Mo.TList a) t)
@@ -485,7 +485,7 @@ t_set :: (Default a) => Parser a -> Parser (a, Mo.Type)
 t_set fp = core <|> braceSet
   where
     core = do
-      symbol "set"
+      symbol' "Set"
       (f, t) <- fieldType fp
       a <- comparable
       return (f, Mo.Type (Mo.TSet a) t)
@@ -495,10 +495,20 @@ t_set fp = core <|> braceSet
       return (f, Mo.Type (Mo.TSet a) t)
 
 t_map :: (Default a) => Parser a -> Parser (a, Mo.Type)
-t_map fp = (do symbol "map"; (f, t) <- fieldType fp; a <- comparable; b <- type_; return (f, Mo.Type (Mo.TMap a b) t))
+t_map fp = do
+  symbol' "Map"
+  (f, t) <- fieldType fp
+  a <- comparable
+  b <- type_
+  return (f, Mo.Type (Mo.TMap a b) t)
 
 t_big_map :: (Default a) => Parser a -> Parser (a, Mo.Type)
-t_big_map fp = (do symbol "big_map"; (f, t) <- fieldType fp; a <- comparable; b <- type_; return (f, Mo.Type (Mo.TBigMap a b) t))
+t_big_map fp = do
+  symbol' "BigMap" <|> symbol "big_map"
+  (f, t) <- fieldType fp
+  a <- comparable
+  b <- type_
+  return (f, Mo.Type (Mo.TBigMap a b) t)
 
 -------------------------------------------------------------------------------
 -- Primitive Instruction Parsers
