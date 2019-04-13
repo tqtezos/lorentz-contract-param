@@ -6,20 +6,20 @@ module Morley.Parser.Annotations
   , noteF2
   , noteTDef
   , noteVDef
-  , _noteFDef
+  , noteFDef
   , notesTVF
   , notesTVF2
   , notesTV
   , notesVF
   , fieldType
+  , parseDef
   , permute2Def
   , permute3Def
   ) where
 
 import Prelude hiding (many, note, some, try)
 
-import Control.Applicative.Permutations
-  (runPermutation, toPermutationWithDefault)
+import Control.Applicative.Permutations (runPermutation, toPermutationWithDefault)
 import Data.Char (isAlpha, isAlphaNum, isAscii)
 import qualified Data.Text as T
 import Text.Megaparsec (satisfy, takeWhileP, try)
@@ -66,8 +66,8 @@ noteTDef = parseDef noteT
 noteVDef :: Parser Mo.VarAnn
 noteVDef = parseDef noteV
 
-_noteFDef :: Parser Mo.FieldAnn
-_noteFDef = parseDef noteF
+noteFDef :: Parser Mo.FieldAnn
+noteFDef = parseDef noteF
 
 notesTVF :: Parser (Mo.TypeAnn, Mo.VarAnn, Mo.FieldAnn)
 notesTVF = permute3Def noteT noteV noteF

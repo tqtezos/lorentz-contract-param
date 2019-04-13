@@ -193,7 +193,7 @@ letValue = lexeme $ do
 
 -- | make a parser from a string
 mkParser :: (a -> T.Text) -> a -> Parser a
-mkParser f a = (try $ symbol (f a)) >> return a
+mkParser f a = (try $ symbol' (f a)) >> return a
 
 mkLetMac :: Map Text Mo.LetMacro -> Parser Mo.LetMacro
 mkLetMac lms = choice $ mkParser Mo.lmName <$> (Map.elems lms)
@@ -351,11 +351,11 @@ typeInner fp = choice $ (\x -> x fp) <$>
   , t_contract, t_pair, t_or, t_lambda, t_map, t_big_map, t_letType
   ]
 
-t_letType :: Parser fp -> Parser (fp, Mo.Type)
+t_letType :: Default fp => Parser fp -> Parser (fp, Mo.Type)
 t_letType fp = do
   lts <- asks Mo.letTypes
   lt <- Mo.ltSig <$> (mkLetType lts)
-  f <- fp
+  f <- parseDef fp
   return (f, lt)
 
 -- Comparable Types

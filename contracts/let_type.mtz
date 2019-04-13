@@ -1,0 +1,9 @@
+# A simple test for type alias in let-block
+
+let {
+  type num = int;
+};
+
+parameter (option num);
+storage unit;
+code { drop; unit; nil operation; pair}
