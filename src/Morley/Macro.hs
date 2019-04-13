@@ -69,6 +69,9 @@ expand (LMac l)  = SeqEx $ expandLetMac l
 
 expandMacro :: Macro -> [ExpandedOp]
 expandMacro = \case
+  CASE (x:|[])       -> expand <$> x
+  CASE (i:|i':[])    -> xol $ IF_LEFT i i'
+  CASE (i:|i':is)    -> xol $ IF_LEFT i [Mac $ CASE (i':|is)]
   CMP i v            -> [PrimEx (COMPARE v), xo i]
   IFX i bt bf        -> [xo i, PrimEx (IF (xp bt) (xp bf))]
   IFCMP i v bt bf    -> PrimEx <$> [COMPARE v, expand <$> i, IF (xp bt) (xp bf)]

@@ -35,6 +35,7 @@ import Morley.Parser.Annotations
 import Morley.Parser.Helpers
 import Morley.Types (CustomParserException(..), ParsedOp(..), Parser, ParserException(..))
 import qualified Morley.Types as Mo
+import Util.Alternative (someNE)
 
 -------------------------------------------------------------------------------
 -- Top-Level Parsers
@@ -811,7 +812,8 @@ cmpOp :: Parser Mo.ParsedInstr
 cmpOp = eqOp <|> neqOp <|> ltOp <|> gtOp <|> leOp <|> gtOp <|> geOp
 
 macro :: Parser Mo.Macro
-macro = do symbol' "CMP"; a <- cmpOp; Mo.CMP a <$> noteVDef
+macro = do symbol' "CASE"; is <- someNE ops; return $ Mo.CASE is
+  <|> do symbol' "CMP"; a <- cmpOp; Mo.CMP a <$> noteVDef
   <|> do void $ symbol' "IF_SOME"; Mo.IF_SOME <$> ops <*> ops
   <|> do void $ symbol' "IF_RIGHT"; Mo.IF_RIGHT <$> ops <*> ops
   <|> do symbol' "FAIL"; return Mo.FAIL
