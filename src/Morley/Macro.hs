@@ -20,7 +20,7 @@ module Morley.Macro
 import Michelson.Untyped (Contract)
 import Morley.Types
   (CadrStruct(..), Contract'(..), Elt(..), ExpandedOp(..), FieldAnn, InstrAbstract(..),
-  LetMacro(..), Macro(..), PairStruct(..), ParsedOp(..), ParsedValue, TypeAnn,
+  LetMacro(..), Macro(..), PairStruct(..), ParsedOp(..), ParsedValue, T(..), Type(..), TypeAnn,
   UExtInstrAbstract(..), Value, Value'(..), VarAnn, ann, noAnn)
 
 expandList :: [ParsedOp] -> [ExpandedOp]
@@ -69,6 +69,22 @@ expand (LMac l)  = SeqEx $ expandLetMac l
 
 expandMacro :: Macro -> [ExpandedOp]
 expandMacro = \case
+  VIEW a             -> xp [ Mac $ UNPAIR $ P (F (noAnn,noAnn)) (F (noAnn,noAnn))
+                           , Prim (DIP [Mac $ DUUP 2 noAnn]), Prim $ DUP noAnn
+                           , Prim (DIP [Prim $ PAIR noAnn noAnn noAnn noAnn
+                                       , Seq a, Prim $ SOME noAnn noAnn noAnn
+                                       ])
+                           , Prim $ PAIR noAnn noAnn noAnn noAnn
+                           , Prim (DIP [Prim $ AMOUNT noAnn])
+                           , Prim $ TRANSFER_TOKENS noAnn
+                           , Prim $ NIL noAnn noAnn (Type TOperation noAnn)
+                           , Prim $ SWAP , Prim $ CONS noAnn
+                           , Prim $ PAIR noAnn noAnn noAnn noAnn
+                           ]
+  VOID a             -> xp [ Mac $ UNPAIR (P (F (noAnn,noAnn)) (F (noAnn,noAnn)))
+                           , Prim $ SWAP, Seq a, Prim $ EXEC noAnn
+                           , Prim FAILWITH
+                           ]
   CASE (x:|[])       -> expand <$> x
   CASE (i:|i':[])    -> xol $ IF_LEFT i i'
   CASE (i:|i':is)    -> xol $ IF_LEFT i [Mac $ CASE (i':|is)]

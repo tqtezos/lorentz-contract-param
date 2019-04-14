@@ -349,7 +349,8 @@ field = lexeme (fi <|> parens fi)
 typeInner :: Parser Mo.FieldAnn -> Parser (Mo.FieldAnn, Mo.Type)
 typeInner fp = choice $ (\x -> x fp) <$>
   [ t_ct, t_key, t_unit, t_signature, t_option, t_list, t_set, t_operation
-  , t_contract, t_pair, t_or, t_lambda, t_map, t_big_map, t_letType
+  , t_contract, t_pair, t_or, t_lambda, t_map, t_big_map, t_view, t_void
+  , t_letType
   ]
 
 t_letType :: Default fp => Parser fp -> Parser (fp, Mo.Type)
@@ -510,6 +511,26 @@ t_big_map fp = do
   a <- comparable
   b <- type_
   return (f, Mo.Type (Mo.TBigMap a b) t)
+
+t_view :: Default a => Parser a -> Parser (a, Mo.Type)
+t_view fp = do
+  symbol' "View"
+  a <- type_
+  r <- type_
+  (f, t) <- fieldType fp
+  let r' = Mo.Type (Mo.TOption Mo.noAnn r) Mo.noAnn
+  let c = Mo.Type (Mo.TPair Mo.noAnn Mo.noAnn a r') Mo.noAnn
+  let c' = Mo.Type (Mo.TContract c) Mo.noAnn
+  return (f, Mo.Type (Mo.TPair Mo.noAnn Mo.noAnn a c') t)
+
+t_void :: Default a => Parser a -> Parser (a, Mo.Type)
+t_void fp = do
+  symbol' "Void"
+  a <- type_
+  b <- type_
+  (f, t) <- fieldType fp
+  let c = Mo.Type (Mo.TLambda b b) Mo.noAnn
+  return (f, Mo.Type (Mo.TPair Mo.noAnn Mo.noAnn a c) t)
 
 -------------------------------------------------------------------------------
 -- Primitive Instruction Parsers
@@ -813,6 +834,8 @@ cmpOp = eqOp <|> neqOp <|> ltOp <|> gtOp <|> leOp <|> gtOp <|> geOp
 
 macro :: Parser Mo.Macro
 macro = do symbol' "CASE"; is <- someNE ops; return $ Mo.CASE is
+  <|> do symbol' "VIEW"; a <- ops; return $ Mo.VIEW a
+  <|> do symbol' "VOID"; a <- ops; return $ Mo.VOID a
   <|> do symbol' "CMP"; a <- cmpOp; Mo.CMP a <$> noteVDef
   <|> do void $ symbol' "IF_SOME"; Mo.IF_SOME <$> ops <*> ops
   <|> do void $ symbol' "IF_RIGHT"; Mo.IF_RIGHT <$> ops <*> ops

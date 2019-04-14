@@ -276,6 +276,8 @@ instance Buildable CadrStruct where
 -- | Built-in Michelson Macros defined by the specification
 data Macro
   = CASE (NonEmpty [ParsedOp])
+  | VIEW [ParsedOp]
+  | VOID [ParsedOp]
   | CMP ParsedInstr U.VarAnn
   | IFX ParsedInstr [ParsedOp] [ParsedOp]
   | IFCMP ParsedInstr U.VarAnn [ParsedOp] [ParsedOp]
@@ -300,6 +302,8 @@ data Macro
 
 instance Buildable Macro where
   build (CASE parsedInstrs) = "<CASE: "+|toList parsedInstrs|+">"
+  build (VIEW code) = "<VIEW: "+|code|+">"
+  build (VOID code) = "<VOID: "+|code|+">"
   build (CMP parsedInstr carAnn) = "<CMP: "+|parsedInstr|+", "+|carAnn|+">"
   build (IFX parsedInstr parsedOps1 parsedOps2) = "<IFX: "+|parsedInstr|+", "+|parsedOps1|+", "+|parsedOps2|+">"
   build (IFCMP parsedInstr varAnn parsedOps1 parsedOps2) = "<IFCMP: "+|parsedInstr|+", "+|varAnn|+", "+|parsedOps1|+", "+|parsedOps2|+">"
