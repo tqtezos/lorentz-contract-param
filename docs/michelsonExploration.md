@@ -182,7 +182,7 @@ code {
 
 The specification doesn't describe format of literals of various types (like `key`, for example).
 I've even created an [issue](https://gitlab.com/tezos/tezos/issues/479) about that.
-Sample literals can be found in [Michelson tutorial](https://gitlab.com/tezos-standards/michelson-tutorial/tree/master/01#appendix-a-michelson-data-literal-format), but we don't know for sure whether that list is complete.
+Sample literals can be found in [Michelson tutorial](https://gitlab.com/morley-framework/michelson-tutorial/tree/master/01#appendix-a-michelson-data-literal-format), but we don't know for sure whether that list is complete.
 
 We know that string literal can be used as `key`, `key_hash`, `address`, etc.
 There was a guess that bytes can also be used to represent these types.

@@ -352,11 +352,11 @@ usageDoc = Just $ mconcat
    , "  morley run --help", linebreak
    , linebreak
    , "Documentation for morley tools can be found at the following links:", linebreak
-   , "  https://gitlab.com/tezos-standards/morley/blob/master/README.md", linebreak
-   , "  https://gitlab.com/tezos-standards/morley/tree/master/docs", linebreak
+   , "  https://gitlab.com/morley-framework/morley/blob/master/README.md", linebreak
+   , "  https://gitlab.com/morley-framework/morley/tree/master/docs", linebreak
    , linebreak
    , "Sample contracts for running can be found at the following link:", linebreak
-   , "  https://gitlab.com/tezos-standards/morley/tree/master/contracts", linebreak
+   , "  https://gitlab.com/morley-framework/morley/tree/master/contracts", linebreak
    , linebreak
    , "USAGE EXAMPLE:", linebreak
    , "  morley parse --contract add1.tz", linebreak
