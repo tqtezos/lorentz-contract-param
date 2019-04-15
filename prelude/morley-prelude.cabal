@@ -5,7 +5,7 @@ synopsis:            A custom prelude used in Morley
 description:
   A custom prelude used in Morley. It re-exports the Universum prelude
   and makes some tiny changes.
-homepage:            https://gitlab.com/tezos-standards/morley
+homepage:            https://gitlab.com/morley-framework/morley
 license:             AGPL-3.0-or-later
 license-file:        LICENSE
 author:              camlCase, Serokell, Tocqueville Group
@@ -16,7 +16,7 @@ build-type:          Simple
 
 source-repository head
   type:     git
-  location: git@gitlab.com:tezos-standards/morley.git
+  location: git@gitlab.com:morley-framework/morley.git
 
 library
   hs-source-dirs:      .
