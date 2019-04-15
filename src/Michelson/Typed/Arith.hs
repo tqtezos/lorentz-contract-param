@@ -57,11 +57,14 @@ data ArithErrorType
   = AddOverflow
   | MulOverflow
   | SubUnderflow
+  | LslOverflow
+  | LsrUnderflow
   deriving (Show, Eq, Ord)
 
 -- | Represents an arithmetic error of the operation.
 data ArithError n m
   = MutezArithError ArithErrorType n m
+  | ShiftArithError ArithErrorType n m
   deriving (Show, Eq, Ord)
 
 -- | Marker data type for add operation.
@@ -197,16 +200,19 @@ instance ArithOp Xor 'CBool 'CBool where
   type ArithRes Xor 'CBool 'CBool = 'CBool
   evalOp _ (CvBool i) (CvBool j) = Right $ CvBool (i `xor` j)
 
--- Todo add condition when shift >= 256
 instance ArithOp Lsl 'CNat 'CNat where
   type ArithRes Lsl 'CNat 'CNat = 'CNat
-  evalOp _ (CvNat i) (CvNat j) =
-    Right $ CvNat (fromInteger $ shift (toInteger i) (fromIntegral j))
+  evalOp _ n@(CvNat i) m@(CvNat j) =
+    if j > 256
+    then Left $ ShiftArithError LslOverflow n m
+    else Right $ CvNat (fromInteger $ shift (toInteger i) (fromIntegral j))
 
 instance ArithOp Lsr 'CNat 'CNat where
   type ArithRes Lsr 'CNat 'CNat = 'CNat
-  evalOp _ (CvNat i) (CvNat j) =
-    Right $ CvNat (fromInteger $ shift (toInteger i) (-(fromIntegral j)))
+  evalOp _ n@(CvNat i) m@(CvNat j) =
+    if j > 256
+    then Left $ ShiftArithError LsrUnderflow n m
+    else Right $ CvNat (fromInteger $ shift (toInteger i) (-(fromIntegral j)))
 
 instance UnaryArithOp Not 'CInt where
   type UnaryArithRes Not 'CInt = 'CInt
@@ -285,7 +291,11 @@ instance Buildable ArithErrorType where
   build AddOverflow = "add overflow"
   build MulOverflow = "mul overflow"
   build SubUnderflow = "sub overflow"
+  build LslOverflow = "lsl overflow"
+  build LsrUnderflow = "lsr underflow"
 
 instance (Show n, Show m) => Buildable (ArithError n m) where
   build (MutezArithError errType n m) = "Mutez "
     <> build errType <> " with " <> show n <> ", " <> show m
+  build (ShiftArithError errType n m) =
+    build errType <> " with " <> show n <> ", " <> show m

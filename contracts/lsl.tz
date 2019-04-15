@@ -1,0 +1,8 @@
+parameter nat; #number to shift
+storage nat; #shift amount
+code {DUP;
+      CAR;
+      DIP {CDR;};
+      LSL;
+      NIL operation; PAIR;
+      };
