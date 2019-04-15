@@ -2,7 +2,7 @@
 
 -- | Utilities for arbitrary data generation in property tests.
 
-module Morley.Test.Gen
+module Michelson.Test.Gen
   ( minTimestamp
   , maxTimestamp
   , midTimestamp

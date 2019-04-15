@@ -1,6 +1,6 @@
 -- | Utility functions for unit testing.
 
-module Morley.Test.Unit
+module Michelson.Test.Unit
   ( ContractReturn
   , ContractPropValidator
   , contractProp

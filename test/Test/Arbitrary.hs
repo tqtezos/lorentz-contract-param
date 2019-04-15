@@ -12,10 +12,10 @@ import Test.QuickCheck.Arbitrary.ADT (ToADTArbitrary(..))
 import Test.QuickCheck.Instances.Semigroup ()
 import Test.QuickCheck.Instances.Text ()
 
+import Michelson.Test ()
 import Michelson.Untyped
   (Annotation(..), CT(..), Comparable(..), Contract'(..), Elt(..), ExpandedOp(..), FieldAnn,
   InstrAbstract(..), InternalByteString(..), T(..), Type(..), TypeAnn, Value'(..), VarAnn)
-import Morley.Test ()
 import Morley.Types
   (ExpandedUExtInstr, StackTypePattern(..), TyVar(..), UExtInstrAbstract(..), Var(..))
 import Tezos.Core (Mutez(..))

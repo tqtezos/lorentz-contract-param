@@ -2,7 +2,7 @@
 -- Haskell testing frameworks (hspec and QuickCheck in particular).
 -- It's Morley testing EDSL.
 
-module Morley.Test
+module Michelson.Test
   ( -- * Importing a contract
     specWithContract
   , specWithTypedContract
@@ -58,9 +58,9 @@ module Morley.Test
   , midTimestamp
   ) where
 
-import Morley.Test.Dummy
-import Morley.Test.Gen
-import Morley.Test.Import
-import Morley.Test.Integrational
-import Morley.Test.Unit
-import Morley.Test.Util
+import Michelson.Test.Dummy
+import Michelson.Test.Gen
+import Michelson.Test.Import
+import Michelson.Test.Integrational
+import Michelson.Test.Unit
+import Michelson.Test.Util

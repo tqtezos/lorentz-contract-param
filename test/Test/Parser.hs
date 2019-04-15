@@ -7,7 +7,7 @@ import Test.Hspec (Expectation, Spec, describe, expectationFailure, it, shouldBe
 import Text.Megaparsec (parse)
 import Text.Megaparsec.Error (ErrorFancy(ErrorCustom), ParseError(FancyError), bundleErrors)
 
-import Morley.Parser as P
+import Michelson.Parser as P
 import Morley.Types as Mo
 
 import Test.Util.Contracts (getIllTypedContracts, getWellTypedContracts)

@@ -13,11 +13,11 @@ import Test.QuickCheck.Property (expectFailure, forAll, withMaxSuccess)
 import Test.QuickCheck.Random (mkQCGen)
 
 import Michelson.Interpret (ContractEnv(..))
+import Michelson.Test (ContractPropValidator, contractProp, midTimestamp, specWithTypedContract)
+import Michelson.Test.Dummy
+import Michelson.Test.Util (failedProp)
 import Michelson.Typed (CValue(..), Operation(..), ToT, TransferTokens(..))
 import qualified Michelson.Typed as T
-import Morley.Test (ContractPropValidator, contractProp, midTimestamp, specWithTypedContract)
-import Morley.Test.Dummy
-import Morley.Test.Util (failedProp)
 import Tezos.Address (Address(..))
 import Tezos.Core (Mutez, Timestamp, timestampPlusSeconds, unMutez, unsafeMkMutez, unsafeSubMutez)
 import Tezos.Crypto (KeyHash)

@@ -9,11 +9,11 @@ import Test.QuickCheck (Property, (===))
 import Test.QuickCheck.Property (withMaxSuccess)
 
 import Michelson.Interpret (InterpreterState, MichelsonFailed)
+import Michelson.Test (contractProp, specWithTypedContract)
+import Michelson.Test.Dummy
+import Michelson.Test.Util (failedProp)
 import Michelson.Typed (ToT, fromVal)
 import qualified Michelson.Typed as T
-import Morley.Test (contractProp, specWithTypedContract)
-import Morley.Test.Dummy
-import Morley.Test.Util (failedProp)
 import Morley.Types (MorleyLogs)
 import Tezos.Core (Mutez, unsafeMkMutez)
 

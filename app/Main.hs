@@ -15,15 +15,15 @@ import Options.Applicative.Help.Pretty (Doc, linebreak)
 import Paths_morley (version)
 import Text.Pretty.Simple (pPrint)
 
+import Michelson.Macro (expandContract, expandValue)
+import qualified Michelson.Parser as P
 import Michelson.Printer (printUntypedContract)
-import Michelson.Untyped hiding (OriginationOperation(..))
-import qualified Michelson.Untyped as U
-import Morley.Macro (expandContract, expandValue)
-import qualified Morley.Parser as P
-import Morley.Runtime
+import Michelson.Runtime
   (TxData(..), originateContract, prepareContract, readAndParseContract, runContract, transfer,
   typeCheckWithDb)
-import Morley.Runtime.GState (genesisAddress, genesisKeyHash)
+import Michelson.Runtime.GState (genesisAddress, genesisKeyHash)
+import Michelson.Untyped hiding (OriginationOperation(..))
+import qualified Michelson.Untyped as U
 import Tezos.Address (Address, parseAddress)
 import Tezos.Core
   (Mutez, Timestamp(..), mkMutez, parseTimestamp, timestampFromSeconds, unMutez, unsafeMkMutez)

@@ -1,4 +1,4 @@
-module Morley.Parser
+module Michelson.Parser
   ( program
   , parseNoEnv
   , codeEntry
@@ -29,10 +29,10 @@ import Text.Megaparsec
 import Text.Megaparsec.Char (alphaNumChar, char, lowerChar, string, upperChar)
 import qualified Text.Megaparsec.Char.Lexer as L
 
-import Morley.Lexer
-import qualified Morley.Macro as Macro
-import Morley.Parser.Annotations
-import Morley.Parser.Helpers
+import Michelson.Lexer
+import qualified Michelson.Macro as Macro
+import Michelson.Parser.Annotations
+import Michelson.Parser.Helpers
 import Morley.Types (CustomParserException(..), ParsedOp(..), Parser, ParserException(..))
 import qualified Morley.Types as Mo
 import Util.Alternative (someNE)

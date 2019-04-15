@@ -6,13 +6,13 @@ module Test.Ext
 import Test.Hspec (Expectation, Spec, describe, expectationFailure, it, shouldSatisfy)
 
 import Michelson.Interpret (InterpreterState(..))
+import Michelson.Test (specWithTypedContract)
+import Michelson.Test.Dummy (dummyContractEnv)
 import Michelson.TypeCheck (HST(..), SomeHST(..), runTypeCheckT)
 import Michelson.Typed (CValue(..), extractNotes, fromUType, withSomeSingT)
 import qualified Michelson.Typed as T
 import Michelson.Untyped (CT(..), T(..), Type(..), ann, noAnn)
 import Morley.Ext (interpretMorley, typeCheckHandler)
-import Morley.Test (specWithTypedContract)
-import Morley.Test.Dummy (dummyContractEnv)
 import Morley.Types
 
 interpretHandlerSpec :: Spec

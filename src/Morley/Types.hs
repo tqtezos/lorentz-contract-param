@@ -104,7 +104,7 @@ import Michelson.Printer (RenderDoc(..))
 import Michelson.Typed (instrToOps)
 import qualified Michelson.Typed as T
 import qualified Michelson.Untyped as U
-import Morley.Default (Default(..))
+import Util.Default (Default(..))
 import Util.Peano
   (KnownPeano(..), LongerThan, Peano, RequireLongerThan, ToPeano, requiredLongerThan)
 

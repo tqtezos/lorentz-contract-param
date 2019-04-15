@@ -11,12 +11,12 @@ import Test.Hspec (Spec, describe, it, shouldBe)
 import Text.Hex (encodeHex)
 
 import Michelson.Interpret.Pack (packValue')
+import Michelson.Macro (expandList)
+import qualified Michelson.Parser as Parser
+import Michelson.Test.Util
 import Michelson.TypeCheck (HST(..), SomeInstr(..), SomeInstrOut(..), typeCheckList)
 import Michelson.Typed
 import Michelson.Untyped (noAnn)
-import Morley.Macro (expandList)
-import qualified Morley.Parser as Parser
-import Morley.Test.Util
 import Test.Util.Parser
 import Tezos.Address (Address(..), unsafeParseAddress)
 import Tezos.Core (Mutez, Timestamp, timestampFromSeconds, unsafeMkMutez)

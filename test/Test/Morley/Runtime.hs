@@ -11,12 +11,12 @@ import Test.Hspec
   shouldSatisfy, specify)
 
 import Michelson.Interpret (ContractEnv(..), InterpretUntypedError(..), InterpretUntypedResult(..))
+import Michelson.Runtime
+import Michelson.Runtime.GState (GState(..), initGState)
+import Michelson.Test.Dummy (dummyContractEnv, dummyMaxSteps, dummyNow, dummyOrigination)
 import Michelson.Typed (untypeValue)
 import Michelson.Untyped
 import Morley.Ext (interpretMorleyUntyped)
-import Morley.Runtime
-import Morley.Runtime.GState (GState(..), initGState)
-import Morley.Test.Dummy (dummyContractEnv, dummyMaxSteps, dummyNow, dummyOrigination)
 import Morley.Types (MorleyLogs)
 import Tezos.Address (Address(..))
 import Tezos.Core (unsafeMkMutez)

@@ -1,6 +1,6 @@
 -- | 'TxData' type and associated functionality.
 
-module Morley.Runtime.TxData
+module Michelson.Runtime.TxData
        ( TxData (..)
        ) where
 

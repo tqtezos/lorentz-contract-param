@@ -7,13 +7,13 @@ import Data.Singletons (sing)
 import Test.Hspec (Expectation, Spec, describe, expectationFailure, it, shouldBe)
 import Test.QuickCheck (total, within)
 
+import Michelson.Runtime (prepareContract)
+import Michelson.Test.Import (ImportContractError(..), readContract)
 import Michelson.TypeCheck
 import qualified Michelson.Typed as T
 import Michelson.Untyped (CT(..), T(..), Type(..), noAnn)
 import qualified Michelson.Untyped as Un
 import Morley.Ext (typeCheckHandler, typeCheckMorleyContract)
-import Morley.Runtime (prepareContract)
-import Morley.Test.Import (ImportContractError(..), readContract)
 import Morley.Types (UExtInstrAbstract(..), UPrintComment(..), UStackRef(..))
 import Tezos.Address (unsafeParseAddress)
 

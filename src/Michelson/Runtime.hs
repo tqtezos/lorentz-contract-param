@@ -1,6 +1,6 @@
 -- | Interpreter and typechecker of a contract in Morley language.
 
-module Morley.Runtime
+module Michelson.Runtime
        (
          -- * High level interface for end user
          originateContract
@@ -40,6 +40,10 @@ import Text.Megaparsec (parse)
 import Michelson.Interpret
   (ContractEnv(..), InterpretUntypedError(..), InterpretUntypedResult(..), InterpreterState(..),
   RemainingSteps(..))
+import Michelson.Macro (expandContract)
+import qualified Michelson.Parser as P
+import Michelson.Runtime.GState
+import Michelson.Runtime.TxData
 import Michelson.TypeCheck (SomeContract, TCError)
 import Michelson.Typed
   (CreateContract(..), Instr, Operation(..), TransferTokens(..), convertContract, untypeValue)
@@ -47,10 +51,6 @@ import qualified Michelson.Typed as T
 import Michelson.Untyped (Contract, OriginationOperation(..), mkContractAddress)
 import qualified Michelson.Untyped as U
 import Morley.Ext (interpretMorleyUntyped, typeCheckMorleyContract)
-import Morley.Macro (expandContract)
-import qualified Morley.Parser as P
-import Morley.Runtime.GState
-import Morley.Runtime.TxData
 import Morley.Types (MorleyLogs(..), ParsedOp)
 import Tezos.Address (Address(..))
 import Tezos.Core (Mutez, Timestamp(..), getCurrentTime, unsafeAddMutez, unsafeSubMutez)

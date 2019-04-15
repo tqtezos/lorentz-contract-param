@@ -1,6 +1,6 @@
 -- | Dummy data to be used in tests where it's not essential.
 
-module Morley.Test.Dummy
+module Michelson.Test.Dummy
   ( dummyNow
   , dummyMaxSteps
   , dummyContractEnv
@@ -8,8 +8,8 @@ module Morley.Test.Dummy
   ) where
 
 import Michelson.Interpret (ContractEnv(..), RemainingSteps)
+import Michelson.Runtime.GState (genesisAddress, genesisKeyHash)
 import Michelson.Untyped
-import Morley.Runtime.GState (genesisAddress, genesisKeyHash)
 import Tezos.Core (Timestamp(..), unsafeMkMutez)
 
 -- | Dummy timestamp, can be used to specify current `NOW` value or

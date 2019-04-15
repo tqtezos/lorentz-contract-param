@@ -9,12 +9,12 @@ import Test.Hspec.QuickCheck (modifyMaxSuccess, prop)
 import Test.QuickCheck (Gen, choose, forAll)
 
 import Michelson.Interpret (ContractEnv(..), InterpreterState(..), RemainingSteps(..))
+import Michelson.Runtime.GState
+import Michelson.Test (ContractPropValidator, contractProp, specWithContract)
+import Michelson.Test.Dummy
+import Michelson.Test.Integrational
 import Michelson.Typed
 import qualified Michelson.Untyped as U
-import Morley.Runtime.GState
-import Morley.Test (ContractPropValidator, contractProp, specWithContract)
-import Morley.Test.Dummy
-import Morley.Test.Integrational
 import Tezos.Address (Address)
 import Tezos.Core (unsafeMkMutez)
 

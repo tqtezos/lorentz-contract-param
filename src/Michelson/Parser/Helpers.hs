@@ -1,4 +1,4 @@
-module Morley.Parser.Helpers
+module Michelson.Parser.Helpers
   ( sepEndBy1
   ) where
 

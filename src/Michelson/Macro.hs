@@ -1,4 +1,4 @@
-module Morley.Macro
+module Michelson.Macro
   (
     -- * For utilities
     expandContract

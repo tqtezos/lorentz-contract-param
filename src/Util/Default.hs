@@ -1,10 +1,10 @@
-module Morley.Default
+module Util.Default
   ( permute2Def , permute3Def
   , Default (..)
   ) where
 
-import Control.Applicative.Permutations (toPermutationWithDefault, runPermutation)
-import Data.Default (def, Default)
+import Control.Applicative.Permutations (runPermutation, toPermutationWithDefault)
+import Data.Default (Default, def)
 
 {- Permutation Parsers -}
 

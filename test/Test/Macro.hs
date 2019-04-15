@@ -2,8 +2,8 @@ module Test.Macro
   ( spec
   ) where
 
+import Michelson.Macro
 import Michelson.Untyped (Value)
-import Morley.Macro
 import Morley.Types
 import Test.Hspec (Expectation, Spec, describe, it, shouldBe)
 

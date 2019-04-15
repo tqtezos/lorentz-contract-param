@@ -1,6 +1,6 @@
 -- | Global blockchain state (emulated).
 
-module Morley.Runtime.GState
+module Michelson.Runtime.GState
        (
          -- * Auxiliary types
          ContractState (..)
@@ -35,13 +35,13 @@ import Fmt (genericF, pretty, (+|), (|+))
 import Formatting.Buildable (Buildable(build))
 import System.IO.Error (IOError, isDoesNotExistError)
 
+import Michelson.TypeCheck (TcOriginatedContracts)
 import Michelson.Untyped (Contract, Value)
+import Michelson.Untyped (Type, para)
 import Morley.Types ()
 import Tezos.Address (Address(..))
 import Tezos.Core (Mutez)
 import Tezos.Crypto (KeyHash, parseKeyHash)
-import Michelson.Untyped (Type, para)
-import Michelson.TypeCheck (TcOriginatedContracts)
 
 -- | State of a contract with code.
 data ContractState = ContractState

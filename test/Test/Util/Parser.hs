@@ -5,7 +5,7 @@ module Test.Util.Parser
 import Test.HUnit.Base (assertFailure)
 import Text.Megaparsec (errorBundlePretty)
 
-import qualified Morley.Parser as Parser
+import qualified Michelson.Parser as Parser
 import Morley.Types (Parser)
 
 -- | Expect the given text to be successfully parsed.

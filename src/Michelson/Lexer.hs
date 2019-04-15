@@ -1,4 +1,4 @@
-module Morley.Lexer (
+module Michelson.Lexer (
     lexeme
   , mSpace
   , symbol
