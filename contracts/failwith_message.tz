@@ -1,0 +1,5 @@
+parameter string;
+storage unit;
+code { CAR;
+       FAILWITH;
+       }

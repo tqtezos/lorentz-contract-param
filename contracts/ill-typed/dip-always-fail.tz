@@ -1,0 +1,10 @@
+# DIP does not tolerate code blocks which always fail.
+
+parameter unit;
+storage unit;
+code { DROP;
+       UNIT;
+       NIL operation;
+       PAIR;
+       DIP { PUSH int 5; PUSH bool False; IF { FAILWITH } { FAILWITH } }
+       };

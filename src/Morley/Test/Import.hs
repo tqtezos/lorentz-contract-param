@@ -36,7 +36,7 @@ specWithContract = specWithContractImpl importContract
 -- | A version of 'specWithContract' which passes only the typed
 -- representation of the contract.
 specWithTypedContract
-  :: (Typeable cp, Typeable st)
+  :: (Typeable cp, Typeable st, HasCallStack)
   => FilePath -> (Contract cp st -> Spec) -> Spec
 specWithTypedContract = specWithContractImpl (fmap snd . importContract)
 
@@ -44,7 +44,8 @@ specWithUntypedContract :: FilePath -> (U.Contract -> Spec) -> Spec
 specWithUntypedContract = specWithContractImpl importUntypedContract
 
 specWithContractImpl
-  :: (FilePath -> IO contract) -> FilePath -> (contract -> Spec) -> Spec
+  :: HasCallStack
+  => (FilePath -> IO contract) -> FilePath -> (contract -> Spec) -> Spec
 specWithContractImpl doImport file execSpec =
   either errorSpec (describe ("Test contract " <> file) . execSpec)
     =<< runIO
@@ -92,7 +93,7 @@ data ImportContractError
   | ICEUnexpectedStorageType !U.Type !TypeRep
   | ICEParse !ParserException
   | ICETypeCheck !TCError
-  deriving Show
+  deriving (Show, Eq)
 
 instance Buildable ImportContractError where
   build =

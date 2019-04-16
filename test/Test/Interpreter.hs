@@ -2,6 +2,7 @@ module Test.Interpreter
   ( spec
   ) where
 
+import Data.Singletons (SingI)
 import Fmt (pretty)
 import Test.Hspec (Expectation, Spec, describe, expectationFailure, it, shouldBe, shouldSatisfy)
 import Test.Hspec.QuickCheck (prop)
@@ -19,8 +20,8 @@ import Test.Interpreter.Auction (auctionSpec)
 import Test.Interpreter.CallSelf (selfCallerSpec)
 import Test.Interpreter.Compare (compareSpec)
 import Test.Interpreter.Conditionals (conditionalsSpec)
-import Test.Interpreter.EnvironmentSpec (environmentSpec)
 import Test.Interpreter.ContractOp (contractOpSpec)
+import Test.Interpreter.EnvironmentSpec (environmentSpec)
 import Test.Interpreter.StringCaller (stringCallerSpec)
 
 spec :: Spec
@@ -59,6 +60,21 @@ spec = describe "Advanced type interpreter tests" $ do
     prop "Random check" $ \input ->
       contractProp @_ @[Integer] contract (validateBasic1 input)
       dummyContractEnv () input
+
+  describe "FAILWITH" $ do
+    specWithTypedContract "contracts/failwith_message.tz" $ \contract ->
+      it "Failwith message test" $ do
+        let msg = "An error occurred." :: Text
+        contractProp contract (validateMichelsonFailsWith msg) dummyContractEnv msg ()
+
+    specWithTypedContract "contracts/failwith_message2.tz" $ \contract -> do
+        it "Conditional failwith message test" $ do
+          let msg = "An error occurred." :: Text
+          contractProp contract (validateMichelsonFailsWith msg) dummyContractEnv (True, msg) ()
+
+        it "Conditional success test" $ do
+          let param = (False, "Err" :: Text)
+          contractProp contract validateSuccess dummyContractEnv param ()
 
   auctionSpec
   compareSpec
@@ -99,6 +115,9 @@ spec = describe "Advanced type interpreter tests" $ do
     prop "Random check" $ \param ->
       contractProp contract (validate param) dummyContractEnv param param
 
+validateSuccess :: ContractPropValidator t Expectation
+validateSuccess (res, _) = res `shouldSatisfy` isRight
+
 validateBasic1
   :: [Integer] -> ContractPropValidator ('TList ('Tc 'CInt)) Property
 validateBasic1 input (Right (ops, res), _) =
@@ -114,6 +133,11 @@ validateStepsToQuotaTest res numOfSteps =
     Right ([], T.VC (CvNat x)) ->
       (fromInteger . toInteger) x `shouldBe` ceMaxSteps dummyContractEnv - numOfSteps
     _ -> expectationFailure "unexpected contract result"
+
+validateMichelsonFailsWith
+  :: (T.ToVal v, Typeable (ToT v), SingI (ToT v))
+  => v -> ContractPropValidator st Expectation
+validateMichelsonFailsWith v (res, _) = res `shouldBe` Left (MichelsonFailedWith $ toVal v)
 
 --------------------
 -- Examples

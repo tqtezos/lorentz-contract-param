@@ -8,17 +8,17 @@ import Data.Default (def)
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.Typeable ((:~:)(..))
-import Fmt (pretty)
 import Data.Typeable (typeRep)
+import Fmt (pretty)
 import Prelude hiding (EQ, GT, LT)
 
-import Michelson.TypeCheck.Error (TCTypeError(..), TCError(..))
+import Michelson.TypeCheck.Error (TCError(..), TCTypeError(..))
 import Michelson.TypeCheck.Helpers
+import Michelson.TypeCheck.TypeCheck (TcInstrHandler, TypeCheckEnv(..), TypeCheckT)
 import Michelson.TypeCheck.Types
-import Michelson.TypeCheck.TypeCheck (TcInstrHandler, TypeCheckEnv (..), TypeCheckT)
 import Michelson.Typed
-  (CT(..), CValue(..), ConversibleExt, Instr(..), InstrExtT, Notes(..), Notes'(..), Sing(..),
-  Value'(..), converge, fromSingCT, fromSingT, mkNotes, notesCase)
+  (CT(..), CValue(..), ConversibleExt, InstrExtT, Notes(..), Notes'(..), Sing(..), Value'(..),
+  converge, fromSingCT, fromSingT, mkNotes, notesCase)
 import qualified Michelson.Typed as T
 import qualified Michelson.Untyped as U
 import Tezos.Address (Address(..), parseAddress)
@@ -168,18 +168,22 @@ typeCheckValImpl tcDo v (t@(STLambda (it :: Sing it) (ot :: Sing ot)), ann) = do
     U.ValueLambda mp -> pure $ toList mp
     _ -> throwError $ TCFailedOnValue v (fromSingT t) "unexpected value" Nothing
   let vn = notesCase U.noAnn (\(NTLambda n1 _ _) -> n1) ann
-  typeCheckImpl tcDo mp ((it, NStar, def) ::& SNil) >>= \case
-    SiFail -> pure $ VLam FAILWITH :::: (STLambda it ot, NStar)
-    lam ::: (li, (lo :: HST lo)) -> do
+  li :/ instr <- typeCheckImpl tcDo mp ((it, NStar, def) ::& SNil)
+  let (_, ins, _) ::& SNil = li
+  let lamS = STLambda it ot
+  let lamN ons = mkNotes $ NTLambda def ins ons
+  case instr of
+    lam ::: (lo :: HST lo) -> do
       case eqType @'[ ot ] @lo of
         Right Refl -> do
           let (_, ons, _) ::& SNil = lo
-          let (_, ins, _) ::& SNil = li
           let ns = mkNotes $ NTLambda vn ins ons
           pure $ VLam lam :::: (STLambda it ot, ns)
         Left m ->
           throwError $ TCFailedOnValue v (fromSingT t)
-                      "wrong output type of lambda's value:" (Just m)
+                  "wrong output type of lambda's value:" (Just m)
+    AnyOutInstr lam ->
+      pure $ VLam lam :::: (lamS, lamN NStar)
 
 typeCheckValImpl _ v (t, _) = throwError $ TCFailedOnValue v (fromSingT t) "unknown value" Nothing
 

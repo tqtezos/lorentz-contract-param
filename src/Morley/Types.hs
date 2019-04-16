@@ -125,6 +125,7 @@ instance Default a => Default (Parser a) where
 
 data ParserException =
   ParserException (ParseErrorBundle T.Text CustomParserException)
+  deriving (Eq)
 
 instance Show ParserException where
   show (ParserException bundle) = errorBundlePretty bundle
