@@ -56,8 +56,10 @@ library
                      , Tezos.Crypto
   other-modules:
                        Michelson.EqParam
+                     , Michelson.TypeCheck.Error
                      , Michelson.TypeCheck.Helpers
                      , Michelson.TypeCheck.Instr
+                     , Michelson.TypeCheck.TypeCheck
                      , Michelson.TypeCheck.Types
                      , Michelson.TypeCheck.Value
                      , Michelson.Typed.Annotation
