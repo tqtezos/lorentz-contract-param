@@ -1,62 +1,39 @@
-module Morley.Ext
-  ( interpretMorleyUntyped
-  , interpretMorley
-  , typeCheckMorleyContract
-  , typeCheckHandler
-  , interpretHandler
+-- | Type-checking of Morley extension.
+module Michelson.TypeCheck.Ext
+  ( typeCheckExt
   ) where
 
 import Control.Monad.Except (liftEither, throwError)
-import Data.Default (def)
 import Data.Map.Lazy (Map, insert, lookup)
 import qualified Data.Map.Lazy as Map
 import Data.Singletons (Sing)
 import Data.Typeable ((:~:)(..))
-import Data.Vinyl (Rec(..))
 
-import Michelson.Interpret
-  (ContractEnv(..), ContractReturn, EvalOp, InterpretUntypedError, InterpretUntypedResult,
-  InterpreterEnv(..), InterpreterState(..), MichelsonFailed(..), SomeItStack(..), interpret,
-  interpretUntyped, runInstrNoGas)
-import Michelson.TypeCheck
-import Michelson.TypeCheck.Helpers (convergeHST, eqType, onLeft)
-import Michelson.TypeCheck.Types (HST)
+import Michelson.TypeCheck.Error
+import Michelson.TypeCheck.Helpers
+import Michelson.TypeCheck.TypeCheck
+import Michelson.TypeCheck.Types
 import Michelson.Typed (converge, extractNotes, mkUType)
 import qualified Michelson.Typed as T
 import Michelson.Untyped (CT(..))
 import qualified Michelson.Untyped as U
 import Morley.Types
-import Util.Peano (LongerThan, Peano, Sing(SS, SZ))
+import Util.Peano (Sing(SS, SZ))
 
-interpretMorleyUntyped
-  :: U.Contract
-  -> U.Value
-  -> U.Value
-  -> ContractEnv
-  -> Either (InterpretUntypedError MorleyLogs) (InterpretUntypedResult MorleyLogs)
-interpretMorleyUntyped c v1 v2 cenv =
-  interpretUntyped typeCheckHandler c v1 v2 (InterpreterEnv cenv interpretHandler) def
+type TypeCheckListHandler inp =
+     [U.ExpandedOp]
+  -> HST inp
+  -> TypeCheckT (SomeInstr inp)
 
-interpretMorley
-  :: T.Contract cp st
-  -> T.Value cp
-  -> T.Value st
-  -> ContractEnv
-  -> ContractReturn MorleyLogs st
-interpretMorley c param initSt env =
-  interpret c param initSt (InterpreterEnv env interpretHandler) def
-
-typeCheckMorleyContract :: TcOriginatedContracts -> U.Contract -> Either TCError SomeContract
-typeCheckMorleyContract = typeCheckContract typeCheckHandler
-
-typeCheckHandler
+typeCheckExt
   :: forall s.
      (Typeable s)
-  => ExpandedUExtInstr
+  => TypeCheckListHandler s
+  -> ExpandedUExtInstr
   -> TcExtFrames
   -> HST s
   -> TypeCheckT (TcExtFrames, Maybe (ExtInstr s))
-typeCheckHandler ext nfs hst =
+typeCheckExt typeCheckListH ext nfs hst =
   case ext of
     STACKTYPE s -> fitError $ (nfs, Nothing) <$ checkStackType noBoundVars s hst
     FN t sf     -> fitError $ (, Nothing) <$> checkFn t sf hst nfs
@@ -64,7 +41,7 @@ typeCheckHandler ext nfs hst =
     UPRINT pc   -> verifyPrint pc <&> \tpc -> (nfs, Just $ PRINT tpc)
     UTEST_ASSERT UTestAssert{..} -> do
       verifyPrint tassComment
-      _ :/ si <- typeCheckList tassInstrs hst
+      _ :/ si <- typeCheckListH tassInstrs hst
       case si of
         AnyOutInstr _ -> throwError $ TCExtError (SomeHST hst) $ TestAssertError
                          "TEST_ASSERT has to return Bool, but it always fails"
@@ -89,20 +66,6 @@ typeCheckHandler ext nfs hst =
     safeTail [] = []
 
     fitError = liftEither . first (TCExtError (SomeHST hst))
-
-interpretHandler :: SomeItStack -> EvalOp MorleyLogs ()
-interpretHandler (SomeItStack (PRINT (PrintComment pc)) st) = do
-  let getEl (Left l) = l
-      getEl (Right str) = withStackElem str st show
-  modify (\s -> s {isExtState = MorleyLogs $ mconcat (map getEl pc) : unMorleyLogs (isExtState s)})
-
-interpretHandler (SomeItStack (TEST_ASSERT (TestAssert nm pc (instr :: T.Instr inp1 ('T.Tc 'T.CBool ': out1) )))
-            (st :: Rec T.Value inp2)) = do
-  runInstrNoGas instr st >>= \case
-    (T.VC (T.CvBool False) :& RNil) -> do
-      interpretHandler (SomeItStack (PRINT pc) st)
-      throwError $ MichelsonFailedOther $ "TEST_ASSERT " <> nm <> " failed"
-    _  -> pass
 
 -- | Check that the optional "forall" variables are consistent if present
 checkVars :: Text -> StackFn -> Either ExtError ()
@@ -190,20 +153,3 @@ createStackRef idx hst =
       ((_ ::& st), i) -> do
         StackRef ns <- doCreate (st, i - 1)
         return $ StackRef (SS ns)
-
--- | Access given stack reference (in CPS style).
-withStackElem
-  :: forall st a.
-     StackRef st
-  -> Rec T.Value st
-  -> (forall t. T.Value t -> a)
-  -> a
-withStackElem (StackRef sn) vals cont =
-  loop (vals, sn)
-  where
-    loop
-      :: forall s (n :: Peano). (LongerThan s n)
-      => (Rec T.Value s, Sing n) -> a
-    loop = \case
-      (e :& _, SZ) -> cont e
-      (_ :& es, SS n) -> loop (es, n)

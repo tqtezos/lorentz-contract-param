@@ -8,13 +8,13 @@ import Test.Hspec (Expectation, Spec, describe, expectationFailure, it, shouldBe
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck (Property, label, (.&&.), (===))
 
-import Michelson.Interpret (ContractEnv(..), ContractReturn, MichelsonFailed(..), RemainingSteps)
+import Michelson.Interpret
+  (ContractEnv(..), ContractReturn, MichelsonFailed(..), RemainingSteps, interpret)
 import Michelson.Test (ContractPropValidator, contractProp, specWithTypedContract)
 import Michelson.Test.Dummy (dummyContractEnv)
 import Michelson.Test.Util (failedProp)
 import Michelson.Typed (CT(..), CValue(..), Instr(..), T(..), ToT, fromVal, toVal, ( # ))
 import qualified Michelson.Typed as T
-import Morley.Ext (interpretMorley)
 import Morley.Types (ExtInstr(..), MorleyLogs, PrintComment(..), mkStackRef)
 import Test.Interpreter.A1.Feather (featherSpec)
 import Test.Interpreter.Auction (auctionSpec)
@@ -34,27 +34,27 @@ spec = describe "Advanced type interpreter tests" $ do
 
   specWithTypedContract "contracts/basic5.tz" $ \contract ->
     it "Basic test" $
-      interpretMorley contract T.VUnit (toVal [1 :: Integer]) dummyContractEnv
+      interpret contract T.VUnit (toVal [1 :: Integer]) dummyContractEnv
         `contractResShouldBe` (toVal [13 :: Integer, 100])
 
   specWithTypedContract "contracts/increment.tz" $ \contract ->
     it "Basic test" $
-      interpretMorley contract T.VUnit (toVal @Integer 23) dummyContractEnv
+      interpret contract T.VUnit (toVal @Integer 23) dummyContractEnv
         `contractResShouldBe` (toVal @Integer 24)
 
   specWithTypedContract "contracts/fail.tz" $ \contract ->
     it "Fail test" $
-      interpretMorley contract T.VUnit T.VUnit dummyContractEnv
+      interpret contract T.VUnit T.VUnit dummyContractEnv
         `shouldSatisfy` (isLeft . fst)
 
   specWithTypedContract "contracts/mutez_add_overflow.tz" $ \contract ->
     it "Mutez add overflow test" $
-      interpretMorley contract T.VUnit T.VUnit dummyContractEnv
+      interpret contract T.VUnit T.VUnit dummyContractEnv
         `shouldSatisfy` (isLeft . fst)
 
   specWithTypedContract "contracts/mutez_sub_underflow.tz" $ \contract ->
     it "Mutez sub underflow test" $
-      interpretMorley contract T.VUnit T.VUnit dummyContractEnv
+      interpret contract T.VUnit T.VUnit dummyContractEnv
         `shouldSatisfy` (isLeft . fst)
 
   specWithTypedContract "contracts/basic1.tz" $ \contract -> do
@@ -64,18 +64,18 @@ spec = describe "Advanced type interpreter tests" $ do
 
   specWithTypedContract "contracts/lsl.tz" $ \contract -> do
     it "LSL shouldn't overflow test" $
-      interpretMorley contract (toVal @Natural 5) (toVal @Natural 2) dummyContractEnv
+      interpret contract (toVal @Natural 5) (toVal @Natural 2) dummyContractEnv
         `contractResShouldBe` (toVal @Natural 20)
     it "LSL should overflow test" $
-      interpretMorley contract (toVal @Natural 5) (toVal @Natural 257) dummyContractEnv
+      interpret contract (toVal @Natural 5) (toVal @Natural 257) dummyContractEnv
         `shouldSatisfy` (isLeft . fst)
 
   specWithTypedContract "contracts/lsr.tz" $ \contract -> do
     it "LSR shouldn't underflow test" $
-      interpretMorley contract (toVal @Natural 30) (toVal @Natural 3) dummyContractEnv
+      interpret contract (toVal @Natural 30) (toVal @Natural 3) dummyContractEnv
         `contractResShouldBe` (toVal @Natural 3)
     it "LSR should underflow test" $
-      interpretMorley contract (toVal @Natural 1000) (toVal @Natural 257) dummyContractEnv
+      interpret contract (toVal @Natural 1000) (toVal @Natural 257) dummyContractEnv
         `shouldSatisfy` (isLeft . fst)
 
   describe "FAILWITH" $ do
@@ -105,17 +105,17 @@ spec = describe "Advanced type interpreter tests" $ do
   specWithTypedContract "contracts/steps_to_quota_test1.tz" $ \contract -> do
     it "Amount of steps should reduce" $ do
       validateStepsToQuotaTest
-        (interpretMorley contract T.VUnit (T.VC (CvNat 0)) dummyContractEnv) 4
+        (interpret contract T.VUnit (T.VC (CvNat 0)) dummyContractEnv) 4
 
   specWithTypedContract "contracts/steps_to_quota_test2.tz" $ \contract -> do
     it "Amount of steps should reduce" $ do
       validateStepsToQuotaTest
-        (interpretMorley contract T.VUnit (T.VC (CvNat 0)) dummyContractEnv) 8
+        (interpret contract T.VUnit (T.VC (CvNat 0)) dummyContractEnv) 8
 
   specWithTypedContract "contracts/gas_exhaustion.tz" $ \contract -> do
     it "Contract should fail due to gas exhaustion" $ do
       let dummyStr = toVal @Text "x"
-      case fst $ interpretMorley contract dummyStr dummyStr dummyContractEnv of
+      case fst $ interpret contract dummyStr dummyStr dummyContractEnv of
         Right _ -> expectationFailure "expecting contract to fail"
         Left MichelsonGasExhaustion -> pass
         Left _ -> expectationFailure "expecting another failure reason"

@@ -13,7 +13,6 @@ import Michelson.TypeCheck
 import qualified Michelson.Typed as T
 import Michelson.Untyped (CT(..), T(..), Type(..), noAnn)
 import qualified Michelson.Untyped as Un
-import Morley.Ext (typeCheckHandler, typeCheckMorleyContract)
 import Morley.Types (UExtInstrAbstract(..), UPrintComment(..), UStackRef(..))
 import Tezos.Address (unsafeParseAddress)
 
@@ -52,7 +51,7 @@ typeCheckSpec = describe "Typechecker tests" $ do
     cAddr = unsafeParseAddress "KT1WsLzQ61xtMNJHfwgCHh2RnALGgFAzeSx9"
 
     doTC cs = either (Left . displayException) (\_ -> pure ()) .
-            typeCheckMorleyContract (M.fromList cs)
+            typeCheckContract (M.fromList cs)
 
     doTCSimple = doTC []
 
@@ -82,7 +81,7 @@ stackRefSpec = do
     let instr = printStRef 2
         hst = stackEl ::& stackEl ::& SNil
     in case
-        runTypeCheckT typeCheckHandler (error "no contract param") mempty $
+        runTypeCheckT (error "no contract param") mempty $
         typeCheckList [Un.PrimEx instr] hst
         of
           Left err -> total $ show @Text err
@@ -95,7 +94,7 @@ stackRefSpec = do
     let instr = printStRef 100000000000
         hst = stackEl ::& SNil
     in case
-        runTypeCheckT typeCheckHandler (error "no contract param") mempty $
+        runTypeCheckT (error "no contract param") mempty $
         typeCheckList [Un.PrimEx instr] hst
       of
         Left err -> total $ show @Text err

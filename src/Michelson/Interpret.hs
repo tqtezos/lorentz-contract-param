@@ -4,7 +4,6 @@
 -- instructions against given context and input stack.
 module Michelson.Interpret
   ( ContractEnv (..)
-  , InterpreterEnv (..)
   , InterpreterState (..)
   , MichelsonFailed (..)
   , RemainingSteps (..)
@@ -24,9 +23,11 @@ module Michelson.Interpret
 import Prelude hiding (EQ, GT, LT)
 
 import Control.Monad.Except (throwError)
+import Control.Lens (zoom)
 import qualified Data.Aeson as Aeson
 import Data.Constraint.Forall (Forall)
 import qualified Data.Map as Map
+import Data.Default (def)
 import qualified Data.Set as Set
 import Data.Singletons (SingI(..))
 import Data.Typeable ((:~:)(..))
@@ -35,8 +36,9 @@ import Fmt (Buildable(build), Builder, genericF)
 import Michelson.EqParam (eqParam1, eqParam2)
 
 import Michelson.Interpret.Pack (packValue')
+import Morley.Types (MorleyLogs (..), PrintComment (..), ExtInstr (..), TestAssert (..), StackRef (..))
 import Michelson.TypeCheck
-  (ExtC, SomeContract(..), SomeValue(..), TCError, TcExtHandler, TcOriginatedContracts,
+  (ExtC, SomeContract(..), SomeValue(..), TCError, TcOriginatedContracts,
   TCTypeError(..), compareTypes, eqType, runTypeCheckT, typeCheckContract, typeCheckValue)
 import Michelson.Typed
   (CValue(..), Contract, ConversibleExt, CreateAccount(..), CreateContract(..), HasNoOp, Instr(..),
@@ -47,7 +49,9 @@ import Michelson.Typed.Arith
 import Michelson.Typed.Convert (convertContract, untypeValue)
 import Michelson.Typed.Polymorphic
 import qualified Michelson.Untyped as U
+import Util.Peano (Peano, LongerThan, Sing(SS, SZ))
 import Tezos.Address (Address(..))
+import Util.Lens (HasLens (..))
 import Tezos.Core (Mutez, Timestamp(..))
 import Tezos.Crypto (KeyHash, blake2b, checkSignature, hashKey, sha256, sha512)
 
@@ -138,39 +142,37 @@ deriving instance Show s => Show (InterpretUntypedResult s)
 
 -- | Interpret a contract without performing any side effects.
 interpretUntyped
-  :: forall s . (ExtC, Aeson.ToJSON U.ExpandedInstrExtU)
-  => TcExtHandler
-  -> U.Contract
+  :: (ExtC, Aeson.ToJSON U.ExpandedInstrExtU)
+  => U.Contract
   -> U.Value
   -> U.Value
-  -> InterpreterEnv s
-  -> s
-  -> Either (InterpretUntypedError s) (InterpretUntypedResult s)
-interpretUntyped typeCheckHandler U.Contract{..} paramU initStU env@InterpreterEnv{..} initState = do
+  -> ContractEnv
+  -> Either (InterpretUntypedError MorleyLogs) (InterpretUntypedResult MorleyLogs)
+interpretUntyped U.Contract{..} paramU initStU env = do
   (SomeContract (instr :: Contract cp st) _ _)
-      <- first IllTypedContract $ typeCheckContract typeCheckHandler (ceContracts ieContractEnv)
+      <- first IllTypedContract $ typeCheckContract (ceContracts env)
             (U.Contract para stor code)
   withSomeSingT (fromUType para) $ \sgp ->
     withSomeSingT (fromUType stor) $ \sgs -> do
       ntp <- first (UnexpectedParamType . ExtractionTypeMismatch) $ extractNotes para sgp
       nts <- first (UnexpectedStorageType . ExtractionTypeMismatch) $ extractNotes stor sgs
       paramV :::: ((_ :: Sing cp1), _)
-          <- first IllTypedParam $ runTypeCheckT typeCheckHandler para (ceContracts ieContractEnv) $
+          <- first IllTypedParam $ runTypeCheckT para (ceContracts env) $
                typeCheckValue paramU (sgp, ntp)
       initStV :::: ((_ :: Sing st1), _)
-          <- first IllTypedStorage $ runTypeCheckT typeCheckHandler para (ceContracts ieContractEnv) $
+          <- first IllTypedStorage $ runTypeCheckT para (ceContracts env) $
                typeCheckValue initStU (sgs, nts)
       Refl <- first UnexpectedStorageType $ eqType @st @st1
       Refl <- first UnexpectedParamType   $ eqType @cp @cp1
       bimap RuntimeFailure constructIUR $
-        toRes $ interpret instr paramV initStV env initState
+        toRes $ interpret instr paramV initStV env
   where
     toRes (ei, s) = bimap (,isExtState s) (,s) ei
 
     constructIUR ::
       (Typeable st, SingI st, HasNoOp st) =>
-      (([Operation Instr], Value' Instr st), InterpreterState s) ->
-      InterpretUntypedResult s
+      (([Operation Instr], Value' Instr st), InterpreterState MorleyLogs) ->
+      InterpretUntypedResult MorleyLogs
     constructIUR ((ops, val), st) =
       InterpretUntypedResult
       { iurOps = ops
@@ -186,14 +188,13 @@ interpret
   => Contract cp st
   -> T.Value cp
   -> T.Value st
-  -> InterpreterEnv s
-  -> s
-  -> ContractReturn s st
-interpret instr param initSt env@InterpreterEnv{..} initState = first (fmap toRes) $
+  -> ContractEnv
+  -> ContractReturn MorleyLogs st
+interpret instr param initSt env = first (fmap toRes) $
   runEvalOp
     (runInstr instr (T.VPair (param, initSt) :& RNil))
     env
-    (InterpreterState initState $ ceMaxSteps ieContractEnv)
+    (InterpreterState def $ ceMaxSteps env)
   where
     toRes
       :: (Rec (T.Value' instr) '[ 'TPair ('TList 'TOperation) st ])
@@ -203,11 +204,6 @@ interpret instr param initSt env@InterpreterEnv{..} initState = first (fmap toRe
 
 data SomeItStack where
   SomeItStack :: T.InstrExtT inp -> Rec T.Value inp -> SomeItStack
-
-data InterpreterEnv s = InterpreterEnv
-  { ieContractEnv :: ContractEnv
-  , ieItHandler   :: SomeItStack -> EvalOp s ()
-  }
 
 newtype RemainingSteps = RemainingSteps Word64
   deriving stock (Show)
@@ -220,12 +216,12 @@ data InterpreterState s = InterpreterState
 
 type EvalOp s a =
   ExceptT MichelsonFailed
-    (ReaderT (InterpreterEnv s)
+    (ReaderT ContractEnv
        (State (InterpreterState s))) a
 
 runEvalOp ::
      EvalOp s a
-  -> InterpreterEnv s
+  -> ContractEnv
   -> InterpreterState s
   -> (Either MichelsonFailed a, InterpreterState s)
 runEvalOp act env initSt =
@@ -233,7 +229,9 @@ runEvalOp act env initSt =
 
 -- | Function to change amount of remaining steps stored in State monad
 runInstr
-  :: (ExtC, Aeson.ToJSON U.ExpandedInstrExtU)
+  :: ( HasLens (InterpreterState MorleyLogs) (InterpreterState state)
+     , ExtC, Aeson.ToJSON U.ExpandedInstrExtU
+     )
   => Instr inp out
   -> Rec (T.Value) inp
   -> EvalOp state (Rec (T.Value) out)
@@ -250,29 +248,30 @@ runInstr i r = do
 
 runInstrNoGas
   :: forall a b state .
-  (ExtC, Aeson.ToJSON U.ExpandedInstrExtU)
+  ( HasLens (InterpreterState MorleyLogs) (InterpreterState state)
+  , ExtC, Aeson.ToJSON U.ExpandedInstrExtU
+  )
   => T.Instr a b -> Rec T.Value a -> EvalOp state (Rec T.Value b)
 runInstrNoGas = runInstrImpl runInstrNoGas
 
 -- | Function to interpret Michelson instruction(s) against given stack.
 runInstrImpl
-    :: forall state .
-    (ExtC, Aeson.ToJSON U.ExpandedInstrExtU)
+    :: ( HasLens (InterpreterState MorleyLogs) (InterpreterState state)
+       , ExtC, Aeson.ToJSON U.ExpandedInstrExtU
+       )
     => (forall inp1 out1 .
-      Instr inp1 out1
-    -> Rec (T.Value) inp1
-    -> EvalOp state (Rec T.Value out1)
-    )
-    -> (forall inp out .
-      Instr inp out
-    -> Rec (T.Value) inp
-    -> EvalOp state (Rec T.Value out)
-    )
+           Instr inp1 out1
+        -> Rec (T.Value) inp1
+        -> EvalOp state (Rec T.Value out1)
+    ) ->
+       (forall inp out .
+           Instr inp out
+        -> Rec (T.Value) inp
+        -> EvalOp state (Rec T.Value out)
+      )
 runInstrImpl runner (Seq i1 i2) r = runner i1 r >>= \r' -> runner i2 r'
 runInstrImpl _ Nop r = pure $ r
-runInstrImpl _ (Ext nop) r = do
-  handler <- asks ieItHandler
-  r <$ handler (SomeItStack nop r)
+runInstrImpl _ (Ext nop) r = zoom lensOf $ r <$ interpretExt (SomeItStack nop r)
 runInstrImpl runner (Nested sq) r = runInstrImpl runner sq r
 runInstrImpl _ DROP (_ :& r) = pure $ r
 runInstrImpl _ DUP (a :& r) = pure $ a :& a :& r
@@ -370,10 +369,10 @@ runInstrImpl _ LE (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Le) a) :&
 runInstrImpl _ GE (VC a :& rest) = pure $ VC (evalUnaryArithOp (Proxy @Ge) a) :& rest
 runInstrImpl _ INT (VC (CvNat n) :& r) = pure $ VC (CvInt $ toInteger n) :& r
 runInstrImpl _ SELF r = do
-  ContractEnv{..} <- asks ieContractEnv
+  ContractEnv{..} <- ask
   pure $ VContract ceSelf :& r
 runInstrImpl _ (CONTRACT (nt :: T.Notes p)) (VC (CvAddress addr) :& r) = do
-  ContractEnv{..} <- asks ieContractEnv
+  ContractEnv{..} <- ask
   case Map.lookup addr ceContracts of
     Just tc -> do
       pure $
@@ -403,13 +402,13 @@ runInstrImpl _ (CREATE_CONTRACT ops)
 runInstrImpl _ IMPLICIT_ACCOUNT (VC (CvKeyHash k) :& r) =
   pure $ VContract (KeyAddress k) :& r
 runInstrImpl _ NOW r = do
-  ContractEnv{..} <- asks ieContractEnv
+  ContractEnv{..} <- ask
   pure $ VC (CvTimestamp ceNow) :& r
 runInstrImpl _ AMOUNT r = do
-  ContractEnv{..} <- asks ieContractEnv
+  ContractEnv{..} <- ask
   pure $ VC (CvMutez ceAmount) :& r
 runInstrImpl _ BALANCE r = do
-  ContractEnv{..} <- asks ieContractEnv
+  ContractEnv{..} <- ask
   pure $ VC (CvMutez ceBalance) :& r
 runInstrImpl _ CHECK_SIGNATURE (VKey k :& VSignature v :&
   VC (CvBytes b) :& r) = pure $ VC (CvBool $ checkSignature k v b) :& r
@@ -421,10 +420,10 @@ runInstrImpl _ STEPS_TO_QUOTA r = do
   RemainingSteps x <- gets isRemainingSteps
   pure $ VC (CvNat $ (fromInteger . toInteger) x) :& r
 runInstrImpl _ SOURCE r = do
-  ContractEnv{..} <- asks ieContractEnv
+  ContractEnv{..} <- ask
   pure $ VC (CvAddress ceSource) :& r
 runInstrImpl _ SENDER r = do
-  ContractEnv{..} <- asks ieContractEnv
+  ContractEnv{..} <- ask
   pure $ VC (CvAddress ceSender) :& r
 runInstrImpl _ ADDRESS (VContract a :& r) = pure $ VC (CvAddress a) :& r
 
@@ -461,3 +460,34 @@ createOrigOp k mbKeyHash delegetable spendable m contract g =
 unwrapMbKeyHash :: Maybe (T.Value ('Tc 'U.CKeyHash)) -> Maybe KeyHash
 unwrapMbKeyHash (Just (T.VC (CvKeyHash keyHash))) = Just keyHash
 unwrapMbKeyHash Nothing = Nothing
+
+interpretExt :: SomeItStack -> EvalOp MorleyLogs ()
+interpretExt (SomeItStack (PRINT (PrintComment pc)) st) = do
+  let getEl (Left l) = l
+      getEl (Right str) = withStackElem str st show
+  modify (\s -> s {isExtState = MorleyLogs $ mconcat (map getEl pc) : unMorleyLogs (isExtState s)})
+
+interpretExt (SomeItStack (TEST_ASSERT (TestAssert nm pc (instr :: T.Instr inp1 ('T.Tc 'T.CBool ': out1) )))
+            (st :: Rec T.Value inp2)) = do
+  runInstrNoGas instr st >>= \case
+    (T.VC (T.CvBool False) :& RNil) -> do
+      interpretExt (SomeItStack (PRINT pc) st)
+      throwError $ MichelsonFailedOther $ "TEST_ASSERT " <> nm <> " failed"
+    _  -> pass
+
+-- | Access given stack reference (in CPS style).
+withStackElem
+  :: forall st a.
+     StackRef st
+  -> Rec T.Value st
+  -> (forall t. T.Value t -> a)
+  -> a
+withStackElem (StackRef sn) vals cont =
+  loop (vals, sn)
+  where
+    loop
+      :: forall s (n :: Peano). (LongerThan s n)
+      => (Rec T.Value s, Sing n) -> a
+    loop = \case
+      (e :& _, SZ) -> cont e
+      (_ :& es, SS n) -> loop (es, n)

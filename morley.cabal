@@ -49,7 +49,6 @@ library
                      , Michelson.Test.Unit
                      , Michelson.Test.Util
                      , Michelson.Untyped
-                     , Morley.Ext
                      , Morley.Types
                      , Tezos.Address
                      , Tezos.Core
@@ -57,9 +56,11 @@ library
                      , Util.Alternative
                      , Util.Default
                      , Util.Peano
+                     , Util.Lens
   other-modules:
                        Michelson.EqParam
                      , Michelson.TypeCheck.Error
+                     , Michelson.TypeCheck.Ext
                      , Michelson.TypeCheck.Helpers
                      , Michelson.TypeCheck.Instr
                      , Michelson.TypeCheck.TypeCheck

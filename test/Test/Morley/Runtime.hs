@@ -10,13 +10,13 @@ import Test.Hspec
   (Expectation, Spec, context, describe, expectationFailure, it, parallel, runIO, shouldBe,
   shouldSatisfy, specify)
 
-import Michelson.Interpret (ContractEnv(..), InterpretUntypedError(..), InterpretUntypedResult(..))
+import Michelson.Interpret
+  (ContractEnv(..), InterpretUntypedError(..), InterpretUntypedResult(..), interpretUntyped)
 import Michelson.Runtime
 import Michelson.Runtime.GState (GState(..), initGState)
 import Michelson.Test.Dummy (dummyContractEnv, dummyMaxSteps, dummyNow, dummyOrigination)
 import Michelson.Typed (untypeValue)
 import Michelson.Untyped
-import Morley.Ext (interpretMorleyUntyped)
 import Morley.Types (MorleyLogs)
 import Tezos.Address (Address(..))
 import Tezos.Core (unsafeMkMutez)
@@ -82,7 +82,7 @@ updatesStorageValue ca = either throwM handleResult $ do
     handleResult (addr, ir) = do
       expectedValue <-
         either (throwM . UnexpectedFailed) (pure . toNewStorage) $
-        interpretMorleyUntyped
+        interpretUntyped
                   (caContract ca) (caParameter ca) (caStorage ca) (caEnv ca)
       case gsAddresses (_irGState ir) ^. at addr of
         Nothing -> expectationFailure $ "Address not found: " <> pretty addr

@@ -8,9 +8,9 @@ module Michelson.Test.Unit
   ) where
 
 import Michelson.Interpret (ContractEnv, ContractReturn)
+import Michelson.Interpret (interpret)
 import Michelson.Typed (Contract, ToT, ToVal(..))
 import qualified Michelson.Typed as T
-import Morley.Ext (interpretMorley)
 import Morley.Types (MorleyLogs)
 
 -- | Type for contract execution validation.
@@ -49,4 +49,4 @@ contractPropVal
   -> T.Value st
   -> prop
 contractPropVal instr check env param initSt =
-  check $ interpretMorley instr param initSt env
+  check $ interpret instr param initSt env

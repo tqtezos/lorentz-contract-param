@@ -40,10 +40,10 @@ import Data.Singletons (SingI(sing))
 import Data.Typeable ((:~:)(..), typeRep)
 
 import Michelson.TypeCheck.Error
+import Michelson.TypeCheck.Ext
 import Michelson.TypeCheck.Helpers
 import Michelson.TypeCheck.TypeCheck
-  (TcExtHandler, TcInstrHandler, TcOriginatedContracts, TypeCheckEnv(..), TypeCheckT,
-  runTypeCheckT)
+  (TcInstrHandler, TcOriginatedContracts, TypeCheckEnv(..), TypeCheckT, runTypeCheckT)
 import Michelson.TypeCheck.Types
 import Michelson.TypeCheck.Value
 
@@ -58,11 +58,10 @@ import Michelson.Untyped.Annotation (VarAnn)
 
 typeCheckContract
   :: ExtC
-  => TcExtHandler
-  -> TcOriginatedContracts
+  => TcOriginatedContracts
   -> U.Contract
   -> Either TCError SomeContract
-typeCheckContract nh cs c = runTypeCheckT nh (U.para c) cs $ typeCheckContractImpl c
+typeCheckContract cs c = runTypeCheckT (U.para c) cs $ typeCheckContractImpl c
 
 typeCheckContractImpl
   :: ExtC
@@ -167,9 +166,8 @@ typeCheckInstr
   :: ExtC
   => TcInstrHandler
 typeCheckInstr (U.EXT ext) si = do
-  nh <- gets tcExtHandler
   nfs <- gets tcExtFrames
-  (nfs', res) <- nh ext nfs si
+  (nfs', res) <- typeCheckExt typeCheckList ext nfs si
   modify $ \te -> te {tcExtFrames = nfs'}
   let nopOrExt = maybe Nop Ext res
   return $ si :/ nopOrExt ::: si
