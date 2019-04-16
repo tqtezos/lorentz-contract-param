@@ -67,9 +67,12 @@ module Morley.Types
   , TestAssert (..)
   , UTestAssert (..)
   , PrintComment (..)
+  , UPrintComment (..)
   , StackTypePattern (..)
   , stackTypePatternToList
   , StackRef(..)
+  , UStackRef(..)
+  , mkStackRef
 
   , MorleyLogs (..)
   , noMorleyLogs
@@ -83,25 +86,27 @@ module Morley.Types
   , LetType (..)
   ) where
 
-
 import Data.Aeson.TH (defaultOptions, deriveJSON)
 import Data.Data (Data(..))
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
+import Data.Singletons (Sing, SingI(..))
 import qualified Data.Text as T
-import Fmt (Buildable(build), Builder, genericF, listF, (+|), (|+))
+import Fmt (Buildable(build), Builder, genericF, listF, (+|), (+||), (|+), (||+))
 import Text.Megaparsec (ParseErrorBundle, Parsec, ShowErrorComponent(..), errorBundlePretty)
 import qualified Text.PrettyPrint.Leijen.Text as PP (empty)
 import qualified Text.Show (show)
 
-import Michelson.EqParam (eqParam2)
+import Michelson.EqParam (eqParam1, eqParam2)
 import Michelson.Printer (RenderDoc(..))
 import Michelson.Typed (instrToOps)
 import qualified Michelson.Typed as T
 import qualified Michelson.Untyped as U
 import Morley.Default (Default(..))
+import Util.Peano
+  (KnownPeano(..), LongerThan, Peano, RequireLongerThan, ToPeano, requiredLongerThan)
 
 -------------------------------------
 -- Types for the parser
@@ -166,7 +171,7 @@ data UExtInstrAbstract op =
   | FN T.Text StackFn          -- ^ Begin a typed stack function (push a @TcExtFrame@)
   | FN_END                     -- ^ End a stack function (pop a @TcExtFrame@)
   | UTEST_ASSERT (UTestAssert op)   -- ^ Copy the current stack and run an inline assertion on it
-  | UPRINT PrintComment         -- ^ Print a comment with optional embedded @StackRef@s
+  | UPRINT UPrintComment         -- ^ Print a comment with optional embedded @StackRef@s
   deriving (Eq, Show, Data, Generic, Functor)
 
 instance Buildable op => Buildable (UExtInstrAbstract op) where
@@ -211,37 +216,35 @@ type ExpandedUExtInstr = UExtInstrAbstract U.ExpandedOp
 
 ---------------------------------------------------
 
-data TestAssert where
+data TestAssert (s :: [T.T]) where
   TestAssert
-    :: (Typeable inp, Typeable out)
+    :: (Typeable out)
     => T.Text
-    -> PrintComment
+    -> PrintComment inp
     -> T.Instr inp ('T.Tc 'T.CBool ': out)
-    -> TestAssert
+    -> TestAssert inp
 
-deriving instance Show TestAssert
+deriving instance Show (TestAssert s)
 
-instance Eq TestAssert where
+instance Typeable s => Eq (TestAssert s) where
   TestAssert   name1 pattern1 instr1
     ==
     TestAssert name2 pattern2 instr2
     = and
     [ name1 == name2
-    , pattern1 == pattern2
+    , pattern1 `eqParam1` pattern2
     , instr1 `eqParam2` instr2
     ]
 
-data ExtInstr
-  = TEST_ASSERT TestAssert
-  | PRINT PrintComment
+data ExtInstr s
+  = TEST_ASSERT (TestAssert s)
+  | PRINT (PrintComment s)
   deriving (Show, Eq)
 
-instance T.Conversible ExtInstr (UExtInstrAbstract U.ExpandedOp) where
-  convert (PRINT pc) = UPRINT pc
+instance T.Conversible (ExtInstr s) (UExtInstrAbstract U.ExpandedOp) where
+  convert (PRINT pc) = UPRINT (T.convert pc)
   convert (TEST_ASSERT (TestAssert nm pc i)) =
-    UTEST_ASSERT $ UTestAssert nm pc (instrToOps i)
-
----------------------------------------------------
+    UTEST_ASSERT $ UTestAssert nm (T.convert pc) (instrToOps i)
 
 -- | Morley interpreter state
 newtype MorleyLogs = MorleyLogs
@@ -318,12 +321,38 @@ instance Buildable Macro where
 
 ---------------------------------------------------
 
--- | A reference into the stack
-newtype StackRef = StackRef Natural
+-- | A reference into the stack.
+newtype UStackRef = UStackRef Natural
   deriving (Eq, Show, Data, Generic)
 
-instance Buildable StackRef where
-  build (StackRef i) = "%[" <> show i <> "]"
+instance Buildable UStackRef where
+  build (UStackRef i) = "%[" <> show i <> "]"
+
+-- | A reference into the stack of a given type.
+data StackRef (st :: [T.T]) where
+  -- | Keeps 0-based index to a stack element counting from the top.
+  StackRef
+    :: (KnownPeano idx, LongerThan st idx)
+    => Sing (idx :: Peano) -> StackRef st
+
+instance Eq (StackRef st) where
+  StackRef snat1 == StackRef snat2 = peanoVal snat1 == peanoVal snat2
+
+instance Show (StackRef st) where
+  show (StackRef snat) = "StackRef {" +|| peanoVal snat ||+ "}"
+
+instance Buildable (StackRef st) where
+  build = build @UStackRef . T.convert
+
+instance T.Conversible (StackRef s) UStackRef where
+  convert (StackRef n) = UStackRef (peanoVal n)
+
+-- | Create a stack reference, performing checks at compile time.
+mkStackRef
+  :: forall (gn :: Nat) st n.
+      (n ~ ToPeano gn, SingI n, KnownPeano n, RequireLongerThan st n)
+  => StackRef st
+mkStackRef = requiredLongerThan @st @n $ StackRef $ sing @(ToPeano gn)
 
 newtype Var = Var T.Text deriving (Eq, Show, Ord, Data, Generic)
 
@@ -403,18 +432,28 @@ data LetType = LetType
   , ltSig :: U.Type
   } deriving (Eq, Show)
 
--- A print format with references into the stack
-newtype PrintComment = PrintComment
-  { unPrintComment :: [Either T.Text StackRef]
+newtype UPrintComment = UPrintComment
+  { unUPrintComment :: [Either T.Text UStackRef]
   } deriving (Eq, Show, Data, Generic)
 
-instance Buildable PrintComment where
-  build = foldMap (either build build) . unPrintComment
+instance Buildable UPrintComment where
+  build = foldMap (either build build) . unUPrintComment
+
+-- | A print format with references into the stack
+newtype PrintComment (st :: [T.T]) = PrintComment
+  { unPrintComment :: [Either T.Text (StackRef st)]
+  } deriving (Eq, Show, Generic)
+
+instance Buildable (PrintComment st) where
+  build = build @UPrintComment . T.convert
+
+instance T.Conversible (PrintComment s) UPrintComment where
+  convert (PrintComment pc) = UPrintComment $ map (second T.convert) pc
 
 -- An inline test assertion
 data UTestAssert op = UTestAssert
   { tassName :: T.Text
-  , tassComment :: PrintComment
+  , tassComment :: UPrintComment
   , tassInstrs :: [op]
   } deriving (Eq, Show, Functor, Data, Generic)
 
@@ -423,9 +462,9 @@ instance Buildable code => Buildable (UTestAssert code) where
 
 deriveJSON defaultOptions ''ParsedOp
 deriveJSON defaultOptions ''UExtInstrAbstract
-deriveJSON defaultOptions ''PrintComment
+deriveJSON defaultOptions ''UPrintComment
 deriveJSON defaultOptions ''StackTypePattern
-deriveJSON defaultOptions ''StackRef
+deriveJSON defaultOptions ''UStackRef
 deriveJSON defaultOptions ''StackFn
 deriveJSON defaultOptions ''Var
 deriveJSON defaultOptions ''TyVar

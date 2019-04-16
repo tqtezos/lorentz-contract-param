@@ -26,6 +26,7 @@ import qualified Michelson.Typed as T
 import Michelson.Untyped (CT(..))
 import qualified Michelson.Untyped as U
 import Morley.Types
+import Util.Peano (LongerThan, Peano, Sing(SS, SZ))
 
 interpretMorleyUntyped
   :: U.Contract
@@ -37,8 +38,7 @@ interpretMorleyUntyped c v1 v2 cenv =
   interpretUntyped typeCheckHandler c v1 v2 (InterpreterEnv cenv interpretHandler) def
 
 interpretMorley
-  :: (Typeable cp, Typeable st)
-  => T.Contract cp st
+  :: T.Contract cp st
   -> T.Value cp
   -> T.Value st
   -> ContractEnv
@@ -49,57 +49,58 @@ interpretMorley c param initSt env =
 typeCheckMorleyContract :: TcOriginatedContracts -> U.Contract -> Either TCError SomeContract
 typeCheckMorleyContract = typeCheckContract typeCheckHandler
 
-typeCheckHandler :: ExpandedUExtInstr -> TcExtFrames -> SomeHST -> TypeCheckT (TcExtFrames, Maybe ExtInstr)
-typeCheckHandler ext nfs hst@(SomeHST hs) =
+typeCheckHandler
+  :: forall s.
+     (Typeable s)
+  => ExpandedUExtInstr
+  -> TcExtFrames
+  -> HST s
+  -> TypeCheckT (TcExtFrames, Maybe (ExtInstr s))
+typeCheckHandler ext nfs hst =
   case ext of
-    STACKTYPE s -> fitError $ (nfs, Nothing) <$ checkStackType noBoundVars s hs
+    STACKTYPE s -> fitError $ (nfs, Nothing) <$ checkStackType noBoundVars s hst
     FN t sf     -> fitError $ (, Nothing) <$> checkFn t sf hst nfs
     FN_END      -> fitError $ (safeTail nfs, Nothing) <$ checkFnEnd hst nfs
-    UPRINT pc   -> verifyPrint pc $> (nfs, Just $ PRINT pc)
+    UPRINT pc   -> verifyPrint pc <&> \tpc -> (nfs, Just $ PRINT tpc)
     UTEST_ASSERT UTestAssert{..} -> do
       verifyPrint tassComment
-      _ :/ si <- typeCheckList tassInstrs hs
+      _ :/ si <- typeCheckList tassInstrs hst
       case si of
-        AnyOutInstr _ -> throwError $ TCExtError hst $ TestAssertError
+        AnyOutInstr _ -> throwError $ TCExtError (SomeHST hst) $ TestAssertError
                          "TEST_ASSERT has to return Bool, but it always fails"
         instr ::: (((_ :: (Sing b, T.Notes b, VarAnn)) ::& (_ :: HST out1))) -> do
           Refl <- liftEither $
-                    first (const $ TCExtError hst $
+                    first (const $ TCExtError (SomeHST hst) $
                            TestAssertError "TEST_ASSERT has to return Bool, but returned something else") $
                       eqType @b @('T.Tc 'CBool)
-          pure (nfs, Just $ TEST_ASSERT $ TestAssert tassName tassComment instr)
-        _ -> throwError $ TCExtError hst $ TestAssertError "TEST_ASSERT has to return Bool, but the stack is empty"
+          tcom <- verifyPrint tassComment
+          pure (nfs, Just $ TEST_ASSERT $ TestAssert tassName tcom instr)
+        _ -> throwError $ TCExtError (SomeHST hst) $ TestAssertError "TEST_ASSERT has to return Bool, but the stack is empty"
   where
-    lhs = lengthHST hs
-    verifyPrint :: PrintComment -> TypeCheckT ()
-    verifyPrint (PrintComment pc) = do
-      let checkStRef (Left _) = pure ()
-          checkStRef (Right ref@(StackRef i))
-            | i >= lhs =
-              throwError$ TCExtError hst $
-              InvalidStackReference ref $ StackSize lhs
-            | otherwise = pure ()
-      traverse_ checkStRef pc
+    verifyPrint :: UPrintComment -> TypeCheckT (PrintComment s)
+    verifyPrint (UPrintComment pc) = do
+      let checkStRef (Left txt) = pure (Left txt)
+          checkStRef (Right (UStackRef i)) = Right <$> do
+            liftEither $ createStackRef i hst
+      PrintComment <$> traverse checkStRef pc
 
     safeTail :: [a] -> [a]
     safeTail (_:as) = as
     safeTail [] = []
 
-    fitError = liftEither . first (TCExtError hst)
+    fitError = liftEither . first (TCExtError (SomeHST hst))
 
-interpretHandler :: (ExtInstr, SomeItStack) -> EvalOp MorleyLogs ()
-interpretHandler (PRINT (PrintComment pc), SomeItStack st) = do
+interpretHandler :: SomeItStack -> EvalOp MorleyLogs ()
+interpretHandler (SomeItStack (PRINT (PrintComment pc)) st) = do
   let getEl (Left l) = l
-      getEl (Right (StackRef i)) =
-        fromMaybe (error "StackRef " <> show i <> " has to exist in the stack after typechecking, but it doesn't") $
-        rat st (fromIntegral i)
+      getEl (Right str) = withStackElem str st show
   modify (\s -> s {isExtState = MorleyLogs $ mconcat (map getEl pc) : unMorleyLogs (isExtState s)})
-interpretHandler (TEST_ASSERT (TestAssert nm pc (instr :: T.Instr inp1 ('T.Tc 'T.CBool ': out1) )),
-            SomeItStack (st :: Rec T.Value inp2)) = do
-  Refl <- liftEither $ first (error "TEST_ASSERT input stack doesn't match") $ eqType @inp1 @inp2
+
+interpretHandler (SomeItStack (TEST_ASSERT (TestAssert nm pc (instr :: T.Instr inp1 ('T.Tc 'T.CBool ': out1) )))
+            (st :: Rec T.Value inp2)) = do
   runInstrNoGas instr st >>= \case
     (T.VC (T.CvBool False) :& RNil) -> do
-      interpretHandler (PRINT pc, SomeItStack st)
+      interpretHandler (SomeItStack (PRINT pc) st)
       throwError $ MichelsonFailedOther $ "TEST_ASSERT " <> nm <> " failed"
     _  -> pass
 
@@ -111,14 +112,16 @@ checkVars t sf = case quantifiedVars sf of
   _ -> pure ()
 
 -- | Checks the pattern in @FN@ and pushes a @ExtFrame@ onto the state
-checkFn :: Text -> StackFn -> SomeHST -> TcExtFrames -> Either ExtError TcExtFrames
-checkFn t sf si@(SomeHST it) nfs = do
+checkFn
+  :: Typeable s
+  => Text -> StackFn -> HST s -> TcExtFrames -> Either ExtError TcExtFrames
+checkFn t sf it nfs = do
   checkVars t sf
-  second (const $ (FN t sf, si) : nfs) (checkStackType noBoundVars (inPattern sf) it)
+  second (const $ (FN t sf, SomeHST it) : nfs) (checkStackType noBoundVars (inPattern sf) it)
 
 -- |  Pops a @ExtFrame@ off the state and checks an @FN_END@ based on it
-checkFnEnd :: SomeHST -> TcExtFrames -> Either ExtError BoundVars
-checkFnEnd (SomeHST it') (nf@(nop, SomeHST it):_) = case nop of
+checkFnEnd :: Typeable s => HST s -> TcExtFrames -> Either ExtError BoundVars
+checkFnEnd it' (nf@(nop, SomeHST it):_) = case nop of
   FN t sf -> do
     checkVars t sf
     m <- checkStackType noBoundVars (inPattern sf) it
@@ -165,11 +168,42 @@ eqHST (it :: HST xs) (it' :: HST ys) = do
   void $ convergeHST it it' `onLeft` AnnError
   return Refl
 
-lengthHST :: Num x => HST xs -> x
+lengthHST :: HST xs -> Natural
 lengthHST (_ ::& xs) = 1 + lengthHST xs
 lengthHST SNil = 0
 
-rat :: Rec T.Value xs -> Int -> Maybe Text
-rat (x :& _) 0 = Just $ show x
-rat (_ :& xs) i = rat xs (i - 1)
-rat RNil _ = Nothing
+-- | Create stack reference accessing element with a given index.
+--
+-- Fails when index is too large for the given stack.
+createStackRef :: Typeable s => Natural -> HST s -> Either TCError (StackRef s)
+createStackRef idx hst =
+  case doCreate (hst, idx) of
+    Just sr -> Right sr
+    Nothing -> Left $
+      TCExtError (SomeHST hst) $
+      InvalidStackReference (UStackRef idx) (StackSize $ lengthHST hst)
+  where
+    doCreate :: forall s. (HST s, Natural) -> Maybe (StackRef s)
+    doCreate = \case
+      (SNil, _) -> Nothing
+      ((_ ::& _), 0) -> Just (StackRef SZ)
+      ((_ ::& st), i) -> do
+        StackRef ns <- doCreate (st, i - 1)
+        return $ StackRef (SS ns)
+
+-- | Access given stack reference (in CPS style).
+withStackElem
+  :: forall st a.
+     StackRef st
+  -> Rec T.Value st
+  -> (forall t. T.Value t -> a)
+  -> a
+withStackElem (StackRef sn) vals cont =
+  loop (vals, sn)
+  where
+    loop
+      :: forall s (n :: Peano). (LongerThan s n)
+      => (Rec T.Value s, Sing n) -> a
+    loop = \case
+      (e :& _, SZ) -> cont e
+      (_ :& es, SS n) -> loop (es, n)

@@ -54,6 +54,7 @@ library
                      , Tezos.Address
                      , Tezos.Core
                      , Tezos.Crypto
+                     , Util.Peano
   other-modules:
                        Michelson.EqParam
                      , Michelson.TypeCheck.Error

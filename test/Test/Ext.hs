@@ -14,7 +14,6 @@ import Morley.Ext (interpretMorley, typeCheckHandler)
 import Morley.Test (specWithTypedContract)
 import Morley.Test.Dummy (dummyContractEnv)
 import Morley.Types
-  (MorleyLogs(..), StackTypePattern(..), TyVar(..), ExpandedUExtInstr, UExtInstrAbstract(..))
 
 interpretHandlerSpec :: Spec
 interpretHandlerSpec = describe "interpretHandler PRINT/TEST_ASSERT tests" $
@@ -73,10 +72,11 @@ typeCheckHandlerSpec = describe "typeCheckHandler STACKTYPE tests" $ do
       case convertToHST ts of
         SomeHST is -> SomeHST ((sing, nt, noAnn) ::& is)
 
-    nh (ni, si) = runTypeCheckT typeCheckHandler (Type TKey noAnn) mempty $ typeCheckHandler ni [] si
+    nh (ni, si) =
+      runTypeCheckT typeCheckHandler (Type TKey noAnn) mempty $ typeCheckHandler ni [] si
 
     runNopTest :: (ExpandedUExtInstr, SomeHST) -> Bool -> Expectation
-    runNopTest tcase correct = case (nh tcase, correct) of
+    runNopTest (ui, SomeHST hst) correct = case (nh (ui, hst), correct) of
       (Right _, False) -> expectationFailure $ "Test expected to fail but it passed"
       (Left e, True)   -> expectationFailure $ "Test expected to pass but it failed with error: " <> show e
       _                -> pass

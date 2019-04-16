@@ -9,8 +9,8 @@ module Michelson.TypeCheck.TypeCheck
   ) where
 
 import Michelson.TypeCheck.Error (TCError)
-import Michelson.Typed.Instr (InstrExtT)
 import Michelson.TypeCheck.Types
+import Michelson.Typed.Instr (InstrExtT)
 import qualified Michelson.Untyped as U
 import Tezos.Address (Address)
 
@@ -21,8 +21,9 @@ type TypeCheckT a =
 -- | Function for typeChecking a @nop@ and updating state
 -- TypeCheckT is used because inside
 -- inside of TEST_ASSERT could be PRINT/STACKTYPE/etc extended instructions.
-type TcExtHandler
-  = U.ExpandedInstrExtU -> TcExtFrames -> SomeHST -> TypeCheckT (TcExtFrames, Maybe InstrExtT)
+type TcExtHandler =
+  forall inp. Typeable inp =>
+  U.ExpandedInstrExtU -> TcExtFrames -> HST inp -> TypeCheckT (TcExtFrames, Maybe $ InstrExtT inp)
 
 type TcOriginatedContracts = Map Address U.Type
 
@@ -45,4 +46,3 @@ type TcInstrHandler
       => U.ExpandedInstr
       -> HST inp
       -> TypeCheckT (SomeInstr inp)
-

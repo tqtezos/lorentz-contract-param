@@ -10,6 +10,7 @@ module Michelson.Typed.Instr
 
 import Data.Kind (Type)
 import Data.Singletons (SingI)
+import qualified Text.Show
 
 import Michelson.Typed.Annotation (Notes)
 import Michelson.Typed.Arith
@@ -22,13 +23,13 @@ import Michelson.Typed.Value (ContractInp, ContractOut, Value'(..))
 --
 -- One can represent sequence of Michelson opertaions as follows:
 -- @SWAP; DROP; DUP;@ -> @SWAP # DROP # DUP@.
-(#) :: Typeable b => Instr a b -> Instr b c -> Instr a c
+(#) :: Instr a b -> Instr b c -> Instr a c
 (#) = Seq
 
 infixl 0 #
 
 -- | ExtT is extension of Instr by Morley instructions
-type family ExtT (instr :: [T] -> [T] -> Type) :: Type
+type family ExtT (instr :: [T] -> [T] -> Type) :: [T] -> Type
 
 type InstrExtT = ExtT Instr
 
@@ -52,12 +53,15 @@ type InstrExtT = ExtT Instr
 -- pva701: Typeable constraints are added during TM-29.
 -- Maybe it makes sense to think how to eliminate them
 -- if they break something
+-- martoon: I confirm that there seem to be many extra
+-- Typeable constraints. One in 'Seq' introduced during TM-29
+-- I have removed, but for Lorenz' sake we may want to go further.
 data Instr (inp :: [T]) (out :: [T]) where
-  Seq :: Typeable b => Instr a b -> Instr b c -> Instr a c
+  Seq :: Instr a b -> Instr b c -> Instr a c
   -- | Nop operation. Missing in Michelson spec, added to parse construction
   -- like  `IF {} { SWAP; DROP; }`.
   Nop :: Instr s s
-  Ext :: ExtT Instr -> Instr s s
+  Ext :: ExtT Instr s -> Instr s s
   -- | Nested wrapper is going to wrap a sequence of instructions with { }.
   -- It is crucial because serialisation of a contract
   -- depends on precise structure of its code.
@@ -236,6 +240,12 @@ data Instr (inp :: [T]) (out :: [T]) where
   SENDER :: Instr s ('Tc 'CAddress ': s)
   ADDRESS :: Instr ('TContract a ': s) ('Tc 'CAddress ': s)
 
-deriving instance Show (ExtT Instr) => Show (Instr inp out)
+instance Show (Instr inp out) where
+  show _ = ":wallbang:"
+  -- TODO: this is a big problem actually
+  -- To be resolved in [TM-124]
+
+-- We could write this with -XQualifiedConstraints, but on type families it does not work
+-- deriving instance (forall s. Show (ExtT Instr s)) => Show (Instr inp out)
 
 type Contract cp st = Instr (ContractInp cp st) (ContractOut st)

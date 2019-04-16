@@ -25,6 +25,7 @@ import Prelude hiding (EQ, GT, LT)
 
 import Control.Monad.Except (throwError)
 import qualified Data.Aeson as Aeson
+import Data.Constraint.Forall (Forall)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Singletons (SingI(..))
@@ -91,7 +92,7 @@ instance Eq MichelsonFailed where
   MichelsonFailedOther t1 == MichelsonFailedOther t2 = t1 == t2
   MichelsonFailedOther _ == _ = False
 
-instance ConversibleExt => Buildable MichelsonFailed where
+instance Forall ConversibleExt => Buildable MichelsonFailed where
   build =
     \case
       MichelsonFailedWith (v :: T.Value t) ->
@@ -118,7 +119,7 @@ data InterpretUntypedError s
 
 deriving instance (Buildable U.ExpandedInstr, Show s) => Show (InterpretUntypedError s)
 
-instance (ConversibleExt, Buildable s) => Buildable (InterpretUntypedError s) where
+instance (Forall ConversibleExt, Buildable s) => Buildable (InterpretUntypedError s) where
   build = genericF
 
 data InterpretUntypedResult s where
@@ -181,7 +182,7 @@ type ContractReturn s st =
   (Either MichelsonFailed ([Operation Instr], T.Value st), InterpreterState s)
 
 interpret
-  :: (ExtC, Aeson.ToJSON U.ExpandedInstrExtU, Typeable cp, Typeable st)
+  :: (ExtC, Aeson.ToJSON U.ExpandedInstrExtU)
   => Contract cp st
   -> T.Value cp
   -> T.Value st
@@ -201,11 +202,11 @@ interpret instr param initSt env@InterpreterEnv{..} initState = first (fmap toRe
       (map (\(T.VOp op) -> op) ops_, newSt)
 
 data SomeItStack where
-  SomeItStack :: Typeable inp => Rec (T.Value) inp -> SomeItStack
+  SomeItStack :: T.InstrExtT inp -> Rec T.Value inp -> SomeItStack
 
 data InterpreterEnv s = InterpreterEnv
   { ieContractEnv :: ContractEnv
-  , ieItHandler   :: (T.InstrExtT, SomeItStack) -> EvalOp s ()
+  , ieItHandler   :: SomeItStack -> EvalOp s ()
   }
 
 newtype RemainingSteps = RemainingSteps Word64
@@ -232,7 +233,7 @@ runEvalOp act env initSt =
 
 -- | Function to change amount of remaining steps stored in State monad
 runInstr
-  :: (ExtC, Aeson.ToJSON U.ExpandedInstrExtU, Typeable inp)
+  :: (ExtC, Aeson.ToJSON U.ExpandedInstrExtU)
   => Instr inp out
   -> Rec (T.Value) inp
   -> EvalOp state (Rec (T.Value) out)
@@ -249,7 +250,7 @@ runInstr i r = do
 
 runInstrNoGas
   :: forall a b state .
-  (ExtC, Aeson.ToJSON U.ExpandedInstrExtU, Typeable a)
+  (ExtC, Aeson.ToJSON U.ExpandedInstrExtU)
   => T.Instr a b -> Rec T.Value a -> EvalOp state (Rec T.Value b)
 runInstrNoGas = runInstrImpl runInstrNoGas
 
@@ -257,12 +258,12 @@ runInstrNoGas = runInstrImpl runInstrNoGas
 runInstrImpl
     :: forall state .
     (ExtC, Aeson.ToJSON U.ExpandedInstrExtU)
-    => (forall inp1 out1 . Typeable inp1 =>
+    => (forall inp1 out1 .
       Instr inp1 out1
     -> Rec (T.Value) inp1
     -> EvalOp state (Rec T.Value out1)
     )
-    -> (forall inp out . Typeable inp =>
+    -> (forall inp out .
       Instr inp out
     -> Rec (T.Value) inp
     -> EvalOp state (Rec T.Value out)
@@ -271,7 +272,7 @@ runInstrImpl runner (Seq i1 i2) r = runner i1 r >>= \r' -> runner i2 r'
 runInstrImpl _ Nop r = pure $ r
 runInstrImpl _ (Ext nop) r = do
   handler <- asks ieItHandler
-  r <$ handler (nop, SomeItStack r)
+  r <$ handler (SomeItStack nop r)
 runInstrImpl runner (Nested sq) r = runInstrImpl runner sq r
 runInstrImpl _ DROP (_ :& r) = pure $ r
 runInstrImpl _ DUP (a :& r) = pure $ a :& a :& r
@@ -439,7 +440,7 @@ runArithOp op l r = case evalOp op l r of
   Right res -> pure (T.VC res)
 
 createOrigOp
-  :: (SingI param, SingI store, HasNoOp store, ConversibleExt)
+  :: (SingI param, SingI store, HasNoOp store, Forall ConversibleExt)
   => KeyHash
   -> Maybe (T.Value ('Tc 'U.CKeyHash))
   -> Bool -> Bool -> Mutez

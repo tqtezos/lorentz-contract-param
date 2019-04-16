@@ -3,15 +3,18 @@ module Test.Typecheck
   ) where
 
 import qualified Data.Map as M
+import Data.Singletons (sing)
 import Test.Hspec (Expectation, Spec, describe, expectationFailure, it, shouldBe)
+import Test.QuickCheck (total, within)
 
-import Michelson.TypeCheck (TCError(..))
+import Michelson.TypeCheck
 import qualified Michelson.Typed as T
 import Michelson.Untyped (CT(..), T(..), Type(..), noAnn)
 import qualified Michelson.Untyped as Un
-import Morley.Ext (typeCheckMorleyContract)
+import Morley.Ext (typeCheckHandler, typeCheckMorleyContract)
 import Morley.Runtime (prepareContract)
 import Morley.Test.Import (ImportContractError(..), readContract)
+import Morley.Types (UExtInstrAbstract(..), UPrintComment(..), UStackRef(..))
 import Tezos.Address (unsafeParseAddress)
 
 import Test.Util.Contracts (getIllTypedContracts, getWellTypedContracts)
@@ -34,6 +37,9 @@ typeCheckSpec = describe "Typechecker tests" $ do
     let file = "contracts/ill-typed/fail-before-nop.tz"
     econtract <- readContract @'T.TUnit @'T.TUnit file <$> readFile file
     econtract `shouldBe` Left (ICETypeCheck $ TCUnreachableCode (one $ Un.SeqEx []))
+
+  describe "StackRef"
+    stackRefSpec
 
   where
     pushContrFile = "contracts/ill-typed/push_contract.tz"
@@ -69,3 +75,31 @@ checkFile doTypeCheck wellTyped file = do
         expectationFailure $
         "Typechecker unexpectedly considered " <> show file <> " well-typed."
       | otherwise -> pass
+
+stackRefSpec :: Spec
+stackRefSpec = do
+  it "Typecheck fails when ref is out of bounds" $
+    let instr = printStRef 2
+        hst = stackEl ::& stackEl ::& SNil
+    in case
+        runTypeCheckT typeCheckHandler (error "no contract param") mempty $
+        typeCheckList [Un.PrimEx instr] hst
+        of
+          Left err -> total $ show @Text err
+          Right _ -> error "Typecheck unexpectedly succeded"
+
+  it "Typecheck time is reasonably bounded" $ within 1000 $
+    -- Making code processing performance scale with code size looks like a
+    -- good property, so we'd like to avoid scenario when user tries to
+    -- access 100500-th element of stack and typecheck hangs as a result
+    let instr = printStRef 100000000000
+        hst = stackEl ::& SNil
+    in case
+        runTypeCheckT typeCheckHandler (error "no contract param") mempty $
+        typeCheckList [Un.PrimEx instr] hst
+      of
+        Left err -> total $ show @Text err
+        Right _ -> error "Typecheck unexpectedly succeded"
+  where
+    printStRef i = Un.EXT . UPRINT $ UPrintComment [Right (UStackRef i)]
+    stackEl = (sing @'T.TUnit, T.NStar, noAnn)

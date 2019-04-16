@@ -169,7 +169,7 @@ typeCheckInstr
 typeCheckInstr (U.EXT ext) si = do
   nh <- gets tcExtHandler
   nfs <- gets tcExtFrames
-  (nfs', res) <- nh ext nfs (SomeHST si)
+  (nfs', res) <- nh ext nfs si
   modify $ \te -> te {tcExtFrames = nfs'}
   let nopOrExt = maybe Nop Ext res
   return $ si :/ nopOrExt ::: si
