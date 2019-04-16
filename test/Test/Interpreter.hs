@@ -61,6 +61,22 @@ spec = describe "Advanced type interpreter tests" $ do
       contractProp @_ @[Integer] contract (validateBasic1 input)
       dummyContractEnv () input
 
+  specWithTypedContract "contracts/lsl.tz" $ \contract -> do
+    it "LSL shouldn't overflow test" $
+      interpretMorley contract (toVal @Natural 5) (toVal @Natural 2) dummyContractEnv
+        `contractResShouldBe` (toVal @Natural 20)
+    it "LSL should overflow test" $
+      interpretMorley contract (toVal @Natural 5) (toVal @Natural 257) dummyContractEnv
+        `shouldSatisfy` (isLeft . fst)
+
+  specWithTypedContract "contracts/lsr.tz" $ \contract -> do
+    it "LSR shouldn't underflow test" $
+      interpretMorley contract (toVal @Natural 30) (toVal @Natural 3) dummyContractEnv
+        `contractResShouldBe` (toVal @Natural 3)
+    it "LSR should underflow test" $
+      interpretMorley contract (toVal @Natural 1000) (toVal @Natural 257) dummyContractEnv
+        `shouldSatisfy` (isLeft . fst)
+
   describe "FAILWITH" $ do
     specWithTypedContract "contracts/failwith_message.tz" $ \contract ->
       it "Failwith message test" $ do
