@@ -4,7 +4,6 @@ module Michelson.Typed.Convert
   ( convertContract
   , instrToOps
   , untypeValue
-  , Conversible (..)
   ) where
 
 import qualified Data.Map as Map
@@ -23,9 +22,6 @@ import Tezos.Address (formatAddress)
 import Tezos.Core (unMutez)
 import Tezos.Crypto (formatKeyHash, formatPublicKey, formatSignature)
 import Util.Peano
-
-class Conversible ext1 ext2 where
-  convert :: ext1 -> ext2
 
 convertContract
   :: forall param store . (SingI param, SingI store)
@@ -115,7 +111,7 @@ instrToOps instr = case instr of
     handleInstr :: Instr inp out -> [U.ExpandedInstr]
     handleInstr (Seq i1 i2) = handleInstr i1 <> handleInstr i2
     handleInstr Nop = []
-    handleInstr (Ext (nop :: ExtInstr inp)) = [U.EXT $ convert nop]
+    handleInstr (Ext (nop :: ExtInstr inp)) = [U.EXT $ extInstrToOps nop]
     handleInstr (Nested _) = error "impossible"
     handleInstr DROP = [U.DROP]
     handleInstr DUP = [U.DUP U.noAnn]
@@ -274,16 +270,17 @@ instrToOps instr = case instr of
     handleInstr SENDER = [U.SENDER U.noAnn]
     handleInstr ADDRESS = [U.ADDRESS U.noAnn]
 
-instance Conversible (StackRef s) U.StackRef where
-  convert (StackRef n) = U.StackRef (peanoVal n)
+untypeStackRef :: StackRef s -> U.StackRef
+untypeStackRef (StackRef n) = U.StackRef (peanoVal n)
 
-instance Conversible (PrintComment s) U.PrintComment where
-  convert (PrintComment pc) = U.PrintComment $ map (second convert) pc
+untypePrintComment :: PrintComment s -> U.PrintComment
+untypePrintComment (PrintComment pc) = U.PrintComment $ map (second untypeStackRef) pc
 
-instance Conversible (ExtInstr s) (U.ExtInstrAbstract U.ExpandedOp) where
-  convert (PRINT pc) = U.UPRINT (convert pc)
-  convert (TEST_ASSERT (TestAssert nm pc i)) =
-    U.UTEST_ASSERT $ U.TestAssert nm (convert pc) (instrToOps i)
+extInstrToOps :: ExtInstr s -> U.ExtInstrAbstract U.ExpandedOp
+extInstrToOps = \case
+  PRINT pc -> U.UPRINT (untypePrintComment pc)
+  TEST_ASSERT (TestAssert nm pc i) ->
+    U.UTEST_ASSERT $ U.TestAssert nm (untypePrintComment pc) (instrToOps i)
 
 -- It's an orphan instance, but it's better than checking all cases manually.
 -- We can also move this convertion to the place where `Instr` is defined,
