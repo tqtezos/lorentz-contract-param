@@ -16,7 +16,7 @@ import Michelson.Typed.Annotation (AnnConvergeError(..))
 import Michelson.Typed.Extract (TypeConvergeError(..), toUType)
 import qualified Michelson.Untyped as U
 
-import Morley.Types
+import Michelson.Types
 
 -- | Data type that represents various errors
 -- which are related to type system.

@@ -13,11 +13,11 @@ import Test.QuickCheck.Instances.Semigroup ()
 import Test.QuickCheck.Instances.Text ()
 
 import Michelson.Test ()
+import Michelson.Types (TyVar(..), Var(..))
 import Michelson.Untyped
   (Annotation(..), CT(..), Comparable(..), Contract'(..), Elt(..), ExpandedExtInstr,
   ExpandedOp(..), ExtInstrAbstract(..), FieldAnn, InstrAbstract(..), InternalByteString(..),
   StackTypePattern(..), T(..), Type(..), TypeAnn, Value'(..), VarAnn)
-import Morley.Types (TyVar(..), Var(..))
 import Tezos.Core (Mutez(..))
 
 instance Arbitrary InternalByteString where

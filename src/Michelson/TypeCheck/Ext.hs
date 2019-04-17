@@ -15,9 +15,9 @@ import Michelson.TypeCheck.TypeCheck
 import Michelson.TypeCheck.Types
 import Michelson.Typed (converge, extractNotes, mkUType)
 import qualified Michelson.Typed as T
+import Michelson.Types
 import Michelson.Untyped (CT(..))
 import qualified Michelson.Untyped as U
-import Morley.Types
 import Util.Peano (Sing(SS, SZ))
 
 type TypeCheckListHandler inp =

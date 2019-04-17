@@ -12,7 +12,7 @@ module Michelson.Lexer (
   , comma
   ) where
 
-import Morley.Types (Parser)
+import Michelson.Types (Parser)
 
 import Data.Char (toLower)
 import qualified Data.Text as T

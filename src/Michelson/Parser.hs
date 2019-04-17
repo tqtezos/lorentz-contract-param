@@ -33,9 +33,9 @@ import Michelson.Lexer
 import qualified Michelson.Macro as Macro
 import Michelson.Parser.Annotations
 import Michelson.Parser.Helpers
+import Michelson.Types (CustomParserException(..), ParsedOp(..), Parser, ParserException(..))
+import qualified Michelson.Types as Mi
 import qualified Michelson.Untyped as U
-import Morley.Types (CustomParserException(..), ParsedOp(..), Parser, ParserException(..))
-import qualified Morley.Types as Mi
 import Util.Alternative (someNE)
 
 -------------------------------------------------------------------------------

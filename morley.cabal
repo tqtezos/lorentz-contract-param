@@ -40,6 +40,7 @@ library
                      , Michelson.Runtime.TxData
                      , Michelson.TypeCheck
                      , Michelson.Typed
+                     , Michelson.Types
                      , Michelson.Typed.Value
                      , Michelson.Test
                      , Michelson.Test.Dummy
@@ -49,7 +50,6 @@ library
                      , Michelson.Test.Unit
                      , Michelson.Test.Util
                      , Michelson.Untyped
-                     , Morley.Types
                      , Tezos.Address
                      , Tezos.Core
                      , Tezos.Crypto

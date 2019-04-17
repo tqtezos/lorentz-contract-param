@@ -8,7 +8,7 @@
 -- because InstrAbstract isn't newtype.
 {-# LANGUAGE DeriveDataTypeable, DerivingStrategies #-}
 
-module Morley.Types
+module Michelson.Types
   (
    -- * Rexported from Michelson.Untyped.Types
     U.Parameter

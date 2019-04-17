@@ -18,8 +18,8 @@ import Test.Hspec (Spec, describe, expectationFailure, it, runIO)
 import Michelson.Runtime (parseExpandContract, prepareContract)
 import Michelson.TypeCheck (SomeContract(..), TCError, typeCheckContract)
 import Michelson.Typed (Contract)
+import Michelson.Types (ParserException(..))
 import qualified Michelson.Untyped as U
-import Morley.Types (ParserException(..))
 
 -- | Import contract and use it in the spec. Both versions of contract are
 -- passed to the callback function (untyped and typed).

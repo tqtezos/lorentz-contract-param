@@ -49,9 +49,9 @@ import Michelson.TypeCheck (SomeContract, TCError, typeCheckContract)
 import Michelson.Typed
   (CreateContract(..), Instr, Operation(..), TransferTokens(..), convertContract, untypeValue)
 import qualified Michelson.Typed as T
+import Michelson.Types (ParsedOp)
 import Michelson.Untyped (Contract, OriginationOperation(..), mkContractAddress)
 import qualified Michelson.Untyped as U
-import Morley.Types (ParsedOp)
 import Tezos.Address (Address(..))
 import Tezos.Core (Mutez, Timestamp(..), getCurrentTime, unsafeAddMutez, unsafeSubMutez)
 import Tezos.Crypto (parseKeyHash)

@@ -8,8 +8,8 @@ import Text.Megaparsec (parse)
 import Text.Megaparsec.Error (ErrorFancy(ErrorCustom), ParseError(FancyError), bundleErrors)
 
 import Michelson.Parser as P
+import Michelson.Types as Mo
 import Michelson.Untyped
-import Morley.Types as Mo
 
 import Test.Util.Contracts (getIllTypedContracts, getWellTypedContracts)
 
