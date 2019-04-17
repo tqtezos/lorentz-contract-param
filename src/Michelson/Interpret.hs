@@ -79,7 +79,7 @@ data MichelsonFailed where
   MichelsonFailedWith :: (Typeable t, SingI t) => T.Value t -> MichelsonFailed
   MichelsonArithError :: (Typeable n, Typeable m) => ArithError (CValue n) (CValue m) -> MichelsonFailed
   MichelsonGasExhaustion :: MichelsonFailed
-  MichelsonFailedOther :: Text -> MichelsonFailed
+  MichelsonFailedTestAssert :: Text -> MichelsonFailed
 
 deriving instance Show MichelsonFailed
 
@@ -90,8 +90,8 @@ instance Eq MichelsonFailed where
   MichelsonArithError _ == _ = False
   MichelsonGasExhaustion == MichelsonGasExhaustion = True
   MichelsonGasExhaustion == _ = False
-  MichelsonFailedOther t1 == MichelsonFailedOther t2 = t1 == t2
-  MichelsonFailedOther _ == _ = False
+  MichelsonFailedTestAssert t1 == MichelsonFailedTestAssert t2 = t1 == t2
+  MichelsonFailedTestAssert _ == _ = False
 
 instance Buildable MichelsonFailed where
   build =
@@ -101,7 +101,7 @@ instance Buildable MichelsonFailed where
       MichelsonArithError v -> build v
       MichelsonGasExhaustion ->
         "Gas limit exceeded on contract execution"
-      MichelsonFailedOther t -> build t
+      MichelsonFailedTestAssert t -> build t
     where
       formatValue :: forall t . SingI t => Value' Instr t -> Builder
       formatValue v =
@@ -466,7 +466,7 @@ interpretExt (SomeItStack (T.TEST_ASSERT (T.TestAssert nm pc (instr :: T.Instr i
   runInstrNoGas instr st >>= \case
     (T.VC (T.CvBool False) :& RNil) -> do
       interpretExt (SomeItStack (T.PRINT pc) st)
-      throwError $ MichelsonFailedOther $ "TEST_ASSERT " <> nm <> " failed"
+      throwError $ MichelsonFailedTestAssert $ "TEST_ASSERT " <> nm <> " failed"
     _  -> pass
 
 -- | Access given stack reference (in CPS style).
