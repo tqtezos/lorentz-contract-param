@@ -1,6 +1,6 @@
 # Morley Runtime
 
-Morley runtime (`Morley.Runtime*` modules) provides a high-level interface to Morley functionality.
+Morley runtime (`Michelson.Runtime*` modules) provides a high-level interface to Morley functionality.
 It implements [high-level Morley interpreter](./morleyInterpreter.md#high-level-interpreter) and provides functions to read and parse a contract, originate it, transfer tokens, etc.
 
 At present, Morley runtime doesn't communicate with any real Tezos network.
