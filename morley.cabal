@@ -249,6 +249,7 @@ test-suite morley-test
                      , Test.Interpreter.EnvironmentSpec
                      , Test.Interpreter.A1.Feather
                      , Test.Interpreter.StringCaller
+                     , Test.Lorentz.Contracts.Auction
                      , Test.Macro
                      , Test.Ext
                      , Test.Morley.Runtime

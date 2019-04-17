@@ -161,29 +161,3 @@ validateMichelsonFailsWith
   :: (T.ToVal v, Typeable (ToT v), SingI (ToT v))
   => v -> ContractPropValidator st Expectation
 validateMichelsonFailsWith v (res, _) = res `shouldBe` Left (MichelsonFailedWith $ toVal v)
-
---------------------
--- Examples
---------------------
-
--- | @myInstr@ is an equivalent to Michelson code:
---
---    PUSH int 223;
---    SOME;
---    IF_NONE { DUP; } { SWAP; };
---    ADD;
---    PUSH nat 12
---    ADD;
-_myInstr :: Instr ('Tc 'CInt : s) ('Tc 'CInt : s)
-_myInstr =
-  PUSH (T.VC $ CvInt 223) #
-  SOME #
-  IF_NONE DUP SWAP #
-  ADD #
-  PUSH (T.VC $ CvNat 12) #
-  ADD
-
-_myInstr2 :: Instr a ('TOption ('Tc 'CInt) : a)
-_myInstr2 =
-  PUSH (T.VOption $ Just $ T.VC $ CvInt 223) #
-  Nop

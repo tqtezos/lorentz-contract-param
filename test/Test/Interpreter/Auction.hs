@@ -7,6 +7,7 @@ module Test.Interpreter.Auction
 
 import Test.Hspec (Spec, it, parallel, shouldSatisfy)
 import Test.Hspec.QuickCheck (prop)
+import Test.Lorentz.Contracts.Auction (auction)
 import Test.QuickCheck (Property, arbitrary, choose, counterexample, (.&&.), (===))
 import Test.QuickCheck.Gen (unGen)
 import Test.QuickCheck.Property (expectFailure, forAll, withMaxSuccess)
@@ -31,24 +32,8 @@ type Param = KeyHash
 -- and QuickCheck.
 auctionSpec :: Spec
 auctionSpec = parallel $ do
-  -- Test auction.tz, everything should be fine
-  specWithTypedContract "contracts/auction.tz" $ \contract -> do
-    it "Bid after end of auction triggers failure" $
-      contractProp contract
-        (flip shouldSatisfy (isLeft . fst))
-        (env { ceAmount = unsafeMkMutez 1200 })
-        keyHash2
-        (aBitBeforeMidTimestamp, (unsafeMkMutez 1000, keyHash1))
-
-    prop "Random check (sparse distribution)" $ withMaxSuccess 200 $
-      qcProp contract arbitrary arbitrary
-
-    prop "Random check (dense end of auction)" $
-      qcProp contract denseTime arbitrary
-
-    prop "Random check (dense amount)" $
-      qcProp contract arbitrary denseAmount
-
+  specWithTypedContract "contracts/auction.tz" auctionSpec'
+  auctionSpec' auction
   -- Test slightly modified version of auction.tz, it must fail.
   -- This block is given purely for demonstration of that tests are smart
   -- enough to filter common mistakes.
@@ -60,6 +45,24 @@ auctionSpec = parallel $ do
       expectFailure $ qcProp contract arbitrary denseAmount
 
   where
+    -- Test auction.tz, everything should be fine
+    auctionSpec' contract = do
+      it "Bid after end of auction triggers failure" $
+        contractProp contract
+          (flip shouldSatisfy (isLeft . fst))
+          (env { ceAmount = unsafeMkMutez 1200 })
+          keyHash2
+          (aBitBeforeMidTimestamp, (unsafeMkMutez 1000, keyHash1))
+
+      prop "Random check (sparse distribution)" $ withMaxSuccess 200 $
+        qcProp contract arbitrary arbitrary
+
+      prop "Random check (dense end of auction)" $
+        qcProp contract denseTime arbitrary
+
+      prop "Random check (dense amount)" $
+        qcProp contract arbitrary denseAmount
+
     qcProp contract eoaGen amountGen =
       forAll ((,) <$> eoaGen <*> ((,) <$> amountGen <*> arbitrary)) $
         \s p ->
