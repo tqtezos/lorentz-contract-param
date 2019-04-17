@@ -9,6 +9,8 @@ module Michelson.Interpret
   , RemainingSteps (..)
   , SomeItStack (..)
   , EvalOp
+  , MorleyLogs (..)
+  , noMorleyLogs
 
   , interpret
   , ContractReturn
@@ -23,11 +25,8 @@ module Michelson.Interpret
 import Prelude hiding (EQ, GT, LT)
 
 import Control.Monad.Except (throwError)
-import Control.Lens (zoom)
-import qualified Data.Aeson as Aeson
-import Data.Constraint.Forall (Forall)
 import qualified Data.Map as Map
-import Data.Default (def)
+import Data.Default (Default (..))
 import qualified Data.Set as Set
 import Data.Singletons (SingI(..))
 import Data.Typeable ((:~:)(..))
@@ -36,12 +35,11 @@ import Fmt (Buildable(build), Builder, genericF)
 import Michelson.EqParam (eqParam1, eqParam2)
 
 import Michelson.Interpret.Pack (packValue')
-import Morley.Types (MorleyLogs (..), PrintComment (..), ExtInstr (..), TestAssert (..), StackRef (..))
 import Michelson.TypeCheck
-  (ExtC, SomeContract(..), SomeValue(..), TCError, TcOriginatedContracts,
+  ( SomeContract(..), SomeValue(..), TCError, TcOriginatedContracts,
   TCTypeError(..), compareTypes, eqType, runTypeCheckT, typeCheckContract, typeCheckValue)
 import Michelson.Typed
-  (CValue(..), Contract, ConversibleExt, CreateAccount(..), CreateContract(..), HasNoOp, Instr(..),
+  (CValue(..), Contract, CreateAccount(..), CreateContract(..), HasNoOp, Instr(..),
   OpPresence(..), Operation(..), SetDelegate(..), Sing(..), T(..), TransferTokens(..), Value'(..),
   extractNotes, fromUType, withSomeSingT)
 import qualified Michelson.Typed as T
@@ -51,7 +49,6 @@ import Michelson.Typed.Polymorphic
 import qualified Michelson.Untyped as U
 import Util.Peano (Peano, LongerThan, Sing(SS, SZ))
 import Tezos.Address (Address(..))
-import Util.Lens (HasLens (..))
 import Tezos.Core (Mutez, Timestamp(..))
 import Tezos.Crypto (KeyHash, blake2b, checkSignature, hashKey, sha256, sha512)
 
@@ -96,7 +93,7 @@ instance Eq MichelsonFailed where
   MichelsonFailedOther t1 == MichelsonFailedOther t2 = t1 == t2
   MichelsonFailedOther _ == _ = False
 
-instance Forall ConversibleExt => Buildable MichelsonFailed where
+instance Buildable MichelsonFailed where
   build =
     \case
       MichelsonFailedWith (v :: T.Value t) ->
@@ -112,8 +109,8 @@ instance Forall ConversibleExt => Buildable MichelsonFailed where
           OpPresent -> "<value with operations>"
           OpAbsent -> build (untypeValue v)
 
-data InterpretUntypedError s
-  = RuntimeFailure (MichelsonFailed, s)
+data InterpretUntypedError
+  = RuntimeFailure (MichelsonFailed, MorleyLogs)
   | IllTypedContract TCError
   | IllTypedParam TCError
   | IllTypedStorage TCError
@@ -121,12 +118,12 @@ data InterpretUntypedError s
   | UnexpectedStorageType TCTypeError
   deriving (Generic)
 
-deriving instance (Buildable U.ExpandedInstr, Show s) => Show (InterpretUntypedError s)
+deriving instance Show InterpretUntypedError
 
-instance (Forall ConversibleExt, Buildable s) => Buildable (InterpretUntypedError s) where
+instance Buildable InterpretUntypedError where
   build = genericF
 
-data InterpretUntypedResult s where
+data InterpretUntypedResult where
   InterpretUntypedResult
     :: ( Typeable st
        , SingI st
@@ -134,20 +131,28 @@ data InterpretUntypedResult s where
        )
     => { iurOps :: [ Operation Instr ]
        , iurNewStorage :: T.Value st
-       , iurNewState   :: InterpreterState s
+       , iurNewState   :: InterpreterState
        }
-    -> InterpretUntypedResult s
+    -> InterpretUntypedResult
 
-deriving instance Show s => Show (InterpretUntypedResult s)
+deriving instance Show InterpretUntypedResult
+
+-- | Morley interpreter state
+newtype MorleyLogs = MorleyLogs
+  { unMorleyLogs :: [Text]
+  } deriving stock (Eq, Show)
+    deriving newtype (Default, Buildable)
+
+noMorleyLogs :: MorleyLogs
+noMorleyLogs = MorleyLogs []
 
 -- | Interpret a contract without performing any side effects.
 interpretUntyped
-  :: (ExtC, Aeson.ToJSON U.ExpandedInstrExtU)
-  => U.Contract
+  :: U.Contract
   -> U.Value
   -> U.Value
   -> ContractEnv
-  -> Either (InterpretUntypedError MorleyLogs) (InterpretUntypedResult MorleyLogs)
+  -> Either InterpretUntypedError InterpretUntypedResult
 interpretUntyped U.Contract{..} paramU initStU env = do
   (SomeContract (instr :: Contract cp st) _ _)
       <- first IllTypedContract $ typeCheckContract (ceContracts env)
@@ -167,12 +172,12 @@ interpretUntyped U.Contract{..} paramU initStU env = do
       bimap RuntimeFailure constructIUR $
         toRes $ interpret instr paramV initStV env
   where
-    toRes (ei, s) = bimap (,isExtState s) (,s) ei
+    toRes (ei, s) = bimap (,isMorleyLogs s) (,s) ei
 
     constructIUR ::
       (Typeable st, SingI st, HasNoOp st) =>
-      (([Operation Instr], Value' Instr st), InterpreterState MorleyLogs) ->
-      InterpretUntypedResult MorleyLogs
+      (([Operation Instr], Value' Instr st), InterpreterState) ->
+      InterpretUntypedResult
     constructIUR ((ops, val), st) =
       InterpretUntypedResult
       { iurOps = ops
@@ -180,16 +185,15 @@ interpretUntyped U.Contract{..} paramU initStU env = do
       , iurNewState = st
       }
 
-type ContractReturn s st =
-  (Either MichelsonFailed ([Operation Instr], T.Value st), InterpreterState s)
+type ContractReturn st =
+  (Either MichelsonFailed ([Operation Instr], T.Value st), InterpreterState)
 
 interpret
-  :: (ExtC, Aeson.ToJSON U.ExpandedInstrExtU)
-  => Contract cp st
+  :: Contract cp st
   -> T.Value cp
   -> T.Value st
   -> ContractEnv
-  -> ContractReturn MorleyLogs st
+  -> ContractReturn st
 interpret instr param initSt env = first (fmap toRes) $
   runEvalOp
     (runInstr instr (T.VPair (param, initSt) :& RNil))
@@ -203,38 +207,35 @@ interpret instr param initSt env = first (fmap toRes) $
       (map (\(T.VOp op) -> op) ops_, newSt)
 
 data SomeItStack where
-  SomeItStack :: T.InstrExtT inp -> Rec T.Value inp -> SomeItStack
+  SomeItStack :: T.ExtInstr inp -> Rec T.Value inp -> SomeItStack
 
 newtype RemainingSteps = RemainingSteps Word64
   deriving stock (Show)
   deriving newtype (Eq, Ord, Buildable, Num)
 
-data InterpreterState s = InterpreterState
-  { isExtState       :: s
+data InterpreterState = InterpreterState
+  { isMorleyLogs     :: MorleyLogs
   , isRemainingSteps :: RemainingSteps
   } deriving (Show)
 
-type EvalOp s a =
+type EvalOp a =
   ExceptT MichelsonFailed
     (ReaderT ContractEnv
-       (State (InterpreterState s))) a
+       (State InterpreterState)) a
 
 runEvalOp ::
-     EvalOp s a
+     EvalOp a
   -> ContractEnv
-  -> InterpreterState s
-  -> (Either MichelsonFailed a, InterpreterState s)
+  -> InterpreterState
+  -> (Either MichelsonFailed a, InterpreterState)
 runEvalOp act env initSt =
   flip runState initSt $ usingReaderT env $ runExceptT act
 
 -- | Function to change amount of remaining steps stored in State monad
 runInstr
-  :: ( HasLens (InterpreterState MorleyLogs) (InterpreterState state)
-     , ExtC, Aeson.ToJSON U.ExpandedInstrExtU
-     )
-  => Instr inp out
+  :: Instr inp out
   -> Rec (T.Value) inp
-  -> EvalOp state (Rec (T.Value) out)
+  -> EvalOp (Rec (T.Value) out)
 runInstr i@(Seq _i1 _i2) r = runInstrImpl runInstr i r
 runInstr i@Nop r = runInstrImpl runInstr i r
 runInstr i@(Nested _) r = runInstrImpl runInstr i r
@@ -247,31 +248,24 @@ runInstr i r = do
     runInstrImpl runInstr i r
 
 runInstrNoGas
-  :: forall a b state .
-  ( HasLens (InterpreterState MorleyLogs) (InterpreterState state)
-  , ExtC, Aeson.ToJSON U.ExpandedInstrExtU
-  )
-  => T.Instr a b -> Rec T.Value a -> EvalOp state (Rec T.Value b)
+  :: forall a b . T.Instr a b -> Rec T.Value a -> EvalOp (Rec T.Value b)
 runInstrNoGas = runInstrImpl runInstrNoGas
 
 -- | Function to interpret Michelson instruction(s) against given stack.
 runInstrImpl
-    :: ( HasLens (InterpreterState MorleyLogs) (InterpreterState state)
-       , ExtC, Aeson.ToJSON U.ExpandedInstrExtU
-       )
-    => (forall inp1 out1 .
+    :: (forall inp1 out1 .
            Instr inp1 out1
         -> Rec (T.Value) inp1
-        -> EvalOp state (Rec T.Value out1)
+        -> EvalOp (Rec T.Value out1)
     ) ->
        (forall inp out .
            Instr inp out
         -> Rec (T.Value) inp
-        -> EvalOp state (Rec T.Value out)
+        -> EvalOp (Rec T.Value out)
       )
 runInstrImpl runner (Seq i1 i2) r = runner i1 r >>= \r' -> runner i2 r'
 runInstrImpl _ Nop r = pure $ r
-runInstrImpl _ (Ext nop) r = zoom lensOf $ r <$ interpretExt (SomeItStack nop r)
+runInstrImpl _ (Ext nop) r = r <$ interpretExt (SomeItStack nop r)
 runInstrImpl runner (Nested sq) r = runInstrImpl runner sq r
 runInstrImpl _ DROP (_ :& r) = pure $ r
 runInstrImpl _ DUP (a :& r) = pure $ a :& a :& r
@@ -433,13 +427,13 @@ runArithOp
   => proxy aop
   -> CValue n
   -> CValue m
-  -> EvalOp s (T.Value' instr ('Tc (ArithRes aop n m)))
+  -> EvalOp (T.Value' instr ('Tc (ArithRes aop n m)))
 runArithOp op l r = case evalOp op l r of
   Left  err -> throwError (MichelsonArithError err)
   Right res -> pure (T.VC res)
 
 createOrigOp
-  :: (SingI param, SingI store, HasNoOp store, Forall ConversibleExt)
+  :: (SingI param, SingI store, HasNoOp store)
   => KeyHash
   -> Maybe (T.Value ('Tc 'U.CKeyHash))
   -> Bool -> Bool -> Mutez
@@ -461,28 +455,28 @@ unwrapMbKeyHash :: Maybe (T.Value ('Tc 'U.CKeyHash)) -> Maybe KeyHash
 unwrapMbKeyHash (Just (T.VC (CvKeyHash keyHash))) = Just keyHash
 unwrapMbKeyHash Nothing = Nothing
 
-interpretExt :: SomeItStack -> EvalOp MorleyLogs ()
-interpretExt (SomeItStack (PRINT (PrintComment pc)) st) = do
+interpretExt :: SomeItStack -> EvalOp ()
+interpretExt (SomeItStack (T.PRINT (T.PrintComment pc)) st) = do
   let getEl (Left l) = l
       getEl (Right str) = withStackElem str st show
-  modify (\s -> s {isExtState = MorleyLogs $ mconcat (map getEl pc) : unMorleyLogs (isExtState s)})
+  modify (\s -> s {isMorleyLogs = MorleyLogs $ mconcat (map getEl pc) : unMorleyLogs (isMorleyLogs s)})
 
-interpretExt (SomeItStack (TEST_ASSERT (TestAssert nm pc (instr :: T.Instr inp1 ('T.Tc 'T.CBool ': out1) )))
+interpretExt (SomeItStack (T.TEST_ASSERT (T.TestAssert nm pc (instr :: T.Instr inp1 ('T.Tc 'T.CBool ': out1) )))
             (st :: Rec T.Value inp2)) = do
   runInstrNoGas instr st >>= \case
     (T.VC (T.CvBool False) :& RNil) -> do
-      interpretExt (SomeItStack (PRINT pc) st)
+      interpretExt (SomeItStack (T.PRINT pc) st)
       throwError $ MichelsonFailedOther $ "TEST_ASSERT " <> nm <> " failed"
     _  -> pass
 
 -- | Access given stack reference (in CPS style).
 withStackElem
   :: forall st a.
-     StackRef st
+     T.StackRef st
   -> Rec T.Value st
   -> (forall t. T.Value t -> a)
   -> a
-withStackElem (StackRef sn) vals cont =
+withStackElem (T.StackRef sn) vals cont =
   loop (vals, sn)
   where
     loop

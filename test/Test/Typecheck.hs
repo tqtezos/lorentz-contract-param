@@ -13,7 +13,6 @@ import Michelson.TypeCheck
 import qualified Michelson.Typed as T
 import Michelson.Untyped (CT(..), T(..), Type(..), noAnn)
 import qualified Michelson.Untyped as Un
-import Morley.Types (UExtInstrAbstract(..), UPrintComment(..), UStackRef(..))
 import Tezos.Address (unsafeParseAddress)
 
 import Test.Util.Contracts (getIllTypedContracts, getWellTypedContracts)
@@ -100,5 +99,5 @@ stackRefSpec = do
         Left err -> total $ show @Text err
         Right _ -> error "Typecheck unexpectedly succeded"
   where
-    printStRef i = Un.EXT . UPRINT $ UPrintComment [Right (UStackRef i)]
+    printStRef i = Un.EXT . Un.UPRINT $ Un.PrintComment [Right (Un.StackRef i)]
     stackEl = (sing @'T.TUnit, T.NStar, noAnn)

@@ -8,6 +8,7 @@ import Text.Megaparsec (parse)
 import Text.Megaparsec.Error (ErrorFancy(ErrorCustom), ParseError(FancyError), bundleErrors)
 
 import Michelson.Parser as P
+import Michelson.Untyped
 import Morley.Types as Mo
 
 import Test.Util.Contracts (getIllTypedContracts, getWellTypedContracts)
@@ -149,17 +150,17 @@ pairTest = do
 printCommentParserTest :: Expectation
 printCommentParserTest = do
   P.parseNoEnv P.printComment "" "\"Sides are %[0] x %[1]\"" `shouldBe`
-    Right (UPrintComment [Left "Sides are ", Right (UStackRef 0), Left " x ", Right (UStackRef 1)])
+    Right (PrintComment [Left "Sides are ", Right (StackRef 0), Left " x ", Right (StackRef 1)])
   P.parseNoEnv P.printComment "" "\"%[0] x\"" `shouldBe`
-    Right (UPrintComment [Right (UStackRef 0), Left " x"])
+    Right (PrintComment [Right (StackRef 0), Left " x"])
   P.parseNoEnv P.printComment "" "\"%[0]x%[1]\"" `shouldBe`
-    Right (UPrintComment [Right (UStackRef 0), Left "x", Right (UStackRef 1)])
+    Right (PrintComment [Right (StackRef 0), Left "x", Right (StackRef 1)])
   P.parseNoEnv P.printComment "" "\"%[0]%[1]\"" `shouldBe`
-    Right (UPrintComment [Right (UStackRef 0), Right (UStackRef 1)])
+    Right (PrintComment [Right (StackRef 0), Right (StackRef 1)])
   P.parseNoEnv P.printComment "" "\"xxx\"" `shouldBe`
-    Right (UPrintComment [Left "xxx"])
+    Right (PrintComment [Left "xxx"])
   P.parseNoEnv P.printComment "" "\"\"" `shouldBe`
-    Right (UPrintComment [])
+    Right (PrintComment [])
 
 parserExceptionTest :: Expectation
 parserExceptionTest = do

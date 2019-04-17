@@ -8,7 +8,6 @@ module Michelson.Untyped.Instr
   , Instr
   , ExpandedOp (..)
   , ExpandedInstr
-  , ExtU
   , InstrExtU
   , ExpandedInstrExtU
 
@@ -20,7 +19,6 @@ module Michelson.Untyped.Instr
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as BSL
 import Data.Data (Data(..))
-import qualified Data.Kind as K
 import Fmt (Buildable(build), (+|), (|+))
 import Prelude hiding (EQ, GT, LT)
 import Text.PrettyPrint.Leijen.Text (braces, nest, (<$$>), (<+>))
@@ -28,6 +26,7 @@ import Text.PrettyPrint.Leijen.Text (braces, nest, (<$$>), (<+>))
 import Michelson.Printer.Util (RenderDoc(..), buildRenderDoc, renderOpsList, spaces)
 import Michelson.Untyped.Annotation (FieldAnn, TypeAnn, VarAnn)
 import Michelson.Untyped.Contract (Contract'(..))
+import Michelson.Untyped.Ext (ExtInstrAbstract)
 import Michelson.Untyped.Type (Comparable, Type)
 import Michelson.Untyped.Value (Value'(..))
 import Tezos.Address (Address, mkContractAddressRaw)
@@ -37,30 +36,23 @@ import Tezos.Crypto (KeyHash)
 -------------------------------------
 -- Flattened types after macroexpander
 -------------------------------------
-type InstrExtU = ExtU InstrAbstract Op
+type InstrExtU = ExtInstrAbstract Op
 type Instr = InstrAbstract Op
 newtype Op = Op {unOp :: Instr}
-  deriving stock (Generic)
+  deriving stock (Show, Eq, Generic)
   deriving newtype (RenderDoc, Buildable)
-
-deriving instance Eq (ExtU InstrAbstract Op) => Eq Op
-deriving instance Show (ExtU InstrAbstract Op) => Show Op
 
 -------------------------------------
 -- Types after macroexpander
 -------------------------------------
 
-type ExpandedInstrExtU = ExtU InstrAbstract ExpandedOp
+type ExpandedInstrExtU = ExtInstrAbstract ExpandedOp
 type ExpandedInstr = InstrAbstract ExpandedOp
 
 data ExpandedOp
   = PrimEx ExpandedInstr
   | SeqEx [ExpandedOp]
-  deriving stock (Generic)
-
-deriving instance Eq ExpandedInstr => Eq ExpandedOp
-deriving instance Show ExpandedInstr => Show ExpandedOp
-deriving instance Data ExpandedInstr => Data ExpandedOp
+  deriving stock (Show, Eq, Data, Generic)
 
 instance RenderDoc ExpandedOp where
   renderDoc (PrimEx i)  = renderDoc i
@@ -77,16 +69,13 @@ instance Buildable ExpandedOp where
 -- Abstract instruction
 -------------------------------------
 
--- | ExtU is extension of InstrAbstract by Morley instructions
-type family ExtU (instr :: K.Type -> K.Type) :: K.Type -> K.Type
-
 -- | Michelson instruction with abstract parameter `op`.  This
 -- parameter is necessary, because at different stages of our pipeline
 -- it will be different. Initially it can contain macros and
 -- non-flattened instructions, but then it contains only vanilla
 -- Michelson instructions.
 data InstrAbstract op
-  = EXT               (ExtU InstrAbstract op)
+  = EXT               (ExtInstrAbstract op)
   | DROP
   | DUP               VarAnn
   | SWAP
@@ -167,12 +156,7 @@ data InstrAbstract op
   | SOURCE            VarAnn
   | SENDER            VarAnn
   | ADDRESS           VarAnn
-  deriving (Generic)
-
-deriving instance (Eq op, Eq (ExtU InstrAbstract op)) => Eq (InstrAbstract op)
-deriving instance (Show op, Show (ExtU InstrAbstract op)) => Show (InstrAbstract op)
-deriving instance Functor (ExtU InstrAbstract) => Functor InstrAbstract
-deriving instance (Data op, Data (ExtU InstrAbstract op)) => Data (InstrAbstract op)
+  deriving (Eq, Show, Functor, Data, Generic)
 
 instance (RenderDoc op) => RenderDoc (InstrAbstract op) where
   renderDoc = \case
@@ -290,27 +274,25 @@ data OriginationOperation = OriginationOperation
   -- ^ Initial storage value of the contract.
   , ooContract :: !(Contract' ExpandedOp)
   -- ^ The contract itself.
-  } deriving (Generic)
-
-deriving instance Show ExpandedInstrExtU => Show OriginationOperation
+  } deriving (Show, Generic)
 
 -- | Compute address of a contract from its origination operation.
 --
 -- TODO [TM-62] It's certainly imprecise, real Tezos implementation doesn't
 -- use JSON, but we don't need precise format yet, so we just use some
 -- serialization format (JSON because we have necessary instances already).
-mkContractAddress :: Aeson.ToJSON ExpandedInstrExtU => OriginationOperation -> Address
+mkContractAddress :: OriginationOperation -> Address
 mkContractAddress = mkContractAddressRaw . BSL.toStrict . Aeson.encode
 
 ----------------------------------------------------------------------------
 -- JSON serialization
 ----------------------------------------------------------------------------
 
-instance Aeson.ToJSON Instr => Aeson.ToJSON Op
-instance Aeson.FromJSON Instr => Aeson.FromJSON Op
-instance Aeson.ToJSON ExpandedInstr => Aeson.ToJSON ExpandedOp
-instance Aeson.FromJSON ExpandedInstr => Aeson.FromJSON ExpandedOp
-instance (Aeson.ToJSON op, Aeson.ToJSON (ExtU InstrAbstract op)) => Aeson.ToJSON (InstrAbstract op)
-instance (Aeson.FromJSON op, Aeson.FromJSON (ExtU InstrAbstract op)) => Aeson.FromJSON (InstrAbstract op)
-instance Aeson.FromJSON ExpandedOp => Aeson.FromJSON OriginationOperation
-instance Aeson.ToJSON ExpandedOp => Aeson.ToJSON OriginationOperation
+instance Aeson.ToJSON Op
+instance Aeson.FromJSON Op
+instance Aeson.ToJSON ExpandedOp
+instance Aeson.FromJSON ExpandedOp
+instance Aeson.ToJSON op => Aeson.ToJSON (InstrAbstract op)
+instance Aeson.FromJSON op => Aeson.FromJSON (InstrAbstract op)
+instance Aeson.FromJSON OriginationOperation
+instance Aeson.ToJSON OriginationOperation

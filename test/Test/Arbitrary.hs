@@ -14,10 +14,10 @@ import Test.QuickCheck.Instances.Text ()
 
 import Michelson.Test ()
 import Michelson.Untyped
-  (Annotation(..), CT(..), Comparable(..), Contract'(..), Elt(..), ExpandedOp(..), FieldAnn,
-  InstrAbstract(..), InternalByteString(..), T(..), Type(..), TypeAnn, Value'(..), VarAnn)
-import Morley.Types
-  (ExpandedUExtInstr, StackTypePattern(..), TyVar(..), UExtInstrAbstract(..), Var(..))
+  (Annotation(..), CT(..), Comparable(..), Contract'(..), Elt(..), ExpandedExtInstr,
+  ExpandedOp(..), ExtInstrAbstract(..), FieldAnn, InstrAbstract(..), InternalByteString(..),
+  StackTypePattern(..), T(..), Type(..), TypeAnn, Value'(..), VarAnn)
+import Morley.Types (TyVar(..), Var(..))
 import Tezos.Core (Mutez(..))
 
 instance Arbitrary InternalByteString where
@@ -32,8 +32,8 @@ instance Arbitrary TyVar where
 instance Arbitrary StackTypePattern where
   arbitrary = oneof [pure StkEmpty, pure StkRest, StkCons <$> arbitrary <*> arbitrary]
 
--- TODO extend Arbitrary ExpandedUExtInstr with other constructors
-instance Arbitrary ExpandedUExtInstr where
+-- TODO extend Arbitrary ExpandedExtInstr with other constructors
+instance Arbitrary ExpandedExtInstr where
   arbitrary = oneof [STACKTYPE <$> arbitrary]
 
 instance ToADTArbitrary ExpandedOp
@@ -67,8 +67,8 @@ instance (Arbitrary op, ToADTArbitrary op) => ToADTArbitrary (Contract' op)
 instance (Arbitrary op) => Arbitrary (Contract' op) where
   arbitrary = Contract <$> arbitrary <*> arbitrary <*> arbitrary
 
-instance (Arbitrary op, ToADTArbitrary op, Arbitrary (UExtInstrAbstract op)) => ToADTArbitrary (InstrAbstract op)
-instance (Arbitrary op, Arbitrary (UExtInstrAbstract op)) => Arbitrary (InstrAbstract op) where
+instance (Arbitrary op, ToADTArbitrary op, Arbitrary (ExtInstrAbstract op)) => ToADTArbitrary (InstrAbstract op)
+instance (Arbitrary op, Arbitrary (ExtInstrAbstract op)) => Arbitrary (InstrAbstract op) where
   arbitrary =
     oneof
       [ EXT <$> arbitrary

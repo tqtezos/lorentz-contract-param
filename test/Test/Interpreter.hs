@@ -13,9 +13,9 @@ import Michelson.Interpret
 import Michelson.Test (ContractPropValidator, contractProp, specWithTypedContract)
 import Michelson.Test.Dummy (dummyContractEnv)
 import Michelson.Test.Util (failedProp)
-import Michelson.Typed (CT(..), CValue(..), Instr(..), T(..), ToT, fromVal, toVal, ( # ))
+import Michelson.Typed
+  (CT(..), CValue(..), ExtInstr(..), Instr(..), T(..), ToT, fromVal, toVal, ( # ))
 import qualified Michelson.Typed as T
-import Morley.Types (ExtInstr(..), MorleyLogs, PrintComment(..), mkStackRef)
 import Test.Interpreter.A1.Feather (featherSpec)
 import Test.Interpreter.Auction (auctionSpec)
 import Test.Interpreter.CallSelf (selfCallerSpec)
@@ -134,7 +134,7 @@ spec = describe "Advanced type interpreter tests" $ do
       contractProp contract (validate param) dummyContractEnv param param
 
   it "mkStackRef does not segfault" $ do
-    let printI = Ext $ PRINT (PrintComment $ [Right $ mkStackRef @1])
+    let printI = Ext $ PRINT (T.PrintComment $ [Right $ T.mkStackRef @1])
     let contract = DROP # PUSH (toVal ()) # DUP # printI # DROP # NIL # PAIR
     contractProp contract (isRight . fst) dummyContractEnv () ()
 
@@ -150,7 +150,7 @@ validateBasic1 input (Right (ops, res), _) =
 validateBasic1 _ (Left e, _) = failedProp $ show e
 
 validateStepsToQuotaTest ::
-     ContractReturn MorleyLogs ('Tc 'CNat) -> RemainingSteps -> Expectation
+     ContractReturn ('Tc 'CNat) -> RemainingSteps -> Expectation
 validateStepsToQuotaTest res numOfSteps =
   case fst res of
     Right ([], T.VC (CvNat x)) ->

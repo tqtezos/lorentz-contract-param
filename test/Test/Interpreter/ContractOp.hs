@@ -39,7 +39,7 @@ contractOpSpec = parallel $ describe "CONTRACT instruction tests" $ do
 
     validate
       :: Bool
-      -> ContractReturn s (ToT Bool)
+      -> ContractReturn (ToT Bool)
       -> Property
     validate ex (Right ([], fromVal -> l), _) = l === ex
     validate _ (Left _, _) = failedProp "Unexpected fail in interepreter"

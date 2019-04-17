@@ -29,17 +29,17 @@ typeCheckExt
   :: forall s.
      (Typeable s)
   => TypeCheckListHandler s
-  -> ExpandedUExtInstr
+  -> U.ExpandedExtInstr
   -> TcExtFrames
   -> HST s
-  -> TypeCheckT (TcExtFrames, Maybe (ExtInstr s))
+  -> TypeCheckT (TcExtFrames, Maybe (T.ExtInstr s))
 typeCheckExt typeCheckListH ext nfs hst =
   case ext of
-    STACKTYPE s -> fitError $ (nfs, Nothing) <$ checkStackType noBoundVars s hst
-    FN t sf     -> fitError $ (, Nothing) <$> checkFn t sf hst nfs
-    FN_END      -> fitError $ (safeTail nfs, Nothing) <$ checkFnEnd hst nfs
-    UPRINT pc   -> verifyPrint pc <&> \tpc -> (nfs, Just $ PRINT tpc)
-    UTEST_ASSERT UTestAssert{..} -> do
+    U.STACKTYPE s -> fitError $ (nfs, Nothing) <$ checkStackType noBoundVars s hst
+    U.FN t sf     -> fitError $ (, Nothing) <$> checkFn t sf hst nfs
+    U.FN_END      -> fitError $ (safeTail nfs, Nothing) <$ checkFnEnd hst nfs
+    U.UPRINT pc   -> verifyPrint pc <&> \tpc -> (nfs, Just $ T.PRINT tpc)
+    U.UTEST_ASSERT U.TestAssert{..} -> do
       verifyPrint tassComment
       _ :/ si <- typeCheckListH tassInstrs hst
       case si of
@@ -51,15 +51,15 @@ typeCheckExt typeCheckListH ext nfs hst =
                            TestAssertError "TEST_ASSERT has to return Bool, but returned something else") $
                       eqType @b @('T.Tc 'CBool)
           tcom <- verifyPrint tassComment
-          pure (nfs, Just $ TEST_ASSERT $ TestAssert tassName tcom instr)
+          pure (nfs, Just $ T.TEST_ASSERT $ T.TestAssert tassName tcom instr)
         _ -> throwError $ TCExtError (SomeHST hst) $ TestAssertError "TEST_ASSERT has to return Bool, but the stack is empty"
   where
-    verifyPrint :: UPrintComment -> TypeCheckT (PrintComment s)
-    verifyPrint (UPrintComment pc) = do
+    verifyPrint :: U.PrintComment -> TypeCheckT (T.PrintComment s)
+    verifyPrint (U.PrintComment pc) = do
       let checkStRef (Left txt) = pure (Left txt)
-          checkStRef (Right (UStackRef i)) = Right <$> do
+          checkStRef (Right (U.StackRef i)) = Right <$> do
             liftEither $ createStackRef i hst
-      PrintComment <$> traverse checkStRef pc
+      T.PrintComment <$> traverse checkStRef pc
 
     safeTail :: [a] -> [a]
     safeTail (_:as) = as
@@ -80,12 +80,12 @@ checkFn
   => Text -> StackFn -> HST s -> TcExtFrames -> Either ExtError TcExtFrames
 checkFn t sf it nfs = do
   checkVars t sf
-  second (const $ (FN t sf, SomeHST it) : nfs) (checkStackType noBoundVars (inPattern sf) it)
+  second (const $ (U.FN t sf, SomeHST it) : nfs) (checkStackType noBoundVars (inPattern sf) it)
 
 -- |  Pops a @ExtFrame@ off the state and checks an @FN_END@ based on it
 checkFnEnd :: Typeable s => HST s -> TcExtFrames -> Either ExtError BoundVars
 checkFnEnd it' (nf@(nop, SomeHST it):_) = case nop of
-  FN t sf -> do
+  U.FN t sf -> do
     checkVars t sf
     m <- checkStackType noBoundVars (inPattern sf) it
     checkStackType m (outPattern sf) it'
@@ -98,26 +98,26 @@ noBoundVars :: BoundVars
 noBoundVars = BoundVars Map.empty Nothing
 
 -- | Check that a @StackTypePattern@ matches the type of the current stack
-checkStackType :: Typeable xs => BoundVars -> StackTypePattern -> HST xs
+checkStackType :: Typeable xs => BoundVars -> U.StackTypePattern -> HST xs
                -> Either ExtError BoundVars
 checkStackType (BoundVars vars boundStkRest) s it = go vars 0 s it
   where
-    go :: Typeable xs => Map Var Type -> Int -> StackTypePattern -> HST xs
+    go :: Typeable xs => Map Var Type -> Int -> U.StackTypePattern -> HST xs
        -> Either ExtError BoundVars
-    go m _ StkRest sr = case boundStkRest of
+    go m _ U.StkRest sr = case boundStkRest of
       Nothing -> pure $ BoundVars m (Just $ SomeHST sr)
       Just si@(SomeHST sr') ->
         bimap (StkRestMismatch s (SomeHST sr) si)
               (const $ BoundVars m (Just si))
               (eqHST sr sr')
-    go m _ StkEmpty SNil = pure $ BoundVars m Nothing
-    go _ _ StkEmpty _    = Left $ LengthMismatch s
+    go m _ U.StkEmpty SNil = pure $ BoundVars m Nothing
+    go _ _ U.StkEmpty _    = Left $ LengthMismatch s
     go _ _ _ SNil        = Left $ LengthMismatch s
-    go m n (StkCons (TyCon t) ts) ((xt, xann, _) ::& xs) = do
+    go m n (U.StkCons (TyCon t) ts) ((xt, xann, _) ::& xs) = do
       tann <- first (TypeMismatch s n . ExtractionTypeMismatch) (extractNotes t xt)
       void $ first (TypeMismatch s n . AnnError) (converge tann xann)
       go m (n + 1) ts xs
-    go m n (StkCons (VarID v) ts) ((xt, xann, _) ::& xs) =
+    go m n (U.StkCons (VarID v) ts) ((xt, xann, _) ::& xs) =
       case lookup v m of
         Nothing -> let t = mkUType xt xann in go (insert v t m) (n + 1) ts xs
         Just t -> do
@@ -138,18 +138,18 @@ lengthHST SNil = 0
 -- | Create stack reference accessing element with a given index.
 --
 -- Fails when index is too large for the given stack.
-createStackRef :: Typeable s => Natural -> HST s -> Either TCError (StackRef s)
+createStackRef :: Typeable s => Natural -> HST s -> Either TCError (T.StackRef s)
 createStackRef idx hst =
   case doCreate (hst, idx) of
     Just sr -> Right sr
     Nothing -> Left $
       TCExtError (SomeHST hst) $
-      InvalidStackReference (UStackRef idx) (StackSize $ lengthHST hst)
+      InvalidStackReference (U.StackRef idx) (StackSize $ lengthHST hst)
   where
-    doCreate :: forall s. (HST s, Natural) -> Maybe (StackRef s)
+    doCreate :: forall s. (HST s, Natural) -> Maybe (T.StackRef s)
     doCreate = \case
       (SNil, _) -> Nothing
-      ((_ ::& _), 0) -> Just (StackRef SZ)
+      ((_ ::& _), 0) -> Just (T.StackRef SZ)
       ((_ ::& st), i) -> do
-        StackRef ns <- doCreate (st, i - 1)
-        return $ StackRef (SS ns)
+        T.StackRef ns <- doCreate (st, i - 1)
+        return $ T.StackRef (SS ns)

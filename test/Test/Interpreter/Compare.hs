@@ -14,14 +14,13 @@ import Michelson.Test.Dummy
 import Michelson.Test.Util (failedProp)
 import Michelson.Typed (ToT, fromVal)
 import qualified Michelson.Typed as T
-import Morley.Types (MorleyLogs)
 import Tezos.Core (Mutez, unsafeMkMutez)
 
 type Param = (Mutez, Mutez)
 type ContractStorage = T.Value (ToT [Bool])
 type ContractResult x
    = ( Either MichelsonFailed ([x], ContractStorage)
-     , InterpreterState MorleyLogs)
+     , InterpreterState)
 
 -- | Spec to test compare.tz contract.
 compareSpec :: Spec

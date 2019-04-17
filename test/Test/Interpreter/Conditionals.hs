@@ -15,13 +15,12 @@ import Michelson.Test.Dummy (dummyContractEnv)
 import Michelson.Test.Util (failedProp, qcIsLeft, qcIsRight)
 import Michelson.Typed (CValue(..), ToT)
 import qualified Michelson.Typed as T
-import Morley.Types (MorleyLogs)
 
 type Param = Either Text (Maybe Integer)
 type ContractStorage = T.Value (ToT Text)
 type ContractResult x
    = ( Either MichelsonFailed ([x], ContractStorage)
-     , InterpreterState MorleyLogs)
+     , InterpreterState)
 
 -- | Spec to test conditionals.tz contract.
 conditionalsSpec :: Spec

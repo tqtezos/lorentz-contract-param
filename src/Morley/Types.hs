@@ -44,8 +44,6 @@ module Morley.Types
   , LetEnv (..)
   , noLetEnv
 
-  , UExtInstrAbstract(..)
-
   -- * Morley Parsed instruction types
   , ParsedInstr
   , ParsedOp (..)
@@ -55,32 +53,17 @@ module Morley.Types
   -- * Morley Expanded instruction types
   , U.ExpandedInstr
   , U.ExpandedOp (..)
-  , ExpandedUExtInstr
 
   -- * Michelson Instructions and Instruction Macros
   , PairStruct (..)
   , CadrStruct (..)
   , Macro (..)
 
-  -- * Morley Instructions
-  , ExtInstr(..)
-  , TestAssert (..)
-  , UTestAssert (..)
-  , PrintComment (..)
-  , UPrintComment (..)
-  , StackTypePattern (..)
-  , stackTypePatternToList
-  , StackRef(..)
-  , UStackRef(..)
-  , mkStackRef
-
-  , MorleyLogs (..)
-  , noMorleyLogs
   --  * Let-block
-  , StackFn(..)
-  , Var (..)
-  , TyVar (..)
-  , varSet
+  , U.StackFn(..)
+  , U.Var (..)
+  , U.TyVar (..)
+  , U.varSet
   , LetMacro (..)
   , LetValue (..)
   , LetType (..)
@@ -90,23 +73,15 @@ import Data.Aeson.TH (defaultOptions, deriveJSON)
 import Data.Data (Data(..))
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Set (Set)
-import qualified Data.Set as Set
-import Data.Singletons (Sing, SingI(..))
 import qualified Data.Text as T
-import Fmt (Buildable(build), Builder, genericF, listF, (+|), (+||), (|+), (||+))
+import Fmt (Buildable(build), genericF, (+|), (|+))
 import Text.Megaparsec (ParseErrorBundle, Parsec, ShowErrorComponent(..), errorBundlePretty)
 import qualified Text.PrettyPrint.Leijen.Text as PP (empty)
 import qualified Text.Show (show)
 
-import Michelson.EqParam (eqParam1, eqParam2)
 import Michelson.Printer (RenderDoc(..))
-import Michelson.Typed (instrToOps)
-import qualified Michelson.Typed as T
 import qualified Michelson.Untyped as U
 import Util.Default (Default(..))
-import Util.Peano
-  (KnownPeano(..), LongerThan, Peano, RequireLongerThan, ToPeano, requiredLongerThan)
 
 -------------------------------------
 -- Types for the parser
@@ -155,39 +130,9 @@ noLetEnv = LetEnv Map.empty Map.empty Map.empty
 -- Types produced by parser
 -------------------------------------
 
--- TODO Move this to Morley.Untyped
--- | Implementation-specific instructions embedded in a @NOP@ primitive, which
--- mark a specific point during a contract's typechecking or execution.
---
--- These instructions are not allowed to modify the contract's stack, but may
--- impose additional constraints that can cause a contract to report errors in
--- type-checking or testing.
---
--- Additionaly, some implementation-specific language features such as
--- type-checking of @LetMacro@s are implemented using this mechanism
--- (specifically @FN@ and @FN_END@).
-data UExtInstrAbstract op =
-    STACKTYPE StackTypePattern -- ^ Matches current stack against a type-pattern
-  | FN T.Text StackFn          -- ^ Begin a typed stack function (push a @TcExtFrame@)
-  | FN_END                     -- ^ End a stack function (pop a @TcExtFrame@)
-  | UTEST_ASSERT (UTestAssert op)   -- ^ Copy the current stack and run an inline assertion on it
-  | UPRINT UPrintComment         -- ^ Print a comment with optional embedded @StackRef@s
-  deriving (Eq, Show, Data, Generic, Functor)
+type ParsedUTestAssert = U.TestAssert ParsedOp
 
-instance Buildable op => Buildable (UExtInstrAbstract op) where
-  build = genericF
-
--- TODO replace ParsedOp in ExpandedUExtInstr with op
--- to reflect Parsed, Expanded and Flattened phase
-
-type instance U.ExtU U.InstrAbstract = UExtInstrAbstract
-type instance T.ExtT T.Instr = ExtInstr
-
----------------------------------------------------
-
-type ParsedUTestAssert = UTestAssert ParsedOp
-
-type ParsedUExtInstr = UExtInstrAbstract ParsedOp
+type ParsedUExtInstr = U.ExtInstrAbstract ParsedOp
 
 type ParsedInstr = U.InstrAbstract ParsedOp
 
@@ -211,49 +156,6 @@ instance Buildable ParsedOp where
   build (Mac macro)       = "<Mac: "+|macro|+">"
   build (LMac letMacro)   = "<LMac: "+|letMacro|+">"
   build (Seq parsedOps)   = "<Seq: "+|parsedOps|+">"
-
-type ExpandedUExtInstr = UExtInstrAbstract U.ExpandedOp
-
----------------------------------------------------
-
-data TestAssert (s :: [T.T]) where
-  TestAssert
-    :: (Typeable out)
-    => T.Text
-    -> PrintComment inp
-    -> T.Instr inp ('T.Tc 'T.CBool ': out)
-    -> TestAssert inp
-
-deriving instance Show (TestAssert s)
-
-instance Typeable s => Eq (TestAssert s) where
-  TestAssert   name1 pattern1 instr1
-    ==
-    TestAssert name2 pattern2 instr2
-    = and
-    [ name1 == name2
-    , pattern1 `eqParam1` pattern2
-    , instr1 `eqParam2` instr2
-    ]
-
-data ExtInstr s
-  = TEST_ASSERT (TestAssert s)
-  | PRINT (PrintComment s)
-  deriving (Show, Eq)
-
-instance T.Conversible (ExtInstr s) (UExtInstrAbstract U.ExpandedOp) where
-  convert (PRINT pc) = UPRINT (T.convert pc)
-  convert (TEST_ASSERT (TestAssert nm pc i)) =
-    UTEST_ASSERT $ UTestAssert nm (T.convert pc) (instrToOps i)
-
--- | Morley interpreter state
-newtype MorleyLogs = MorleyLogs
-  { unMorleyLogs :: [T.Text]
-  } deriving stock (Eq, Show)
-    deriving newtype (Default, Buildable)
-
-noMorleyLogs :: MorleyLogs
-noMorleyLogs = MorleyLogs []
 
 ---------------------------------------------------
 
@@ -327,98 +229,10 @@ instance Buildable Macro where
 
 ---------------------------------------------------
 
--- | A reference into the stack.
-newtype UStackRef = UStackRef Natural
-  deriving (Eq, Show, Data, Generic)
-
-instance Buildable UStackRef where
-  build (UStackRef i) = "%[" <> show i <> "]"
-
--- | A reference into the stack of a given type.
-data StackRef (st :: [T.T]) where
-  -- | Keeps 0-based index to a stack element counting from the top.
-  StackRef
-    :: (KnownPeano idx, LongerThan st idx)
-    => Sing (idx :: Peano) -> StackRef st
-
-instance Eq (StackRef st) where
-  StackRef snat1 == StackRef snat2 = peanoVal snat1 == peanoVal snat2
-
-instance Show (StackRef st) where
-  show (StackRef snat) = "StackRef {" +|| peanoVal snat ||+ "}"
-
-instance Buildable (StackRef st) where
-  build = build @UStackRef . T.convert
-
-instance T.Conversible (StackRef s) UStackRef where
-  convert (StackRef n) = UStackRef (peanoVal n)
-
--- | Create a stack reference, performing checks at compile time.
-mkStackRef
-  :: forall (gn :: Nat) st n.
-      (n ~ ToPeano gn, SingI n, KnownPeano n, RequireLongerThan st n)
-  => StackRef st
-mkStackRef = requiredLongerThan @st @n $ StackRef $ sing @(ToPeano gn)
-
-newtype Var = Var T.Text deriving (Eq, Show, Ord, Data, Generic)
-
-instance Buildable Var where
-  build = genericF
-
--- | A type-variable or a type-constant
-data TyVar =
-    VarID Var
-  | TyCon U.Type
-  deriving (Eq, Show, Data, Generic)
-
-instance Buildable TyVar where
-  build = genericF
-
--- | A stack pattern-match
-data StackTypePattern
- = StkEmpty
- | StkRest
- | StkCons TyVar StackTypePattern
-  deriving (Eq, Show, Data, Generic)
-
--- | Convert 'StackTypePattern' to a list of types. Also returns
--- 'Bool' which is 'True' if the pattern is a fixed list of types and
--- 'False' if it's a pattern match on the head of the stack.
-stackTypePatternToList :: StackTypePattern -> ([TyVar], Bool)
-stackTypePatternToList StkEmpty = ([], True)
-stackTypePatternToList StkRest = ([], False)
-stackTypePatternToList (StkCons t pat) =
-  first (t :) $ stackTypePatternToList pat
-
-instance Buildable StackTypePattern where
-  build = listF . pairToList . stackTypePatternToList
-    where
-      pairToList :: ([TyVar], Bool) -> [Builder]
-      pairToList (types, fixed)
-        | fixed = map build types
-        | otherwise = map build types ++ ["..."]
-
--- | A stack function that expresses the type signature of a @LetMacro@
-data StackFn = StackFn
-  { quantifiedVars :: Maybe (Set Var)
-  , inPattern :: StackTypePattern
-  , outPattern :: StackTypePattern
-  } deriving (Eq, Show, Data, Generic)
-
-instance Buildable StackFn where
-  build = genericF
-
--- | Get the set of variables in a stack pattern
-varSet :: StackTypePattern -> Set Var
-varSet StkEmpty = Set.empty
-varSet StkRest = Set.empty
-varSet (StkCons (VarID v) stk) = v `Set.insert` (varSet stk)
-varSet (StkCons _ stk) = varSet stk
-
 -- | A programmer-defined macro
 data LetMacro = LetMacro
   { lmName :: T.Text
-  , lmSig :: StackFn
+  , lmSig :: U.StackFn
   , lmExpr :: [ParsedOp]
   } deriving (Eq, Show, Data, Generic)
 
@@ -438,46 +252,10 @@ data LetType = LetType
   , ltSig :: U.Type
   } deriving (Eq, Show)
 
-newtype UPrintComment = UPrintComment
-  { unUPrintComment :: [Either T.Text UStackRef]
-  } deriving (Eq, Show, Data, Generic)
-
-instance Buildable UPrintComment where
-  build = foldMap (either build build) . unUPrintComment
-
--- | A print format with references into the stack
-newtype PrintComment (st :: [T.T]) = PrintComment
-  { unPrintComment :: [Either T.Text (StackRef st)]
-  } deriving (Eq, Show, Generic)
-
-instance Buildable (PrintComment st) where
-  build = build @UPrintComment . T.convert
-
-instance T.Conversible (PrintComment s) UPrintComment where
-  convert (PrintComment pc) = UPrintComment $ map (second T.convert) pc
-
--- An inline test assertion
-data UTestAssert op = UTestAssert
-  { tassName :: T.Text
-  , tassComment :: UPrintComment
-  , tassInstrs :: [op]
-  } deriving (Eq, Show, Functor, Data, Generic)
-
-instance Buildable code => Buildable (UTestAssert code) where
-  build = genericF
-
 deriveJSON defaultOptions ''ParsedOp
-deriveJSON defaultOptions ''UExtInstrAbstract
-deriveJSON defaultOptions ''UPrintComment
-deriveJSON defaultOptions ''StackTypePattern
-deriveJSON defaultOptions ''UStackRef
-deriveJSON defaultOptions ''StackFn
-deriveJSON defaultOptions ''Var
-deriveJSON defaultOptions ''TyVar
 deriveJSON defaultOptions ''LetMacro
 deriveJSON defaultOptions ''LetValue
 deriveJSON defaultOptions ''LetType
-deriveJSON defaultOptions ''UTestAssert
 deriveJSON defaultOptions ''PairStruct
 deriveJSON defaultOptions ''CadrStruct
 deriveJSON defaultOptions ''Macro

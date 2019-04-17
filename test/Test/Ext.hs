@@ -5,13 +5,15 @@ module Test.Ext
 
 import Test.Hspec (Expectation, Spec, describe, expectationFailure, it, shouldSatisfy)
 
-import Michelson.Interpret (InterpreterState(..), interpret)
+import Michelson.Interpret (InterpreterState(..), MorleyLogs(..), interpret)
 import Michelson.Test (specWithTypedContract)
 import Michelson.Test.Dummy (dummyContractEnv)
 import Michelson.TypeCheck (HST(..), SomeHST(..), runTypeCheckT, typeCheckExt, typeCheckList)
 import Michelson.Typed (CValue(..), extractNotes, fromUType, withSomeSingT)
 import qualified Michelson.Typed as T
-import Michelson.Untyped (CT(..), T(..), Type(..), ann, noAnn)
+import Michelson.Untyped
+  (CT(..), ExpandedExtInstr, ExtInstrAbstract(..), StackTypePattern(..), T(..), Type(..), ann,
+  noAnn)
 import Morley.Types
 
 interpretHandlerSpec :: Spec
@@ -74,7 +76,7 @@ typeCheckHandlerSpec = describe "typeCheckExt STACKTYPE tests" $ do
     nh (ni, si) =
       runTypeCheckT (Type TKey noAnn) mempty $ typeCheckExt typeCheckList ni [] si
 
-    runNopTest :: (ExpandedUExtInstr, SomeHST) -> Bool -> Expectation
+    runNopTest :: (ExpandedExtInstr, SomeHST) -> Bool -> Expectation
     runNopTest (ui, SomeHST hst) correct = case (nh (ui, hst), correct) of
       (Right _, False) -> expectationFailure $ "Test expected to fail but it passed"
       (Left e, True)   -> expectationFailure $ "Test expected to pass but it failed with error: " <> show e
