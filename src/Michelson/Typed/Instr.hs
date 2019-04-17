@@ -8,6 +8,8 @@ module Michelson.Typed.Instr
   , PrintComment (..)
   , TestAssert (..)
   , (#)
+  , type ( & )
+  , (:+>)
   , Contract
   ) where
 
@@ -32,6 +34,12 @@ import Util.Peano
 (#) = Seq
 
 infixl 0 #
+
+type (&) (a :: T) (b :: [T]) = a ': b
+infixr 2 &
+
+type (:+>) = Instr
+infixr 1 :+>
 
 -- | Representation of Michelson instruction or sequence
 -- of instructions.
