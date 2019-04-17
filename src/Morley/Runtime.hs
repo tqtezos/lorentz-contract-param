@@ -24,9 +24,13 @@ module Morley.Runtime
        , InterpreterRes (..)
        , InterpreterError (..)
        , interpreterPure
+
+       -- * To avoid warnings (can't generate lenses only for some fields)
+       , irInterpretResults
+       , irUpdates
        ) where
 
-import Control.Lens (at, makeLenses, (%=), (.=), (<>=))
+import Control.Lens (at, makeLenses, (%=))
 import Control.Monad.Except (Except, runExcept, throwError)
 import Data.Text.IO (getContents)
 import Fmt (Buildable(build), blockListF, fmt, fmtLn, nameF, pretty, (+|), (|+))
@@ -92,6 +96,20 @@ data InterpreterRes = InterpreterRes
   } deriving (Show)
 
 makeLenses ''InterpreterRes
+
+-- Note that it's not commutative.
+-- It applies to the case when we have some InterpreterRes already
+-- and get a new one after performing some operations.
+instance Semigroup InterpreterRes where
+  a <> b =
+    InterpreterRes
+      { _irGState = _irGState b
+      , _irOperations = _irOperations b
+      , _irUpdates = _irUpdates a <> _irUpdates b
+      , _irInterpretResults = _irInterpretResults a <> _irInterpretResults b
+      , _irSourceAddress = _irSourceAddress a <|> _irSourceAddress b
+      , _irRemainingSteps = _irRemainingSteps b
+      }
 
 -- | Errors that can happen during contract interpreting.
 data InterpreterError
@@ -271,19 +289,33 @@ interpreter maybeNow maxSteps dbPath operations
 
 -- | Implementation of interpreter outside 'IO'.  It reads operations,
 -- interprets them one by one and updates state accordingly.
+-- Each operation from the passed list is fully interpreted before
+-- the next one is considered.
 interpreterPure ::
   Timestamp -> RemainingSteps -> GState -> [InterpreterOp] -> Either InterpreterError InterpreterRes
-interpreterPure now maxSteps gState ops =
-    runExcept (execStateT (statefulInterpreter now) initialState)
+interpreterPure now maxSteps gState =
+  foldM step initialState
   where
+    -- Note that we can't just put all operations into '_irOperations'
+    -- and call 'statefulInterpreter' once, because in this case the
+    -- order of operations will be wrong. We need to consider
+    -- top-level operations (passed to this function) and operations returned by contracts separatety.
+    -- Specifically, suppose that we want to interpreter two 'TransferOp's: [t1, t2].
+    -- If t1 returns an operation, it should be performed before t2, but if we just
+    -- pass [t1, t2] as '_irOperations' then 't2' will done immediately after 't1'.
     initialState = InterpreterRes
       { _irGState = gState
-      , _irOperations = ops
+      , _irOperations = []
       , _irUpdates = mempty
       , _irInterpretResults = []
       , _irSourceAddress = Nothing
       , _irRemainingSteps = maxSteps
       }
+
+    step :: InterpreterRes -> InterpreterOp -> Either InterpreterError InterpreterRes
+    step currentRes op =
+      let start = currentRes { _irOperations = [op] }
+       in (currentRes <>) <$> runExcept (execStateT (statefulInterpreter now) start)
 
 statefulInterpreter
   :: Timestamp
@@ -298,13 +330,10 @@ statefulInterpreter now = do
       either throwError (processIntRes opsTail) $
       interpretOneOp now remainingSteps mSourceAddr curGState op
   where
-    processIntRes opsTail InterpreterRes {..} = do
-      irGState .= _irGState
-      irOperations .= opsTail <> _irOperations
-      irUpdates <>= _irUpdates
-      irInterpretResults <>= _irInterpretResults
-      irSourceAddress %= (<|> _irSourceAddress)
-      irRemainingSteps .= _irRemainingSteps
+    processIntRes opsTail ir = do
+      -- Not using `<>=` because it requires `Monoid` for no reason.
+      id %= (<> ir)
+      irOperations %= (opsTail <>)
       statefulInterpreter now
 
 -- | Run only one interpreter operation and update 'GState' accordingly.
@@ -473,4 +502,3 @@ convertOp interpretedAddr =
             , ooContract = convertContract (ccContractCode cc)
             }
        in Just (OriginateOp origination)
-
