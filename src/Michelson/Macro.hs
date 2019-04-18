@@ -79,7 +79,7 @@ expandMacro = \case
                            , Prim $ PAIR noAnn noAnn noAnn noAnn
                            ]
   VOID a             -> xp [ Mac $ UNPAIR (P (F (noAnn,noAnn)) (F (noAnn,noAnn)))
-                           , Prim $ SWAP, Seq a, Prim $ EXEC noAnn
+                           , Prim SWAP, Prim $ DIP a, Prim SWAP, Prim $ EXEC noAnn
                            , Prim FAILWITH
                            ]
   CASE (x:|[])       -> expand <$> x
