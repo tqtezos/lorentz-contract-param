@@ -239,10 +239,11 @@ expectGasExhaustion =
 
 -- | Expect that interpretation of contract with given address ended
 -- with [FAILED].
-expectMichelsonFailed :: Address -> InterpreterError -> Bool
-expectMichelsonFailed addr =
+expectMichelsonFailed :: (MichelsonFailed -> Bool) -> Address -> InterpreterError -> Bool
+expectMichelsonFailed predicate addr =
   \case
-    IEInterpreterFailed failedAddr (RuntimeFailure {}) -> addr == failedAddr
+    IEInterpreterFailed failedAddr (RuntimeFailure (mf, _)) ->
+      addr == failedAddr && predicate mf
     _ -> False
 
 ----------------------------------------------------------------------------

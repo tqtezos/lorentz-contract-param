@@ -98,7 +98,7 @@ integrationalScenario contract fixture = do
   let
     validator
       | shouldExpectFailed fixture =
-        Left $ expectMichelsonFailed environmentAddress
+        Left $ expectMichelsonFailed (const True) environmentAddress
       | otherwise =
         Right $ expectStorageConst environmentAddress $ shouldReturn fixture
   validate validator

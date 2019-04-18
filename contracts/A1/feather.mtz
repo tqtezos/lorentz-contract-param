@@ -5,10 +5,11 @@ let {
   toCounter :: '[Parameter, Storage]
             -> '[(List Operation, Storage)]
   = { car; dip {self}; pair;
+      left (Void Unit Bytes);
       right nat;
       right unit;
       right unit;
-      dip {dup; car; contract (unit | unit | nat | view unit nat); assert_some; amount};
+      dip {dup; car; contract (Unit | Unit | Nat | View Unit Nat | Void Unit Bytes); assert_some; amount};
       transfer_tokens;
       nil operation; swap; cons;
       dip {car; sender; some; swap; pair}; pair
@@ -17,7 +18,7 @@ let {
   toCaller :: '[Nat, Parameter, Storage]
            -> '[(List Operation, Storage)]
   = { left unit;
-      dip {drop; dup; cdr; assert_some; contract (nat | unit); assert_some; amount; };
+      dip {drop; dup; cdr; assert_some; contract (Nat | Unit); assert_some; amount; };
       transfer_tokens;
       nil operation; swap; cons;
       dip {car; none address; swap; pair}; pair

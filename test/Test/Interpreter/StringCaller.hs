@@ -100,7 +100,7 @@ integrationalScenario stringCaller failOrStoreAndTransfer str = do
 
   -- This time execution should fail, because failOrStoreAndTransfer should fail
   -- because its balance is greater than 1000.
-  void $ validate (Left $ expectMichelsonFailed failOrStoreAndTransferAddress)
+  void $ validate (Left $ expectMichelsonFailed (const True) failOrStoreAndTransferAddress)
 
   -- We can also send tokens from failOrStoreAndTransfer to tz1 address directly
   let
@@ -136,7 +136,7 @@ integrationalScenario stringCaller failOrStoreAndTransfer str = do
   -- Now let's set NOW to 600 and expect stringCaller to fail
   setNow (timestampFromSeconds @Int 600)
   transferToStringCaller
-  validate (Left $ expectMichelsonFailed stringCallerAddress)
+  validate (Left $ expectMichelsonFailed (const True) stringCallerAddress)
 
 -- Address hardcoded in 'failOrStoreAndTransfer.tz'.
 constAddr :: Address
