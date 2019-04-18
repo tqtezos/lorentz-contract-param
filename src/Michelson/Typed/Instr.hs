@@ -49,13 +49,6 @@ infixl 0 #
 --
 -- Type parameter @out@ states for output stack type or type
 -- of stack that will be left after instruction's execution.
-
--- pva701: Typeable constraints are added during TM-29.
--- Maybe it makes sense to think how to eliminate them
--- if they break something
--- martoon: I confirm that there seem to be many extra
--- Typeable constraints. One in 'Seq' introduced during TM-29
--- I have removed, but for Lorenz' sake we may want to go further.
 data Instr (inp :: [T]) (out :: [T]) where
   Seq :: Instr a b -> Instr b c -> Instr a c
   -- | Nop operation. Missing in Michelson spec, added to parse construction
@@ -75,8 +68,7 @@ data Instr (inp :: [T]) (out :: [T]) where
   NONE :: forall a s . SingI a => Instr s ('TOption a ': s)
   UNIT :: Instr s ('TUnit ': s)
   IF_NONE
-    :: (Typeable a, Typeable s)
-    => Instr s s'
+    :: Instr s s'
     -> Instr (a ': s) s'
     -> Instr ('TOption a ': s) s'
   PAIR :: Instr (a ': b ': s) ('TPair a b ': s)
@@ -85,15 +77,13 @@ data Instr (inp :: [T]) (out :: [T]) where
   LEFT :: forall b a s . SingI b => Instr (a ': s) ('TOr a b ': s)
   RIGHT :: forall a b s . SingI a => Instr (b ': s) ('TOr a b ': s)
   IF_LEFT
-    :: (Typeable s, Typeable a, Typeable b)
-    => Instr (a ': s) s'
+    :: Instr (a ': s) s'
     -> Instr (b ': s) s'
     -> Instr ('TOr a b ': s) s'
   NIL :: SingI p => Instr s ('TList p ': s)
   CONS :: Instr (a ': 'TList a ': s) ('TList a ': s)
   IF_CONS
-    :: (Typeable s, Typeable a)
-    => Instr (a ': 'TList a ': s) s'
+    :: Instr (a ': 'TList a ': s) s'
     -> Instr s s'
     -> Instr ('TList a ': s) s'
   SIZE :: SizeOp c => Instr (c ': s) ('Tc 'CNat ': s)
@@ -110,21 +100,18 @@ data Instr (inp :: [T]) (out :: [T]) where
   UPDATE
     :: UpdOp c
     => Instr ('Tc (UpdOpKey c) ': UpdOpParams c ': c ': s) (c ': s)
-  IF :: Typeable s
-     => Instr s s'
+  IF :: Instr s s'
      -> Instr s s'
      -> Instr ('Tc 'CBool ': s) s'
-  LOOP :: Typeable s
-       => Instr s ('Tc 'CBool ': s)
+  LOOP :: Instr s ('Tc 'CBool ': s)
        -> Instr ('Tc 'CBool ': s) s
   LOOP_LEFT
-    :: (Typeable a, Typeable s)
-    => Instr (a ': s) ('TOr a b ': s)
+    :: Instr (a ': s) ('TOr a b ': s)
     -> Instr ('TOr a b ': s) (b ': s)
   LAMBDA :: forall i o s . (Each [Typeable, SingI] [i, o])
          => Value' Instr ('TLambda i o) -> Instr s ('TLambda i o ': s)
-  EXEC :: Typeable t1 => Instr (t1 ': 'TLambda t1 t2 ': s) (t2 ': s)
-  DIP :: Typeable a => Instr a c -> Instr (b ': a) (b ': c)
+  EXEC :: Instr (t1 ': 'TLambda t1 t2 ': s) (t2 ': s)
+  DIP :: Instr a c -> Instr (b ': a) (b ': c)
   FAILWITH :: (Typeable a, SingI a) => Instr (a ': s) t
   CAST :: forall a s . SingI a => Instr (a ': s) (a ': s)
   RENAME :: Instr (a ': s) (a ': s)

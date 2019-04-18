@@ -174,7 +174,7 @@ validateMichelsonFailsWith v (res, _) = res `shouldBe` Left (MichelsonFailedWith
 --    ADD;
 --    PUSH nat 12
 --    ADD;
-_myInstr :: Typeable s => Instr ('Tc 'CInt : s) ('Tc 'CInt : s)
+_myInstr :: Instr ('Tc 'CInt : s) ('Tc 'CInt : s)
 _myInstr =
   PUSH (T.VC $ CvInt 223) #
   SOME #
