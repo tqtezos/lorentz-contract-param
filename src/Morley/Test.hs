@@ -19,6 +19,7 @@ module Morley.Test
   , IntegrationalValidator
   , SuccessValidator
   , IntegrationalScenario
+  , IntegrationalScenarioM
   , integrationalTestExpectation
   , integrationalTestProperty
   , originate

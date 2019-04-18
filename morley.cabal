@@ -54,6 +54,7 @@ library
                      , Tezos.Address
                      , Tezos.Core
                      , Tezos.Crypto
+                     , Util.Alternative
                      , Util.Peano
   other-modules:
                        Michelson.EqParam
@@ -238,6 +239,7 @@ test-suite morley-test
                      , Test.Interpreter.Conditionals
                      , Test.Interpreter.ContractOp
                      , Test.Interpreter.EnvironmentSpec
+                     , Test.Interpreter.A1.Feather
                      , Test.Interpreter.StringCaller
                      , Test.Macro
                      , Test.Ext
@@ -263,6 +265,7 @@ test-suite morley-test
                      , filepath
                      , fmt
                      , formatting
+                     , generic-arbitrary
                      , hex-text
                      , hspec
                      , hspec-golden-aeson
@@ -271,6 +274,7 @@ test-suite morley-test
                      , megaparsec >= 7.0.0
                      , morley
                      , morley-prelude
+                     , mtl
                      , QuickCheck
                      , quickcheck-arbitrary-adt
                      , quickcheck-instances

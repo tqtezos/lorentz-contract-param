@@ -13,7 +13,7 @@ getIllTypedContracts :: IO [FilePath]
 getIllTypedContracts = getContracts "contracts/ill-typed"
 
 getWellTypedContracts :: IO [FilePath]
-getWellTypedContracts = getContracts "contracts"
+getWellTypedContracts = concatMapM getContracts ["contracts", "contracts/A1"]
 
 getContracts :: FilePath -> IO [FilePath]
 getContracts dir = mapMaybe convertPath <$> listDirectory dir

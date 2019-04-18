@@ -10,6 +10,7 @@ module Morley.Test.Integrational
   -- * Testing engine
   , IntegrationalValidator
   , SuccessValidator
+  , IntegrationalScenarioM
   , IntegrationalScenario
   , integrationalTestExpectation
   , integrationalTestProperty

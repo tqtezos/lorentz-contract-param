@@ -16,6 +16,7 @@ import Morley.Test (ContractPropValidator, contractProp, specWithTypedContract)
 import Morley.Test.Dummy (dummyContractEnv)
 import Morley.Test.Util (failedProp)
 import Morley.Types (ExtInstr(..), MorleyLogs, PrintComment(..), mkStackRef)
+import Test.Interpreter.A1.Feather (featherSpec)
 import Test.Interpreter.Auction (auctionSpec)
 import Test.Interpreter.CallSelf (selfCallerSpec)
 import Test.Interpreter.Compare (compareSpec)
@@ -99,6 +100,7 @@ spec = describe "Advanced type interpreter tests" $ do
   selfCallerSpec
   environmentSpec
   contractOpSpec
+  featherSpec
 
   specWithTypedContract "contracts/steps_to_quota_test1.tz" $ \contract -> do
     it "Amount of steps should reduce" $ do

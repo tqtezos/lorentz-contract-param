@@ -1,0 +1,30 @@
+let {
+  type Parameter = (Unit, Option Nat);
+  type Storage = (Address %counter, Option %caller Address);
+
+  toCounter :: '[Parameter, Storage]
+            -> '[(List Operation, Storage)]
+  = { car; dip {self}; pair;
+      right nat;
+      right unit;
+      right unit;
+      dip {dup; car; contract (unit | unit | nat | view unit nat); assert_some; amount};
+      transfer_tokens;
+      nil operation; swap; cons;
+      dip {car; sender; some; swap; pair}; pair
+    };
+
+  toCaller :: '[Nat, Parameter, Storage]
+           -> '[(List Operation, Storage)]
+  = { left unit;
+      dip {drop; dup; cdr; assert_some; contract (nat | unit); assert_some; amount; };
+      transfer_tokens;
+      nil operation; swap; cons;
+      dip {car; none address; swap; pair}; pair
+    };
+
+
+};
+parameter Parameter;
+storage Storage;
+code { unpair; dup; cdr; if_some {toCaller} {toCounter};}
