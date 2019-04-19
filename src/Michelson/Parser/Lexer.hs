@@ -1,4 +1,4 @@
-module Michelson.Lexer
+module Michelson.Parser.Lexer
   ( lexeme
   , mSpace
   , symbol

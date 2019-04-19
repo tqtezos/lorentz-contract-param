@@ -29,11 +29,11 @@ import Prelude hiding (many, note, try)
 import Control.Applicative.Permutations (intercalateEffect, toPermutation)
 import Text.Megaparsec (Parsec, choice, eitherP, parse, try)
 
-import Michelson.Lexer
 import Michelson.Parser.Error
 import Michelson.Parser.Ext
 import Michelson.Parser.Instr
 import Michelson.Parser.Let
+import Michelson.Parser.Lexer
 import Michelson.Parser.Macro
 import Michelson.Parser.Type
 import Michelson.Parser.Types

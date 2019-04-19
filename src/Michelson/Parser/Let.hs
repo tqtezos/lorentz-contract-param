@@ -14,10 +14,10 @@ import qualified Data.Set as Set
 import Text.Megaparsec (choice, satisfy, try)
 import Text.Megaparsec.Char (lowerChar, upperChar)
 
-import Michelson.Lexer
 import Michelson.Parser.Ext
 import Michelson.Parser.Helpers
 import Michelson.Parser.Instr
+import Michelson.Parser.Lexer
 import Michelson.Parser.Type
 import Michelson.Parser.Types (LetEnv(..), Parser, noLetEnv)
 import Michelson.Parser.Value

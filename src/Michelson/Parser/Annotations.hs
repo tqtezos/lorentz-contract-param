@@ -25,7 +25,7 @@ import qualified Data.Text as T
 import Text.Megaparsec (satisfy, takeWhileP, try)
 import Text.Megaparsec.Char (string)
 
-import Michelson.Lexer
+import Michelson.Parser.Lexer
 import Michelson.Parser.Types (Parser)
 import qualified Michelson.Types as Mi
 import Util.Default

@@ -6,7 +6,7 @@ module Michelson.Parser.Helpers
 import qualified Data.List.NonEmpty as NE
 import qualified Text.Megaparsec as P
 
-import Michelson.Lexer (symbol')
+import Michelson.Parser.Lexer (symbol')
 import Michelson.Parser.Types (Parser)
 
 sepEndBy1 :: MonadPlus m => m a -> m sep -> m (NonEmpty a)

@@ -11,10 +11,10 @@ import Data.Default (Default)
 import qualified Data.Map as Map
 import Text.Megaparsec (choice, customFailure, try)
 
-import Michelson.Lexer
 import Michelson.Parser.Annotations
 import Michelson.Parser.Error
 import Michelson.Parser.Helpers
+import Michelson.Parser.Lexer
 import Michelson.Parser.Types (Parser, letTypes)
 import Michelson.Types (LetType(..))
 import Michelson.Untyped

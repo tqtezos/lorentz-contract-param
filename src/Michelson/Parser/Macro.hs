@@ -12,10 +12,10 @@ import Prelude hiding (try)
 
 import Text.Megaparsec (notFollowedBy, try)
 
-import Michelson.Lexer
 import qualified Michelson.Macro as Macro
 import Michelson.Parser.Annotations
 import Michelson.Parser.Instr
+import Michelson.Parser.Lexer
 import Michelson.Parser.Types (Parser)
 import Michelson.Types (CadrStruct(..), Macro(..), PairStruct(..), ParsedOp(..))
 import Michelson.Untyped (noAnn)

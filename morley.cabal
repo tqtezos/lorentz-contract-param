@@ -29,7 +29,6 @@ library
                        Lorentz
                      , Michelson.Interpret
                      , Michelson.Interpret.Pack
-                     , Michelson.Lexer
                      , Michelson.Macro
                      , Michelson.Parser
                      , Michelson.Printer
@@ -68,6 +67,7 @@ library
                      , Michelson.Parser.Helpers
                      , Michelson.Parser.Instr
                      , Michelson.Parser.Let
+                     , Michelson.Parser.Lexer
                      , Michelson.Parser.Macro
                      , Michelson.Parser.Type
                      , Michelson.Parser.Types

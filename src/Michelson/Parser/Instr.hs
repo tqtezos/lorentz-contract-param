@@ -13,8 +13,8 @@ import Prelude hiding (EQ, GT, LT, many, note, some, try)
 
 import Text.Megaparsec (choice, sepEndBy, try)
 
-import Michelson.Lexer
 import Michelson.Parser.Annotations
+import Michelson.Parser.Lexer
 import Michelson.Parser.Type
 import Michelson.Parser.Types (Parser, letValues)
 import Michelson.Parser.Value
