@@ -12,19 +12,19 @@ module Michelson.Parser.Annotations
   , notesTV
   , notesVF
   , fieldType
-  , parseDef
   , permute2Def
   , permute3Def
   ) where
 
-import Prelude hiding (note, try)
+import Prelude hiding (note)
 
 import Control.Applicative.Permutations (runPermutation, toPermutationWithDefault)
 import Data.Char (isAlpha, isAlphaNum, isAscii)
 import qualified Data.Text as T
-import Text.Megaparsec (satisfy, takeWhileP, try)
+import Text.Megaparsec (satisfy, takeWhileP)
 import Text.Megaparsec.Char (string)
 
+import Michelson.Parser.Helpers (parseDef)
 import Michelson.Parser.Lexer
 import Michelson.Parser.Types (Parser)
 import qualified Michelson.Types as Mi
@@ -56,9 +56,6 @@ noteF = Mi.ann <$> note "%"
 
 noteF2 :: Parser (Mi.FieldAnn, Mi.FieldAnn)
 noteF2 = do a <- noteF; b <- noteF; return (a, b)
-
-parseDef :: Default a => Parser a -> Parser a
-parseDef a = try a <|> pure def
 
 noteTDef :: Parser Mi.TypeAnn
 noteTDef = parseDef noteT
