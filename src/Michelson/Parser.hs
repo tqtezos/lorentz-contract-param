@@ -1,6 +1,9 @@
 module Michelson.Parser
-  ( program
-  , parseNoEnv
+  ( -- * Main parser type
+    Parser
+
+  -- * Parsers
+  , program
   , codeEntry
   , type_
   , value
@@ -10,6 +13,9 @@ module Michelson.Parser
   , CustomParserException (..)
   , ParseErrorBundle
   , ParserException (..)
+
+  -- * Additional helpers
+  , parseNoEnv
 
   -- * For tests
   , stringLiteral
@@ -21,9 +27,7 @@ module Michelson.Parser
 import Prelude hiding (many, note, try)
 
 import Control.Applicative.Permutations (intercalateEffect, toPermutation)
-import qualified Data.Text as T
-
-import Text.Megaparsec (choice, eitherP, parse, try)
+import Text.Megaparsec (Parsec, choice, eitherP, parse, try)
 
 import Michelson.Lexer
 import Michelson.Parser.Error
@@ -32,8 +36,9 @@ import Michelson.Parser.Instr
 import Michelson.Parser.Let
 import Michelson.Parser.Macro
 import Michelson.Parser.Type
+import Michelson.Parser.Types
 import Michelson.Parser.Value
-import Michelson.Types (ParsedOp(..), Parser)
+import Michelson.Types (ParsedOp(..))
 import qualified Michelson.Types as Mi
 
 -------------------------------------------------------------------------------
@@ -45,13 +50,13 @@ import qualified Michelson.Types as Mi
 ------------------
 
 -- | Michelson contract with let definitions
-program :: Mi.Parsec CustomParserException T.Text (Mi.Contract' ParsedOp)
-program = runReaderT programInner Mi.noLetEnv
+program :: Parsec CustomParserException Text (Mi.Contract' ParsedOp)
+program = runReaderT programInner noLetEnv
 
 programInner :: Parser (Mi.Contract' ParsedOp)
 programInner = do
   mSpace
-  env <- fromMaybe Mi.noLetEnv <$> (optional (letBlock op'))
+  env <- fromMaybe noLetEnv <$> (optional (letBlock op'))
   local (const env) contract
 
 -- | Parse with empty environment
@@ -60,7 +65,7 @@ parseNoEnv ::
   -> String
   -> Text
   -> Either (ParseErrorBundle Text CustomParserException) a
-parseNoEnv p = parse (runReaderT p Mi.noLetEnv)
+parseNoEnv p = parse (runReaderT p noLetEnv)
 
 -- | Michelson contract
 contract :: Parser (Mi.Contract' ParsedOp)
@@ -107,7 +112,7 @@ codeEntry = ops
 
 op' :: Parser Mi.ParsedOp
 op' = do
-  lms <- asks Mi.letMacros
+  lms <- asks letMacros
   choice
     [ (Mi.Prim . Mi.EXT) <$> extInstr ops
     , Mi.LMac <$> mkLetMac lms

@@ -23,6 +23,7 @@ import qualified Text.Megaparsec.Char.Lexer as L
 import Michelson.Lexer
 import Michelson.Parser.Error
 import Michelson.Parser.Helpers
+import Michelson.Parser.Types (Parser, letValues)
 import Michelson.Types
 import qualified Michelson.Untyped as U
 

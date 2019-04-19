@@ -16,8 +16,9 @@ import Text.Megaparsec (choice, sepEndBy, try)
 import Michelson.Lexer
 import Michelson.Parser.Annotations
 import Michelson.Parser.Type
+import Michelson.Parser.Types (Parser, letValues)
 import Michelson.Parser.Value
-import Michelson.Types (LetValue(..), ParsedInstr, ParsedOp(..), Parser, letValues)
+import Michelson.Types (LetValue(..), ParsedInstr, ParsedOp(..))
 import Michelson.Untyped
 
 -- | Parser for primitive Michelson instruction (no macros and extensions).

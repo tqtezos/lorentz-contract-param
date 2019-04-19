@@ -19,7 +19,7 @@ import Text.Megaparsec (MonadParsec, Tokens, between, satisfy)
 import Text.Megaparsec.Char (lowerChar, space1, string)
 import qualified Text.Megaparsec.Char.Lexer as L
 
-import Michelson.Types (Parser)
+import Michelson.Parser.Types (Parser)
 import qualified Michelson.Untyped as U
 
 -- Lexing

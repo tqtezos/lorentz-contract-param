@@ -17,7 +17,8 @@ import qualified Text.Megaparsec.Char.Lexer as L
 
 import Michelson.Lexer
 import Michelson.Parser.Type
-import Michelson.Types (ParsedOp(..), ParsedUExtInstr, ParsedUTestAssert, Parser)
+import Michelson.Parser.Types (Parser)
+import Michelson.Types (ParsedOp(..), ParsedUExtInstr, ParsedUTestAssert)
 import qualified Michelson.Untyped as U
 
 extInstr :: Parser [ParsedOp] -> Parser ParsedUExtInstr

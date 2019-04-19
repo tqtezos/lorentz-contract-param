@@ -26,12 +26,8 @@ module Michelson.Types
   , U.InternalByteString(..)
   , U.unInternalByteString
 
-  -- Parser types
-  , Parser
-  , Parsec
+  -- * Morley Parsed value types
   , ParsedValue
-  , LetEnv (..)
-  , noLetEnv
 
   -- * Morley Parsed instruction types
   , ParsedInstr
@@ -60,36 +56,12 @@ module Michelson.Types
 
 import Data.Aeson.TH (defaultOptions, deriveJSON)
 import Data.Data (Data(..))
-import Data.Map (Map)
-import qualified Data.Map as Map
 import qualified Data.Text as T
 import Fmt (Buildable(build), genericF, (+|), (|+))
-import Text.Megaparsec (Parsec)
 import qualified Text.PrettyPrint.Leijen.Text as PP (empty)
 
-import Michelson.Parser.Error
 import Michelson.Printer (RenderDoc(..))
 import qualified Michelson.Untyped as U
-import Util.Default (Default(..))
-
--------------------------------------
--- Types for the parser
--------------------------------------
-
-type Parser = ReaderT LetEnv (Parsec CustomParserException T.Text)
-
-instance Default a => Default (Parser a) where
-  def = pure def
-
--- | The environment containing lets from the let-block
-data LetEnv = LetEnv
-  { letMacros :: Map Text LetMacro
-  , letValues :: Map Text LetValue
-  , letTypes  :: Map Text LetType
-  } deriving (Show, Eq)
-
-noLetEnv :: LetEnv
-noLetEnv = LetEnv Map.empty Map.empty Map.empty
 
 -------------------------------------
 -- Types produced by parser

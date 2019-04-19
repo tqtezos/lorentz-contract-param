@@ -15,7 +15,8 @@ import Michelson.Lexer
 import Michelson.Parser.Annotations
 import Michelson.Parser.Error
 import Michelson.Parser.Helpers
-import Michelson.Types (LetType(..), Parser, letTypes)
+import Michelson.Parser.Types (Parser, letTypes)
+import Michelson.Types (LetType(..))
 import Michelson.Untyped
 
 -- | Parse untyped Michelson 'Type` (i. e. one with annotations).

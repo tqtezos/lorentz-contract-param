@@ -70,6 +70,7 @@ library
                      , Michelson.Parser.Let
                      , Michelson.Parser.Macro
                      , Michelson.Parser.Type
+                     , Michelson.Parser.Types
                      , Michelson.Parser.Value
                      , Michelson.TypeCheck.Error
                      , Michelson.TypeCheck.Ext

@@ -17,7 +17,7 @@ module Michelson.Parser.Annotations
   , permute3Def
   ) where
 
-import Prelude hiding (many, note, some, try)
+import Prelude hiding (note, try)
 
 import Control.Applicative.Permutations (runPermutation, toPermutationWithDefault)
 import Data.Char (isAlpha, isAlphaNum, isAscii)
@@ -26,7 +26,7 @@ import Text.Megaparsec (satisfy, takeWhileP, try)
 import Text.Megaparsec.Char (string)
 
 import Michelson.Lexer
-import Michelson.Types (Parser)
+import Michelson.Parser.Types (Parser)
 import qualified Michelson.Types as Mi
 import Util.Default
 

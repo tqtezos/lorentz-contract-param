@@ -16,7 +16,8 @@ import Michelson.Lexer
 import qualified Michelson.Macro as Macro
 import Michelson.Parser.Annotations
 import Michelson.Parser.Instr
-import Michelson.Types (CadrStruct(..), Macro(..), PairStruct(..), ParsedOp(..), Parser)
+import Michelson.Parser.Types (Parser)
+import Michelson.Types (CadrStruct(..), Macro(..), PairStruct(..), ParsedOp(..))
 import Michelson.Untyped (noAnn)
 import Util.Alternative (someNE)
 

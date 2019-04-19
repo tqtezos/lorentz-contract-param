@@ -5,8 +5,8 @@ module Test.Util.Parser
 import Test.HUnit.Base (assertFailure)
 import Text.Megaparsec (errorBundlePretty)
 
+import Michelson.Parser (Parser)
 import qualified Michelson.Parser as Parser
-import Michelson.Types (Parser)
 
 -- | Expect the given text to be successfully parsed.
 shouldParse :: Parser a -> Text -> IO a

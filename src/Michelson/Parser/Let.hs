@@ -19,25 +19,26 @@ import Michelson.Parser.Ext
 import Michelson.Parser.Helpers
 import Michelson.Parser.Instr
 import Michelson.Parser.Type
+import Michelson.Parser.Types (LetEnv(..), Parser, noLetEnv)
 import Michelson.Parser.Value
-import Michelson.Types (ParsedOp(..), Parser)
+import Michelson.Types (ParsedOp(..))
 import qualified Michelson.Types as Mi
 
 -- | Element of a let block
 data Let = LetM Mi.LetMacro | LetV Mi.LetValue | LetT Mi.LetType
 
 -- | let block parser
-letBlock :: Parser ParsedOp -> Parser Mi.LetEnv
+letBlock :: Parser ParsedOp -> Parser LetEnv
 letBlock opParser = do
   symbol "let"
   symbol "{"
-  ls <- local (const Mi.noLetEnv) (letInner opParser)
+  ls <- local (const noLetEnv) (letInner opParser)
   symbol "}"
   semicolon
   return ls
 
 -- | Incrementally build the let environment
-letInner :: Parser ParsedOp -> Parser Mi.LetEnv
+letInner :: Parser ParsedOp -> Parser LetEnv
 letInner opParser = do
   env <- ask
   l <- lets opParser
@@ -45,11 +46,11 @@ letInner opParser = do
   local (addLet l) (letInner opParser) <|> return (addLet l env)
 
 -- | add a Let to the environment in the correct place
-addLet :: Let -> Mi.LetEnv -> Mi.LetEnv
-addLet l (Mi.LetEnv lms lvs lts) = case l of
-  LetM lm -> Mi.LetEnv (Map.insert (Mi.lmName lm) lm lms) lvs lts
-  LetV lv -> Mi.LetEnv lms (Map.insert (Mi.lvName lv) lv lvs) lts
-  LetT lt -> Mi.LetEnv lms lvs (Map.insert (Mi.ltName lt) lt lts)
+addLet :: Let -> LetEnv -> LetEnv
+addLet l (LetEnv lms lvs lts) = case l of
+  LetM lm -> LetEnv (Map.insert (Mi.lmName lm) lm lms) lvs lts
+  LetV lv -> LetEnv lms (Map.insert (Mi.lvName lv) lv lvs) lts
+  LetT lt -> LetEnv lms lvs (Map.insert (Mi.ltName lt) lt lts)
 
 lets :: Parser ParsedOp -> Parser Let
 lets opParser = choice
