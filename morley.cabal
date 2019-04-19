@@ -66,6 +66,7 @@ library
                      , Michelson.Parser.Error
                      , Michelson.Parser.Helpers
                      , Michelson.Parser.Instr
+                     , Michelson.Parser.Macro
                      , Michelson.Parser.Type
                      , Michelson.Parser.Value
                      , Michelson.TypeCheck.Error

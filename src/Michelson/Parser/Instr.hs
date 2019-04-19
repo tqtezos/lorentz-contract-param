@@ -6,12 +6,7 @@ module Michelson.Parser.Instr
   -- * These are handled separately to have better error messages
   , mapOp
   , pairOp
-  , eqOp
-  , neqOp
-  , ltOp
-  , leOp
-  , gtOp
-  , geOp
+  , cmpOp
   ) where
 
 import Prelude hiding (EQ, GT, LT, many, note, some, try)
@@ -95,6 +90,9 @@ lambdaOp opParser =
   (LAMBDA <$> noteVDef <*> type_ <*> type_ <*> ops' opParser)
 
 -- Generic comparison
+
+cmpOp :: Parser ParsedInstr
+cmpOp = eqOp <|> neqOp <|> ltOp <|> gtOp <|> leOp <|> gtOp <|> geOp
 
 eqOp :: Parser ParsedInstr
 eqOp = do void $ symbol' "EQ"; EQ <$> noteVDef

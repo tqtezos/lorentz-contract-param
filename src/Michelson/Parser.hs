@@ -18,7 +18,7 @@ module Michelson.Parser
   , intLiteral
   ) where
 
-import Prelude hiding (many, note, some, try)
+import Prelude hiding (many, note, try)
 
 import Control.Applicative.Permutations (intercalateEffect, toPermutation)
 import qualified Data.Char as Char
@@ -26,22 +26,20 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as T
 
-import Text.Megaparsec (choice, eitherP, many, notFollowedBy, parse, satisfy, some, try)
+import Text.Megaparsec (choice, eitherP, many, parse, satisfy, try)
 import Text.Megaparsec.Char (alphaNumChar, lowerChar, string, upperChar)
 import qualified Text.Megaparsec.Char.Lexer as L
 
 import Michelson.Lexer
-import qualified Michelson.Macro as Macro
-import Michelson.Parser.Annotations
 import Michelson.Parser.Error
 import Michelson.Parser.Helpers
 import Michelson.Parser.Instr
+import Michelson.Parser.Macro
 import Michelson.Parser.Type
 import Michelson.Parser.Value
 import Michelson.Types (ParsedOp(..), Parser)
 import qualified Michelson.Types as Mi
 import qualified Michelson.Untyped as U
-import Util.Alternative (someNE)
 
 -------------------------------------------------------------------------------
 -- Top-Level Parsers
@@ -129,7 +127,7 @@ op' = do
     [ (Mi.Prim . Mi.EXT) <$> nopInstr
     , Mi.LMac <$> mkLetMac lms
     , Mi.Prim <$> prim
-    , Mi.Mac <$> macro
+    , Mi.Mac <$> macro op'
     , primOrMac
     , Mi.Seq <$> ops
     ]
@@ -229,86 +227,6 @@ varID = lexeme $ do
 -------------------------------------------------------------------------------
 -- Macro Parsers
 -------------------------------------------------------------------------------
-cmpOp :: Parser Mi.ParsedInstr
-cmpOp = eqOp <|> neqOp <|> ltOp <|> gtOp <|> leOp <|> gtOp <|> geOp
-
-macro :: Parser Mi.Macro
-macro = do symbol' "CASE"; is <- someNE ops; return $ Mi.CASE is
-  <|> do symbol' "VIEW"; a <- ops; return $ Mi.VIEW a
-  <|> do symbol' "VOID"; a <- ops; return $ Mi.VOID a
-  <|> do symbol' "CMP"; a <- cmpOp; Mi.CMP a <$> noteVDef
-  <|> do void $ symbol' "IF_SOME"; Mi.IF_SOME <$> ops <*> ops
-  <|> do void $ symbol' "IF_RIGHT"; Mi.IF_RIGHT <$> ops <*> ops
-  <|> do symbol' "FAIL"; return Mi.FAIL
-  <|> do void $ symbol' "ASSERT_CMP"; Mi.ASSERT_CMP <$> cmpOp
-  <|> do symbol' "ASSERT_NONE"; return Mi.ASSERT_NONE
-  <|> do symbol' "ASSERT_SOME"; return Mi.ASSERT_SOME
-  <|> do symbol' "ASSERT_LEFT"; return Mi.ASSERT_LEFT
-  <|> do symbol' "ASSERT_RIGHT"; return Mi.ASSERT_RIGHT
-  <|> do void $ symbol' "ASSERT_"; Mi.ASSERTX <$> cmpOp
-  <|> do symbol' "ASSERT"; return Mi.ASSERT
-  <|> do string' "DI"; n <- num "I"; symbol' "P"; Mi.DIIP (n + 1) <$> ops
-  <|> do string' "DU"; n <- num "U"; symbol' "P"; Mi.DUUP (n + 1) <$> noteVDef
-  <|> unpairMac
-  <|> cadrMac
-  <|> setCadrMac
-  where
-   num str = fromIntegral . length <$> some (string' str)
-
-pairMac :: Parser Mi.Macro
-pairMac = do
-  a <- pairMacInner
-  symbol' "R"
-  (tn, vn, fns) <- permute3Def noteTDef noteV (some noteF)
-  let ps = Macro.mapLeaves ((Mi.noAnn,) <$> fns) a
-  return $ Mi.PAPAIR ps tn vn
-
-pairMacInner :: Parser Mi.PairStruct
-pairMacInner = do
-  string' "P"
-  l <- (string' "A" >> return (Mi.F (Mi.noAnn, Mi.noAnn))) <|> pairMacInner
-  r <- (string' "I" >> return (Mi.F (Mi.noAnn, Mi.noAnn))) <|> pairMacInner
-  return $ Mi.P l r
-
-unpairMac :: Parser Mi.Macro
-unpairMac = do
-  string' "UN"
-  a <- pairMacInner
-  symbol' "R"
-  (vns, fns) <- permute2Def (some noteV) (some noteF)
-  return $ Mi.UNPAIR (Macro.mapLeaves (zip vns fns) a)
-
-cadrMac :: Parser Mi.Macro
-cadrMac = lexeme $ do
-  string' "C"
-  a <- some $ try $ cadrInner <* notFollowedBy (string' "R")
-  b <- cadrInner
-  symbol' "R"
-  (vn, fn) <- notesVF
-  return $ Mi.CADR (a ++ pure b) vn fn
-
-cadrInner :: Parser Mi.CadrStruct
-cadrInner = (string' "A" >> return Mi.A) <|> (string' "D" >> return Mi.D)
-
-setCadrMac :: Parser Mi.Macro
-setCadrMac = do
-  string' "SET_C"
-  a <- some cadrInner
-  symbol' "R"
-  (v, f) <- notesVF
-  return $ Mi.SET_CADR a v f
-
-mapCadrMac :: Parser Mi.Macro
-mapCadrMac = do
-  string' "MAP_C"
-  a <- some cadrInner
-  symbol' "R"
-  (v, f) <- notesVF
-  Mi.MAP_CADR a v f <$> ops
-
-ifCmpMac :: Parser Mi.Macro
-ifCmpMac = symbol' "IFCMP" >> Mi.IFCMP <$> cmpOp <*> noteVDef <*> ops <*> ops
-
 ifOrIfX :: Parser Mi.ParsedOp
 ifOrIfX = do
   symbol' "IF"
@@ -320,8 +238,8 @@ ifOrIfX = do
 -- Some of the operations and macros have the same prefixes in their names
 -- So this case should be handled separately
 primOrMac :: Parser Mi.ParsedOp
-primOrMac = ((Mi.Mac <$> ifCmpMac) <|> ifOrIfX)
-  <|> ((Mi.Mac <$> mapCadrMac) <|> (Mi.Prim <$> mapOp op'))
+primOrMac = ((Mi.Mac <$> ifCmpMac op') <|> ifOrIfX)
+  <|> ((Mi.Mac <$> mapCadrMac op') <|> (Mi.Prim <$> mapOp op'))
   <|> (try (Mi.Prim <$> pairOp) <|> Mi.Mac <$> pairMac)
 
 -------------------------------------------------------------------------------
