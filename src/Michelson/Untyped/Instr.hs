@@ -247,8 +247,10 @@ instance (RenderDoc op) => RenderDoc (InstrAbstract op) where
     EXT {} -> False
     _ -> True
 
-instance (RenderDoc op) => Buildable (InstrAbstract op) where
-  build = buildRenderDoc
+instance (RenderDoc op, Buildable op) => Buildable (InstrAbstract op) where
+  build = \case
+    EXT ext -> build ext
+    mi -> buildRenderDoc mi
 
 ----------------------------------------------------------------------------
 -- Contract's address computation
