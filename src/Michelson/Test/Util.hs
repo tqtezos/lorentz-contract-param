@@ -1,7 +1,7 @@
 -- | Testing utility functions used by testing framework itself or
 -- intended to be used by test writers.
 
-module Morley.Test.Util
+module Michelson.Test.Util
   ( leftToShowPanic
   , leftToPrettyPanic
   , failedProp

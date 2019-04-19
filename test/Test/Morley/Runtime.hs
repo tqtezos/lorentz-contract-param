@@ -10,14 +10,13 @@ import Test.Hspec
   (Expectation, Spec, context, describe, expectationFailure, it, parallel, runIO, shouldBe,
   shouldSatisfy, specify)
 
-import Michelson.Interpret (ContractEnv(..), InterpretUntypedError(..), InterpretUntypedResult(..))
+import Michelson.Interpret
+  (ContractEnv(..), InterpretUntypedError(..), InterpretUntypedResult(..), interpretUntyped)
+import Michelson.Runtime
+import Michelson.Runtime.GState (GState(..), initGState)
+import Michelson.Test.Dummy (dummyContractEnv, dummyMaxSteps, dummyNow, dummyOrigination)
 import Michelson.Typed (untypeValue)
 import Michelson.Untyped
-import Morley.Ext (interpretMorleyUntyped)
-import Morley.Runtime
-import Morley.Runtime.GState (GState(..), initGState)
-import Morley.Test.Dummy (dummyContractEnv, dummyMaxSteps, dummyNow, dummyOrigination)
-import Morley.Types (MorleyLogs)
 import Tezos.Address (Address(..))
 import Tezos.Core (unsafeMkMutez)
 
@@ -50,7 +49,7 @@ data ContractAux = ContractAux
   }
 
 data UnexpectedFailed =
-  UnexpectedFailed (InterpretUntypedError MorleyLogs)
+  UnexpectedFailed InterpretUntypedError
   deriving (Show)
 
 instance Exception UnexpectedFailed
@@ -75,14 +74,14 @@ updatesStorageValue ca = either throwM handleResult $ do
       ]
   (addr,) <$> interpreterPure dummyNow dummyMaxSteps initGState interpreterOps
   where
-    toNewStorage :: InterpretUntypedResult MorleyLogs -> Value
+    toNewStorage :: InterpretUntypedResult -> Value
     toNewStorage InterpretUntypedResult {..} = untypeValue iurNewStorage
 
     handleResult :: (Address, InterpreterRes) -> Expectation
     handleResult (addr, ir) = do
       expectedValue <-
         either (throwM . UnexpectedFailed) (pure . toNewStorage) $
-        interpretMorleyUntyped
+        interpretUntyped
                   (caContract ca) (caParameter ca) (caStorage ca) (caEnv ca)
       case gsAddresses (_irGState ir) ^. at addr of
         Nothing -> expectationFailure $ "Address not found: " <> pretty addr

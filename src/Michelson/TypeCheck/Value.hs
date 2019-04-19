@@ -4,7 +4,6 @@ module Michelson.TypeCheck.Value
     ) where
 
 import Control.Monad.Except (liftEither, throwError)
-import Data.Constraint.Forall (Forall)
 import Data.Default (def)
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -18,8 +17,8 @@ import Michelson.TypeCheck.Helpers
 import Michelson.TypeCheck.TypeCheck (TcInstrHandler, TypeCheckEnv(..), TypeCheckT)
 import Michelson.TypeCheck.Types
 import Michelson.Typed
-  (CT(..), CValue(..), ConversibleExt, Notes(..), Notes'(..), Sing(..), Value'(..), converge,
-  fromSingCT, fromSingT, mkNotes, notesCase)
+  (CT(..), CValue(..), Notes(..), Notes'(..), Sing(..), Value'(..), converge, fromSingCT,
+  fromSingT, mkNotes, notesCase)
 import qualified Michelson.Typed as T
 import qualified Michelson.Untyped as U
 import Tezos.Address (Address(..), parseAddress)
@@ -75,8 +74,7 @@ typeCheckCVals mvs t = traverse check mvs
 -- that is interpreted as input of wrong type and type check finishes with
 -- error.
 typeCheckValImpl
-  :: (Forall ConversibleExt, Eq U.ExpandedInstrExtU)
-  => TcInstrHandler
+  :: TcInstrHandler
   -> U.Value
   -> (Sing t, Notes t)
   -> TypeCheckT SomeValue
@@ -189,7 +187,7 @@ typeCheckValImpl tcDo v (t@(STLambda (it :: Sing it) (ot :: Sing ot)), ann) = do
 typeCheckValImpl _ v (t, _) = throwError $ TCFailedOnValue v (fromSingT t) "unknown value" Nothing
 
 typeCheckValsImpl
-  :: forall t . (Typeable t, Forall ConversibleExt, Eq U.ExpandedInstrExtU)
+  :: forall t . (Typeable t)
   => TcInstrHandler
   -> [U.Value]
   -> (Sing t, Notes t)

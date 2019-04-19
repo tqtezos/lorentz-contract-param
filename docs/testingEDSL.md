@@ -43,6 +43,8 @@ Both types of tests can work with static data or with randomly generated data (i
 
 ## Write Your First Tests
 
+*Disclaimer: following examples correspond to [version 0.2.0.1](http://hackage.haskell.org/package/morley-0.2.0.1) and may be outdated.*
+
 This chapter provides a step-by-step guide to writing tests using EDSL.
 We start with a very simple contract and test case and then proceed to more advanced features.
 All files mentioned in this chapter can be found in the [`examples/EDSL`](/examples/EDSL) directory.

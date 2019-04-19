@@ -11,9 +11,9 @@ It consists of the following parts:
 - `Michelson.Untyped` and `Michelson.Typed` hierarchies define Haskell data types that assemble a Michelson contract. See [michelsonTypes.md](/docs/michelsonTypes.md).
 - `Michelson.TypeCheck`: A typechecker that validates Michelson contracts according to the Michelson's typing rules. Essentially, it performs conversion from untyped representation to the typed one. See [morleyTypechecker.md](/docs/morleyTypechecker.md).
 - `Michelson.Interpret`: An interpreter for Michelson contracts which doesn't perform any side effects. See [morleyInterpreter.md](/docs/morleyInterpreter.md).
-- `Morley.Types`: Types for macros, syntactic sugar, and other extensions that are described in the next chapter.
-- `Morley.Parser` A parser to turn a `.tz` or `.mtz` file (`.mtz` is a Michelson contract with Morley extensions) into a Haskell ADT.
-- `Morley.Runtime`: A high-level interface to Morley functionality, see [morleyRuntime.md](/docs/morleyRuntime.md).
+- `Michelson.Types`: Types for macros, syntactic sugar, and other extensions that are described in the next chapter.
+- `Michelson.Parser` A parser to turn a `.tz` or `.mtz` file (`.mtz` is a Michelson contract with Morley extensions) into a Haskell ADT.
+- `Michelson.Runtime`: A high-level interface to Morley functionality, see [morleyRuntime.md](/docs/morleyRuntime.md).
 
 ## II: Morley extensions
 

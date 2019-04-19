@@ -10,12 +10,12 @@ import Test.Hspec (Spec, it, parallel)
 import Test.Hspec.QuickCheck (modifyMaxSuccess, prop)
 import Test.QuickCheck.Instances.Text ()
 
+import Michelson.Runtime.GState
+import Michelson.Test (specWithContract)
+import Michelson.Test.Integrational
 import Michelson.Typed
 import qualified Michelson.Typed as T
 import qualified Michelson.Untyped as U
-import Morley.Runtime.GState
-import Morley.Test (specWithContract)
-import Morley.Test.Integrational
 import Tezos.Address
 import Tezos.Core
 

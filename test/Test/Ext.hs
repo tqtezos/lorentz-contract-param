@@ -5,15 +5,16 @@ module Test.Ext
 
 import Test.Hspec (Expectation, Spec, describe, expectationFailure, it, shouldSatisfy)
 
-import Michelson.Interpret (InterpreterState(..))
-import Michelson.TypeCheck (HST(..), SomeHST(..), runTypeCheckT)
+import Michelson.Interpret (InterpreterState(..), MorleyLogs(..), interpret)
+import Michelson.Test (specWithTypedContract)
+import Michelson.Test.Dummy (dummyContractEnv)
+import Michelson.TypeCheck (HST(..), SomeHST(..), runTypeCheckT, typeCheckExt, typeCheckList)
 import Michelson.Typed (CValue(..), extractNotes, fromUType, withSomeSingT)
 import qualified Michelson.Typed as T
-import Michelson.Untyped (CT(..), T(..), Type(..), ann, noAnn)
-import Morley.Ext (interpretMorley, typeCheckHandler)
-import Morley.Test (specWithTypedContract)
-import Morley.Test.Dummy (dummyContractEnv)
-import Morley.Types
+import Michelson.Types
+import Michelson.Untyped
+  (CT(..), ExpandedExtInstr, ExtInstrAbstract(..), StackTypePattern(..), T(..), Type(..), ann,
+  noAnn)
 
 interpretHandlerSpec :: Spec
 interpretHandlerSpec = describe "interpretHandler PRINT/TEST_ASSERT tests" $
@@ -32,10 +33,10 @@ interpretHandlerSpec = describe "interpretHandler PRINT/TEST_ASSERT tests" $
       let check (a, InterpreterState s _) =
             if corr then isRight a && s == MorleyLogs ["Area is " <> show area']
             else isLeft a && s == MorleyLogs ["Sides are " <> show x' <> " x " <> show y']
-      interpretMorley contract (T.VPair (x', y')) T.VUnit dummyContractEnv `shouldSatisfy` check
+      interpret contract (T.VPair (x', y')) T.VUnit dummyContractEnv `shouldSatisfy` check
 
 typeCheckHandlerSpec :: Spec
-typeCheckHandlerSpec = describe "typeCheckHandler STACKTYPE tests" $ do
+typeCheckHandlerSpec = describe "typeCheckExt STACKTYPE tests" $ do
   it "Correct test on [] pattern" $ runNopTest test1 True
   it "Correct test on [a, b] pattern" $ runNopTest test2 True
   it "Correct test on [a, b, ...] pattern" $ runNopTest test3 True
@@ -73,9 +74,9 @@ typeCheckHandlerSpec = describe "typeCheckHandler STACKTYPE tests" $ do
         SomeHST is -> SomeHST ((sing, nt, noAnn) ::& is)
 
     nh (ni, si) =
-      runTypeCheckT typeCheckHandler (Type TKey noAnn) mempty $ typeCheckHandler ni [] si
+      runTypeCheckT (Type TKey noAnn) mempty $ typeCheckExt typeCheckList ni [] si
 
-    runNopTest :: (ExpandedUExtInstr, SomeHST) -> Bool -> Expectation
+    runNopTest :: (ExpandedExtInstr, SomeHST) -> Bool -> Expectation
     runNopTest (ui, SomeHST hst) correct = case (nh (ui, hst), correct) of
       (Right _, False) -> expectationFailure $ "Test expected to fail but it passed"
       (Left e, True)   -> expectationFailure $ "Test expected to pass but it failed with error: " <> show e

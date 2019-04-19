@@ -4,17 +4,14 @@ module Michelson.Typed.Convert
   ( convertContract
   , instrToOps
   , untypeValue
-  , Conversible (..)
-  , ConversibleExt
   ) where
 
-import Data.Constraint ((\\))
-import Data.Constraint.Forall (Forall, inst)
 import qualified Data.Map as Map
 import Data.Singletons (SingI(sing))
 
+import Michelson.EqParam (eqParam1, eqParam2)
 import Michelson.Typed.CValue
-import Michelson.Typed.Extract (toUType, mkUType)
+import Michelson.Typed.Extract (mkUType, toUType)
 import Michelson.Typed.Instr as Instr
 import Michelson.Typed.Scope
 import Michelson.Typed.Sing (Sing(..), fromSingCT, fromSingT)
@@ -24,15 +21,10 @@ import qualified Michelson.Untyped as U
 import Tezos.Address (formatAddress)
 import Tezos.Core (unMutez)
 import Tezos.Crypto (formatKeyHash, formatPublicKey, formatSignature)
-
-class Conversible ext1 ext2 where
-  convert :: ext1 -> ext2
-
-class Conversible (ExtT Instr s) (U.ExtU U.InstrAbstract U.ExpandedOp) => ConversibleExt s
-instance Conversible (ExtT Instr s) (U.ExtU U.InstrAbstract U.ExpandedOp) => ConversibleExt s
+import Util.Peano
 
 convertContract
-  :: forall param store . (SingI param, SingI store, Forall ConversibleExt)
+  :: forall param store . (SingI param, SingI store)
   => Contract param store -> U.Contract
 convertContract contract =
   U.Contract
@@ -47,7 +39,7 @@ convertContract contract =
 -- 'TOperation' - a compile error will be raised otherwise.
 -- You can analyse its presence with 'checkOpPresence' function.
 untypeValue ::
-     forall t . (SingI t, HasNoOp t, Forall ConversibleExt)
+     forall t . (SingI t, HasNoOp t)
   => Value' Instr t
   -> U.Value
 untypeValue val = case (val, sing @t) of
@@ -83,7 +75,7 @@ untypeValue val = case (val, sing @t) of
       OpAbsent -> U.ValueRight (untypeValue x)
 
   (VLam (ops :: Instr '[inp] '[out]), _) ->
-    vList U.ValueLambda $ instrToOps ops \\ inst @ConversibleExt @'[out]
+    vList U.ValueLambda $ instrToOps ops
 
   (VMap m, STMap _ vt) ->
     case checkOpPresence vt of
@@ -111,7 +103,7 @@ untypeCValue cVal = case cVal of
   CvTimestamp t -> U.ValueString $ show t
   CvAddress a -> U.ValueString $ formatAddress a
 
-instrToOps :: Forall ConversibleExt => Instr inp out -> [U.ExpandedOp]
+instrToOps :: Instr inp out -> [U.ExpandedOp]
 instrToOps instr = case instr of
   Nested sq -> one $ U.SeqEx $ instrToOps sq
   i -> U.PrimEx <$> handleInstr i
@@ -119,7 +111,7 @@ instrToOps instr = case instr of
     handleInstr :: Instr inp out -> [U.ExpandedInstr]
     handleInstr (Seq i1 i2) = handleInstr i1 <> handleInstr i2
     handleInstr Nop = []
-    handleInstr (Ext (nop :: ExtT Instr inp)) = [U.EXT $ convert nop] \\ inst @ConversibleExt @inp
+    handleInstr (Ext (nop :: ExtInstr inp)) = [U.EXT $ extInstrToOps nop]
     handleInstr (Nested _) = error "impossible"
     handleInstr DROP = [U.DROP]
     handleInstr DUP = [U.DUP U.noAnn]
@@ -278,9 +270,33 @@ instrToOps instr = case instr of
     handleInstr SENDER = [U.SENDER U.noAnn]
     handleInstr ADDRESS = [U.ADDRESS U.noAnn]
 
+untypeStackRef :: StackRef s -> U.StackRef
+untypeStackRef (StackRef n) = U.StackRef (peanoVal n)
+
+untypePrintComment :: PrintComment s -> U.PrintComment
+untypePrintComment (PrintComment pc) = U.PrintComment $ map (second untypeStackRef) pc
+
+extInstrToOps :: ExtInstr s -> U.ExtInstrAbstract U.ExpandedOp
+extInstrToOps = \case
+  PRINT pc -> U.UPRINT (untypePrintComment pc)
+  TEST_ASSERT (TestAssert nm pc i) ->
+    U.UTEST_ASSERT $ U.TestAssert nm (untypePrintComment pc) (instrToOps i)
+
 -- It's an orphan instance, but it's better than checking all cases manually.
 -- We can also move this convertion to the place where `Instr` is defined,
 -- but then there will be a very large module (as we'll have to move a lot of
 -- stuff as well).
-instance (Forall ConversibleExt, Eq U.ExpandedInstrExtU) => Eq (Instr inp out) where
+instance Eq (Instr inp out) where
   i1 == i2 = instrToOps i1 == instrToOps i2
+
+instance Typeable s => Eq (TestAssert s) where
+  TestAssert   name1 pattern1 instr1
+    ==
+    TestAssert name2 pattern2 instr2
+    = and
+    [ name1 == name2
+    , pattern1 `eqParam1` pattern2
+    , instr1 `eqParam2` instr2
+    ]
+
+deriving instance Typeable s => Eq (ExtInstr s)

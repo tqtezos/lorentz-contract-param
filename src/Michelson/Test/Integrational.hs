@@ -1,7 +1,7 @@
 -- | Utilities for integrational testing.
 -- Example tests can be found in the 'morley-test' test suite.
 
-module Morley.Test.Integrational
+module Michelson.Test.Integrational
   (
     -- * Re-exports
     TxData (..)
@@ -40,12 +40,13 @@ import Test.Hspec (Expectation, expectationFailure)
 import Test.QuickCheck (Property)
 
 import Michelson.Interpret (InterpretUntypedError(..), MichelsonFailed(..), RemainingSteps)
+import Michelson.Runtime
+  (InterpreterError(..), InterpreterOp(..), InterpreterRes(..), interpreterPure)
+import Michelson.Runtime.GState
+import Michelson.Runtime.TxData
+import Michelson.Test.Dummy
+import Michelson.Test.Util (failedProp, succeededProp)
 import Michelson.Untyped (Contract, OriginationOperation(..), Value, mkContractAddress)
-import Morley.Runtime (InterpreterError(..), InterpreterOp(..), InterpreterRes(..), interpreterPure)
-import Morley.Runtime.GState
-import Morley.Runtime.TxData
-import Morley.Test.Dummy
-import Morley.Test.Util (failedProp, succeededProp)
 import Tezos.Address (Address)
 import Tezos.Core (Mutez, Timestamp)
 

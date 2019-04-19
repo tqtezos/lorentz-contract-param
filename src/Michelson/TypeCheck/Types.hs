@@ -6,19 +6,15 @@ module Michelson.TypeCheck.Types
     , SomeValue (..)
     , SomeContract (..)
     , SomeCValue (..)
-    , ExtC
     , TcExtFrames
     ) where
 
-import Data.Constraint.Forall (Forall, ForallF)
-import Data.Data (Data)
 import Data.Singletons (SingI)
-import Fmt (Buildable(..))
 import Prelude hiding (EQ, GT, LT)
 import qualified Text.Show
 
 import Michelson.EqParam (eqParam1)
-import Michelson.Typed (ConversibleExt, HasNoOp, Notes(..), Sing(..), T(..), fromSingT)
+import Michelson.Typed (HasNoOp, Notes(..), Sing(..), T(..), fromSingT)
 import qualified Michelson.Typed as T
 import Michelson.Typed.Instr
 import Michelson.Typed.Value
@@ -108,7 +104,7 @@ data SomeInstrOut inp where
     -> SomeInstrOut inp
 infix 9 :::
 
-instance Show (InstrExtT inp) => Show (SomeInstrOut inp) where
+instance Show (ExtInstr inp) => Show (SomeInstrOut inp) where
   show (i ::: out) = show i <> " :: " <> show out
   show (AnyOutInstr i) = show i <> " :: *"
 
@@ -118,7 +114,7 @@ data SomeInstr inp where
   (:/) :: HST inp -> SomeInstrOut inp -> SomeInstr inp
 infix 8 :/
 
-instance Show (InstrExtT inp) => Show (SomeInstr inp) where
+instance Show (ExtInstr inp) => Show (SomeInstr inp) where
   show (inp :/ out) = show inp <> " -> " <> show out
 
 -- | Data type, holding strictly-typed Michelson value along with its
@@ -147,14 +143,3 @@ deriving instance Show SomeContract
 
 -- | State for type checking @nop@
 type TcExtFrames = [(U.ExpandedInstrExtU, SomeHST)]
-
--- | Constraints on InstrExtT and untyped Instr
--- which are required for type checking
-type ExtC
-   = ( ForallF Show InstrExtT
-     , Eq U.ExpandedInstrExtU
-     , Typeable InstrExtT
-     , Buildable U.ExpandedInstr
-     , Forall ConversibleExt
-     , Data U.ExpandedInstrExtU
-     )

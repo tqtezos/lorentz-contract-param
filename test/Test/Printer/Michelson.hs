@@ -6,8 +6,8 @@ import Fmt (pretty)
 import Test.Hspec (Spec, describe, it, runIO, shouldBe)
 
 import Michelson.Printer (printUntypedContract)
-import Morley.Runtime (parseExpandContract)
-import Morley.Test (specWithUntypedContract)
+import Michelson.Runtime (parseExpandContract)
+import Michelson.Test (specWithUntypedContract)
 
 import Test.Util.Contracts (getWellTypedContracts)
 

@@ -25,40 +25,41 @@ source-repository head
 library
   hs-source-dirs:      src
   default-language:    Haskell2010
-  exposed-modules:     Michelson.Interpret
+  exposed-modules:
+                       Michelson.Interpret
+                     , Michelson.Interpret.Pack
+                     , Michelson.Lexer
+                     , Michelson.Macro
+                     , Michelson.Parser
+                     , Michelson.Parser.Annotations
+                     , Michelson.Parser.Helpers
                      , Michelson.Printer
                      , Michelson.Printer.Util
-                     , Michelson.Interpret.Pack
+                     , Michelson.Runtime
+                     , Michelson.Runtime.GState
+                     , Michelson.Runtime.TxData
                      , Michelson.TypeCheck
                      , Michelson.Typed
+                     , Michelson.Types
                      , Michelson.Typed.Value
+                     , Michelson.Test
+                     , Michelson.Test.Dummy
+                     , Michelson.Test.Gen
+                     , Michelson.Test.Import
+                     , Michelson.Test.Integrational
+                     , Michelson.Test.Unit
+                     , Michelson.Test.Util
                      , Michelson.Untyped
-                     , Morley.Default
-                     , Morley.Lexer
-                     , Morley.Macro
-                     , Morley.Ext
-                     , Morley.Parser
-                     , Morley.Parser.Annotations
-                     , Morley.Parser.Helpers
-                     , Morley.Runtime
-                     , Morley.Runtime.GState
-                     , Morley.Runtime.TxData
-                     , Morley.Test
-                     , Morley.Test.Dummy
-                     , Morley.Test.Gen
-                     , Morley.Test.Import
-                     , Morley.Test.Integrational
-                     , Morley.Test.Unit
-                     , Morley.Test.Util
-                     , Morley.Types
                      , Tezos.Address
                      , Tezos.Core
                      , Tezos.Crypto
                      , Util.Alternative
+                     , Util.Default
                      , Util.Peano
   other-modules:
                        Michelson.EqParam
                      , Michelson.TypeCheck.Error
+                     , Michelson.TypeCheck.Ext
                      , Michelson.TypeCheck.Helpers
                      , Michelson.TypeCheck.Instr
                      , Michelson.TypeCheck.TypeCheck
@@ -77,6 +78,7 @@ library
                      , Michelson.Untyped.Aliases
                      , Michelson.Untyped.Annotation
                      , Michelson.Untyped.Contract
+                     , Michelson.Untyped.Ext
                      , Michelson.Untyped.Instr
                      , Michelson.Untyped.Type
                      , Michelson.Untyped.Value

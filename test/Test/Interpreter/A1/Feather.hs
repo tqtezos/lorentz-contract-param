@@ -14,9 +14,9 @@ import Test.QuickCheck (Gen, arbitrary, forAll, listOf)
 import Test.QuickCheck.Arbitrary.Generic (genericArbitrary)
 import Test.QuickCheck.Instances.Natural ()
 
+import Michelson.Test
 import qualified Michelson.Typed as T
 import qualified Michelson.Untyped as U
-import Morley.Test
 import Tezos.Address
 import Tezos.Core
 

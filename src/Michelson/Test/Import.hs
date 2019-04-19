@@ -1,6 +1,6 @@
 -- | Functions to import contracts to be used in tests.
 
-module Morley.Test.Import
+module Michelson.Test.Import
   ( readContract
   , specWithContract
   , specWithTypedContract
@@ -15,12 +15,11 @@ import Data.Typeable ((:~:)(..), TypeRep, eqT, typeRep)
 import Fmt (Buildable(build), pretty, (+|), (|+), (||+))
 import Test.Hspec (Spec, describe, expectationFailure, it, runIO)
 
-import Michelson.TypeCheck (SomeContract(..), TCError)
+import Michelson.Runtime (parseExpandContract, prepareContract)
+import Michelson.TypeCheck (SomeContract(..), TCError, typeCheckContract)
 import Michelson.Typed (Contract)
+import Michelson.Types (ParserException(..))
 import qualified Michelson.Untyped as U
-import Morley.Ext (typeCheckMorleyContract)
-import Morley.Runtime (parseExpandContract, prepareContract)
-import Morley.Types (ParserException(..))
 
 -- | Import contract and use it in the spec. Both versions of contract are
 -- passed to the callback function (untyped and typed).
@@ -64,7 +63,7 @@ readContract
 readContract filePath txt = do
   contract <- first ICEParse $ parseExpandContract (Just filePath) txt
   SomeContract (instr :: Contract cp' st') _ _
-    <- first ICETypeCheck $ typeCheckMorleyContract mempty contract
+    <- first ICETypeCheck $ typeCheckContract mempty contract
   case (eqT @cp @cp', eqT @st @st') of
     (Just Refl, Just Refl) -> pure (contract, instr)
     (Nothing, _) -> Left $

@@ -1,4 +1,4 @@
-module Morley.Parser.Annotations
+module Michelson.Parser.Annotations
   ( note
   , noteT
   , noteV
@@ -25,10 +25,10 @@ import qualified Data.Text as T
 import Text.Megaparsec (satisfy, takeWhileP, try)
 import Text.Megaparsec.Char (string)
 
-import Morley.Default
-import Morley.Lexer
-import Morley.Types (Parser)
-import qualified Morley.Types as Mo
+import Michelson.Lexer
+import Michelson.Types (Parser)
+import qualified Michelson.Types as Mi
+import Util.Default
 
 -- General T/V/F Annotation parser
 note :: T.Text -> Parser T.Text
@@ -45,45 +45,45 @@ note c = lexeme $ string c >> (note' <|> emptyNote)
       b <- takeWhileP Nothing validChar
       return $ T.append a b
 
-noteT :: Parser Mo.TypeAnn
-noteT = Mo.ann <$> note ":"
+noteT :: Parser Mi.TypeAnn
+noteT = Mi.ann <$> note ":"
 
-noteV :: Parser Mo.VarAnn
-noteV = Mo.ann <$> note "@"
+noteV :: Parser Mi.VarAnn
+noteV = Mi.ann <$> note "@"
 
-noteF :: Parser Mo.FieldAnn
-noteF = Mo.ann <$> note "%"
+noteF :: Parser Mi.FieldAnn
+noteF = Mi.ann <$> note "%"
 
-noteF2 :: Parser (Mo.FieldAnn, Mo.FieldAnn)
+noteF2 :: Parser (Mi.FieldAnn, Mi.FieldAnn)
 noteF2 = do a <- noteF; b <- noteF; return (a, b)
 
 parseDef :: Default a => Parser a -> Parser a
 parseDef a = try a <|> pure def
 
-noteTDef :: Parser Mo.TypeAnn
+noteTDef :: Parser Mi.TypeAnn
 noteTDef = parseDef noteT
 
-noteVDef :: Parser Mo.VarAnn
+noteVDef :: Parser Mi.VarAnn
 noteVDef = parseDef noteV
 
-noteFDef :: Parser Mo.FieldAnn
+noteFDef :: Parser Mi.FieldAnn
 noteFDef = parseDef noteF
 
-notesTVF :: Parser (Mo.TypeAnn, Mo.VarAnn, Mo.FieldAnn)
+notesTVF :: Parser (Mi.TypeAnn, Mi.VarAnn, Mi.FieldAnn)
 notesTVF = permute3Def noteT noteV noteF
 
-notesTVF2 :: Parser (Mo.TypeAnn, Mo.VarAnn, (Mo.FieldAnn, Mo.FieldAnn))
+notesTVF2 :: Parser (Mi.TypeAnn, Mi.VarAnn, (Mi.FieldAnn, Mi.FieldAnn))
 notesTVF2 = permute3Def noteT noteV noteF2
 
-notesTV :: Parser (Mo.TypeAnn, Mo.VarAnn)
+notesTV :: Parser (Mi.TypeAnn, Mi.VarAnn)
 notesTV = permute2Def noteT noteV
 
-notesVF :: Parser (Mo.VarAnn, Mo.FieldAnn)
+notesVF :: Parser (Mi.VarAnn, Mi.FieldAnn)
 notesVF  = permute2Def noteV noteF
 
 fieldType :: Default a
           => Parser a
-          -> Parser (a, Mo.TypeAnn)
+          -> Parser (a, Mi.TypeAnn)
 fieldType fp = runPermutation $
   (,) <$> toPermutationWithDefault  def     fp
-      <*> toPermutationWithDefault Mo.noAnn noteT
+      <*> toPermutationWithDefault Mi.noAnn noteT

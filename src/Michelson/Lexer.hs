@@ -1,4 +1,4 @@
-module Morley.Lexer (
+module Michelson.Lexer (
     lexeme
   , mSpace
   , symbol
@@ -12,7 +12,7 @@ module Morley.Lexer (
   , comma
   ) where
 
-import Morley.Types (Parser)
+import Michelson.Types (Parser)
 
 import Data.Char (toLower)
 import qualified Data.Text as T

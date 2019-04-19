@@ -1,6 +1,5 @@
 module Michelson.TypeCheck.TypeCheck
   ( TcInstrHandler
-  , TcExtHandler
   , TcOriginatedContracts
   , TcResult
   , TypeCheckEnv (..)
@@ -10,7 +9,6 @@ module Michelson.TypeCheck.TypeCheck
 
 import Michelson.TypeCheck.Error (TCError)
 import Michelson.TypeCheck.Types
-import Michelson.Typed.Instr (InstrExtT)
 import qualified Michelson.Untyped as U
 import Tezos.Address (Address)
 
@@ -18,26 +16,18 @@ type TypeCheckT a =
   ExceptT TCError
     (State TypeCheckEnv) a
 
--- | Function for typeChecking a @nop@ and updating state
--- TypeCheckT is used because inside
--- inside of TEST_ASSERT could be PRINT/STACKTYPE/etc extended instructions.
-type TcExtHandler =
-  forall inp. Typeable inp =>
-  U.ExpandedInstrExtU -> TcExtFrames -> HST inp -> TypeCheckT (TcExtFrames, Maybe $ InstrExtT inp)
-
 type TcOriginatedContracts = Map Address U.Type
 
 -- | The typechecking state
 data TypeCheckEnv = TypeCheckEnv
-  { tcExtHandler    :: TcExtHandler
-  , tcExtFrames     :: TcExtFrames
+  { tcExtFrames     :: TcExtFrames
   , tcContractParam :: U.Type
   , tcContracts     :: TcOriginatedContracts
   }
 
-runTypeCheckT :: TcExtHandler -> U.Type -> TcOriginatedContracts -> TypeCheckT a -> Either TCError a
-runTypeCheckT nh param contracts act =
-  evaluatingState (TypeCheckEnv nh [] param contracts) $ runExceptT act
+runTypeCheckT :: U.Type -> TcOriginatedContracts -> TypeCheckT a -> Either TCError a
+runTypeCheckT param contracts act =
+  evaluatingState (TypeCheckEnv [] param contracts) $ runExceptT act
 
 type TcResult inp = Either TCError (SomeInstr inp)
 

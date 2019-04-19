@@ -1,17 +1,15 @@
 -- | Utility functions for unit testing.
 
-module Morley.Test.Unit
+module Michelson.Test.Unit
   ( ContractReturn
   , ContractPropValidator
   , contractProp
   , contractPropVal
   ) where
 
-import Michelson.Interpret (ContractEnv, ContractReturn)
+import Michelson.Interpret (ContractEnv, ContractReturn, interpret)
 import Michelson.Typed (Contract, ToT, ToVal(..))
 import qualified Michelson.Typed as T
-import Morley.Ext (interpretMorley)
-import Morley.Types (MorleyLogs)
 
 -- | Type for contract execution validation.
 --
@@ -21,7 +19,7 @@ import Morley.Types (MorleyLogs)
 -- Function returns a property which type is designated by type variable @prop@
 -- and might be 'Test.QuickCheck.Property' or 'Test.Hspec.Expectation'
 -- or anything else relevant.
-type ContractPropValidator st prop = ContractReturn MorleyLogs st -> prop
+type ContractPropValidator st prop = ContractReturn st -> prop
 
 -- | Contract's property tester against given input.
 -- Takes contract environment, initial storage and parameter,
@@ -49,4 +47,4 @@ contractPropVal
   -> T.Value st
   -> prop
 contractPropVal instr check env param initSt =
-  check $ interpretMorley instr param initSt env
+  check $ interpret instr param initSt env

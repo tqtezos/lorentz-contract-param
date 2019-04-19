@@ -40,10 +40,10 @@ import Data.Singletons (SingI(sing))
 import Data.Typeable ((:~:)(..), typeRep)
 
 import Michelson.TypeCheck.Error
+import Michelson.TypeCheck.Ext
 import Michelson.TypeCheck.Helpers
 import Michelson.TypeCheck.TypeCheck
-  (TcExtHandler, TcInstrHandler, TcOriginatedContracts, TypeCheckEnv(..), TypeCheckT,
-  runTypeCheckT)
+  (TcInstrHandler, TcOriginatedContracts, TypeCheckEnv(..), TypeCheckT, runTypeCheckT)
 import Michelson.TypeCheck.Types
 import Michelson.TypeCheck.Value
 
@@ -57,16 +57,13 @@ import qualified Michelson.Untyped as U
 import Michelson.Untyped.Annotation (VarAnn)
 
 typeCheckContract
-  :: ExtC
-  => TcExtHandler
-  -> TcOriginatedContracts
+  :: TcOriginatedContracts
   -> U.Contract
   -> Either TCError SomeContract
-typeCheckContract nh cs c = runTypeCheckT nh (U.para c) cs $ typeCheckContractImpl c
+typeCheckContract cs c = runTypeCheckT (U.para c) cs $ typeCheckContractImpl c
 
 typeCheckContractImpl
-  :: ExtC
-  => U.Contract
+  :: U.Contract
   -> TypeCheckT SomeContract
 typeCheckContractImpl (U.Contract mParam mStorage pCode) = do
   code <- maybe (throwError $ TCContractError "no instructions in contract code" Nothing)
@@ -110,7 +107,7 @@ typeCheckContractImpl (U.Contract mParam mStorage pCode) = do
 
 -- | Like 'typeCheck', but for non-empty lists.
 typeCheckNE
-  :: (ExtC, Typeable inp)
+  :: (Typeable inp)
   => NonEmpty U.ExpandedOp
   -> HST inp
   -> TypeCheckT (SomeInstr inp)
@@ -125,7 +122,7 @@ typeCheckNE (x :| xs) = typeCheckImpl typeCheckInstr (x : xs)
 --
 -- As a second argument, @typeCheckList@ accepts input stack type representation.
 typeCheckList
-  :: (ExtC, Typeable inp)
+  :: (Typeable inp)
   => [U.ExpandedOp]
   -> HST inp
   -> TypeCheckT (SomeInstr inp)
@@ -144,8 +141,7 @@ typeCheckList = typeCheckImpl typeCheckInstr
 -- that is interpreted as input of wrong type and type check finishes with
 -- error.
 typeCheckValue
-  :: ExtC
-  => U.Value
+  :: U.Value
   -> (Sing t, Notes t)
   -> TypeCheckT SomeValue
 typeCheckValue = typeCheckValImpl typeCheckInstr
@@ -163,13 +159,10 @@ typeCheckValue = typeCheckValImpl typeCheckInstr
 -- If there was no match on a given pair of instruction and input stack,
 -- that is interpreted as input of wrong type and type check finishes with
 -- error.
-typeCheckInstr
-  :: ExtC
-  => TcInstrHandler
+typeCheckInstr :: TcInstrHandler
 typeCheckInstr (U.EXT ext) si = do
-  nh <- gets tcExtHandler
   nfs <- gets tcExtFrames
-  (nfs', res) <- nh ext nfs si
+  (nfs', res) <- typeCheckExt typeCheckList ext nfs si
   modify $ \te -> te {tcExtFrames = nfs'}
   let nopOrExt = maybe Nop Ext res
   return $ si :/ nopOrExt ::: si
@@ -682,7 +675,7 @@ typeCheckInstr instr sit = throwError ...
 -- value.
 genericIf
   :: forall bti bfi cond rs .
-    (Typeable bti, Typeable bfi, ExtC)
+    (Typeable bti, Typeable bfi)
   => (forall s'.
         Instr bti s' ->
         Instr bfi s' ->
@@ -719,7 +712,6 @@ mapImpl
     , SingI (MapOpInp c)
     , Typeable (MapOpInp c)
     , Typeable (MapOpRes c)
-    , ExtC
     )
   => Notes (MapOpInp c)
   -> U.ExpandedInstr
@@ -748,7 +740,6 @@ iterImpl
     ( IterOp c
     , SingI (IterOpEl c)
     , Typeable (IterOpEl c)
-    , ExtC
     )
   => Notes (IterOpEl c)
   -> U.ExpandedInstr
@@ -770,7 +761,6 @@ iterImpl en instr mp i@((_, _, lvn) ::& rs) = do
 lamImpl
   :: forall it ot ts .
     ( Typeable it, Typeable ts, Typeable ot
-    , ExtC
     , SingI it, SingI ot
     )
   => U.ExpandedInstr

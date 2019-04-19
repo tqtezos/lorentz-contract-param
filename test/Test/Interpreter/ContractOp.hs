@@ -8,9 +8,9 @@ import Test.Hspec (Spec, describe, it, parallel)
 import Test.QuickCheck (Property, (===))
 
 import Michelson.Interpret (ContractEnv(..), ContractReturn)
+import Michelson.Test (contractProp, dummyContractEnv, failedProp, specWithTypedContract)
 import Michelson.Typed (Contract, ToT, fromVal)
 import Michelson.Untyped (CT(..), T(..), Type(..), noAnn)
-import Morley.Test (contractProp, dummyContractEnv, failedProp, specWithTypedContract)
 import Tezos.Address (Address, unsafeParseAddress)
 
 -- | Spec to test compare.tz contract.
@@ -39,7 +39,7 @@ contractOpSpec = parallel $ describe "CONTRACT instruction tests" $ do
 
     validate
       :: Bool
-      -> ContractReturn s (ToT Bool)
+      -> ContractReturn (ToT Bool)
       -> Property
     validate ex (Right ([], fromVal -> l), _) = l === ex
     validate _ (Left _, _) = failedProp "Unexpected fail in interepreter"

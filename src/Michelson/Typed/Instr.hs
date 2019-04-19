@@ -2,14 +2,18 @@
 
 module Michelson.Typed.Instr
   ( Instr (..)
+  , ExtInstr (..)
+  , StackRef (..)
+  , mkStackRef
+  , PrintComment (..)
+  , TestAssert (..)
   , (#)
   , Contract
-  , ExtT
-  , InstrExtT
   ) where
 
-import Data.Kind (Type)
 import Data.Singletons (SingI)
+import Data.Singletons (sing)
+import Fmt ((+||), (||+))
 import qualified Text.Show
 
 import Michelson.Typed.Annotation (Notes)
@@ -18,6 +22,7 @@ import Michelson.Typed.Polymorphic
 import Michelson.Typed.Scope
 import Michelson.Typed.T (CT(..), T(..))
 import Michelson.Typed.Value (ContractInp, ContractOut, Value'(..))
+import Util.Peano
 
 -- | Infix version of @Seq@ constructor.
 --
@@ -27,11 +32,6 @@ import Michelson.Typed.Value (ContractInp, ContractOut, Value'(..))
 (#) = Seq
 
 infixl 0 #
-
--- | ExtT is extension of Instr by Morley instructions
-type family ExtT (instr :: [T] -> [T] -> Type) :: [T] -> Type
-
-type InstrExtT = ExtT Instr
 
 -- | Representation of Michelson instruction or sequence
 -- of instructions.
@@ -61,7 +61,7 @@ data Instr (inp :: [T]) (out :: [T]) where
   -- | Nop operation. Missing in Michelson spec, added to parse construction
   -- like  `IF {} { SWAP; DROP; }`.
   Nop :: Instr s s
-  Ext :: ExtT Instr s -> Instr s s
+  Ext :: ExtInstr s -> Instr s s
   -- | Nested wrapper is going to wrap a sequence of instructions with { }.
   -- It is crucial because serialisation of a contract
   -- depends on precise structure of its code.
@@ -240,12 +240,50 @@ data Instr (inp :: [T]) (out :: [T]) where
   SENDER :: Instr s ('Tc 'CAddress ': s)
   ADDRESS :: Instr ('TContract a ': s) ('Tc 'CAddress ': s)
 
-instance Show (Instr inp out) where
-  show _ = ":wallbang:"
-  -- TODO: this is a big problem actually
-  -- To be resolved in [TM-124]
+deriving instance Show (Instr inp out)
 
--- We could write this with -XQualifiedConstraints, but on type families it does not work
--- deriving instance (forall s. Show (ExtT Instr s)) => Show (Instr inp out)
+---------------------------------------------------
+
+data TestAssert (s :: [T]) where
+  TestAssert
+    :: (Typeable out)
+    => Text
+    -> PrintComment inp
+    -> Instr inp ('Tc 'CBool ': out)
+    -> TestAssert inp
+
+deriving instance Show (TestAssert s)
+
+-- | A reference into the stack of a given type.
+data StackRef (st :: [T]) where
+  -- | Keeps 0-based index to a stack element counting from the top.
+  StackRef
+    :: (KnownPeano idx, LongerThan st idx)
+    => Sing (idx :: Peano) -> StackRef st
+
+instance Eq (StackRef st) where
+  StackRef snat1 == StackRef snat2 = peanoVal snat1 == peanoVal snat2
+
+instance Show (StackRef st) where
+  show (StackRef snat) = "StackRef {" +|| peanoVal snat ||+ "}"
+
+-- | Create a stack reference, performing checks at compile time.
+mkStackRef
+  :: forall (gn :: Nat) st n.
+      (n ~ ToPeano gn, SingI n, KnownPeano n, RequireLongerThan st n)
+  => StackRef st
+mkStackRef = requiredLongerThan @st @n $ StackRef $ sing @(ToPeano gn)
+
+-- | A print format with references into the stack
+newtype PrintComment (st :: [T]) = PrintComment
+  { unPrintComment :: [Either Text (StackRef st)]
+  } deriving (Eq, Show, Generic)
+
+data ExtInstr s
+  = TEST_ASSERT (TestAssert s)
+  | PRINT (PrintComment s)
+  deriving (Show)
+
+---------------------------------------------------
 
 type Contract cp st = Instr (ContractInp cp st) (ContractOut st)
