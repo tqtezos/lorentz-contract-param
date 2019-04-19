@@ -1,4 +1,4 @@
-# Ensure that 'fail's in functions typecheck normally.
+# Ensure that 'fail's in let-macros typecheck normally.
 
 let {
   toCounter :: '[unit]

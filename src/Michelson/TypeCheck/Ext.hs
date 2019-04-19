@@ -3,6 +3,7 @@ module Michelson.TypeCheck.Ext
   ( typeCheckExt
   ) where
 
+import Control.Lens ((%=))
 import Control.Monad.Except (liftEither, throwError)
 import Data.Map.Lazy (Map, insert, lookup)
 import qualified Data.Map.Lazy as Map
@@ -30,15 +31,13 @@ typeCheckExt
      (Typeable s)
   => TypeCheckListHandler s
   -> U.ExpandedExtInstr
-  -> TcExtFrames
   -> HST s
-  -> TypeCheckT (TcExtFrames, Maybe (T.ExtInstr s))
-typeCheckExt typeCheckListH ext nfs hst =
+  -> TypeCheckT (SomeInstr s)
+typeCheckExt typeCheckListH ext hst =
   case ext of
-    U.STACKTYPE s -> fitError $ (nfs, Nothing) <$ checkStackType noBoundVars s hst
-    U.FN t sf     -> fitError $ (, Nothing) <$> checkFn t sf hst nfs
-    U.FN_END      -> fitError $ (safeTail nfs, Nothing) <$ checkFnEnd hst nfs
-    U.UPRINT pc   -> verifyPrint pc <&> \tpc -> (nfs, Just $ T.PRINT tpc)
+    U.STACKTYPE s -> liftExtError hst $ nopSomeInstr <$ checkStackType noBoundVars s hst
+    U.FN t sf op  -> checkFn typeCheckListH t sf op hst
+    U.UPRINT pc   -> verifyPrint pc <&> \tpc -> toSomeInstr (T.PRINT tpc)
     U.UTEST_ASSERT U.TestAssert{..} -> do
       verifyPrint tassComment
       _ :/ si <- typeCheckListH tassInstrs hst
@@ -51,7 +50,7 @@ typeCheckExt typeCheckListH ext nfs hst =
                            TestAssertError "TEST_ASSERT has to return Bool, but returned something else") $
                       eqType @b @('T.Tc 'CBool)
           tcom <- verifyPrint tassComment
-          pure (nfs, Just $ T.TEST_ASSERT $ T.TestAssert tassName tcom instr)
+          pure . toSomeInstr $ T.TEST_ASSERT $ T.TestAssert tassName tcom instr
         _ -> throwError $ TCExtError (SomeHST hst) $ TestAssertError "TEST_ASSERT has to return Bool, but the stack is empty"
   where
     verifyPrint :: U.PrintComment -> TypeCheckT (T.PrintComment s)
@@ -61,11 +60,11 @@ typeCheckExt typeCheckListH ext nfs hst =
             liftEither $ createStackRef i hst
       T.PrintComment <$> traverse checkStRef pc
 
-    safeTail :: [a] -> [a]
-    safeTail (_:as) = as
-    safeTail [] = []
+    toSomeInstr ext' = hst :/ T.Ext ext' ::: hst
+    nopSomeInstr = hst :/ T.Nop ::: hst
 
-    fitError = liftEither . first (TCExtError (SomeHST hst))
+liftExtError :: Typeable s => HST s -> Either ExtError a -> TypeCheckT a
+liftExtError hst = liftEither . first (TCExtError (SomeHST hst))
 
 -- | Check that the optional "forall" variables are consistent if present
 checkVars :: Text -> StackFn -> Either ExtError ()
@@ -74,23 +73,34 @@ checkVars t sf = case quantifiedVars sf of
     | varSet (inPattern sf) /= qs -> Left $ VarError t sf
   _ -> pure ()
 
--- | Checks the pattern in @FN@ and pushes a @ExtFrame@ onto the state
+-- | Executes function body, pushing @ExtFrame@ onto the state and checks
+-- the pattern in @FN@.
 checkFn
-  :: Typeable s
-  => Text -> StackFn -> HST s -> TcExtFrames -> Either ExtError TcExtFrames
-checkFn t sf it nfs = do
-  checkVars t sf
-  second (const $ (U.FN t sf, SomeHST it) : nfs) (checkStackType noBoundVars (inPattern sf) it)
+  :: Typeable inp
+  => TypeCheckListHandler inp
+  -> Text
+  -> StackFn
+  -> [ExpandedOp]
+  -> HST inp
+  -> TypeCheckT (SomeInstr inp)
+checkFn typeCheckListH t sf body inp = do
+  checkStart inp
+  res@(_ :/ instr) <- typeCheckListH body inp
+  case instr of
+    _ ::: out -> checkEnd out
+    AnyOutInstr _ -> pass
+  return res
+  where
+    checkStart hst = do
+      liftExtError hst $ checkVars t sf
+      void . liftExtError hst $ checkStackType noBoundVars (inPattern sf) hst
+      tcExtFramesL %= (SomeHST hst :)
 
--- |  Pops a @ExtFrame@ off the state and checks an @FN_END@ based on it
-checkFnEnd :: Typeable s => HST s -> TcExtFrames -> Either ExtError BoundVars
-checkFnEnd it' (nf@(nop, SomeHST it):_) = case nop of
-  U.FN t sf -> do
-    checkVars t sf
-    m <- checkStackType noBoundVars (inPattern sf) it
-    checkStackType m (outPattern sf) it'
-  _ -> Left $ FnEndMismatch (Just nf)
-checkFnEnd _ _ = Left $ FnEndMismatch Nothing
+    checkEnd :: Typeable out => HST out -> TypeCheckT ()
+    checkEnd out = liftExtError out $ do
+      checkVars t sf
+      m <- checkStackType noBoundVars (inPattern sf) inp
+      void $ checkStackType m (outPattern sf) out
 
 data BoundVars = BoundVars (Map Var Type) (Maybe SomeHST)
 
@@ -100,7 +110,7 @@ noBoundVars = BoundVars Map.empty Nothing
 -- | Check that a @StackTypePattern@ matches the type of the current stack
 checkStackType :: Typeable xs => BoundVars -> U.StackTypePattern -> HST xs
                -> Either ExtError BoundVars
-checkStackType (BoundVars vars boundStkRest) s it = go vars 0 s it
+checkStackType (BoundVars vars boundStkRest) s hst = go vars 0 s hst
   where
     go :: Typeable xs => Map Var Type -> Int -> U.StackTypePattern -> HST xs
        -> Either ExtError BoundVars
@@ -126,9 +136,9 @@ checkStackType (BoundVars vars boundStkRest) s it = go vars 0 s it
           go m (n + 1) ts xs
 
 eqHST :: (Typeable as, Typeable bs) => HST as -> HST bs -> Either TCTypeError (as :~: bs)
-eqHST (it :: HST xs) (it' :: HST ys) = do
+eqHST (hst :: HST xs) (hst' :: HST ys) = do
   Refl <- (eqType @xs @ys)
-  void $ convergeHST it it' `onLeft` AnnError
+  void $ convergeHST hst hst' `onLeft` AnnError
   return Refl
 
 lengthHST :: HST xs -> Natural

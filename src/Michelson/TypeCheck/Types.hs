@@ -19,7 +19,6 @@ import qualified Michelson.Typed as T
 import Michelson.Typed.Instr
 import Michelson.Typed.Value
 
-import qualified Michelson.Untyped as U
 import Michelson.Untyped.Annotation (VarAnn)
 
 -- | Data type holding type information for stack (Heterogeneous Stack Type).
@@ -142,4 +141,4 @@ data SomeContract where
 deriving instance Show SomeContract
 
 -- | State for type checking @nop@
-type TcExtFrames = [(U.ExpandedInstrExtU, SomeHST)]
+type TcExtFrames = [SomeHST]

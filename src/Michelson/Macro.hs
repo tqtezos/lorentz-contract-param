@@ -55,14 +55,12 @@ expand (Mac (PAPAIR (P (F a) (F b)) t v)) =
 expand (Mac m)  = SeqEx $ expandMacro m
 expand (Prim i) = PrimEx $ expand <$> i
 expand (Seq s)  = SeqEx $ expand <$> s
-expand (LMac l)  = SeqEx $ expandLetMac l
+expand (LMac l)  = expandLetMac l
   where
-    expandLetMac :: LetMacro -> [ExpandedOp]
+    expandLetMac :: LetMacro -> ExpandedOp
     expandLetMac LetMacro {..} =
-      [ PrimEx $ EXT (FN lmName lmSig)
-      , SeqEx $ expand <$> lmExpr
-      , PrimEx $ EXT FN_END
-      ]
+      PrimEx . EXT . FN lmName lmSig $
+      expand <$> lmExpr
 
 expandMacro :: Macro -> [ExpandedOp]
 expandMacro = \case

@@ -90,7 +90,6 @@ data ExtError =
   | VarError Text StackFn
   | TypeMismatch U.StackTypePattern Int TCTypeError
   | TyVarMismatch Var Type U.StackTypePattern Int TCTypeError
-  | FnEndMismatch (Maybe (U.ExpandedExtInstr, SomeHST))
   | StkRestMismatch U.StackTypePattern SomeHST SomeHST TCTypeError
   | UnexpectedUExt U.ExpandedExtInstr
   | TestAssertError Text
@@ -113,8 +112,6 @@ instance Buildable ExtError where
       "TyVarMismach: Variable " +| v |+ " is bound to type "
       +| t |+ " but pattern " +| stk |+ " failed at index "
       +| i |+ " with error: " +| e |+ ""
-    FnEndMismatch n ->
-      "FnEndMismatch " +| (maybe "" show n)
     StkRestMismatch stk (SomeHST r) (SomeHST r') e ->
       "StkRestMismatch in pattern " +| stk |+
       " against stacks " +| r ||+ " and " +| r' ||+

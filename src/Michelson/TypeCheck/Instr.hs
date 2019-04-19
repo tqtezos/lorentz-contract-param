@@ -160,12 +160,8 @@ typeCheckValue = typeCheckValImpl typeCheckInstr
 -- that is interpreted as input of wrong type and type check finishes with
 -- error.
 typeCheckInstr :: TcInstrHandler
-typeCheckInstr (U.EXT ext) si = do
-  nfs <- gets tcExtFrames
-  (nfs', res) <- typeCheckExt typeCheckList ext nfs si
-  modify $ \te -> te {tcExtFrames = nfs'}
-  let nopOrExt = maybe Nop Ext res
-  return $ si :/ nopOrExt ::: si
+typeCheckInstr (U.EXT ext) si =
+  typeCheckExt typeCheckList ext si
 
 typeCheckInstr U.DROP i@(_ ::& rs) = pure (i :/ DROP ::: rs)
 

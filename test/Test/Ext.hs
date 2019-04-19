@@ -79,7 +79,7 @@ typeCheckHandlerSpec = describe "typeCheckExt STACKTYPE tests" $ do
         SomeHST is -> SomeHST ((sing, nt, noAnn) ::& is)
 
     nh (ni, si) =
-      runTypeCheckT (Type TKey noAnn) mempty $ typeCheckExt typeCheckList ni [] si
+      runTypeCheckT (Type TKey noAnn) mempty $ typeCheckExt typeCheckList ni si
 
     runNopTest :: (ExpandedExtInstr, SomeHST) -> Bool -> Expectation
     runNopTest (ui, SomeHST hst) correct = case (nh (ui, hst), correct) of
