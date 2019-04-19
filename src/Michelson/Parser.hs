@@ -5,7 +5,6 @@ module Michelson.Parser
   , type_
   , value
   , stackType
-  , printComment
 
   -- * Errors
   , CustomParserException (..)
@@ -16,6 +15,7 @@ module Michelson.Parser
   , stringLiteral
   , bytesLiteral
   , intLiteral
+  , printComment
   ) where
 
 import Prelude hiding (many, note, try)
@@ -27,11 +27,11 @@ import qualified Data.Set as Set
 import qualified Data.Text as T
 
 import Text.Megaparsec (choice, eitherP, many, parse, satisfy, try)
-import Text.Megaparsec.Char (alphaNumChar, lowerChar, string, upperChar)
-import qualified Text.Megaparsec.Char.Lexer as L
+import Text.Megaparsec.Char (lowerChar, upperChar)
 
 import Michelson.Lexer
 import Michelson.Parser.Error
+import Michelson.Parser.Ext
 import Michelson.Parser.Helpers
 import Michelson.Parser.Instr
 import Michelson.Parser.Macro
@@ -39,7 +39,6 @@ import Michelson.Parser.Type
 import Michelson.Parser.Value
 import Michelson.Types (ParsedOp(..), Parser)
 import qualified Michelson.Types as Mi
-import qualified Michelson.Untyped as U
 
 -------------------------------------------------------------------------------
 -- Top-Level Parsers
@@ -124,7 +123,7 @@ op' :: Parser Mi.ParsedOp
 op' = do
   lms <- asks Mi.letMacros
   choice
-    [ (Mi.Prim . Mi.EXT) <$> nopInstr
+    [ (Mi.Prim . Mi.EXT) <$> extInstr ops
     , Mi.LMac <$> mkLetMac lms
     , Mi.Prim <$> prim
     , Mi.Mac <$> macro op'
@@ -212,18 +211,6 @@ stackFn = do
   b <- stackType
   return $ Mi.StackFn (Set.fromList <$> vs) a b
 
-tyVar :: Parser Mi.TyVar
-tyVar = (Mi.TyCon <$> type_) <|> (Mi.VarID <$> varID)
-
-lowerAlphaNumChar :: Parser Char
-lowerAlphaNumChar = satisfy (\x -> Char.isLower x || Char.isDigit x)
-
-varID :: Parser Mi.Var
-varID = lexeme $ do
-  v <- lowerChar
-  vs <- many lowerAlphaNumChar
-  return $ Mi.Var (T.pack (v:vs))
-
 -------------------------------------------------------------------------------
 -- Macro Parsers
 -------------------------------------------------------------------------------
@@ -241,50 +228,3 @@ primOrMac :: Parser Mi.ParsedOp
 primOrMac = ((Mi.Mac <$> ifCmpMac op') <|> ifOrIfX)
   <|> ((Mi.Mac <$> mapCadrMac op') <|> (Mi.Prim <$> mapOp op'))
   <|> (try (Mi.Prim <$> pairOp) <|> Mi.Mac <$> pairMac)
-
--------------------------------------------------------------------------------
--- Morley Instructions
--------------------------------------------------------------------------------
-
-nopInstr :: Parser Mi.ParsedUExtInstr
-nopInstr = choice [stackOp, testAssertOp, printOp]
-
-stackOp :: Parser Mi.ParsedUExtInstr
-stackOp = symbol' "STACKTYPE" >> U.STACKTYPE <$> stackType
-
-testAssertOp :: Parser Mi.ParsedUExtInstr
-testAssertOp = symbol' "TEST_ASSERT" >> U.UTEST_ASSERT <$> testAssert
-
-printOp :: Parser Mi.ParsedUExtInstr
-printOp = symbol' "PRINT" >> U.UPRINT <$> printComment
-
-testAssert :: Parser Mi.ParsedUTestAssert
-testAssert = do
-  n <- lexeme (T.pack <$> some alphaNumChar)
-  c <- printComment
-  o <- ops
-  return $ U.TestAssert n c o
-
-printComment :: Parser U.PrintComment
-printComment = do
-  string "\""
-  let validChar = T.pack <$> some (satisfy (\x -> x /= '%' && x /= '"'))
-  c <- many (Right <$> stackRef <|> Left <$> validChar)
-  symbol "\""
-  return $ U.PrintComment c
-
-stackRef :: Parser U.StackRef
-stackRef = do
-  string "%"
-  n <- brackets' L.decimal
-  return $ U.StackRef n
-
-stackType :: Parser U.StackTypePattern
-stackType = symbol "'[" >> (emptyStk <|> stkCons <|> stkRest)
-  where
-    emptyStk = try $ symbol "]" >> return U.StkEmpty
-    stkRest = try $ symbol "..." >> symbol "]" >> return U.StkRest
-    stkCons = try $ do
-      t <- tyVar
-      s <- (symbol "," >> stkCons <|> stkRest) <|> emptyStk
-      return $ U.StkCons t s

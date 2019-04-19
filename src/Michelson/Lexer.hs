@@ -1,5 +1,5 @@
-module Michelson.Lexer (
-    lexeme
+module Michelson.Lexer
+  ( lexeme
   , mSpace
   , symbol
   , symbol'
@@ -10,15 +10,17 @@ module Michelson.Lexer (
   , brackets'
   , semicolon
   , comma
+  , varID
   ) where
 
-import Michelson.Types (Parser)
-
-import Data.Char (toLower)
+import Data.Char (isDigit, isLower, toLower)
 import qualified Data.Text as T
-import Text.Megaparsec (MonadParsec, Tokens, between)
-import Text.Megaparsec.Char (space1, string)
+import Text.Megaparsec (MonadParsec, Tokens, between, satisfy)
+import Text.Megaparsec.Char (lowerChar, space1, string)
 import qualified Text.Megaparsec.Char.Lexer as L
+
+import Michelson.Types (Parser)
+import qualified Michelson.Untyped as U
 
 -- Lexing
 lexeme :: Parser a -> Parser a
@@ -53,3 +55,12 @@ semicolon = symbol ";"
 
 comma :: Parser (Tokens Text)
 comma = symbol ","
+
+varID :: Parser U.Var
+varID = lexeme $ do
+  v <- lowerChar
+  vs <- many lowerAlphaNumChar
+  return $ U.Var (toText (v:vs))
+  where
+    lowerAlphaNumChar :: Parser Char
+    lowerAlphaNumChar = satisfy (\x -> isLower x || isDigit x)
