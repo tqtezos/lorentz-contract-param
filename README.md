@@ -33,7 +33,21 @@ Workflow is the following:
 1. If your contract is called `foo.mtz`, use `morley print --contract foo.mtz > foo.tz`. Note that normally you should not use `morley` directly, you should use `morley.sh` or `stack exec -- morley`. See usage instructions below.
 2. After that, you can use existing Tezos tools to deploy your contract. You can also typecheck or interpret it using a reference implementation. If you are not familiar with the Tezos tooling, please read [Tezos documentation](http://tezos.gitlab.io/zeronet/index.html) or [Michelson tutorial](https://gitlab.com/morley-framework/michelson-tutorial).
 
-## IV: Testing EDSL
+## IV: Lorentz EDSL
+
+<!-- This section is to be proof-read -->
+
+Lorentz is a powerful meta-programming tool which allows one to write contracts directly in Haskell.
+
+Haskell's type checker and automatic type inference facilitate contracts implementation and reduce boilerplate related to types.
+Later such a contract can be dumped as a plain Michelson contract using functions from [`Michelson.Printer`](/src/Michelson/Printer.hs).
+
+<!-- TODO: Too few, mention more features as they appear -->
+
+You can find Lorentz instructions in [`Lorentz`](/src/Lorentz.hs) modules.
+Examples reside in [`Test.Lorentz.Contracts.*`](/test/Test/Lorentz/Contracts/) modules.
+
+## V: Testing EDSL
 
 Another way to test Michelson contracts is to write tests in Haskell using the testing EDSL provided by Morley.
 It supports both integrational and unit tests.
