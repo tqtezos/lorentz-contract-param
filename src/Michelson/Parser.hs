@@ -3,36 +3,36 @@ module Michelson.Parser
   , parseNoEnv
   , codeEntry
   , ParserException (..)
-  , stringLiteral
   , type_
   , value
   , stackType
   , printComment
-  , bytesLiteral
   , pushOp
+
+  -- * For tests
+  , stringLiteral
+  , bytesLiteral
   , intLiteral
   ) where
 
 import Prelude hiding (many, note, some, try)
 
 import Control.Applicative.Permutations (intercalateEffect, toPermutation)
-import qualified Data.ByteString.Base16 as B16
 import qualified Data.Char as Char
-import Data.Default (Default)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as T
 
-import Text.Megaparsec
-  (choice, customFailure, eitherP, many, manyTill, notFollowedBy, parse, satisfy, sepEndBy, some,
-  takeWhileP, try)
-import Text.Megaparsec.Char (alphaNumChar, char, lowerChar, string, upperChar)
+import Text.Megaparsec (choice, eitherP, many, notFollowedBy, parse, satisfy, sepEndBy, some, try)
+import Text.Megaparsec.Char (alphaNumChar, lowerChar, string, upperChar)
 import qualified Text.Megaparsec.Char.Lexer as L
 
 import Michelson.Lexer
 import qualified Michelson.Macro as Macro
 import Michelson.Parser.Annotations
 import Michelson.Parser.Helpers
+import Michelson.Parser.Type
+import Michelson.Parser.Value
 import Michelson.Types (CustomParserException(..), ParsedOp(..), Parser, ParserException(..))
 import qualified Michelson.Types as Mi
 import qualified Michelson.Untyped as U
@@ -71,6 +71,12 @@ contract = do
                    <*> toPermutation code
   return $ Mi.Contract p s c
 
+-- Value
+------------------
+
+value :: Parser Mi.ParsedValue
+value = value' op'
+
 -- Contract Blocks
 ------------------
 
@@ -95,14 +101,6 @@ code = do void $ symbol "code"; codeEntry
 
 -- Michelson expressions
 ------------------------
-value :: Parser Mi.ParsedValue
-value = lexeme $ valueInner <|> parens valueInner
-
-type_ :: Parser Mi.Type
-type_ = (ti <|> parens ti) <|> (customFailure UnknownTypeException)
-  where
-    ti = snd <$> (lexeme $ typeInner (pure Mi.noAnn))
-
 -- | Parses code block after "code" keyword of a contract.
 --
 -- This function is part of the module API, its semantics should not change.
@@ -123,9 +121,6 @@ op' = do
 
 ops :: Parser [Mi.ParsedOp]
 ops = braces $ sepEndBy op' semicolon
-
-ops1 :: Parser (NonEmpty Mi.ParsedOp)
-ops1 = braces $ sepEndBy1 op' semicolon
 
 -------------------------------------------------------------------------------
 -- Let block
@@ -193,18 +188,8 @@ letValue = lexeme $ do
   v <- value
   return $ Mi.LetValue n t v
 
--- | make a parser from a string
-mkParser :: (a -> T.Text) -> a -> Parser a
-mkParser f a = (try $ symbol' (f a)) >> return a
-
 mkLetMac :: Map Text Mi.LetMacro -> Parser Mi.LetMacro
 mkLetMac lms = choice $ mkParser Mi.lmName <$> (Map.elems lms)
-
-mkLetVal :: Map Text Mi.LetValue -> Parser Mi.LetValue
-mkLetVal lvs = choice $ mkParser Mi.lvName <$> (Map.elems lvs)
-
-mkLetType :: Map Text Mi.LetType -> Parser Mi.LetType
-mkLetType lts = choice $ mkParser Mi.ltName <$> (Map.elems lts)
 
 stackFn :: Parser Mi.StackFn
 stackFn = do
@@ -225,313 +210,6 @@ varID = lexeme $ do
   v <- lowerChar
   vs <- many lowerAlphaNumChar
   return $ Mi.Var (T.pack (v:vs))
-
--------------------------------------------------------------------------------
--- Value Parsers
--------------------------------------------------------------------------------
-
-valueInner :: Parser Mi.ParsedValue
-valueInner = choice $
-  [ stringLiteral, bytesLiteral, intLiteral, unitValue
-  , trueValue, falseValue, pairValue, leftValue, rightValue
-  , someValue, noneValue, nilValue, seqValue, mapValue, lambdaValue
-  , dataLetValue
-  ]
-
-dataLetValue :: Parser Mi.ParsedValue
-dataLetValue = do
-  lvs <- asks Mi.letValues
-  Mi.lvVal <$> (mkLetVal lvs)
-
--- Literals
-intLiteral :: Parser (Mi.Value' a)
-intLiteral = try $ Mi.ValueInt <$> (L.signed (return ()) L.decimal)
-
-
--- It is safe not to use `try` here because bytesLiteral is the only
--- thing that starts from 0x (at least for now)
-bytesLiteral :: Parser (Mi.Value' a)
-bytesLiteral = do
-  symbol "0x"
-  hexdigits <- takeWhileP Nothing Char.isHexDigit
-  let (bytes, remain) = B16.decode $ encodeUtf8 hexdigits
-  if remain == ""
-  then return . Mi.ValueBytes . Mi.InternalByteString $ bytes
-  else customFailure OddNumberBytesException
-
-stringLiteral :: Parser Mi.ParsedValue
-stringLiteral = try $ Mi.ValueString <$>
-  (T.pack <$>
-    ( (++) <$>
-        (concat <$> (string "\"" >> many validChar)) <*>
-        (manyTill (lineBreakChar <|> (customFailure $ UnexpectedLineBreak)) (string "\""))
-    )
-  )
-  where
-      validChar :: Parser String
-      validChar =
-        try strEscape <|>
-          try ((:[]) <$> satisfy (\x -> x /= '"' && x /= '\n' && x /= '\r'))
-      lineBreakChar :: Parser Char
-      lineBreakChar = char '\n' <|> char '\r'
-
-strEscape :: Parser String
-strEscape = char '\\' >> esc
-  where
-    esc = (char 't' >> return "\t")
-      <|> (char 'b' >> return "\b")
-      <|> (char '\\' >> return "\\")
-      <|> (char '"' >> return "\"")
-      <|> (char 'n' >> return "\n")
-      <|> (char 'r' >> return "\r")
-
-
-unitValue :: Parser Mi.ParsedValue
-unitValue = do symbol "Unit"; return Mi.ValueUnit
-
-trueValue :: Parser Mi.ParsedValue
-trueValue = do symbol "True"; return Mi.ValueTrue
-
-falseValue :: Parser Mi.ParsedValue
-falseValue = do symbol "False"; return Mi.ValueFalse
-
-pairValue :: Parser Mi.ParsedValue
-pairValue = core <|> tuple
-  where
-    core = do symbol "Pair"; a <- value; Mi.ValuePair a <$> value
-    tuple = try $ do
-      symbol "("
-      a <- value
-      comma
-      b <- tupleInner <|> value
-      symbol ")"
-      return $ Mi.ValuePair a b
-    tupleInner = try $ do
-      a <- value
-      comma
-      b <- tupleInner <|> value
-      return $ Mi.ValuePair a b
-
-leftValue :: Parser Mi.ParsedValue
-leftValue = do void $ symbol "Left"; Mi.ValueLeft <$> value
-
-rightValue :: Parser Mi.ParsedValue
-rightValue = do void $ symbol "Right"; Mi.ValueRight <$> value
-
-someValue :: Parser Mi.ParsedValue
-someValue = do void $ symbol "Some"; Mi.ValueSome <$> value
-
-noneValue :: Parser Mi.ParsedValue
-noneValue = do symbol "None"; return Mi.ValueNone
-
-nilValue :: Parser Mi.ParsedValue
-nilValue = Mi.ValueNil <$ (try $ braces pass)
-
-lambdaValue :: Parser Mi.ParsedValue
-lambdaValue = Mi.ValueLambda <$> ops1
-
-seqValue :: Parser Mi.ParsedValue
-seqValue = Mi.ValueSeq <$> (try $ braces $ sepEndBy1 value semicolon)
-
-eltValue :: Parser (Mi.Elt ParsedOp)
-eltValue = do void $ symbol "Elt"; Mi.Elt <$> value <*> value
-
-mapValue :: Parser Mi.ParsedValue
-mapValue = Mi.ValueMap <$> (try $ braces $ sepEndBy1 eltValue semicolon)
-
--------------------------------------------------------------------------------
--- Types
--------------------------------------------------------------------------------
-field :: Parser (Mi.FieldAnn, Mi.Type)
-field = lexeme (fi <|> parens fi)
-  where
-    fi = typeInner noteF
-
-typeInner :: Parser Mi.FieldAnn -> Parser (Mi.FieldAnn, Mi.Type)
-typeInner fp = choice $ (\x -> x fp) <$>
-  [ t_ct, t_key, t_unit, t_signature, t_option, t_list, t_set, t_operation
-  , t_contract, t_pair, t_or, t_lambda, t_map, t_big_map, t_view, t_void
-  , t_letType
-  ]
-
-t_letType :: Default fp => Parser fp -> Parser (fp, Mi.Type)
-t_letType fp = do
-  lts <- asks Mi.letTypes
-  lt <- Mi.ltSig <$> (mkLetType lts)
-  f <- parseDef fp
-  return (f, lt)
-
--- Comparable Types
-comparable :: Parser Mi.Comparable
-comparable = let c = do ct' <- ct; Mi.Comparable ct' <$> noteTDef in parens c <|> c
-
-t_ct :: (Default a) => Parser a -> Parser (a, Mi.Type)
-t_ct fp = do ct' <- ct; (f,t) <- fieldType fp; return (f, Mi.Type (Mi.Tc ct') t)
-
-ct :: Parser Mi.CT
-ct =  (symbol' "Int" >> return Mi.CInt)
-  <|> (symbol' "Nat" >> return Mi.CNat)
-  <|> (symbol' "String" >> return Mi.CString)
-  <|> (symbol' "Bytes" >> return Mi.CBytes)
-  <|> (symbol' "Mutez" >> return Mi.CMutez)
-  <|> (symbol' "Bool" >> return Mi.CBool)
-  <|> ((symbol' "KeyHash" <|> symbol "key_hash") >> return Mi.CKeyHash)
-  <|> (symbol' "Timestamp" >> return Mi.CTimestamp)
-  <|> (symbol' "Address" >> return Mi.CAddress)
-
--- Protocol Types
-t_key :: (Default a) => Parser a -> Parser (a, Mi.Type)
-t_key fp = do symbol' "Key"; (f,t) <- fieldType fp; return (f, Mi.Type Mi.TKey t)
-
-t_signature :: (Default a) => Parser a -> Parser (a, Mi.Type)
-t_signature fp = do symbol' "Signature"; (f, t) <- fieldType fp; return (f, Mi.Type Mi.TSignature t)
-
-t_operation :: (Default a) => Parser a -> Parser (a, Mi.Type)
-t_operation fp = do symbol' "Operation"; (f, t) <- fieldType fp; return (f, Mi.Type Mi.TOperation t)
-
-t_contract :: (Default a) => Parser a -> Parser (a, Mi.Type)
-t_contract  fp = do symbol' "Contract"; (f, t) <- fieldType fp; a <- type_; return (f, Mi.Type (Mi.TContract a) t)
---(do symbol "address"; (f, t) <- ft; return (f, Mi.Type Mi.CAddress t)
-
--- Abstraction Types
-t_unit :: (Default a) => Parser a -> Parser (a, Mi.Type)
-t_unit fp = do
-  symbol' "Unit" <|> symbol "()"
-  (f,t) <- fieldType fp
-  return (f, Mi.Type Mi.TUnit t)
-
-t_pair :: (Default a) => Parser a -> Parser (a, Mi.Type)
-t_pair fp = core <|> tuple
-  where
-    core = do
-      symbol' "Pair"
-      (f, t) <- fieldType fp
-      (l, a) <- field
-      (r, b) <- field
-      return (f, Mi.Type (Mi.TPair l r a b) t)
-    tuple = try $ do
-      symbol "("
-      (l, a) <- field
-      comma
-      (r, b) <- tupleInner <|> field
-      symbol ")"
-      (f, t) <- fieldType fp
-      return (f, Mi.Type (Mi.TPair l r a b) t)
-    tupleInner = try $ do
-      (l, a) <- field
-      comma
-      (r, b) <- tupleInner <|> field
-      return (Mi.noAnn, Mi.Type (Mi.TPair l r a b) Mi.noAnn)
-
-t_or :: (Default a) => Parser a -> Parser (a, Mi.Type)
-t_or fp = core <|> bar
-  where
-    core = do
-      symbol' "Or"
-      (f, t) <- fieldType fp
-      (l, a) <- field
-      (r, b) <- field
-      return (f, Mi.Type (Mi.TOr l r a b) t)
-    bar = try $ do
-      symbol "("
-      (l, a) <- field
-      symbol "|"
-      (r, b) <- barInner <|> field
-      symbol ")"
-      (f, t) <- fieldType fp
-      return (f, Mi.Type (Mi.TOr l r a b) t)
-    barInner = try $ do
-      (l, a) <- field
-      symbol "|"
-      (r, b) <- barInner <|> field
-      return (Mi.noAnn, Mi.Type (Mi.TOr l r a b) Mi.noAnn)
-
-t_option :: (Default a) => Parser a -> Parser (a, Mi.Type)
-t_option fp = do
-  symbol' "Option"
-  (f, t) <- fieldType fp
-  (fa, a) <- field
-  return (f, Mi.Type (Mi.TOption fa a) t)
-
-t_lambda :: (Default a) => Parser a -> Parser (a, Mi.Type)
-t_lambda fp = core <|> slashLambda
-  where
-    core = do
-      symbol' "Lambda"
-      (f, t) <- fieldType fp
-      a <- type_
-      b <- type_
-      return (f, Mi.Type (Mi.TLambda a b) t)
-    slashLambda = do
-      symbol "\\"
-      (f, t) <- fieldType fp
-      a <- type_
-      symbol "->"
-      b <- type_
-      return (f, Mi.Type (Mi.TLambda a b) t)
-
--- Container types
-t_list :: (Default a) => Parser a -> Parser (a, Mi.Type)
-t_list fp = core <|> bracketList
-  where
-    core = do
-      symbol' "List"
-      (f, t) <- fieldType fp
-      a <- type_
-      return (f, Mi.Type (Mi.TList a) t)
-    bracketList = do
-      a <- brackets type_
-      (f, t) <- fieldType fp
-      return (f, Mi.Type (Mi.TList a) t)
-
-t_set :: (Default a) => Parser a -> Parser (a, Mi.Type)
-t_set fp = core <|> braceSet
-  where
-    core = do
-      symbol' "Set"
-      (f, t) <- fieldType fp
-      a <- comparable
-      return (f, Mi.Type (Mi.TSet a) t)
-    braceSet = do
-      a <- braces comparable
-      (f, t) <- fieldType fp
-      return (f, Mi.Type (Mi.TSet a) t)
-
-t_map :: (Default a) => Parser a -> Parser (a, Mi.Type)
-t_map fp = do
-  symbol' "Map"
-  (f, t) <- fieldType fp
-  a <- comparable
-  b <- type_
-  return (f, Mi.Type (Mi.TMap a b) t)
-
-t_big_map :: (Default a) => Parser a -> Parser (a, Mi.Type)
-t_big_map fp = do
-  symbol' "BigMap" <|> symbol "big_map"
-  (f, t) <- fieldType fp
-  a <- comparable
-  b <- type_
-  return (f, Mi.Type (Mi.TBigMap a b) t)
-
-t_view :: Default a => Parser a -> Parser (a, Mi.Type)
-t_view fp = do
-  symbol' "View"
-  a <- type_
-  r <- type_
-  (f, t) <- fieldType fp
-  let r' = Mi.Type (Mi.TOption Mi.noAnn r) Mi.noAnn
-  let c = Mi.Type (Mi.TPair Mi.noAnn Mi.noAnn a r') Mi.noAnn
-  let c' = Mi.Type (Mi.TContract c) Mi.noAnn
-  return (f, Mi.Type (Mi.TPair Mi.noAnn Mi.noAnn a c') t)
-
-t_void :: Default a => Parser a -> Parser (a, Mi.Type)
-t_void fp = do
-  symbol' "Void"
-  a <- type_
-  b <- type_
-  (f, t) <- fieldType fp
-  let c = Mi.Type (Mi.TLambda b b) Mi.noAnn
-  return (f, Mi.Type (Mi.TPair Mi.noAnn Mi.noAnn a c) t)
 
 -------------------------------------------------------------------------------
 -- Primitive Instruction Parsers
