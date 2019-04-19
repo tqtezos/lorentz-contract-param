@@ -91,7 +91,6 @@ data ExtError =
   | TypeMismatch U.StackTypePattern Int TCTypeError
   | TyVarMismatch Var Type U.StackTypePattern Int TCTypeError
   | StkRestMismatch U.StackTypePattern SomeHST SomeHST TCTypeError
-  | UnexpectedUExt U.ExpandedExtInstr
   | TestAssertError Text
   | InvalidStackReference U.StackRef StackSize
   deriving (Eq)
@@ -116,8 +115,6 @@ instance Buildable ExtError where
       "StkRestMismatch in pattern " +| stk |+
       " against stacks " +| r ||+ " and " +| r' ||+
       " with error: " +| e |+ ""
-    UnexpectedUExt expr ->
-      "UnexpectedUExt " +| expr |+ ""
     TestAssertError t ->
       "TestAssertError: " +| t |+ ""
     InvalidStackReference i lhs ->
