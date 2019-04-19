@@ -21,6 +21,7 @@ import Text.Megaparsec.Char (char, string)
 import qualified Text.Megaparsec.Char.Lexer as L
 
 import Michelson.Lexer
+import Michelson.Parser.Error
 import Michelson.Parser.Helpers
 import Michelson.Types
 import qualified Michelson.Untyped as U

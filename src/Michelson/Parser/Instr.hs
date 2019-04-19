@@ -28,16 +28,18 @@ import Michelson.Untyped
 -- | Parser for primitive Michelson instruction (no macros and extensions).
 primInstr :: Parser (Contract' ParsedOp) -> Parser ParsedOp -> Parser ParsedInstr
 primInstr contractParser opParser = choice
-  [ dropOp, dupOp, swapOp, pushOp opParser, someOp, noneOp, unitOp, ifNoneOp opParser
-  , carOp, cdrOp, leftOp, rightOp, ifLeftOp opParser, nilOp, consOp, ifConsOp opParser
-  , sizeOp, emptySetOp, emptyMapOp, iterOp opParser, memOp, getOp, updateOp
-  , loopLOp opParser, loopOp opParser, lambdaOp opParser, execOp, dipOp opParser, failWithOp, castOp, renameOp
+  [ dropOp, dupOp, swapOp, pushOp opParser, someOp, noneOp, unitOp
+  , ifNoneOp opParser, carOp, cdrOp, leftOp, rightOp, ifLeftOp opParser, nilOp
+  , consOp, ifConsOp opParser, sizeOp, emptySetOp, emptyMapOp, iterOp opParser
+  , memOp, getOp, updateOp, loopLOp opParser, loopOp opParser
+  , lambdaOp opParser, execOp, dipOp opParser, failWithOp, castOp, renameOp
   , concatOp, packOp, unpackOp, sliceOp, isNatOp, addressOp, addOp, subOp
   , mulOp, edivOp, absOp, negOp, lslOp, lsrOp, orOp, andOp, xorOp, notOp
   , compareOp, eqOp, neqOp, ltOp, leOp, gtOp, geOp, intOp, selfOp, contractOp
-  , transferTokensOp, setDelegateOp, createAccountOp, createContractOp contractParser
-  , implicitAccountOp, nowOp, amountOp, balanceOp, checkSigOp
-  , sha256Op, sha512Op, blake2BOp, hashKeyOp, stepsToQuotaOp, sourceOp, senderOp
+  , transferTokensOp, setDelegateOp, createAccountOp
+  , createContractOp contractParser, implicitAccountOp, nowOp, amountOp
+  , balanceOp, checkSigOp, sha256Op, sha512Op, blake2BOp, hashKeyOp
+  , stepsToQuotaOp, sourceOp, senderOp
   ]
 
 -- | Parse a sequence of instructions.

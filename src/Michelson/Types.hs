@@ -1,11 +1,3 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
--- pva701: ^ this is needed for Buildable Instr.
--- I couldn't define it in Utyped.Instr
--- because GHC doesn't know what particular type would be ExtU
--- and generates an error about overlapping instances,
--- when I try to use genericF.
--- Also it's not possible to implement it using deriving instances
--- because InstrAbstract isn't newtype.
 {-# LANGUAGE DeriveDataTypeable, DerivingStrategies #-}
 
 module Michelson.Types
@@ -35,11 +27,8 @@ module Michelson.Types
   , U.unInternalByteString
 
   -- Parser types
-  , CustomParserException (..)
   , Parser
   , Parsec
-  , ParseErrorBundle
-  , ParserException (..)
   , ParsedValue
   , LetEnv (..)
   , noLetEnv
@@ -75,10 +64,10 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Text as T
 import Fmt (Buildable(build), genericF, (+|), (|+))
-import Text.Megaparsec (ParseErrorBundle, Parsec, ShowErrorComponent(..), errorBundlePretty)
+import Text.Megaparsec (Parsec)
 import qualified Text.PrettyPrint.Leijen.Text as PP (empty)
-import qualified Text.Show (show)
 
+import Michelson.Parser.Error
 import Michelson.Printer (RenderDoc(..))
 import qualified Michelson.Untyped as U
 import Util.Default (Default(..))
@@ -87,34 +76,10 @@ import Util.Default (Default(..))
 -- Types for the parser
 -------------------------------------
 
-data CustomParserException
-  = UnknownTypeException
-  | OddNumberBytesException
-  | UnexpectedLineBreak
-  deriving (Eq, Data, Ord, Show)
-
-instance ShowErrorComponent CustomParserException where
-  showErrorComponent UnknownTypeException = "unknown type"
-  showErrorComponent OddNumberBytesException = "odd number bytes"
-  showErrorComponent UnexpectedLineBreak = "unexpected linebreak"
-
 type Parser = ReaderT LetEnv (Parsec CustomParserException T.Text)
 
 instance Default a => Default (Parser a) where
   def = pure def
-
-data ParserException =
-  ParserException (ParseErrorBundle T.Text CustomParserException)
-  deriving (Eq)
-
-instance Show ParserException where
-  show (ParserException bundle) = errorBundlePretty bundle
-
-instance Exception ParserException where
-  displayException (ParserException bundle) = errorBundlePretty bundle
-
-instance Buildable ParserException where
-  build = build @String . show
 
 -- | The environment containing lets from the let-block
 data LetEnv = LetEnv

@@ -63,6 +63,7 @@ library
                      , Lorentz.Value
                      , Michelson.EqParam
                      , Michelson.Parser.Annotations
+                     , Michelson.Parser.Error
                      , Michelson.Parser.Helpers
                      , Michelson.Parser.Instr
                      , Michelson.Parser.Type

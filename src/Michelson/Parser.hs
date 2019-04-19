@@ -2,11 +2,15 @@ module Michelson.Parser
   ( program
   , parseNoEnv
   , codeEntry
-  , ParserException (..)
   , type_
   , value
   , stackType
   , printComment
+
+  -- * Errors
+  , CustomParserException (..)
+  , ParseErrorBundle
+  , ParserException (..)
 
   -- * For tests
   , stringLiteral
@@ -29,11 +33,12 @@ import qualified Text.Megaparsec.Char.Lexer as L
 import Michelson.Lexer
 import qualified Michelson.Macro as Macro
 import Michelson.Parser.Annotations
+import Michelson.Parser.Error
 import Michelson.Parser.Helpers
 import Michelson.Parser.Instr
 import Michelson.Parser.Type
 import Michelson.Parser.Value
-import Michelson.Types (CustomParserException(..), ParsedOp(..), Parser, ParserException(..))
+import Michelson.Types (ParsedOp(..), Parser)
 import qualified Michelson.Types as Mi
 import qualified Michelson.Untyped as U
 import Util.Alternative (someNE)
@@ -57,8 +62,11 @@ programInner = do
   local (const env) contract
 
 -- | Parse with empty environment
-parseNoEnv :: Parser a -> String -> T.Text
-       -> Either (Mi.ParseErrorBundle T.Text CustomParserException) a
+parseNoEnv ::
+     Parser a
+  -> String
+  -> Text
+  -> Either (ParseErrorBundle Text CustomParserException) a
 parseNoEnv p = parse (runReaderT p Mi.noLetEnv)
 
 -- | Michelson contract
