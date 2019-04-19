@@ -58,7 +58,8 @@ library
                      , Util.Default
                      , Util.Peano
 
-  other-modules:       Lorentz.Instr
+  other-modules:       Lorentz.Ext
+                     , Lorentz.Instr
                      , Lorentz.Macro
                      , Lorentz.Type
                      , Lorentz.Value

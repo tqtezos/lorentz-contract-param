@@ -1,3 +1,5 @@
+{-# LANGUAGE DerivingStrategies #-}
+
 -- | Module, containing data types for Michelson value.
 
 module Michelson.Typed.Instr
@@ -272,7 +274,11 @@ mkStackRef = requiredLongerThan @st @n $ StackRef $ sing @(ToPeano gn)
 -- | A print format with references into the stack
 newtype PrintComment (st :: [T]) = PrintComment
   { unPrintComment :: [Either Text (StackRef st)]
-  } deriving (Eq, Show, Generic)
+  } deriving stock (Eq, Show, Generic)
+    deriving newtype (Semigroup, Monoid)
+
+instance IsString (PrintComment st) where
+  fromString = PrintComment . one . Left . fromString
 
 data ExtInstr s
   = TEST_ASSERT (TestAssert s)
