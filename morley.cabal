@@ -67,6 +67,7 @@ library
                      , Michelson.Parser.Ext
                      , Michelson.Parser.Helpers
                      , Michelson.Parser.Instr
+                     , Michelson.Parser.Let
                      , Michelson.Parser.Macro
                      , Michelson.Parser.Type
                      , Michelson.Parser.Value

@@ -21,19 +21,15 @@ module Michelson.Parser
 import Prelude hiding (many, note, try)
 
 import Control.Applicative.Permutations (intercalateEffect, toPermutation)
-import qualified Data.Char as Char
-import qualified Data.Map as Map
-import qualified Data.Set as Set
 import qualified Data.Text as T
 
-import Text.Megaparsec (choice, eitherP, many, parse, satisfy, try)
-import Text.Megaparsec.Char (lowerChar, upperChar)
+import Text.Megaparsec (choice, eitherP, parse, try)
 
 import Michelson.Lexer
 import Michelson.Parser.Error
 import Michelson.Parser.Ext
-import Michelson.Parser.Helpers
 import Michelson.Parser.Instr
+import Michelson.Parser.Let
 import Michelson.Parser.Macro
 import Michelson.Parser.Type
 import Michelson.Parser.Value
@@ -55,7 +51,7 @@ program = runReaderT programInner Mi.noLetEnv
 programInner :: Parser (Mi.Contract' ParsedOp)
 programInner = do
   mSpace
-  env <- fromMaybe Mi.noLetEnv <$> (optional letBlock)
+  env <- fromMaybe Mi.noLetEnv <$> (optional (letBlock op'))
   local (const env) contract
 
 -- | Parse with empty environment
@@ -92,16 +88,6 @@ prim = primInstr contract op'
 -- Contract Blocks
 ------------------
 
--- | let block parser
-letBlock :: Parser Mi.LetEnv
-letBlock = do
-  symbol "let"
-  symbol "{"
-  ls <- local (const Mi.noLetEnv) letInner
-  symbol "}"
-  semicolon
-  return ls
-
 parameter :: Parser Mi.Type
 parameter = do void $ symbol "parameter"; type_
 
@@ -133,83 +119,6 @@ op' = do
 
 ops :: Parser [Mi.ParsedOp]
 ops = ops' op'
-
--------------------------------------------------------------------------------
--- Let block
--------------------------------------------------------------------------------
-
--- | Element of a let block
-data Let = LetM Mi.LetMacro | LetV Mi.LetValue | LetT Mi.LetType
-
--- | Incrementally build the let environment
-letInner :: Parser Mi.LetEnv
-letInner = do
-  env <- ask
-  l <- lets
-  semicolon
-  (local (addLet l) letInner) <|> return (addLet l env)
-
--- | add a Let to the environment in the correct place
-addLet :: Let -> Mi.LetEnv -> Mi.LetEnv
-addLet l (Mi.LetEnv lms lvs lts) = case l of
-  LetM lm -> Mi.LetEnv (Map.insert (Mi.lmName lm) lm lms) lvs lts
-  LetV lv -> Mi.LetEnv lms (Map.insert (Mi.lvName lv) lv lvs) lts
-  LetT lt -> Mi.LetEnv lms lvs (Map.insert (Mi.ltName lt) lt lts)
-
-lets :: Parser Let
-lets = choice [ (LetM <$> (try letMacro))
-              , (LetV <$> (try letValue))
-              , (LetT <$> (try letType))
-              ]
-
--- | build a let name parser from a leading character parser
-letName :: Parser Char -> Parser T.Text
-letName p = lexeme $ do
-  v <- p
-  let validChar x = Char.isAscii x && (Char.isAlphaNum x || x == '\'' || x == '_')
-  vs <- many (satisfy validChar)
-  return $ T.pack (v:vs)
-
-letMacro :: Parser Mi.LetMacro
-letMacro = lexeme $ do
-  n <- letName lowerChar
-  symbol "::"
-  s <- stackFn
-  symbol "="
-  o <- ops
-  return $ Mi.LetMacro n s o
-
-letType :: Parser Mi.LetType
-letType = lexeme $ do
-  symbol "type"
-  n <- letName upperChar <|> letName lowerChar
-  symbol "="
-  t <- type_
-  case t of
-    (Mi.Type t' a) ->
-      if a == Mi.noAnn
-      then return $ Mi.LetType n (Mi.Type t' (Mi.ann n))
-      else return $ Mi.LetType n t
-
-letValue :: Parser Mi.LetValue
-letValue = lexeme $ do
-  n <- letName upperChar
-  symbol "::"
-  t <- type_
-  symbol "="
-  v <- value
-  return $ Mi.LetValue n t v
-
-mkLetMac :: Map Text Mi.LetMacro -> Parser Mi.LetMacro
-mkLetMac lms = choice $ mkParser Mi.lmName <$> (Map.elems lms)
-
-stackFn :: Parser Mi.StackFn
-stackFn = do
-  vs <- (optional (symbol "forall" >> some varID <* symbol "."))
-  a <- stackType
-  symbol "->"
-  b <- stackType
-  return $ Mi.StackFn (Set.fromList <$> vs) a b
 
 -------------------------------------------------------------------------------
 -- Macro Parsers
