@@ -1,8 +1,9 @@
 parameter
-  ( Unit          %antibump_counter
-  | Unit          %bump_counter
-  | Nat           %reset_counter
-  | View Unit Nat %getCount
+  ( Unit            %antibump_counter
+  | Unit            %bump_counter
+  | Nat             %reset_counter
+  | View Unit Nat   %getCount
+  | Void Unit Bytes %hashCount
   );
 storage Nat;
 code {unpair;
@@ -11,4 +12,5 @@ code {unpair;
         {drop; push Nat 1; add; nil Operation; pair;}
         {dip {drop}; nil Operation; pair;}
         {view {cdr}}
+        {void {drop; pack; sha512}}
      };

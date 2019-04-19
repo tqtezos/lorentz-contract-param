@@ -9,7 +9,7 @@ storage (Nat, Address %feather);
 code { unpair; case
         { dip {unpair}; add; pair; nil Operation; pair }
         { drop; dup; cdr;
-          contract (Unit, (Option nat)); assert_some;
+          contract (Unit, (Option Nat)); assert_some;
           none Nat; unit; pair;
           dip {amount}; transfer_tokens;
           nil Operation; swap; cons; pair;

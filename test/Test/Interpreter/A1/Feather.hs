@@ -1,4 +1,3 @@
-
 -- | Tests for feathering as described in TZIP-A1.
 
 module Test.Interpreter.A1.Feather
@@ -10,15 +9,18 @@ import Control.Monad.Except (Except, runExcept, throwError)
 import Data.Singletons (SingI)
 import Test.Hspec (Spec)
 import Test.Hspec.QuickCheck (prop)
-import Test.QuickCheck (Gen, arbitrary, forAll, listOf)
+import Test.QuickCheck (Gen, arbitrary, forAll, frequency, listOf, suchThat)
 import Test.QuickCheck.Arbitrary.Generic (genericArbitrary)
 import Test.QuickCheck.Instances.Natural ()
 
+import Michelson.Interpret (MichelsonFailed(..))
+import Michelson.Interpret.Pack (packValue')
 import Michelson.Test
 import qualified Michelson.Typed as T
 import qualified Michelson.Untyped as U
 import Tezos.Address
 import Tezos.Core
+import Tezos.Crypto
 
 data Outcome = Outcome
   { _oCounter :: !Natural
@@ -46,12 +48,17 @@ type family MultiOr (ts :: [T.T]) :: T.T where
 type family View (a :: T.T) (r :: T.T) :: T.T where
   View a r = 'T.TPair a ('T.TContract ('T.TPair a ('T.TOption r)))
 
+-- TODO: add to Lorenz
+type family Void' (a :: T.T) (b :: T.T) :: T.T where
+  Void' a b = 'T.TPair a ('T.TLambda b b)
+
 type CounterParameter =
   MultiOr
   [ 'T.TUnit
   , 'T.TUnit
   , 'T.Tc 'T.CNat
   , View 'T.TUnit ('T.Tc 'T.CNat)
+  , Void' 'T.TUnit ('T.Tc 'T.CBytes)
   ]
 type CounterStorage = T.ToT Natural
 
@@ -70,6 +77,9 @@ data Action
   -- ^ Bump counter
   | Reset !Natural
   -- ^ Reset counter
+  | HashCounter
+  -- ^ Get counter's hash using void entry point (which implies that
+  -- everything else should fail)
   | Add !Natural
   -- ^ Add a constant to caller-add
   | AddRecord
@@ -90,17 +100,31 @@ data Fixture = Fixture
   , fInitialSum :: !Natural
   } deriving (Show)
 
+-- We generate 'HashCounter' with smaller probablity, because otherwise
+-- tests will often stop quickly (they stop as soon as 'HashCounter'
+-- occurs).
 genFixture :: Gen Fixture
 genFixture = do
-  fActions <- listOf genAction
+  fActions <-
+    listOf $ frequency
+      [ (26, genAction `suchThat` notHashCounter)
+      , (1, pure HashCounter)
+      ]
   fInitialCounter <- arbitrary
   fInitialList <- arbitrary
   fInitialSum <- arbitrary
   pure Fixture {..}
+  where
+    notHashCounter =
+      \case
+        HashCounter -> False
+        _ -> True
 
-data NegativeCounter = NegativeCounter
+data ExpectedFail
+  = NegativeCounter
+  | HashCounterCalled !ByteString
 
-expectedOutcome :: Fixture -> Either NegativeCounter Outcome
+expectedOutcome :: Fixture -> Either ExpectedFail Outcome
 expectedOutcome Fixture {..} =
   runExcept $ execStateT (mapM_ step fActions) start
   where
@@ -109,13 +133,20 @@ expectedOutcome Fixture {..} =
       , _oList = fInitialList
       , _oSum = fInitialSum
       }
-    step :: Action -> StateT Outcome (Except NegativeCounter) ()
+    step :: Action -> StateT Outcome (Except ExpectedFail) ()
     step = \case
       Antibump -> use oCounter >>= \case
         0 -> throwError NegativeCounter
         _ -> oCounter -= 1
       Bump -> oCounter += 1
       Reset x -> oCounter .= x
+      HashCounter ->
+        throwError .
+        HashCounterCalled .
+        sha512 .
+        packValue' .
+        T.toVal =<<
+        use oCounter
       Add x -> oSum += x
       AddRecord -> (oSum +=) =<< use oCounter
       Append x -> oList %= (x:)
@@ -191,6 +222,11 @@ specImpl (counter, _) (feather, _) (callerAdd, _) (callerAppend, _) =
             T.VOr $ Right $
             T.VOr $ Right $
             T.VOr $ Left (T.toVal x)
+          HashCounter -> transferToCounter $
+            T.VOr $ Right $
+            T.VOr $ Right $
+            T.VOr $ Right $
+            T.VOr $ Right $ T.VPair (T.VUnit, T.VLam T.Nop)
           Add x -> transferToAdd $
             T.VOr $ Left (T.toVal x)
           AddRecord -> transferToAdd $
@@ -203,9 +239,14 @@ specImpl (counter, _) (feather, _) (callerAdd, _) (callerAppend, _) =
       mapM_ performAction fActions
 
       let
+        checkHash :: ByteString -> MichelsonFailed -> Bool
+        checkHash expectedHash = (== MichelsonFailedWith (T.toVal expectedHash))
         validator :: IntegrationalValidator
         validator = case expectedOutcome fixture of
-          Left NegativeCounter -> Left $ expectMichelsonFailed counterAddress
+          Left NegativeCounter ->
+            Left $ expectMichelsonFailed (const True) counterAddress
+          Left (HashCounterCalled expectedHash) ->
+            Left $ expectMichelsonFailed (checkHash expectedHash) counterAddress
           Right (Outcome {..}) -> Right $ composeValidatorsList
             [ -- Feather must always be called twice and the second
               -- call must set its storage to its initial value.
