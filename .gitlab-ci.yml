@@ -5,6 +5,7 @@ cache:
   paths:
     - .stack-root/
     - .stack-work/
+    - crossref-verifier/
 
 stages:
   - test
@@ -14,11 +15,10 @@ stages:
 variables:
   STACK_ROOT: "$CI_PROJECT_DIR/.stack-root"
   STACK_OPTIONS: "--no-install-ghc --system-ghc"
+  CROSSREF_VERIFIER_COMMIT: "b6c7cd6aea888690ec5b1df2c6ebf82da981cebc"
 
 build-and-test:
   stage: test
-  tags:
-    - docker-executor
   only:
     refs:
       - merge_requests
@@ -115,3 +115,21 @@ build-docker-production:
       - production
     changes: *changes
   script: *docker_script
+
+verify-doc-links:
+  stage: test
+  allow_failure: true
+  retry:
+    max: 2
+    when: script_failure
+  only:
+    refs:
+      - merge_requests
+  before_script:
+    - "git clone https://github.com/serokell/crossref-verifier.git || :"
+    - cd crossref-verifier
+    - git checkout $CROSSREF_VERIFIER_COMMIT
+    - stack install --local-bin-path ./bin --resolver lts-13.3
+    - cd ..
+  script:
+    - ./crossref-verifier/bin/crossref-verify -v --no-progress -m full
