@@ -64,6 +64,7 @@ library
                      , Michelson.EqParam
                      , Michelson.Parser.Annotations
                      , Michelson.Parser.Helpers
+                     , Michelson.Parser.Instr
                      , Michelson.Parser.Type
                      , Michelson.Parser.Value
                      , Michelson.TypeCheck.Error
