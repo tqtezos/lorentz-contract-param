@@ -6,7 +6,6 @@ module Michelson.TypeCheck.Ext
 import Control.Lens ((%=))
 import Control.Monad.Except (liftEither, throwError)
 import Data.Map.Lazy (Map, insert, lookup)
-import qualified Data.Map.Lazy as Map
 import Data.Singletons (Sing)
 import Data.Typeable ((:~:)(..))
 
@@ -84,28 +83,22 @@ checkFn
   -> HST inp
   -> TypeCheckT (SomeInstr inp)
 checkFn typeCheckListH t sf body inp = do
-  checkStart inp
+  vars <- checkStart inp
   res@(_ :/ instr) <- typeCheckListH body inp
   case instr of
-    _ ::: out -> checkEnd out
+    _ ::: out -> checkEnd vars out
     AnyOutInstr _ -> pass
   return res
   where
     checkStart hst = do
       liftExtError hst $ checkVars t sf
-      void . liftExtError hst $ checkStackType noBoundVars (inPattern sf) hst
-      tcExtFramesL %= (SomeHST hst :)
+      vars <- liftExtError hst $ checkStackType noBoundVars (inPattern sf) hst
+      tcExtFramesL %= (vars :)
+      return vars
 
-    checkEnd :: Typeable out => HST out -> TypeCheckT ()
-    checkEnd out = liftExtError out $ do
-      checkVars t sf
-      m <- checkStackType noBoundVars (inPattern sf) inp
-      void $ checkStackType m (outPattern sf) out
-
-data BoundVars = BoundVars (Map Var Type) (Maybe SomeHST)
-
-noBoundVars :: BoundVars
-noBoundVars = BoundVars Map.empty Nothing
+    checkEnd :: Typeable out => BoundVars -> HST out -> TypeCheckT ()
+    checkEnd vars out = liftExtError out $
+      void $ checkStackType vars (outPattern sf) out
 
 -- | Check that a @StackTypePattern@ matches the type of the current stack
 checkStackType :: Typeable xs => BoundVars -> U.StackTypePattern -> HST xs
