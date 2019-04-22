@@ -59,17 +59,24 @@ module Lorentz.Macro
   , unpair
   , setCar
   , setCdr
+
+  -- * Additional Morley macros
+  , View
+  , Void_
+  , view_
+  , void_
   ) where
 
-import Prelude hiding (compare, swap)
+import Prelude hiding (compare, some, swap)
 
+import Data.Singletons (SingI)
 import Data.Vinyl.TypeLevel (Nat(..))
 import GHC.TypeNats (type (-))
 import qualified GHC.TypeNats as GHC (Nat)
 
 import Lorentz.Instr
 import Lorentz.Type
-import Michelson.Typed ((:+>), ( # ))
+import Michelson.Typed ((:+>), HasNoOp, ( # ))
 import Michelson.Typed.Arith
 import Util.Peano
 
@@ -348,3 +355,28 @@ ifRight l r = ifLeft r l
 ifSome
   :: (a & s :+> s') -> (s :+> s') -> (TOption a & s :+> s')
 ifSome s n = ifNone n s
+
+----------------------------------------------------------------------------
+-- Additional Morley macros
+----------------------------------------------------------------------------
+
+-- | @view@ type synonym as described in A1.
+type family View (a :: T) (r :: T) :: T where
+  View a r = TPair a (TContract (TPair a (TOption r)))
+
+view_ ::
+     (Typeable a, Typeable r, SingI a, SingI r, HasNoOp a, HasNoOp r)
+  => (forall s0. TPair a storage & s0 :+> r : s0)
+  -> View a r & storage & s :+> TPair (TList TOperation) storage & s
+view_ code =
+  unpair # dip (duupX @2) # dup # dip (pair # code # some) # pair # dip amount #
+  transferTokens # nil # swap # cons # pair
+
+-- | @void@ type synonym as described in A1.
+type family Void_ (a :: T) (b :: T) :: T where
+  Void_ a b = TPair a (TLambda b b)
+
+void_ :: (Typeable b, SingI b) =>
+  a & s :+> b & s' ->
+  Void_ a b & s :+> b & anything
+void_ code = unpair # swap # dip code # swap # exec # failWith
