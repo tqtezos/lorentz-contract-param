@@ -59,6 +59,7 @@ library
                      , Util.Peano
 
   other-modules:       Lorentz.Instr
+                     , Lorentz.Macro
                      , Lorentz.Type
                      , Lorentz.Value
                      , Michelson.EqParam
