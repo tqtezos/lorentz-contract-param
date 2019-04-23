@@ -13,6 +13,7 @@ import Test.QuickCheck (Gen, arbitrary, forAll, frequency, listOf, suchThat)
 import Test.QuickCheck.Arbitrary.Generic (genericArbitrary)
 import Test.QuickCheck.Instances.Natural ()
 
+import Lorentz (View, Void_)
 import Michelson.Interpret (MichelsonFailed(..))
 import Michelson.Interpret.Pack (packValue')
 import Michelson.Test
@@ -44,21 +45,13 @@ type family MultiOr (ts :: [T.T]) :: T.T where
   MultiOr (t:t1:'[]) = 'T.TOr t t1
   MultiOr (t:ts) = 'T.TOr t (MultiOr ts)
 
--- TODO: add to Lorenz
-type family View (a :: T.T) (r :: T.T) :: T.T where
-  View a r = 'T.TPair a ('T.TContract ('T.TPair a ('T.TOption r)))
-
--- TODO: add to Lorenz
-type family Void' (a :: T.T) (b :: T.T) :: T.T where
-  Void' a b = 'T.TPair a ('T.TLambda b b)
-
 type CounterParameter =
   MultiOr
   [ 'T.TUnit
   , 'T.TUnit
   , 'T.Tc 'T.CNat
   , View 'T.TUnit ('T.Tc 'T.CNat)
-  , Void' 'T.TUnit ('T.Tc 'T.CBytes)
+  , Void_ 'T.TUnit ('T.Tc 'T.CBytes)
   ]
 type CounterStorage = T.ToT Natural
 
