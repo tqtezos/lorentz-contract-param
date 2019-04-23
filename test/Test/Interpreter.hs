@@ -24,6 +24,7 @@ import Test.Interpreter.Conditionals (conditionalsSpec)
 import Test.Interpreter.ContractOp (contractOpSpec)
 import Test.Interpreter.EnvironmentSpec (environmentSpec)
 import Test.Interpreter.StringCaller (stringCallerSpec)
+import Test.Interpreter.Walker (walkerSpec)
 
 spec :: Spec
 spec = describe "Advanced type interpreter tests" $ do
@@ -101,6 +102,7 @@ spec = describe "Advanced type interpreter tests" $ do
   environmentSpec
   contractOpSpec
   featherSpec
+  walkerSpec
 
   specWithTypedContract "contracts/steps_to_quota_test1.tz" $ \contract -> do
     it "Amount of steps should reduce" $ do

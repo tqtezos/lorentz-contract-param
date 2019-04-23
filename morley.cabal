@@ -58,7 +58,8 @@ library
                      , Util.Peano
                      , Util.TypeTuple
 
-  other-modules:       Lorentz.Ext
+  other-modules:       Lorentz.ADT
+                     , Lorentz.Ext
                      , Lorentz.Instr
                      , Lorentz.Macro
                      , Lorentz.Type
@@ -268,7 +269,9 @@ test-suite morley-test
                      , Test.Interpreter.EnvironmentSpec
                      , Test.Interpreter.A1.Feather
                      , Test.Interpreter.StringCaller
+                     , Test.Interpreter.Walker
                      , Test.Lorentz.Contracts.Auction
+                     , Test.Lorentz.Contracts.Walker
                      , Test.Macro
                      , Test.Ext
                      , Test.Morley.Runtime
@@ -303,6 +306,7 @@ test-suite morley-test
                      , morley
                      , morley-prelude
                      , mtl
+                     , named
                      , QuickCheck
                      , quickcheck-arbitrary-adt
                      , quickcheck-instances

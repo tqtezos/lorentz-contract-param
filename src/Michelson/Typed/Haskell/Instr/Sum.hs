@@ -12,6 +12,9 @@ module Michelson.Typed.Haskell.Instr.Sum
   , CaseClauseParam (..)
   , CaseClause (..)
   , CaseClauses
+
+  , CtorField (..)
+  , AppendCtorField
   ) where
 
 import qualified Data.Kind as Kind
@@ -38,9 +41,8 @@ import Util.TypeTuple
 
 -- | We support only two scenarious - constructor with one field and
 -- without fields. Nonetheless, it's not that sad since for sum types
--- we can't even assign a name to fields if there are many (because
--- otherwise field records will be partial and this is prohibited by
--- the style guide).
+-- we can't even assign names to fields if there are many (the style
+-- guide prohibits partial records).
 data CtorField
   = OneField Kind.Type
   | NoFields

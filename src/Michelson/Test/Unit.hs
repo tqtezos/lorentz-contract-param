@@ -5,9 +5,11 @@ module Michelson.Test.Unit
   , ContractPropValidator
   , contractProp
   , contractPropVal
+  , contractRepeatedProp
+  , contractRepeatedPropVal
   ) where
 
-import Michelson.Interpret (ContractEnv, ContractReturn, interpret)
+import Michelson.Interpret (ContractEnv, ContractReturn, interpret, interpretRepeated)
 import Michelson.Typed (Contract, IsoValue(..), ToT)
 import qualified Michelson.Typed as T
 
@@ -48,3 +50,26 @@ contractPropVal
   -> prop
 contractPropVal instr check env param initSt =
   check $ interpret instr param initSt env
+
+contractRepeatedProp
+  :: ( IsoValue param, IsoValue storage
+     , ToT param ~ cp, ToT storage ~ st
+     )
+  => Contract cp st
+  -> ContractPropValidator st prop
+  -> ContractEnv
+  -> [param]
+  -> storage
+  -> prop
+contractRepeatedProp instr check env params initSt =
+  contractRepeatedPropVal instr check env (map toVal params) (toVal initSt)
+
+contractRepeatedPropVal
+  :: Contract cp st
+  -> ContractPropValidator st prop
+  -> ContractEnv
+  -> [T.Value cp]
+  -> T.Value st
+  -> prop
+contractRepeatedPropVal instr check env params initSt =
+  check $ interpretRepeated instr params initSt env

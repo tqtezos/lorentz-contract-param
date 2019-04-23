@@ -38,7 +38,7 @@ module Lorentz.Instr
   , unpack
   , concat
   , concat'
-  , slice, isNat, add, sub, mul, ediv, abs
+  , slice, isNat, add, sub, rsub, mul, ediv, abs
   , neg
   , lsl
   , lsr
@@ -232,6 +232,11 @@ sub
   :: (ArithOp Sub n m, Typeable n, Typeable m)
   => Tc n & Tc m & s :+> Tc (ArithRes Sub n m) & s
 sub = SUB
+
+rsub
+  :: (ArithOp Sub n m, Typeable n, Typeable m)
+  => Tc m & Tc n & s :+> Tc (ArithRes Sub n m) & s
+rsub = SWAP # SUB
 
 mul
   :: (ArithOp Mul n m, Typeable n, Typeable m)

@@ -17,7 +17,7 @@ module Lorentz.Value
   , vLam
   , vMap
   , vBigMap
-  , IsoValue
+  , IsoValue (..)
   , CValue (..)
   , toCVal
   , fromCVal
@@ -30,7 +30,7 @@ module Lorentz.Value
   ) where
 
 import Lorentz.Type
-import Michelson.Typed (Instr, IsoValue, Value)
+import Michelson.Typed (Instr, IsoValue(..), Value)
 import Michelson.Typed.CValue (CValue(..), fromCVal, toCVal)
 import qualified Michelson.Typed.Value as M
 import Tezos.Address (Address)
