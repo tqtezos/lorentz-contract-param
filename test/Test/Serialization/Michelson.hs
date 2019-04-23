@@ -64,7 +64,7 @@ packSpecManual name toVal' suites =
 
 packSpec
   :: forall x (t :: T).
-     (Typeable t, ToVal x, Show x, ToT x ~ t, SingI t, HasNoOp t, HasCallStack)
+     (Typeable t, IsoValue x, Show x, ToT x ~ t, SingI t, HasNoOp t, HasCallStack)
   => [(x, Text)]
   -> Spec
 packSpec = packSpecManual typeName toVal
@@ -272,7 +272,7 @@ signatureTest =
 optionTest :: Spec
 optionTest = do
   packSpec
-    @(Maybe Int)
+    @(Maybe Integer)
     [ Just 123 ~: "05050900bb01"
     , Nothing ~: "050306"
     ]
@@ -285,7 +285,7 @@ optionTest = do
 listTest :: Spec
 listTest =
   packSpec
-    @[Int]
+    @[Integer]
     [ [] ~: "050200000000"
     , [1] ~: "0502000000020001"
     , [1..3] ~: "050200000006000100020003"
@@ -294,7 +294,7 @@ listTest =
 setTest :: Spec
 setTest =
   packSpec
-    @(Set Int)
+    @(Set Integer)
     [ [] ~: "050200000000"
     , [1] ~: "0502000000020001"
     , [0, 10, 24, 35, 100, 1000] ~: "05020000000e0000000a0018002300a40100a80f"
@@ -319,11 +319,11 @@ contractTest = do
 pairTest :: Spec
 pairTest = do
   packSpec
-    @(Text, Int)
+    @(Text, Integer)
     [ ("Good Night!", 5) ~: "050707010000000b476f6f64204e69676874210005"
     ]
   packSpec
-    @(Int, (Int, Text))
+    @(Integer, (Integer, Text))
     [ (120, (5, "What is that?"))
         ~: "05070700b80107070005010000000d5768617420697320746861743f"
     ]
@@ -339,7 +339,7 @@ orTest =
 mapTest :: Spec
 mapTest = do
   packSpec
-    @(Map Int Text)
+    @(Map Integer Text)
     [ [] ~: "050200000000"
     , [(0, "Hello"), (1, "Goodbye"), (2, "Goodnight")]
         ~: "05020000003007040000010000000548656c6c6f07040001010000000\
@@ -347,7 +347,7 @@ mapTest = do
     ]
 
   packSpec
-    @(Map Text (Int, Bool))
+    @(Map Text (Integer, Bool))
     [ [ ("Tudor", (123, True))
       , ("Lancaster", (22323, False))
       , ("Stuart", (-832988, True))

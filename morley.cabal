@@ -54,7 +54,9 @@ library
                      , Util.Alternative
                      , Util.Default
                      , Util.Lens
+                     , Util.Named
                      , Util.Peano
+                     , Util.TypeTuple
 
   other-modules:       Lorentz.Ext
                      , Lorentz.Instr
@@ -86,6 +88,12 @@ library
                      , Michelson.Typed.CValue
                      , Michelson.Typed.Extract
                      , Michelson.Typed.Instr
+                     , Michelson.Typed.Haskell
+                     , Michelson.Typed.Haskell.Instr
+                     , Michelson.Typed.Haskell.Instr.Helpers
+                     , Michelson.Typed.Haskell.Instr.Product
+                     , Michelson.Typed.Haskell.Instr.Sum
+                     , Michelson.Typed.Haskell.Value
                      , Michelson.Typed.Polymorphic
                      , Michelson.Typed.Scope
                      , Michelson.Typed.Sing
@@ -150,6 +158,7 @@ library
                        BangPatterns
                        ConstraintKinds
                        DataKinds
+                       DefaultSignatures
                        DeriveFoldable
                        DeriveFunctor
                        DeriveGeneric

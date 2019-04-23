@@ -158,6 +158,6 @@ validateStepsToQuotaTest res numOfSteps =
     _ -> expectationFailure "unexpected contract result"
 
 validateMichelsonFailsWith
-  :: (T.ToVal v, Typeable (ToT v), SingI (ToT v))
+  :: (T.IsoValue v, Typeable (ToT v), SingI (ToT v))
   => v -> ContractPropValidator st Expectation
 validateMichelsonFailsWith v (res, _) = res `shouldBe` Left (MichelsonFailedWith $ toVal v)

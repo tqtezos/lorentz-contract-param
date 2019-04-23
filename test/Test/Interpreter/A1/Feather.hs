@@ -164,7 +164,7 @@ specImpl (counter, _) (feather, _) (callerAdd, _) (callerAppend, _) =
         initBalance = unsafeMkMutez 100
         -- TODO: probably should be moved into a more general place
         toUntypedValue ::
-          forall t x . (T.ToT x ~ t, T.ToVal x, SingI t, T.HasNoOp t) => x -> U.Value
+          forall t x . (T.ToT x ~ t, T.IsoValue x, SingI t, T.HasNoOp t) => x -> U.Value
         toUntypedValue = T.untypeValue . T.toVal
 
       counterAddress <-

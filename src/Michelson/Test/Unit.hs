@@ -8,7 +8,7 @@ module Michelson.Test.Unit
   ) where
 
 import Michelson.Interpret (ContractEnv, ContractReturn, interpret)
-import Michelson.Typed (Contract, ToT, ToVal(..))
+import Michelson.Typed (Contract, IsoValue(..), ToT)
 import qualified Michelson.Typed as T
 
 -- | Type for contract execution validation.
@@ -25,7 +25,7 @@ type ContractPropValidator st prop = ContractReturn st -> prop
 -- Takes contract environment, initial storage and parameter,
 -- interprets contract on this input and invokes validation function.
 contractProp
-  :: ( ToVal param, ToVal storage
+  :: ( IsoValue param, IsoValue storage
      , ToT param ~ cp, ToT storage ~ st
      )
   => Contract cp st
