@@ -29,11 +29,8 @@ library
                        Lorentz
                      , Michelson.Interpret
                      , Michelson.Interpret.Pack
-                     , Michelson.Lexer
                      , Michelson.Macro
                      , Michelson.Parser
-                     , Michelson.Parser.Annotations
-                     , Michelson.Parser.Helpers
                      , Michelson.Printer
                      , Michelson.Printer.Util
                      , Michelson.Runtime
@@ -64,6 +61,17 @@ library
                      , Lorentz.Type
                      , Lorentz.Value
                      , Michelson.EqParam
+                     , Michelson.Parser.Annotations
+                     , Michelson.Parser.Error
+                     , Michelson.Parser.Ext
+                     , Michelson.Parser.Helpers
+                     , Michelson.Parser.Instr
+                     , Michelson.Parser.Let
+                     , Michelson.Parser.Lexer
+                     , Michelson.Parser.Macro
+                     , Michelson.Parser.Type
+                     , Michelson.Parser.Types
+                     , Michelson.Parser.Value
                      , Michelson.TypeCheck.Error
                      , Michelson.TypeCheck.Ext
                      , Michelson.TypeCheck.Helpers
