@@ -1,5 +1,5 @@
 module Test.Serialization.Aeson
-  ( spec
+  ( spec_Aeson
   ) where
 
 import Data.Aeson (FromJSON, ToJSON)
@@ -8,7 +8,7 @@ import Test.Hspec (Spec)
 import Test.QuickCheck (Arbitrary)
 
 import Michelson.Untyped
-  (Elt, ExpandedOp, FieldAnn, InstrAbstract, TypeAnn, Contract, Value, VarAnn)
+  (Contract, Elt, ExpandedOp, FieldAnn, InstrAbstract, TypeAnn, Value, VarAnn)
 import Tezos.Core (Mutez, Timestamp)
 
 import Test.Arbitrary ()
@@ -31,8 +31,8 @@ testADT :: forall a.
   -> Spec
 testADT = roundtripADTSpecs
 
-spec :: Spec
-spec = do
+spec_Aeson :: Spec
+spec_Aeson = do
   -- Core Tezos types
   test (Proxy @Timestamp)
   test (Proxy @Mutez)

@@ -1,7 +1,7 @@
 -- | Tests for 'Tezos.Crypto'.
 
 module Test.Tezos.Crypto
-  ( spec
+  ( spec_Crypto
   ) where
 
 import Fmt (fmt, hexF, pretty)
@@ -11,8 +11,8 @@ import Tezos.Crypto
 
 import Test.Util.QuickCheck (aesonRoundtrip, roundtripSpecSTB)
 
-spec :: Spec
-spec = describe "Tezos.Crypto" $ do
+spec_Crypto :: Spec
+spec_Crypto = do
   describe "Signing" $ do
     describe "Formatting" $ do
       describe "parsePublicKey" $ do

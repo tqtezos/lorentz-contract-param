@@ -1,10 +1,11 @@
 module Test.Typecheck
-  ( typeCheckSpec
+  ( spec_TypeCheck
+  , spec_StackRef
   ) where
 
 import qualified Data.Map as M
 import Data.Singletons (sing)
-import Test.Hspec (Expectation, Spec, describe, expectationFailure, it, shouldBe)
+import Test.Hspec (Expectation, Spec, expectationFailure, it, shouldBe)
 import Test.QuickCheck (total, within)
 
 import Michelson.Runtime (prepareContract)
@@ -17,8 +18,8 @@ import Tezos.Address (unsafeParseAddress)
 
 import Test.Util.Contracts (getIllTypedContracts, getWellTypedContracts)
 
-typeCheckSpec :: Spec
-typeCheckSpec = describe "Typechecker tests" $ do
+spec_TypeCheck :: Spec
+spec_TypeCheck = do
   it "Successfully typechecks contracts examples from contracts/" goodContractsTest
   it "Reports errors on contracts examples from contracts/ill-typed" badContractsTest
 
@@ -35,10 +36,6 @@ typeCheckSpec = describe "Typechecker tests" $ do
     let file = "contracts/ill-typed/fail-before-nop.tz"
     econtract <- readContract @'T.TUnit @'T.TUnit file <$> readFile file
     econtract `shouldBe` Left (ICETypeCheck $ TCUnreachableCode (one $ Un.SeqEx []))
-
-  describe "StackRef"
-    stackRefSpec
-
   where
     pushContrFile = "contracts/ill-typed/push_contract.tz"
     tPair t1 t2 = Type (TPair noAnn noAnn t1 t2) noAnn
@@ -74,8 +71,8 @@ checkFile doTypeCheck wellTyped file = do
         "Typechecker unexpectedly considered " <> show file <> " well-typed."
       | otherwise -> pass
 
-stackRefSpec :: Spec
-stackRefSpec = do
+spec_StackRef :: Spec
+spec_StackRef = do
   it "Typecheck fails when ref is out of bounds" $
     let instr = printStRef 2
         hst = stackEl ::& stackEl ::& SNil

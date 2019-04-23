@@ -257,9 +257,10 @@ executable morley
 
 test-suite morley-test
   hs-source-dirs:      test
-  main-is:             Spec.hs
+  main-is:             Main.hs
   default-language:    Haskell2010
   type:                exitcode-stdio-1.0
+  build-tool-depends:  tasty-discover:tasty-discover
   other-modules:       Test.Arbitrary
                      , Test.CValConversion
                      , Test.Interpreter
@@ -312,6 +313,8 @@ test-suite morley-test
                      , quickcheck-arbitrary-adt
                      , quickcheck-instances
                      , singletons
+                     , tasty
+                     , tasty-hspec
                      , text
   ghc-options:        -Weverything
                       -Wno-missing-exported-signatures

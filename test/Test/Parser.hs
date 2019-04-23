@@ -1,9 +1,9 @@
 module Test.Parser
-  ( spec
+  ( spec_Parser
   ) where
 
 import qualified Data.List.NonEmpty as NE
-import Test.Hspec (Expectation, Spec, describe, expectationFailure, it, shouldBe, shouldSatisfy)
+import Test.Hspec (Expectation, Spec, expectationFailure, it, shouldBe, shouldSatisfy)
 import Text.Megaparsec (parse)
 import Text.Megaparsec.Error (ErrorFancy(ErrorCustom), ParseError(FancyError), bundleErrors)
 
@@ -13,8 +13,8 @@ import Michelson.Untyped as Mo
 
 import Test.Util.Contracts (getIllTypedContracts, getWellTypedContracts)
 
-spec :: Spec
-spec = describe "Parser tests" $ do
+spec_Parser :: Spec
+spec_Parser = do
   it "Successfully parses contracts examples from contracts/" parseContractsTest
   it "Test stringLiteral" stringLiteralTest
   it "IF parsers test" ifParsersTest

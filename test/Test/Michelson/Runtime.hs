@@ -1,7 +1,7 @@
 -- | Tests for Michelson.Runtime.
 
 module Test.Michelson.Runtime
-  ( spec
+  ( spec_Runtime
   ) where
 
 import Control.Lens (at)
@@ -20,8 +20,8 @@ import Michelson.Untyped
 import Tezos.Address (Address(..))
 import Tezos.Core (unsafeMkMutez)
 
-spec :: Spec
-spec = describe "Morley.Runtime" $ do
+spec_Runtime :: Spec
+spec_Runtime = do
   illTypedContract <- runIO $
     prepareContract (Just "contracts/ill-typed/sum-strings.tz")
 

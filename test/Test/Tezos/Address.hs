@@ -1,7 +1,7 @@
 -- | Tests for 'Tezos.Address'.
 
 module Test.Tezos.Address
-  ( spec
+  ( spec_Address
   ) where
 
 import Test.Hspec (Spec, describe, it, shouldSatisfy)
@@ -10,8 +10,8 @@ import Tezos.Address (Address, formatAddress, parseAddress)
 
 import Test.Util.QuickCheck (ShowThroughBuild(..), aesonRoundtrip, roundtripSpecSTB)
 
-spec :: Spec
-spec = describe "Tezos.Address" $ do
+spec_Address :: Spec
+spec_Address = do
   describe "parseAddress" $ do
     it "Successfully parses valid sample data" $
       forM_ sampleAddresses (\a -> bimap STB STB (parseAddress a) `shouldSatisfy` isRight)

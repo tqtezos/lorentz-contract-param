@@ -1,14 +1,13 @@
 module Test.Macro
-  ( spec
+  ( spec_Macro
   ) where
 
 import Michelson.Macro
-import Michelson.Untyped
-  (ExpandedOp(..), InstrAbstract(..), Value, Value'(..), ann, noAnn)
-import Test.Hspec (Expectation, Spec, describe, it, shouldBe)
+import Michelson.Untyped (ExpandedOp(..), InstrAbstract(..), Value, Value'(..), ann, noAnn)
+import Test.Hspec (Expectation, Spec, it, shouldBe)
 
-spec :: Spec
-spec = describe "Macros tests" $ do
+spec_Macro :: Spec
+spec_Macro = do
   it "expand test" expandTest
   it "papair test" expandPapairTest
   it "unpapair test" expandUnpapairTest

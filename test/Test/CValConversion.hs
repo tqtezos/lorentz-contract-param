@@ -1,7 +1,7 @@
 -- | Testing of toCVal / fromCVal conversions
 
 module Test.CValConversion
-  ( spec
+  ( spec_CValConversion
   ) where
 
 import Test.Hspec (Spec, describe, it, shouldBe)
@@ -10,8 +10,8 @@ import Test.Hspec.QuickCheck (prop)
 import Michelson.Typed (CValue(..), fromCVal, toCVal)
 
 -- | Spec to test toCVal / fromCVal conversions.
-spec :: Spec
-spec = do
+spec_CValConversion :: Spec
+spec_CValConversion = do
   describe "ToCVal / FromCVal tests" $ do
     it "ToCVal / FromCVal manual tests" $ do
       toCVal @Int 10 `shouldBe` CvInt 10

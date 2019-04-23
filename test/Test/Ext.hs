@@ -1,6 +1,6 @@
 module Test.Ext
-  ( typeCheckHandlerSpec
-  , interpretHandlerSpec
+  ( spec_ExtTypeCheck
+  , spec_ExtIntepreter
   ) where
 
 import Test.Hspec (Expectation, Spec, describe, expectationFailure, it, shouldSatisfy)
@@ -15,8 +15,8 @@ import Michelson.Untyped
   (CT(..), ExpandedExtInstr, ExtInstrAbstract(..), StackTypePattern(..), T(..), TyVar(..), Type(..),
   ann, noAnn)
 
-interpretHandlerSpec :: Spec
-interpretHandlerSpec = describe "interpretHandler PRINT/TEST_ASSERT tests" $ do
+spec_ExtIntepreter :: Spec
+spec_ExtIntepreter = describe "PRINT/TEST_ASSERT tests" $ do
   specWithTypedContract "contracts/testassert_square.tz" $
     testAssertSquareSpec
   specWithTypedContract "contracts/testassert_square2.tz" $
@@ -39,8 +39,8 @@ interpretHandlerSpec = describe "interpretHandler PRINT/TEST_ASSERT tests" $ do
             else isLeft a && s == MorleyLogs ["Sides are " <> show x' <> " x " <> show y']
       interpret contract (T.VPair (x', y')) T.VUnit dummyContractEnv `shouldSatisfy` check
 
-typeCheckHandlerSpec :: Spec
-typeCheckHandlerSpec = describe "typeCheckExt STACKTYPE tests" $ do
+spec_ExtTypeCheck :: Spec
+spec_ExtTypeCheck = describe "STACKTYPE tests" $ do
   it "Correct test on [] pattern" $ runNopTest test1 True
   it "Correct test on [a, b] pattern" $ runNopTest test2 True
   it "Correct test on [a, b, ...] pattern" $ runNopTest test3 True

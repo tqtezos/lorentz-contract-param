@@ -1,9 +1,7 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
-
 -- | Testing of toVal / fromVal conversions
 
 module Test.ValConversion
-  ( spec
+  ( spec_ValConversion
   ) where
 
 import Test.Hspec (Spec, describe, it, shouldBe)
@@ -14,8 +12,8 @@ import Michelson.Typed (CValue(..), IsoValue(..), ToT, Value, Value'(..))
 import Test.Util.QuickCheck (roundtripSpec)
 
 -- | Spec to test toVal / fromVal conversions.
-spec :: Spec
-spec = do
+spec_ValConversion :: Spec
+spec_ValConversion = do
   describe "ToVal / FromVal tests" $ do
     it "ToVal / FromVal manual tests" $ do
       check () $ (\case VUnit -> True;)

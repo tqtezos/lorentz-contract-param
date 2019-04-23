@@ -1,9 +1,9 @@
 module Test.Printer.Michelson
-  ( spec
+  ( spec_Printer
   ) where
 
 import Fmt (pretty)
-import Test.Hspec (Spec, describe, it, runIO, shouldBe)
+import Test.Hspec (Spec, it, runIO, shouldBe)
 
 import Michelson.Printer (printUntypedContract)
 import Michelson.Runtime (parseExpandContract)
@@ -11,8 +11,8 @@ import Michelson.Test (specWithUntypedContract)
 
 import Test.Util.Contracts (getWellTypedContracts)
 
-spec :: Spec
-spec = describe "Michelson.TzPrinter.printUntypedContract" $ do
+spec_Printer :: Spec
+spec_Printer = do
   contractFiles <- runIO getWellTypedContracts
   mapM_ roundtripPrintTest contractFiles
 
