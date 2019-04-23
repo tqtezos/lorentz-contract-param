@@ -7,7 +7,7 @@ module Michelson.Typed.Haskell.Instr.Sum
   , InstrCaseC
   , instrWrap
   , instrCase
-  , (/->)
+  , (//->)
 
   , CaseClauseParam (..)
   , CaseClause (..)
@@ -15,11 +15,15 @@ module Michelson.Typed.Haskell.Instr.Sum
 
   , CtorField (..)
   , AppendCtorField
+  , AppendCtorFieldAxiom
+  , appendCtorFieldAxiom
   ) where
 
 import qualified Data.Kind as Kind
-import Data.Singletons (SingI)
+import Data.Singletons (SingI (..))
+import Unsafe.Coerce (unsafeCoerce)
 import Data.Type.Bool (If, type (||))
+import Data.Constraint (Dict (..))
 import Data.Type.Equality (type (==))
 import Data.Vinyl.Core (Rec(..))
 import Data.Vinyl.Derived (Label)
@@ -48,9 +52,28 @@ data CtorField
   | NoFields
 
 -- | Push field to stack, if any.
-type family AppendCtorField (cf :: CtorField) (l :: [T]) :: [T] where
-  AppendCtorField ('OneField t) l = ToT t ': l
-  AppendCtorField 'NoFields l = l
+type family AppendCtorField (cf :: CtorField) (l :: [k]) :: [k] where
+  AppendCtorField ('OneField t) (l :: [T]) = ToT t ': l
+  AppendCtorField ('OneField t) (l :: [Kind.Type]) = t ': l
+  AppendCtorField 'NoFields (l :: [T]) = l
+  AppendCtorField 'NoFields (l :: [Kind.Type]) = l
+
+-- | To use 'AppendCtorField' not only here for 'T'-based stacks, but also
+-- later in Lorentz with 'Kind.Type'-based stacks we need the following property.
+type AppendCtorFieldAxiom (cf :: CtorField) (st :: [Kind.Type]) =
+  ToTs (AppendCtorField cf st) ~ AppendCtorField cf (ToTs st)
+
+-- | Proof of 'AppendCtorFieldAxiom'.
+appendCtorFieldAxiom
+  :: ( AppendCtorFieldAxiom ('OneField Word) '[Int]
+     , AppendCtorFieldAxiom 'NoFields '[Int]
+     )
+  => Dict (AppendCtorFieldAxiom cf st)
+appendCtorFieldAxiom =
+  -- In order to avoid a lot of boilerplate and burdening GHC type checker we
+  -- write an unsafe code. Its correctness is tested in dummy constraints of
+  -- this function.
+  unsafeCoerce $ Dict @(AppendCtorFieldAxiom 'NoFields '[])
 
 -- | Result of field or constructor lookup - entry type and path to it in
 -- the tree.
@@ -231,12 +254,12 @@ data CaseClause (inp :: [T]) (out :: [T]) (param :: CaseClauseParam) where
 -- Passing constructor name can be circumvented but doing so is not recomended
 -- as mentioning contructor name improves readability and allows avoiding
 -- some mistakes.
-(/->)
+(//->)
   :: Label ("c" `AppendSymbol` ctor)
   -> Instr (AppendCtorField x inp) out
   -> CaseClause inp out ('CaseClauseParam ctor x)
-(/->) _ = CaseClause
-infixr 8 /->
+(//->) _ = CaseClause
+infixr 8 //->
 
 -- | List of 'CaseClauseParam's required to pattern match on the given type.
 type CaseClauses a = GCaseClauses (G.Rep a)
@@ -303,26 +326,26 @@ instance GInstrCaseBranch ctor G.U1 where
 
 _caseMyType :: Instr (ToT MyType ': s) (ToT Integer ': s)
 _caseMyType = instrCase @MyType $
-     #cMyCtor /-> Nop
-  :& #cComplexThing /-> (DROP # PUSH (toVal @Integer 5))
-  :& #cUselessThing /-> (DROP # PUSH (toVal @Integer 0))
+     #cMyCtor //-> Nop
+  :& #cComplexThing //-> (DROP # PUSH (toVal @Integer 5))
+  :& #cUselessThing //-> (DROP # PUSH (toVal @Integer 0))
   :& RNil
 
 -- Another version, written via tuple.
 _caseMyType2 :: Instr (ToT MyType ': s) (ToT Integer ': s)
 _caseMyType2 = instrCase @MyType $ recFromTuple
-  ( #cMyCtor /->
+  ( #cMyCtor //->
       Nop
-  , #cComplexThing /->
+  , #cComplexThing //->
       (DROP # PUSH (toVal @Integer 5))
-  , #cUselessThing /->
+  , #cUselessThing //->
       (DROP # PUSH (toVal @Integer 0))
   )
 
 _caseMyEnum :: Instr (ToT MyEnum ': ToT Integer ': s) (ToT Integer ': s)
 _caseMyEnum = instrCase @MyEnum $ recFromTuple
-  ( #cCase1 /-> (DROP # PUSH (toVal @Integer 1))
-  , #cCase2 /-> (DROP # PUSH (toVal @Integer 2))
-  , #cCaseN /-> (DIP DROP # Nop)
-  , #cCaseDef /-> Nop
+  ( #cCase1 //-> (DROP # PUSH (toVal @Integer 1))
+  , #cCase2 //-> (DROP # PUSH (toVal @Integer 2))
+  , #cCaseN //-> (DIP DROP # Nop)
+  , #cCaseDef //-> Nop
   )

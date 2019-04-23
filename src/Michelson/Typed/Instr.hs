@@ -10,7 +10,6 @@ module Michelson.Typed.Instr
   , PrintComment (..)
   , TestAssert (..)
   , (#)
-  , type ( & )
   , (:+>)
   , Contract
   ) where
@@ -36,9 +35,6 @@ import Util.Peano
 (#) = Seq
 
 infixl 0 #
-
-type (&) (a :: T) (b :: [T]) = a ': b
-infixr 2 &
 
 type (:+>) = Instr
 infixr 1 :+>
@@ -99,10 +95,10 @@ data Instr (inp :: [T]) (out :: [T]) where
   SIZE :: SizeOp c => Instr (c ': s) ('Tc 'CNat ': s)
   EMPTY_SET :: (Typeable e, SingI e) => Instr s ('TSet e ': s)
   EMPTY_MAP :: (Typeable a, Typeable b, SingI a, SingI b) => Instr s ('TMap a b ': s)
-  MAP :: (Typeable (MapOpInp c ': s), MapOp c)
+  MAP :: MapOp c
       => Instr (MapOpInp c ': s) (b ': s)
       -> Instr (c ': s) (MapOpRes c b ': s)
-  ITER :: (Typeable (IterOpEl c ': s), IterOp c) => Instr (IterOpEl c ': s) s -> Instr (c ': s) s
+  ITER :: IterOp c => Instr (IterOpEl c ': s) s -> Instr (c ': s) s
   MEM :: MemOp c => Instr ('Tc (MemOpKey c) ': c ': s) ('Tc 'CBool ': s)
   GET
     :: GetOp c

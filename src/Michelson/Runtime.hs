@@ -47,7 +47,7 @@ import Michelson.Runtime.GState
 import Michelson.Runtime.TxData
 import Michelson.TypeCheck (SomeContract, TCError, typeCheckContract)
 import Michelson.Typed
-  (CreateContract(..), Instr, Operation(..), TransferTokens(..), convertContract, untypeValue)
+  (CreateContract(..), Operation'(..), TransferTokens(..), convertContract, untypeValue)
 import qualified Michelson.Typed as T
 import Michelson.Types (ParsedOp)
 import Michelson.Untyped (Contract, OriginationOperation(..), mkContractAddress)
@@ -477,7 +477,7 @@ typeCheckWithDb dbPath morleyContract = do
 ----------------------------------------------------------------------------
 
 -- The argument is the address of the contract that generation this operation.
-convertOp :: Address -> Operation Instr -> Maybe InterpreterOp
+convertOp :: Address -> T.Operation -> Maybe InterpreterOp
 convertOp interpretedAddr =
   \case
     OpTransferTokens tt ->

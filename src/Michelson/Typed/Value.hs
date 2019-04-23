@@ -7,7 +7,7 @@ module Michelson.Typed.Value
   , CreateAccount (..)
   , CreateContract (..)
   , CValue (..)
-  , Operation (..)
+  , Operation' (..)
   , SetDelegate (..)
   , TransferTokens (..)
   ) where
@@ -28,19 +28,19 @@ import Tezos.Crypto (KeyHash, PublicKey, Signature)
 --
 -- These operations are to be further executed against system state
 -- after the contract execution.
-data Operation instr where
+data Operation' instr where
   OpTransferTokens
     :: (Typeable p, SingI p, HasNoOp p)
-    => TransferTokens instr p -> Operation instr
-  OpSetDelegate :: SetDelegate -> Operation instr
-  OpCreateAccount :: CreateAccount -> Operation instr
+    => TransferTokens instr p -> Operation' instr
+  OpSetDelegate :: SetDelegate -> Operation' instr
+  OpCreateAccount :: CreateAccount -> Operation' instr
   OpCreateContract
     :: ( Show (instr (ContractInp cp st) (ContractOut st)), SingI cp, SingI st
        , Typeable instr, Typeable cp, Typeable st, HasNoOp cp, HasNoOp st)
     => CreateContract instr cp st
-    -> Operation instr
+    -> Operation' instr
 
-instance Buildable (Operation instr) where
+instance Buildable (Operation' instr) where
   build =
     \case
       OpTransferTokens tt -> build tt
@@ -48,8 +48,8 @@ instance Buildable (Operation instr) where
       OpCreateAccount ca -> build ca
       OpCreateContract cc -> build cc
 
-deriving instance Show (Operation instr)
-instance Eq (Operation instr) where
+deriving instance Show (Operation' instr)
+instance Eq (Operation' instr) where
   op1 == op2 = case (op1, op2) of
     (OpTransferTokens tt1, OpTransferTokens tt2) -> eqParam1 tt1 tt2
     (OpTransferTokens _, _) -> False
@@ -135,7 +135,7 @@ data Value' instr t where
   VOption :: forall t instr. Maybe (Value' instr t) -> Value' instr ('TOption t)
   VList :: forall t instr. [Value' instr t] -> Value' instr ('TList t)
   VSet :: forall t instr. Set (CValue t) -> Value' instr ('TSet t)
-  VOp :: Operation instr -> Value' instr 'TOperation
+  VOp :: Operation' instr -> Value' instr 'TOperation
   VContract :: forall p instr. Address -> Value' instr ('TContract p)
   VPair :: forall l r instr. (Value' instr l, Value' instr r) -> Value' instr ('TPair l r)
   VOr :: forall l r instr. Either (Value' instr l) (Value' instr r) -> Value' instr ('TOr l r)

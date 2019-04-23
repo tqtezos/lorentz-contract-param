@@ -13,11 +13,12 @@ import Test.QuickCheck.Gen (unGen)
 import Test.QuickCheck.Property (expectFailure, forAll, withMaxSuccess)
 import Test.QuickCheck.Random (mkQCGen)
 
+import Lorentz (compileLorentz)
 import Michelson.Interpret (ContractEnv(..))
 import Michelson.Test (ContractPropValidator, contractProp, midTimestamp, specWithTypedContract)
 import Michelson.Test.Dummy
 import Michelson.Test.Util (failedProp)
-import Michelson.Typed (CValue(..), Operation(..), ToT, TransferTokens(..))
+import Michelson.Typed (CValue(..), Operation'(..), ToT, TransferTokens(..))
 import qualified Michelson.Typed as T
 import Tezos.Address (Address(..))
 import Tezos.Core (Mutez, Timestamp, timestampPlusSeconds, unMutez, unsafeMkMutez, unsafeSubMutez)
@@ -33,7 +34,7 @@ type Param = KeyHash
 auctionSpec :: Spec
 auctionSpec = parallel $ do
   specWithTypedContract "contracts/auction.tz" auctionSpec'
-  auctionSpec' auction
+  auctionSpec' (compileLorentz auction)
   -- Test slightly modified version of auction.tz, it must fail.
   -- This block is given purely for demonstration of that tests are smart
   -- enough to filter common mistakes.

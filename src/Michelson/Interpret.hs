@@ -41,7 +41,7 @@ import Michelson.TypeCheck
   TCTypeError(..), compareTypes, eqType, runTypeCheckT, typeCheckContract, typeCheckValue)
 import Michelson.Typed
   (CValue(..), Contract, CreateAccount(..), CreateContract(..), HasNoOp, Instr(..),
-  OpPresence(..), Operation(..), SetDelegate(..), Sing(..), T(..), TransferTokens(..), Value'(..),
+  OpPresence(..), Operation'(..), Operation, SetDelegate(..), Sing(..), T(..), TransferTokens(..), Value'(..),
   extractNotes, fromUType, withSomeSingT)
 import qualified Michelson.Typed as T
 import Michelson.Typed.Arith
@@ -130,7 +130,7 @@ data InterpretUntypedResult where
        , SingI st
        , HasNoOp st
        )
-    => { iurOps :: [ Operation Instr ]
+    => { iurOps :: [Operation]
        , iurNewStorage :: T.Value st
        , iurNewState   :: InterpreterState
        }
@@ -177,7 +177,7 @@ interpretUntyped U.Contract{..} paramU initStU env = do
 
     constructIUR ::
       (Typeable st, SingI st, HasNoOp st) =>
-      (([Operation Instr], Value' Instr st), InterpreterState) ->
+      (([Operation], Value' Instr st), InterpreterState) ->
       InterpretUntypedResult
     constructIUR ((ops, val), st) =
       InterpretUntypedResult
@@ -187,7 +187,7 @@ interpretUntyped U.Contract{..} paramU initStU env = do
       }
 
 type ContractReturn st =
-  (Either MichelsonFailed ([Operation Instr], T.Value st), InterpreterState)
+  (Either MichelsonFailed ([Operation], T.Value st), InterpreterState)
 
 interpret'
   :: Contract cp st
@@ -204,7 +204,7 @@ interpret' instr param initSt env ist = first (fmap toRes) $
   where
     toRes
       :: (Rec (T.Value' instr) '[ 'TPair ('TList 'TOperation) st ])
-      -> ([Operation instr], T.Value' instr st)
+      -> ([T.Operation' instr], T.Value' instr st)
     toRes (T.VPair (T.VList ops_, newSt) :& RNil) =
       (map (\(T.VOp op) -> op) ops_, newSt)
 

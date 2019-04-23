@@ -29,38 +29,38 @@ data Storage = Storage { pos :: Position, power :: Power }
   deriving stock Generic
   deriving anyclass IsoValue
 
-walkerContract :: Contract (ToT Parameter) (ToT Storage)
+walkerContract :: Contract Parameter Storage
 walkerContract =
   unpair # caseT @Parameter
     ( #cGoLeft /->
-        modify_ @Storage #pos
-          ( modify_ @Position #x
-            ( push (toVal @Integer 1) # rsub
+        modify_ #pos
+          ( modify_ #x
+            ( push @Integer 1 # rsub
             )
           )
     , #cGoRight /->
-        modify_ @Storage #pos
-          ( modify_ @Position #x
-            ( push (toVal @Integer 1) # add
+        modify_ #pos
+          ( modify_ #x
+            ( push @Integer 1 # add
             )
           )
     , #cGoUp /->
-        modify_ @Storage #pos
-          ( modify_ @Position #y
-            ( push (toVal @Integer 1) # add
+        modify_ #pos
+          ( modify_ #y
+            ( push @Integer 1 # add
             )
           )
     , #cGoDown /->
-        modify_ @Storage #pos
-          ( modify_ @Position #y
-            ( push (toVal @Integer 1) # rsub
+        modify_ #pos
+          ( modify_ #y
+            ( push @Integer 1 # rsub
             )
           )
     , #cBoost /->
-        ( dip (get_ @Storage #power)
-        # access_ @BoostParams #coef1
+        ( dip (get_ #power)
+        # access_ #coef1
         # add
-        # set_ @Storage #power
+        # set_ #power
         )
     )
   # nil # pair

@@ -7,9 +7,9 @@ module Test.Interpreter.Walker
 import Fmt ((+|), (|+))
 import Test.Hspec (Expectation, Spec, expectationFailure, it, shouldBe)
 
+import Lorentz (compileLorentz)
 import Michelson.Test (ContractPropValidator, contractRepeatedProp)
 import Michelson.Test.Dummy
-import Michelson.Typed (Instr, Operation(..))
 import qualified Michelson.Typed as T
 import Util.Named ((.!))
 
@@ -40,11 +40,13 @@ walkerSpec = do
 
 walkerProp :: [Parameter] -> Storage -> Expectation
 walkerProp params (T.toVal -> expected) =
-  contractRepeatedProp walkerContract (validateFinishedWith ([], expected))
+  contractRepeatedProp
+    (compileLorentz walkerContract)
+    (validateFinishedWith ([], expected))
     dummyContractEnv params Storage{ pos = Position 0 0, power = 0 }
 
 validateFinishedWith
-  :: ([Operation Instr], T.Value st)
+  :: ([T.Operation], T.Value st)
   -> ContractPropValidator st Expectation
 validateFinishedWith expected (res, _) = case res of
   Left err -> expectationFailure $ "Interpretation failed: " +| err |+ ""

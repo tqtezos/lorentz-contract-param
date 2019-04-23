@@ -1,5 +1,12 @@
 module Lorentz.Instr
   ( ( # )
+  , (:->) (..)
+  , compileLorentz
+  , type (&)
+  , Lambda
+  , Contract
+  , Coercible_
+  , coerce_
   , nop
   , drop
   , dup
@@ -78,296 +85,328 @@ module Lorentz.Instr
 import Prelude hiding
   (EQ, GT, LT, abs, and, compare, concat, drop, get, map, not, or, some, swap, xor)
 
-import Data.Singletons (SingI)
+import qualified Data.Kind as Kind
 
-import Lorentz.Type
+import Lorentz.Arith
+import Lorentz.Constraints
+import Lorentz.Polymorphic
 import Lorentz.Value
-import Michelson.Typed ((:+>), HasNoOp, Instr(..), Notes(NStar), ( # ))
+import Michelson.Typed ((:+>), Instr(..), Notes(NStar), T(..), ToT, ToTs, Value'(..), forbiddenOp)
 import Michelson.Typed.Arith
-import Michelson.Typed.Polymorphic
+import Michelson.Typed.Polymorphic ()
 
-nop :: s :+> s
-nop = Nop
+newtype (inp :: [Kind.Type]) :-> (out :: [Kind.Type]) =
+  I { unI :: ToTs inp :+> ToTs out }
+infixr 1 :->
 
-drop :: a & s :+> s
-drop = DROP
+-- | For use outside of Lorentz.
+compileLorentz :: (inp :-> out) -> (ToTs inp :+> ToTs out)
+compileLorentz = unI
 
-dup  :: a & s :+> a & a & s
-dup = DUP
+type (&) (a :: Kind.Type) (b :: [Kind.Type]) = a ': b
+infixr 2 &
 
-swap :: a & b & s :+> b & a & s
-swap = SWAP
+-- TODO: this is the second operator with this name
+-- call it differently?
+(#) :: (a :-> b) -> (b :-> c) -> a :-> c
+I l # I r = I (l `Seq` r)
 
--- Want to do something like
---
--- push :: ToVal a => a -> Proxy t -> s :+> (t ': s)
--- push = PUSH . toVal
---
--- to automatically convert Haskell types to Vals
+type Lambda i o = '[i] :-> '[o]
 
-push :: forall t s .(SingI t, HasNoOp t) => Value t -> (s :+> t & s)
-push = PUSH
+instance IsoValue (Lambda inp out) where
+  type ToT (Lambda inp out) = 'TLambda (ToT inp) (ToT out)
+  toVal = VLam . unI
+  fromVal (VLam l) = I l
 
-some :: a & s :+> TOption a & s
-some = SOME
+-- | Whether two types have the same Michelson representation.
+type Coercible_ a b = ToT a ~ ToT b
 
-none :: forall a s . SingI a => s :+> (TOption a & s)
-none = NONE
+-- | Convert between values of types that have the same representation.
+coerce_ :: Coercible_ a b => a & s :-> b & s
+coerce_ = I Nop
 
-unit :: s :+> TUnit & s
-unit = UNIT
+type Contract cp st = '[(cp, st)] :-> '[([Operation], st)]
+
+-- TODO: move everything till this point to some Lorentz.Base?
+
+nop :: s :-> s
+nop = I Nop
+
+drop :: a & s :-> s
+drop = I DROP
+
+dup  :: a & s :-> a & a & s
+dup = I DUP
+
+swap :: a & b & s :-> b & a & s
+swap = I SWAP
+
+push :: forall t s .(KnownValue t, NoOperation t, IsoValue t) => t -> (s :-> t & s)
+push a = I $ forbiddenOp @(ToT t) $ PUSH (toVal a)
+
+some :: a & s :-> Maybe a & s
+some = I SOME
+
+none :: forall a s . KnownValue a => s :-> (Maybe a & s)
+none = I NONE
+
+unit :: s :-> () & s
+unit = I UNIT
 
 ifNone
-  :: (s :+> s') -> (a & s :+> s') -> (TOption a & s :+> s')
-ifNone = IF_NONE
+  :: (s :-> s') -> (a & s :-> s') -> (Maybe a & s :-> s')
+ifNone (I l) (I r) = I (IF_NONE l r)
 
-pair :: a & b & s :+> TPair a b & s
-pair = PAIR
+pair :: a & b & s :-> (a, b) & s
+pair = I PAIR
 
-car :: TPair a b & s :+> a & s
-car = CAR
+car :: (a, b) & s :-> a & s
+car = I CAR
 
-cdr :: TPair a b & s :+> b & s
-cdr = CDR
+cdr :: (a, b) & s :-> b & s
+cdr = I CDR
 
-left :: forall a b s. SingI b => a & s :+> TOr a b & s
-left = LEFT
+left :: forall a b s. KnownValue b => a & s :-> Either a b & s
+left = I LEFT
 
-right :: forall a b s. SingI a => b & s :+> TOr a b & s
-right = right
+right :: forall a b s. KnownValue a => b & s :-> Either a b & s
+right = I RIGHT
 
 ifLeft
-  :: (a & s :+> s') -> (b & s :+> s') -> (TOr a b & s :+> s')
-ifLeft = IF_LEFT
+  :: (a & s :-> s') -> (b & s :-> s') -> (Either a b & s :-> s')
+ifLeft (I l) (I r) = I (IF_LEFT l r)
 
-nil :: SingI p => s :+> TList p & s
-nil = NIL
+nil :: KnownValue p => s :-> List p & s
+nil = I NIL
 
-cons :: a & TList a & s :+> TList a & s
-cons = CONS
+cons :: a & List a & s :-> List a & s
+cons = I CONS
 
 ifCons
-  :: (a & TList a & s :+> s') -> (s :+> s') -> (TList a & s :+> s')
-ifCons = IF_CONS
+  :: (a & List a & s :-> s') -> (s :-> s') -> (List a & s :-> s')
+ifCons (I l) (I r) = I (IF_CONS l r)
 
-size :: SizeOp c => c & s :+> TNat & s
-size = SIZE
+size :: SizeOpHs c => c & s :-> Natural & s
+size = I SIZE
 
-emptySet :: (Typeable e, SingI e) => s :+> TSet e & s
-emptySet = EMPTY_SET
+emptySet :: (KnownCValue e) => s :-> Set e & s
+emptySet = I EMPTY_SET
 
-emptyMap :: (Typeable k, Typeable v, SingI k, SingI v) => s :+> TMap k v & s
-emptyMap = EMPTY_MAP
+emptyMap :: (KnownCValue k, KnownValue v)
+         => s :-> Map k v & s
+emptyMap = I EMPTY_MAP
 
 map
-  :: (Typeable (MapOpInp c ': s), MapOp c)
-  => (MapOpInp c & s :+> b & s) -> (c & s :+> MapOpRes c b & s)
-map = MAP
+  :: (MapOpHs c, IsoMapOpRes c b)
+  => (MapOpInpHs c & s :-> b & s) -> (c & s :-> MapOpResHs c b & s)
+map (I action) = I (MAP action)
 
 iter
-  :: (Typeable (IterOpEl c ': s), IterOp c)
-  => (IterOpEl c & s :+> s) -> (c & s :+> s)
-iter = ITER
+  :: (IterOpHs c)
+  => (IterOpElHs c & s :-> s) -> (c & s :-> s)
+iter (I action) = I (ITER action)
 
-mem :: MemOp c => Tc (MemOpKey c) & c & s :+> TBool & s
-mem = MEM
+mem :: MemOpHs c => MemOpKeyHs c & c & s :-> Bool & s
+mem = I MEM
 
-get :: GetOp c => Tc (GetOpKey c) & c & s :+> TOption (GetOpVal c) & s
-get = GET
+get :: GetOpHs c => GetOpKeyHs c & c & s :-> Maybe (GetOpValHs c) & s
+get = I GET
 
-update :: UpdOp c => Tc (UpdOpKey c) & UpdOpParams c & c & s :+> c & s
-update = UPDATE
+update :: UpdOpHs c => UpdOpKeyHs c & UpdOpParamsHs c & c & s :-> c & s
+update = I UPDATE
 
-if_ :: (s :+> s') -> (s :+> s') -> (TBool & s :+> s')
-if_ = IF
+if_ :: (s :-> s') -> (s :-> s') -> (Bool & s :-> s')
+if_ (I l) (I r) = I (IF l r)
 
-loop :: (s :+> TBool & s) -> (TBool & s :+> s)
-loop = LOOP
+loop :: (s :-> Bool & s) -> (Bool & s :-> s)
+loop (I b) = I (LOOP b)
 
 loopLeft
-  :: (a & s :+> TOr a b & s) -> (TOr a b & s :+> b & s)
-loopLeft = LOOP_LEFT
+  :: (a & s :-> Either a b & s) -> (Either a b & s :-> b & s)
+loopLeft (I b) = I (LOOP_LEFT b)
 
 lambda
-  :: (Each [Typeable, SingI] [i, o])
-  => Value (TLambda i o) -> (s :+> TLambda i o & s)
-lambda = LAMBDA
+  :: (KnownValue i, KnownValue o)
+  => Lambda i o -> (s :-> Lambda i o & s)
+lambda (I l) = I (LAMBDA $ VLam l)
 
-exec :: a & TLambda a b & s :+> b & s
-exec = EXEC
+exec :: a & Lambda a b & s :-> b & s
+exec = I EXEC
 
-dip :: (s :+> s') -> (a & s :+> a & s')
-dip = DIP
+dip :: (s :-> s') -> (a & s :-> a & s')
+dip (I a) = I (DIP a)
 
-failWith :: (Typeable a, SingI a) => a & s :+> t
-failWith = FAILWITH
+failWith :: (KnownValue a) => a & s :-> t
+failWith = I FAILWITH
 
-cast :: SingI a => (a & s :+> a & s)
-cast = CAST
+cast :: KnownValue a => (a & s :-> a & s)
+cast = I CAST
 
-pack :: (SingI a, HasNoOp a) => a & s :+> TBytes & s
-pack = PACK
+pack :: forall a s. (KnownValue a, NoOperation a) => a & s :-> ByteString & s
+pack = I $ forbiddenOp @(ToT a) PACK
 
-unpack :: (SingI a, HasNoOp a) => TBytes & s :+> TOption a & s
-unpack = UNPACK
+unpack :: forall a s. (KnownValue a, NoOperation a) => ByteString & s :-> Maybe a & s
+unpack = I $ forbiddenOp @(ToT a) UNPACK
 
-concat :: ConcatOp c => c & c & s :+> c & s
-concat = CONCAT
+concat :: ConcatOpHs c => c & c & s :-> c & s
+concat = I CONCAT
 
-concat' :: ConcatOp c => TList c & s :+> c & s
-concat' = CONCAT'
+concat' :: ConcatOpHs c => List c & s :-> c & s
+concat' = I CONCAT'
 
-slice :: SliceOp c => TNat & TNat & c & s :+> TOption c & s
-slice = SLICE
+slice :: SliceOpHs c => Natural & Natural & c & s :-> Maybe c & s
+slice = I SLICE
 
-isNat :: TInt & s :+> TOption TNat & s
-isNat = ISNAT
+isNat :: Integer & s :-> Maybe Natural & s
+isNat = I ISNAT
 
 add
-  :: (ArithOp Add n m, Typeable n, Typeable m)
-  => Tc n & Tc m & s :+> Tc (ArithRes Add n m) & s
-add = ADD
+  :: ArithOpHs Add n m
+  => n & m & s :-> ArithResHs Add n m & s
+add = I ADD
 
 sub
-  :: (ArithOp Sub n m, Typeable n, Typeable m)
-  => Tc n & Tc m & s :+> Tc (ArithRes Sub n m) & s
-sub = SUB
+  :: ArithOpHs Sub n m
+  => n & m & s :-> ArithResHs Sub n m & s
+sub = I SUB
 
 rsub
-  :: (ArithOp Sub n m, Typeable n, Typeable m)
-  => Tc m & Tc n & s :+> Tc (ArithRes Sub n m) & s
-rsub = SWAP # SUB
+  :: ArithOpHs Sub n m
+  => m & n & s :-> ArithResHs Sub n m & s
+rsub = swap # sub
 
 mul
-  :: (ArithOp Mul n m, Typeable n, Typeable m)
-  => Tc n & Tc m & s :+> Tc (ArithRes Mul n m) & s
-mul = MUL
+  :: ArithOpHs Mul n m
+  => n & m & s :-> ArithResHs Mul n m & s
+mul = I MUL
 
-ediv :: EDivOp n m
-     => Tc n & Tc m & s
-     :+> TOption (TPair (Tc (EDivOpRes n m)) (Tc (EModOpRes n m))) & s
-ediv = EDIV
+ediv :: EDivOpHs n m
+     => n & m & s
+     :-> Maybe ((EDivOpResHs n m, EModOpResHs n m)) & s
+ediv = I EDIV
 
-abs :: UnaryArithOp Abs n => Tc n & s :+> Tc (UnaryArithRes Abs n) & s
-abs = ABS
+abs :: UnaryArithOpHs Abs n => n & s :-> UnaryArithResHs Abs n & s
+abs = I ABS
 
-neg :: UnaryArithOp Neg n => Tc n & s :+> Tc (UnaryArithRes Neg n) & s
-neg = NEG
+neg :: UnaryArithOpHs Neg n => n & s :-> UnaryArithResHs Neg n & s
+neg = I NEG
 
 
 lsl
-  :: (ArithOp Lsl n m, Typeable n, Typeable m)
-  => Tc n & Tc m & s :+> Tc (ArithRes Lsl n m) & s
-lsl = LSL
+  :: ArithOpHs Lsl n m
+  => n & m & s :-> ArithResHs Lsl n m & s
+lsl = I LSL
 
 lsr
-  :: (ArithOp Lsr n m, Typeable n, Typeable m)
-  => Tc n & Tc m & s :+> Tc (ArithRes Lsr n m) & s
-lsr = LSR
+  :: ArithOpHs Lsr n m
+  => n & m & s :-> ArithResHs Lsr n m & s
+lsr = I LSR
 
 or
-  :: (ArithOp Or n m, Typeable n, Typeable m)
-  => Tc n & Tc m & s :+> Tc (ArithRes Or n m) & s
-or = OR
+  :: ArithOpHs Or n m
+  => n & m & s :-> ArithResHs Or n m & s
+or = I OR
 
 and
-  :: (ArithOp And n m, Typeable n, Typeable m)
-  => Tc n & Tc m & s :+> Tc (ArithRes And n m) & s
-and = AND
+  :: ArithOpHs And n m
+  => n & m & s :-> ArithResHs And n m & s
+and = I AND
 
 xor
-  :: (ArithOp Xor n m, Typeable n, Typeable m)
-  => Tc n & Tc m & s :+> Tc (ArithRes Xor n m) & s
-xor = XOR
+  :: (ArithOpHs Xor n m)
+  => n & m & s :-> ArithResHs Xor n m & s
+xor = I XOR
 
-not :: UnaryArithOp Not n => Tc n & s :+> Tc (UnaryArithRes Not n) & s
-not = NOT
+not :: UnaryArithOpHs Not n => n & s :-> UnaryArithResHs Not n & s
+not = I NOT
 
-compare :: (ArithOp Compare n m, Typeable n, Typeable m)
-        => Tc n & Tc m & s :+> Tc (ArithRes Compare n m) & s
-compare = COMPARE
+compare :: ArithOpHs Compare n m
+        => n & m & s :-> ArithResHs Compare n m & s
+compare = I COMPARE
 
-eq0 :: UnaryArithOp Eq' n => Tc n & s :+> Tc (UnaryArithRes Eq' n) & s
-eq0 = EQ
+eq0 :: UnaryArithOpHs Eq' n => n & s :-> UnaryArithResHs Eq' n & s
+eq0 = I EQ
 
-neq0 :: UnaryArithOp Neq n => Tc n & s :+> Tc (UnaryArithRes Neq n) & s
-neq0 = NEQ
+neq0 :: UnaryArithOpHs Neq n => n & s :-> UnaryArithResHs Neq n & s
+neq0 = I NEQ
 
-lt0 :: UnaryArithOp Lt n => Tc n & s :+> Tc (UnaryArithRes Lt n) & s
-lt0 = LT
+lt0 :: UnaryArithOpHs Lt n => n & s :-> UnaryArithResHs Lt n & s
+lt0 = I LT
 
-gt0 :: UnaryArithOp Gt n => Tc n & s :+> Tc (UnaryArithRes Gt n) & s
-gt0 = GT
+gt0 :: UnaryArithOpHs Gt n => n & s :-> UnaryArithResHs Gt n & s
+gt0 = I GT
 
-le0 :: UnaryArithOp Le n => Tc n & s :+> Tc (UnaryArithRes Le n) & s
-le0 = LE
+le0 :: UnaryArithOpHs Le n => n & s :-> UnaryArithResHs Le n & s
+le0 = I LE
 
-ge0 :: UnaryArithOp Ge n => Tc n & s :+> Tc (UnaryArithRes Ge n) & s
-ge0 = GE
+ge0 :: UnaryArithOpHs Ge n => n & s :-> UnaryArithResHs Ge n & s
+ge0 = I GE
 
-int :: TNat & s :+> TInt & s
-int = INT
+int :: Natural & s :-> Integer & s
+int = I INT
 
-self :: forall (cp :: T) s . s :+> TContract cp & s
-self = SELF
+self :: forall cp s . s :-> ContractAddr cp & s
+self = I SELF
 
-contract :: (SingI p, Typeable p) => TAddress & s :+> TOption (TContract p) & s
-contract = CONTRACT NStar
+contract :: (KnownValue p) => Address & s :-> Maybe (ContractAddr p) & s
+contract = I (CONTRACT NStar)
 
 transferTokens
-  :: (Typeable p, SingI p, HasNoOp p)
-  => p & TMutez & TContract p & s :+> TOperation & s
-transferTokens = TRANSFER_TOKENS
+  :: forall p s. (KnownValue p, NoOperation p)
+  => p & Mutez & ContractAddr p & s :-> Operation & s
+transferTokens = I $ forbiddenOp @(ToT p) TRANSFER_TOKENS
 
-setDelegate :: TOption TKeyHash & s :+> TOperation & s
-setDelegate = SET_DELEGATE
+setDelegate :: Maybe KeyHash & s :-> Operation & s
+setDelegate = I SET_DELEGATE
 
-createAccount :: TKeyHash & TOption TKeyHash & TBool & TMutez & s
-              :+> TOperation & TAddress & s
-createAccount = CREATE_ACCOUNT
+createAccount :: KeyHash & Maybe KeyHash & Bool & Mutez & s
+              :-> Operation & Address & s
+createAccount = I CREATE_ACCOUNT
 
 
-createContract :: (Each [Typeable, SingI, HasNoOp] [p, g])
-               => '[ TPair p g ] :+> '[ TPair (TList TOperation) g ]
-               -> TKeyHash & TOption TKeyHash & TBool & TBool & TMutez & g & s
-               :+> TOperation & TAddress & s
-createContract = CREATE_CONTRACT
+createContract :: forall p g s.
+                  (KnownValue p, NoOperation p, KnownValue g, NoOperation g)
+               => '[(p, g)] :-> '[(List Operation, g)]
+               -> KeyHash & Maybe KeyHash & Bool & Bool & Mutez & g & s
+               :-> Operation & Address & s
+createContract (I c) =
+  I $ forbiddenOp @(ToT p) $ forbiddenOp @(ToT g) (CREATE_CONTRACT c)
 
-implicitAccount :: TKeyHash & s :+> TContract TUnit & s
-implicitAccount = IMPLICIT_ACCOUNT
+implicitAccount :: KeyHash & s :-> ContractAddr () & s
+implicitAccount = I IMPLICIT_ACCOUNT
 
-now :: s :+> TTimestamp & s
-now = NOW
+now :: s :-> Timestamp & s
+now = I NOW
 
-amount :: s :+> TMutez & s
-amount = AMOUNT
+amount :: s :-> Mutez & s
+amount = I AMOUNT
 
-balance :: s :+> TMutez & s
-balance = BALANCE
+balance :: s :-> Mutez & s
+balance = I BALANCE
 
-checkSignature :: TKey & TSignature & TBytes & s :+> TBool & s
-checkSignature = CHECK_SIGNATURE
+checkSignature :: PublicKey & Signature & ByteString & s :-> Bool & s
+checkSignature = I CHECK_SIGNATURE
 
-sha256 :: TBytes & s :+> TBytes & s
-sha256 = SHA256
+sha256 :: ByteString & s :-> ByteString & s
+sha256 = I SHA256
 
-sha512 :: TBytes & s :+> TBytes & s
-sha512 = SHA512
+sha512 :: ByteString & s :-> ByteString & s
+sha512 = I SHA512
 
-blake2B :: TBytes & s :+> TBytes & s
-blake2B = BLAKE2B
+blake2B :: ByteString & s :-> ByteString & s
+blake2B = I BLAKE2B
 
-hashKey :: TKey & s :+> TKeyHash & s
-hashKey = HASH_KEY
+hashKey :: PublicKey & s :-> KeyHash & s
+hashKey = I HASH_KEY
 
-stepsToQuota :: s :+> TNat & s
-stepsToQuota = STEPS_TO_QUOTA
+stepsToQuota :: s :-> Natural & s
+stepsToQuota = I STEPS_TO_QUOTA
 
-source :: s :+> TAddress & s
-source = SOURCE
+source :: s :-> Address & s
+source = I SOURCE
 
-sender :: s :+> TAddress & s
-sender = SENDER
+sender :: s :-> Address & s
+sender = I SENDER
 
-address :: TContract a & s :+> TAddress & s
-address = ADDRESS
+address :: ContractAddr a & s :-> Address & s
+address = I ADDRESS

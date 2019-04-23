@@ -59,10 +59,12 @@ library
                      , Util.TypeTuple
 
   other-modules:       Lorentz.ADT
+                     , Lorentz.Arith
+                     , Lorentz.Constraints
                      , Lorentz.Ext
                      , Lorentz.Instr
                      , Lorentz.Macro
-                     , Lorentz.Type
+                     , Lorentz.Polymorphic
                      , Lorentz.Value
                      , Michelson.EqParam
                      , Michelson.Parser.Annotations
@@ -83,6 +85,7 @@ library
                      , Michelson.TypeCheck.TypeCheck
                      , Michelson.TypeCheck.Types
                      , Michelson.TypeCheck.Value
+                     , Michelson.Typed.Aliases
                      , Michelson.Typed.Annotation
                      , Michelson.Typed.Arith
                      , Michelson.Typed.Convert

@@ -4,6 +4,10 @@
 module Michelson.Typed.Haskell.Value
   ( IsoValue (..)
   , GIsoValue (..)
+  , ToTs
+
+  , ContractAddr (..)
+  , BigMap (..)
   ) where
 
 import qualified Data.Kind as Kind
@@ -13,6 +17,7 @@ import GHC.Generics ((:*:)(..), (:+:)(..))
 import qualified GHC.Generics as G
 import Named (NamedF(..))
 
+import Michelson.Typed.Aliases
 import Michelson.Typed.CValue
 import Michelson.Typed.T
 import Michelson.Typed.Value
@@ -30,18 +35,22 @@ class IsoValue a where
   type ToT a = GValueType (G.Rep a)
 
   -- | Converts a Haskell structure into @Value@ representation.
-  toVal :: a -> Value' instr (ToT a)
+  toVal :: a -> Value (ToT a)
   default toVal
     :: (Generic a, GIsoValue (G.Rep a), ToT a ~ GValueType (G.Rep a))
-    => a -> Value' instr (ToT a)
+    => a -> Value (ToT a)
   toVal = gToValue . G.from
 
   -- | Converts a @Value@ into Haskell type.
-  fromVal :: Value' instr (ToT a) -> a
+  fromVal :: Value (ToT a) -> a
   default fromVal
     :: (Generic a, GIsoValue (G.Rep a), ToT a ~ GValueType (G.Rep a))
-    => Value' instr (ToT a) -> a
+    => Value (ToT a) -> a
   fromVal = G.to . gFromValue
+
+type family ToTs (ts :: [Kind.Type]) :: [T] where
+  ToTs '[] = '[]
+  ToTs (x ': xs) = ToT x ': ToTs xs
 
 instance IsoValue Integer where
   type ToT Integer = 'Tc (ToCT Integer)
@@ -124,6 +133,11 @@ instance (Ord k, ToCVal k, FromCVal k, IsoValue v) => IsoValue (Map k v) where
   toVal = VMap . Map.mapKeys toCVal . Map.map toVal
   fromVal (VMap x) = Map.map fromVal $ Map.mapKeys fromCVal x
 
+instance IsoValue Operation where
+  type ToT Operation = 'TOperation
+  toVal = VOp
+  fromVal (VOp x) = x
+
 
 deriving newtype instance IsoValue a => IsoValue (Identity a)
 deriving newtype instance IsoValue a => IsoValue (NamedF Identity a name)
@@ -131,6 +145,26 @@ deriving newtype instance IsoValue a => IsoValue (NamedF Maybe a name)
 
 instance (IsoValue a, IsoValue b, IsoValue c) => IsoValue (a, b, c)
 instance (IsoValue a, IsoValue b, IsoValue c, IsoValue d) => IsoValue (a, b, c, d)
+
+-- Types used specifically for conversion
+----------------------------------------------------------------------------
+
+-- | Since @Contract@ name is used to designate contract code, lets call
+-- analogy of 'TContract' type as follows.
+newtype ContractAddr (cp :: Kind.Type) =
+  ContractAddr { unContractAddress :: Address }
+
+instance IsoValue (ContractAddr cp) where
+  type ToT (ContractAddr cp) = 'TContract (ToT cp)
+  toVal = VContract . unContractAddress
+  fromVal (VContract a) = ContractAddr a
+
+newtype BigMap k v = BigMap { unBigMap :: Map k v }
+
+instance (Ord k, ToCVal k, FromCVal k, IsoValue v) => IsoValue (BigMap k v) where
+  type ToT (BigMap k v) = 'TBigMap (ToCT k) (ToT v)
+  toVal = VBigMap . Map.mapKeys toCVal . Map.map toVal . unBigMap
+  fromVal (VBigMap x) = BigMap $ Map.map fromVal $ Map.mapKeys fromCVal x
 
 -- Generic magic
 ----------------------------------------------------------------------------
@@ -145,8 +179,8 @@ instance (IsoValue a, IsoValue b, IsoValue c, IsoValue d) => IsoValue (a, b, c, 
 -- I (martoon) believe that contract versions will change much faster anyway.
 class GIsoValue (x :: Kind.Type -> Kind.Type) where
   type GValueType x :: T
-  gToValue :: x p -> Value' instr (GValueType x)
-  gFromValue :: Value' instr (GValueType x) -> x p
+  gToValue :: x p -> Value (GValueType x)
+  gFromValue :: Value (GValueType x) -> x p
 
 instance GIsoValue x => GIsoValue (G.M1 t i x) where
   type GValueType (G.M1 t i x) = GValueType x

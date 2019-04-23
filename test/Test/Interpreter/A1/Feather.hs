@@ -50,8 +50,8 @@ type CounterParameter =
   [ 'T.TUnit
   , 'T.TUnit
   , 'T.Tc 'T.CNat
-  , View 'T.TUnit ('T.Tc 'T.CNat)
-  , Void_ 'T.TUnit ('T.Tc 'T.CBytes)
+  , T.ToT (View () Natural)
+  , T.ToT (Void_ () ByteString)
   ]
 type CounterStorage = T.ToT Natural
 

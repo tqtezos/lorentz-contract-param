@@ -21,6 +21,7 @@ import Named ((:!), (:?), NamedF(..))
 import Michelson.Typed.Haskell.Instr.Helpers
 import Michelson.Typed.Haskell.Value
 import Michelson.Typed.Instr
+import Util.Named (NamedInner)
 
 -- Fields lookup (helper)
 ----------------------------------------------------------------------------
@@ -62,7 +63,7 @@ type family GLookupNamed (name :: Symbol) (x :: Kind.Type -> Kind.Type)
       'Nothing
   GLookupNamed name (G.S1 _ (G.Rec0 (NamedF f a fieldName))) =
     If (name == fieldName)
-      ('Just $ 'LNR (f a) '[])
+      ('Just $ 'LNR (NamedInner (NamedF f a fieldName)) '[])
       'Nothing
   GLookupNamed _ (G.S1 _ _) = 'Nothing
 
@@ -93,12 +94,12 @@ type family LNMergeFound
 -- | Make an instruction which accesses given field of the given datatype.
 instrGet
   :: forall dt name fieldTy st path.
-     InstrGetC dt name fieldTy st path
+     InstrGetC dt name fieldTy path
   => Label name -> Instr (ToT dt ': st) (ToT fieldTy ': st)
 instrGet _ = gInstrGet @name @(G.Rep dt) @path @fieldTy
 
 -- | Constraint for 'instrGet'.
-type InstrGetC dt name fieldTy st path =
+type InstrGetC dt name fieldTy path =
   ( IsoValue dt
   , GInstrGet name (G.Rep dt)
       (LnrBranch (GetNamed name dt))
@@ -167,20 +168,6 @@ _getIntInstr2 = instrGet @MyType2 #getUnit
 _getIntInstr2' :: Instr (ToT MyType2 ': s) (ToT Integer ': s)
 _getIntInstr2' = instrGet @MyType2 #getMyType1 # instrGet @MyType1 #int
 
-{- Note on explicit datatype specification:
-
-Unfortunatelly, 'ValueType' ('ToT') type family is not injective, so
-in `instrGet` you always have to specify datatype from which you are trying
-to extract a field.
-
-One way to resolve it is to use
-@
-newtype inp :+> out = Instr' (Instr (ToT inp) (ToT out))
-@
-at Lorentz layer, this way GHC will know itself haskell type we operate on
-just looking at instruction type signature.
--}
-
 ----------------------------------------------------------------------------
 -- Value modification instruction
 ----------------------------------------------------------------------------
@@ -188,12 +175,12 @@ just looking at instruction type signature.
 -- | For given complex type @dt@ and its field @fieldTy@ update the field value.
 instrSet
   :: forall dt name fieldTy st path.
-     InstrSetC dt name fieldTy st path
+     InstrSetC dt name fieldTy path
   => Label name -> Instr (ToT fieldTy ': ToT dt ': st) (ToT dt ': st)
 instrSet _ = gInstrSet @name @(G.Rep dt) @path @fieldTy
 
 -- | Constraint for 'instrSet'.
-type InstrSetC dt name fieldTy st path =
+type InstrSetC dt name fieldTy path =
   ( IsoValue dt
   , GInstrSet name (G.Rep dt)
       (LnrBranch (GetNamed name dt))
