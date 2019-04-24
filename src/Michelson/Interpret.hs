@@ -461,13 +461,12 @@ interpretExt (SomeItStack (T.PRINT (T.PrintComment pc)) st) = do
       getEl (Right str) = withStackElem str st show
   modify (\s -> s {isMorleyLogs = MorleyLogs $ mconcat (map getEl pc) : unMorleyLogs (isMorleyLogs s)})
 
-interpretExt (SomeItStack (T.TEST_ASSERT (T.TestAssert nm pc (instr :: T.Instr inp1 ('T.Tc 'T.CBool ': out1) )))
-            (st :: Rec T.Value inp2)) = do
-  runInstrNoGas instr st >>= \case
-    (T.VC (T.CvBool False) :& RNil) -> do
-      interpretExt (SomeItStack (T.PRINT pc) st)
-      throwError $ MichelsonFailedTestAssert $ "TEST_ASSERT " <> nm <> " failed"
-    _  -> pass
+interpretExt (SomeItStack (T.TEST_ASSERT (T.TestAssert nm pc instr)) st) = do
+  ost <- runInstrNoGas instr st
+  let ((T.fromVal -> succeeded) :& _) = ost
+  unless succeeded $ do
+    interpretExt (SomeItStack (T.PRINT pc) st)
+    throwError $ MichelsonFailedTestAssert $ "TEST_ASSERT " <> nm <> " failed"
 
 -- | Access given stack reference (in CPS style).
 withStackElem
