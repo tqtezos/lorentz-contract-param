@@ -17,15 +17,20 @@ import Michelson.Untyped
   noAnn)
 
 interpretHandlerSpec :: Spec
-interpretHandlerSpec = describe "interpretHandler PRINT/TEST_ASSERT tests" $
-  specWithTypedContract "contracts/testassert_square.tz" $ \c -> do
-    it "TEST_ASSERT assertion passed" $ do
-      runTest True c 100 100
-      runTest True c 1 1
-    it "TEST_ASSERT assertion failed" $ do
-      runTest False c 0 100
-      runTest False c -1 -2
+interpretHandlerSpec = describe "interpretHandler PRINT/TEST_ASSERT tests" $ do
+  specWithTypedContract "contracts/testassert_square.tz" $
+    testAssertSquareSpec
+  specWithTypedContract "contracts/testassert_square2.tz" $
+    testAssertSquareSpec
   where
+    testAssertSquareSpec c = do
+      it "TEST_ASSERT assertion passed" $ do
+        runTest True c 100 100
+        runTest True c 1 1
+      it "TEST_ASSERT assertion failed" $ do
+        runTest False c 0 100
+        runTest False c -1 -2
+
     runTest corr contract x y = do
       let x' = T.VC $ CvInt x :: T.Value ('T.Tc 'T.CInt)
       let y' = T.VC $ CvInt y :: T.Value ('T.Tc 'T.CInt)

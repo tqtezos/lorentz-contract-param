@@ -1,0 +1,24 @@
+# This is like testassert_square.tz, but test_assert is executed on stack
+# with more than one element.
+
+parameter (pair int int);
+storage unit;
+code {
+  car;
+  dip { unit };
+  unpair;
+  test_assert
+    CheckSides
+    "Sides are %[0] x %[1]"
+    { dup;
+      gt;
+      dip {push int 101; cmpgt;};
+      diip {dup; gt; dip {push int 101; cmpgt;};};
+      and; and; and;
+    };
+  mul;
+  print "Area is %[0]";
+  drop;
+  nil operation;
+  pair;
+}
