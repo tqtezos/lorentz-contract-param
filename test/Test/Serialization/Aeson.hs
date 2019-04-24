@@ -1,5 +1,5 @@
 module Test.Serialization.Aeson
-  ( spec_Aeson
+  ( spec_Roundtrip
   ) where
 
 import Data.Aeson (FromJSON, ToJSON)
@@ -31,8 +31,8 @@ testADT :: forall a.
   -> Spec
 testADT = roundtripADTSpecs
 
-spec_Aeson :: Spec
-spec_Aeson = do
+spec_Roundtrip :: Spec
+spec_Roundtrip = do
   -- Core Tezos types
   test (Proxy @Timestamp)
   test (Proxy @Mutez)

@@ -1,27 +1,30 @@
 module Test.Printer.Michelson
-  ( spec_Printer
+  ( unit_Roundtrip
   ) where
 
 import Fmt (pretty)
-import Test.Hspec (Spec, it, runIO, shouldBe)
+import Test.HUnit (Assertion, assertEqual, assertFailure)
 
 import Michelson.Printer (printUntypedContract)
 import Michelson.Runtime (parseExpandContract)
-import Michelson.Test (specWithUntypedContract)
+import Michelson.Test (importUntypedContract)
 
 import Test.Util.Contracts (getWellTypedContracts)
 
-spec_Printer :: Spec
-spec_Printer = do
-  contractFiles <- runIO getWellTypedContracts
+unit_Roundtrip :: Assertion
+unit_Roundtrip = do
+  contractFiles <- getWellTypedContracts
   mapM_ roundtripPrintTest contractFiles
-
-roundtripPrintTest :: FilePath -> Spec
-roundtripPrintTest filePath =
-  -- these are untyped and expanded contracts, they might have macros
-  specWithUntypedContract filePath $ \contract1 ->
-    it "roundtrip printUntypedContract test" $ do
+  where
+    roundtripPrintTest :: FilePath -> Assertion
+    roundtripPrintTest filePath = do
+      contract1 <- importUntypedContract filePath
       case parseExpandContract (Just filePath) (toText $ printUntypedContract contract1) of
-        Left err -> fail ("Failed to read 'printUntypedContract contract1': " ++ pretty err)
+        Left err -> assertFailure
+          ("Failed to parse printed " <> filePath <> ": " ++ pretty err)
+        -- We don't expect that `contract1` equals `contract2`,
+        -- because during printing we lose extra instructions.
         Right contract2 ->
-          printUntypedContract contract1 `shouldBe` printUntypedContract contract2
+          assertEqual ("After printing and parsing " <> filePath <> " is printed differently")
+          (printUntypedContract contract1)
+          (printUntypedContract contract2)

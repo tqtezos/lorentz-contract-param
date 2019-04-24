@@ -1,17 +1,17 @@
 -- | Tests for Michelson.Runtime.
 
 module Test.Michelson.Runtime
-  ( spec_Runtime
+  ( test_interpreterPure
   ) where
 
 import Control.Lens (at)
 import Fmt (pretty)
-import Test.Hspec
-  (Expectation, Spec, context, describe, expectationFailure, it, parallel, runIO, shouldBe,
-  shouldSatisfy, specify)
+import Test.Hspec.Expectations (Expectation, expectationFailure, shouldSatisfy)
+import Test.HUnit (Assertion, assertFailure, (@?=))
+import Test.Tasty (TestTree, testGroup)
+import Test.Tasty.HUnit (testCase)
 
-import Michelson.Interpret
-  (ContractEnv(..), InterpretUntypedError(..), InterpretUntypedResult(..), interpretUntyped)
+import Michelson.Interpret (ContractEnv(..), InterpretUntypedResult(..), interpretUntyped)
 import Michelson.Runtime
 import Michelson.Runtime.GState (GState(..), initGState)
 import Michelson.Test.Dummy (dummyContractEnv, dummyMaxSteps, dummyNow, dummyOrigination)
@@ -20,19 +20,20 @@ import Michelson.Untyped
 import Tezos.Address (Address(..))
 import Tezos.Core (unsafeMkMutez)
 
-spec_Runtime :: Spec
-spec_Runtime = do
-  illTypedContract <- runIO $
+test_interpreterPure :: IO [TestTree]
+test_interpreterPure = do
+  illTypedContract <-
     prepareContract (Just "contracts/ill-typed/sum-strings.tz")
 
-  -- Safe to run in parallel, because 'interpreterPure' is pure.
-  describe "interpreterPure" $ parallel $ do
-    context "Updates storage value of executed contract" $ do
-      specify "contract1" $ updatesStorageValue contractAux1
-      specify "contract2" $ updatesStorageValue contractAux2
-    it "Fails to originate an already originated contract" failsToOriginateTwice
-    it "Fails to originate an ill-typed contract"
-      (failsToOriginateIllTyped (ValueString "") illTypedContract)
+  pure
+    [ testGroup "Updates storage value of executed contract" $
+      [ testCase "contract1" $ updatesStorageValue contractAux1
+      , testCase "contract2" $ updatesStorageValue contractAux2
+      ]
+    , testCase "Fails to originate an already originated contract" failsToOriginateTwice
+    , testCase "Fails to originate an ill-typed contract"
+        (failsToOriginateIllTyped (ValueString "") illTypedContract)
+    ]
 
 ----------------------------------------------------------------------------
 -- Test code
@@ -48,14 +49,8 @@ data ContractAux = ContractAux
   , caParameter :: !Value
   }
 
-data UnexpectedFailed =
-  UnexpectedFailed InterpretUntypedError
-  deriving (Show)
-
-instance Exception UnexpectedFailed
-
-updatesStorageValue :: ContractAux -> Expectation
-updatesStorageValue ca = either throwM handleResult $ do
+updatesStorageValue :: ContractAux -> Assertion
+updatesStorageValue ca = either (assertFailure . pretty) handleResult $ do
   let
     contract = caContract ca
     ce = caEnv ca
@@ -77,15 +72,15 @@ updatesStorageValue ca = either throwM handleResult $ do
     toNewStorage :: InterpretUntypedResult -> Value
     toNewStorage InterpretUntypedResult {..} = untypeValue iurNewStorage
 
-    handleResult :: (Address, InterpreterRes) -> Expectation
+    handleResult :: (Address, InterpreterRes) -> Assertion
     handleResult (addr, ir) = do
       expectedValue <-
-        either (throwM . UnexpectedFailed) (pure . toNewStorage) $
+        either (assertFailure . pretty) (pure . toNewStorage) $
         interpretUntyped
                   (caContract ca) (caParameter ca) (caStorage ca) (caEnv ca)
       case gsAddresses (_irGState ir) ^. at addr of
         Nothing -> expectationFailure $ "Address not found: " <> pretty addr
-        Just (ASContract cs) -> csStorage cs `shouldBe` expectedValue
+        Just (ASContract cs) -> csStorage cs @?= expectedValue
         Just _ -> expectationFailure $ "Address has unexpected state " <> pretty addr
 
 failsToOriginateTwice :: Expectation

@@ -289,6 +289,9 @@ test-suite morley-test
                      , Test.Util.Parser
                      , Test.Util.QuickCheck
                      , Test.ValConversion
+
+                     -- Workaround
+                     , Test.Tasty.HUnit
   build-depends:
                        aeson
                      , base-noprelude >= 4.7 && < 5
@@ -301,6 +304,7 @@ test-suite morley-test
                      , generic-arbitrary
                      , hex-text
                      , hspec
+                     , hspec-expectations
                      , hspec-golden-aeson
                      , HUnit
                      , lens
@@ -315,6 +319,7 @@ test-suite morley-test
                      , singletons
                      , tasty
                      , tasty-hspec
+                     , tasty-quickcheck
                      , text
   ghc-options:        -Weverything
                       -Wno-missing-exported-signatures

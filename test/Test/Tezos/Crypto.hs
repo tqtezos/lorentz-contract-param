@@ -1,59 +1,64 @@
 -- | Tests for 'Tezos.Crypto'.
 
 module Test.Tezos.Crypto
-  ( spec_Crypto
+  ( spec_Roundtrip
+  , test_Signing
+  , test_Bytes_Hashing
+  , unit_Key_Hashing
   ) where
 
 import Fmt (fmt, hexF, pretty)
-import Test.Hspec (Expectation, Spec, describe, it, shouldBe, shouldSatisfy)
+import Test.Hspec (Expectation, Spec, describe, shouldSatisfy)
+import Test.HUnit (Assertion, (@?=))
+import Test.Tasty (TestTree, testGroup)
+import Test.Tasty.HUnit (testCase)
 
 import Tezos.Crypto
 
 import Test.Util.QuickCheck (aesonRoundtrip, roundtripSpecSTB)
 
-spec_Crypto :: Spec
-spec_Crypto = do
-  describe "Signing" $ do
-    describe "Formatting" $ do
-      describe "parsePublicKey" $ do
-        it "Successfully parses valid sample data" $
-          mapM_ (parsePublicKeySample . sdPublicKey) sampleSignatures
-        it "Fails to parse invalid data" $ do
-          parsePublicKeyInvalid "aaa"
-          parsePublicKeyInvalid
-            "edpkuwTWKgQNnhR5v17H2DYHbfcxYepARyrPGbf1tbMoGQAj8Ljr3v"
-          parsePublicKeyInvalid
-            "edsigtrs8bK7vNfiR4Kd9dWasVa1bAWaQSu2ipnmLGZuwQa8ktCEMYVKqbWsbJ7zTS8dgYT9tiSUKorWCPFHosL5zPsiDwBQ6vb"
-      describe "parseSignature" $ do
-        it "Successfully parses valid sample data" $
-          mapM_ (parseSignatureSample . sdSignature) sampleSignatures
-        it "Fails to parse invalid data" $ do
-          parseSignatureInvalid "bbb"
-          parseSignatureInvalid
-            "edpkuwTWKgQNnhR5v17H2DYHbfcxYepARyrPGbf1tbMoGQAj8Ljr3V"
-          parseSignatureInvalid
-            "edsigtrs8bK7vNfiR4Kd9dWasVa1bAWaQSu2ipnmLGZuwQa8ktCEMYVKqbWsbJ7zTS8dgYT9tiSUKorWCPFHosL5zPsiDwBQ6vB"
-      describe "Roundtrip (parse . format ≡ pure)" $ do
-        roundtripSpecSTB formatPublicKey parsePublicKey
-        roundtripSpecSTB formatSecretKey parseSecretKey
-        roundtripSpecSTB formatSignature parseSignature
-        roundtripSpecSTB formatKeyHash parseKeyHash
-      describe "Roundtrip (JSON encoding/deconding)" $ do
-        aesonRoundtrip @PublicKey
-        aesonRoundtrip @Signature
-        aesonRoundtrip @KeyHash
-    describe "checkSignature" $ do
-      it "Works on sample data" $ mapM_ checkSignatureSample sampleSignatures
-  describe "Bytes hashing" $ do
-    hashingSpec "blake2b" blake2b blake2bHashes
-    hashingSpec "sha256" sha256 sha256Hashes
-    hashingSpec "sha512" sha512 sha512Hashes
-  describe "Key hashing" $
-    it "Works on sample data" $ mapM_ hashKeySample sampleKeyHashes
+spec_Roundtrip :: Spec
+spec_Roundtrip = do
+  describe "parse . format ≡ pure" $ do
+    roundtripSpecSTB formatPublicKey parsePublicKey
+    roundtripSpecSTB formatSecretKey parseSecretKey
+    roundtripSpecSTB formatSignature parseSignature
+    roundtripSpecSTB formatKeyHash parseKeyHash
+  describe "JSON encoding/deconding" $ do
+    aesonRoundtrip @PublicKey
+    aesonRoundtrip @Signature
+    aesonRoundtrip @KeyHash
 
 ----------------------------------------------------------------------------
 -- Signing
 ----------------------------------------------------------------------------
+
+test_Signing :: [TestTree]
+test_Signing =
+  [ testGroup "Formatting"
+      [ testGroup "parsePublicKey"
+        [ testCase "Successfully parses valid sample data" $
+          mapM_ (parsePublicKeySample . sdPublicKey) sampleSignatures
+        , testCase "Fails to parse invalid data" $ do
+            parsePublicKeyInvalid "aaa"
+            parsePublicKeyInvalid
+              "edpkuwTWKgQNnhR5v17H2DYHbfcxYepARyrPGbf1tbMoGQAj8Ljr3v"
+            parsePublicKeyInvalid
+              "edsigtrs8bK7vNfiR4Kd9dWasVa1bAWaQSu2ipnmLGZuwQa8ktCEMYVKqbWsbJ7zTS8dgYT9tiSUKorWCPFHosL5zPsiDwBQ6vb"
+        ]
+      , testGroup "parseSignature"
+        [ testCase "Successfully parses valid sample data" $
+          mapM_ (parseSignatureSample . sdSignature) sampleSignatures
+        , testCase "Fails to parse invalid data" $ do
+            parseSignatureInvalid "bbb"
+            parseSignatureInvalid
+              "edpkuwTWKgQNnhR5v17H2DYHbfcxYepARyrPGbf1tbMoGQAj8Ljr3V"
+            parseSignatureInvalid
+              "edsigtrs8bK7vNfiR4Kd9dWasVa1bAWaQSu2ipnmLGZuwQa8ktCEMYVKqbWsbJ7zTS8dgYT9tiSUKorWCPFHosL5zPsiDwBQ6vB"
+        ]
+      ]
+  , testCase "checkSignature" $ mapM_ checkSignatureSample sampleSignatures
+  ]
 
 data SignatureData = SignatureData
   { sdPublicKey :: !Text
@@ -101,9 +106,9 @@ parseSignatureInvalid :: Text -> Expectation
 parseSignatureInvalid invalidSignatureText =
   parseSignature invalidSignatureText `shouldSatisfy` isLeft
 
-checkSignatureSample :: SignatureData -> Expectation
+checkSignatureSample :: SignatureData -> Assertion
 checkSignatureSample sd =
-  checkSignature publicKey signature (sdBytes sd) `shouldBe` sdValid sd
+  checkSignature publicKey signature (sdBytes sd) @?= sdValid sd
   where
     publicKey = partialParse parsePublicKey (sdPublicKey sd)
     signature = partialParse parseSignature (sdSignature sd)
@@ -111,6 +116,13 @@ checkSignatureSample sd =
 ----------------------------------------------------------------------------
 -- Hashing
 ----------------------------------------------------------------------------
+
+test_Bytes_Hashing :: [TestTree]
+test_Bytes_Hashing =
+  [ testGroup "blake2b" $ hashingTest blake2b blake2bHashes
+  , testGroup "sha256" $ hashingTest sha256 sha256Hashes
+  , testGroup "sha512" $ hashingTest sha512 sha512Hashes
+  ]
 
 -- These values have been computed using the following contract:
 {-
@@ -135,16 +147,18 @@ sha512Hashes =
   , ("#", "d369286ac86b60fa920f6464d26becacd9f4c8bd885b783407cdcaa74fafd45a8b56b364b63f6256c3ceef26278a1c7799d4243a8149b5ede5ce1d890b5c7236")  -- 0x23
   ]
 
-hashingSpec :: String -> (ByteString -> ByteString) -> [(ByteString, Text)] -> Spec
-hashingSpec funcName hashFunc pairs = do
-  describe funcName $ do
-    forM_ pairs $ \(bs, bsHashHex) -> do
-      it ("correctly computes hash of 0x" <> fmt (hexF bs)) $
-        fmt (hexF (hashFunc bs)) `shouldBe` bsHashHex
+hashingTest :: (ByteString -> ByteString) -> [(ByteString, Text)] -> [TestTree]
+hashingTest hashFunc pairs = do
+  flip map pairs $ \(bs, bsHashHex) -> do
+    testCase ("correctly computes hash of 0x" <> fmt (hexF bs)) $
+      fmt (hexF (hashFunc bs)) @?= bsHashHex
 
 ----------------------------------------------------------------------------
 -- Key hashing
 ----------------------------------------------------------------------------
+
+unit_Key_Hashing :: Assertion
+unit_Key_Hashing = mapM_ hashKeySample sampleKeyHashes
 
 sampleKeyHashes :: [(Text, Text)]
 sampleKeyHashes =
@@ -156,8 +170,8 @@ sampleKeyHashes =
     )
   ]
 
-hashKeySample :: (Text, Text) -> Expectation
-hashKeySample (pkText, keyHashText) = hashKey pk `shouldBe` keyHash
+hashKeySample :: (Text, Text) -> Assertion
+hashKeySample (pkText, keyHashText) = hashKey pk @?= keyHash
   where
     pk = partialParse parsePublicKey pkText
     keyHash = partialParse parseKeyHash keyHashText
