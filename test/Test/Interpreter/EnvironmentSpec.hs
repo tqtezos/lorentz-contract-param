@@ -78,7 +78,7 @@ integrationalScenario contract fixture = do
 
   -- Then let's originated the 'environment.tz' contract
   environmentAddress <-
-    originate contract U.ValueFalse (fBalance fixture)
+    originate contract "environment" U.ValueFalse (fBalance fixture)
 
   -- And transfer tokens to it
   let

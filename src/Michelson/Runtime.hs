@@ -22,7 +22,8 @@ module Michelson.Runtime
        -- * For testing
        , InterpreterOp (..)
        , InterpreterRes (..)
-       , InterpreterError (..)
+       , InterpreterError' (..)
+       , InterpreterError
        , interpreterPure
 
        -- * To avoid warnings (can't generate lenses only for some fields)
@@ -111,20 +112,22 @@ instance Semigroup InterpreterRes where
       }
 
 -- | Errors that can happen during contract interpreting.
-data InterpreterError
-  = IEUnknownContract !Address
+-- Type parameter @a@ determines how contracts will be represented
+-- in these errors, e.g. @Address@
+data InterpreterError' a
+  = IEUnknownContract !a
   -- ^ The interpreted contract hasn't been originated.
-  | IEInterpreterFailed !Address
+  | IEInterpreterFailed !a
                         !InterpretUntypedError
   -- ^ Interpretation of Michelson contract failed.
-  | IEAlreadyOriginated !Address
+  | IEAlreadyOriginated !a
                         !ContractState
   -- ^ A contract is already originated.
-  | IEUnknownSender !Address
+  | IEUnknownSender !a
   -- ^ Sender address is unknown.
-  | IEUnknownManager !Address
+  | IEUnknownManager !a
   -- ^ Manager address is unknown.
-  | IENotEnoughFunds !Address !Mutez
+  | IENotEnoughFunds !a !Mutez
   -- ^ Sender doesn't have enough funds.
   | IEFailedToApplyUpdates !GStateUpdateError
   -- ^ Failed to apply updates to GState.
@@ -132,7 +135,7 @@ data InterpreterError
   -- ^ A contract is ill-typed.
   deriving (Show)
 
-instance Buildable InterpreterError where
+instance (Buildable a) => Buildable (InterpreterError' a) where
   build =
     \case
       IEUnknownContract addr -> "The contract is not originated " +| addr |+ ""
@@ -149,7 +152,9 @@ instance Buildable InterpreterError where
       IEFailedToApplyUpdates err -> "Failed to update GState: " +| err |+ ""
       IEIllTypedContract err -> "The contract is ill-typed " +| err |+ ""
 
-instance Exception InterpreterError where
+type InterpreterError = InterpreterError' Address
+
+instance (Typeable a, Show a, Buildable a) => Exception (InterpreterError' a) where
   displayException = pretty
 
 ----------------------------------------------------------------------------
