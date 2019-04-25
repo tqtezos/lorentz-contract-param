@@ -14,8 +14,15 @@ stages:
 
 variables:
   STACK_ROOT: "$CI_PROJECT_DIR/.stack-root"
-  STACK_OPTIONS: "--no-install-ghc --system-ghc"
+  STACK_GLOBAL_CONFIG: "$CI_PROJECT_DIR/.stack-root/config.yaml"
+  # Resolver that we use to build code outside our repository
+  STACK_RESOLVER: "lts-13.3"
   CROSSREF_VERIFIER_COMMIT: "b6c7cd6aea888690ec5b1df2c6ebf82da981cebc"
+
+before_script:
+  - 'touch "$STACK_GLOBAL_CONFIG"'
+  - 'echo "system-ghc: true" >> "$STACK_GLOBAL_CONFIG"'
+  - 'echo "install-ghc: false" >> "$STACK_GLOBAL_CONFIG"'
 
 build-and-test:
   stage: test
@@ -37,21 +44,22 @@ build-and-test:
       - examples/EDSL/**/*
       - scripts/morley.sh
   script:
+    - mkdir -p ./weeder/bin
+    - stack --resolver $STACK_RESOLVER --local-bin-path ./weeder/bin
+        install weeder
     - cp /usr/lib/gcc/x86_64-linux-gnu/6/crtbeginT.o /usr/lib/gcc/x86_64-linux-gnu/6/crtbeginT.o.orig
     - cp /usr/lib/gcc/x86_64-linux-gnu/6/crtbeginS.o /usr/lib/gcc/x86_64-linux-gnu/6/crtbeginT.o
-    - stack $STACK_OPTIONS
-        install morley
+    - stack install morley
         --ghc-options '-Werror -optl-static -fPIC'
         --fast --local-bin-path tmp
         --test --no-run-tests
         --bench --no-run-benchmarks
         --haddock --no-haddock-deps
-    - stack $STACK_OPTIONS
-        test morley
+    - stack test morley
+    # Run weeder after our code is built
+    - weeder/bin/weeder .
     # Test EDSL examples
-    - stack $STACK_OPTIONS
-        --stack-yaml examples/EDSL/stack.yaml
-        test
+    - stack --stack-yaml examples/EDSL/stack.yaml test
     - rm -rf "$STACK_ROOT/programs"  # Faster to download them again
   artifacts:
     paths:
@@ -80,7 +88,6 @@ build-docker-latest:
 
   before_script: &docker_login
     - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
-
 
   variables:
     IMAGE_TAG: $CI_REGISTRY_IMAGE:latest
@@ -125,11 +132,11 @@ verify-doc-links:
   only:
     refs:
       - merge_requests
-  before_script:
+  script:
     - "git clone https://github.com/serokell/crossref-verifier.git || :"
     - cd crossref-verifier
     - git checkout $CROSSREF_VERIFIER_COMMIT
-    - stack install --local-bin-path ./bin --resolver lts-13.3
+    - stack install --local-bin-path ./bin
+      --resolver $STACK_RESOLVER
     - cd ..
-  script:
     - ./crossref-verifier/bin/crossref-verify -v --no-progress -m full
