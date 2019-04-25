@@ -44,7 +44,7 @@ module Lorentz.Macro
 
   -- * Syntactic Conveniences
   , dipX
-  , dupX
+  , cloneX
   , duupX
   , caar
   , cadr
@@ -269,23 +269,23 @@ dipX
   => (s :-> s') -> inp :-> out
 dipX = dipXImpl @(ToPeano n) @(Above (ToPeano n) inp)
 
-class DupX (n :: Peano) a s where
-  type DupXT n a s :: [Kind.Type]
-  dupXImpl :: a & s :-> DupXT n a s
-instance DupX 'Z a s where
-  type DupXT 'Z a s = a & s
-  dupXImpl = nop
-instance (DupX n a s) => DupX ('S n) a s where
-  type DupXT ('S n) a s = a ': DupXT n a s
-  dupXImpl = dup # dip (dupXImpl @n)
+class CloneX (n :: Peano) a s where
+  type CloneXT n a s :: [Kind.Type]
+  cloneXImpl :: a & s :-> CloneXT n a s
+instance CloneX 'Z a s where
+  type CloneXT 'Z a s = a & s
+  cloneXImpl = nop
+instance (CloneX n a s) => CloneX ('S n) a s where
+  type CloneXT ('S n) a s = a ': CloneXT n a s
+  cloneXImpl = dup # dip (cloneXImpl @n)
 
 -- | Duplicate the top of the stack @n@ times.
 --
--- For example, `dupX @3` has type `a & s :-> a & a & a & a & s`.
-dupX
-  :: forall (n :: GHC.Nat) a s. DupX (ToPeano n) a s
-  => a & s :-> DupXT (ToPeano n) a s
-dupX = dupXImpl @(ToPeano n)
+-- For example, `cloneX @3` has type `a & s :-> a & a & a & a & s`.
+cloneX
+  :: forall (n :: GHC.Nat) a s. CloneX (ToPeano n) a s
+  => a & s :-> CloneXT (ToPeano n) a s
+cloneX = cloneXImpl @(ToPeano n)
 
 class DuupX (n :: Peano) (l :: [Kind.Type]) (r :: [Kind.Type]) (a :: Kind.Type) (s :: [Kind.Type]) where
   duupXImpl :: l ++ r ++ (a & s) :-> l ++ '[a] ++ r ++ (a & s)
