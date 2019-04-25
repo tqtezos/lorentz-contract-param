@@ -276,7 +276,7 @@ test-suite morley-test
                      , Test.Lorentz.Contracts.Walker
                      , Test.Macro
                      , Test.Ext
-                     , Test.Morley.Runtime
+                     , Test.Michelson.Runtime
                      , Test.Parser
                      , Test.Printer.Michelson
                      , Test.Serialization.Aeson

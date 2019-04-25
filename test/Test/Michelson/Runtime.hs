@@ -1,6 +1,6 @@
--- | Tests for Morley.Runtime.
+-- | Tests for Michelson.Runtime.
 
-module Test.Morley.Runtime
+module Test.Michelson.Runtime
   ( spec
   ) where
 
