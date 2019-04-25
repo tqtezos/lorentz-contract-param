@@ -9,7 +9,7 @@ import Prelude hiding (Ordering(..))
 import Data.Singletons (SingI(..))
 import qualified Data.Text as T
 import Data.Typeable ((:~:)(..), Typeable, eqT, typeRep)
-import Test.Hspec (Expectation, Spec, describe, it, shouldBe)
+import Test.Hspec (Expectation, Spec, describe, it, shouldBe, shouldSatisfy)
 import Text.Hex (decodeHex, encodeHex)
 
 import Michelson.Interpret (runUnpack)
@@ -53,6 +53,8 @@ spec_Packing = do
   describe "pack tests for instructions" $ do
     instrTest
     typesTest
+
+  unpackNegTest
 
 stripOptional0x :: Text -> Text
 stripOptional0x h = T.stripPrefix "0x" h ?: h
@@ -128,6 +130,17 @@ parsePackSpec name suites =
   where
     initTypeCheckST = error "Type check state is not defined"
     initStack = (sing @inp, NStar, noAnn) ::& SNil
+
+unpackNegSpec
+  :: forall (t :: T).
+      (SingI t, HasNoOp t)
+  => String -> Text -> Spec
+unpackNegSpec name encodedHex =
+  it name $
+    let encoded = decodeHex (stripOptional0x encodedHex)
+                  ?: error ("Invalid hex: " <> show encodedHex)
+    in runUnpack @t mempty encoded
+        `shouldSatisfy` isLeft
 
 -- | Helper for defining tests cases for 'packSpec'.
 -- Read it as "is packed as".
@@ -612,3 +625,31 @@ typesTest = do
     ]
   where
     lambdaWrap ty = "{ LAMBDA " <> ty <> " " <> ty <> " {}; DROP }"
+
+unpackNegTest :: Spec
+unpackNegTest = do
+  describe "Bad entries order" $ do
+    unpackNegSpec @('TSet 'CInt) "Unordered set elements"
+      "0x050200000006000300020001"  -- { 3; 2; 1 }
+    unpackNegSpec @('TMap 'CInt $ 'Tc 'CInt) "Unordered map elements"
+      "0x05020000000c070400020006070400010007"  -- { Elt 2 6; Elt 1 7 }
+    unpackNegSpec @('TBigMap 'CInt $ 'Tc 'CInt) "Unordered big map elements"
+      "0x05020000000c070400020006070400010007"
+
+  describe "Wron length specified" $ do
+    unpackNegSpec @('TList $ 'Tc 'CInt) "Too few list length"
+      "0x05020000000300010002"  -- { 1; 2 }
+    unpackNegSpec @('TList $ 'Tc 'CInt) "Too big list length"
+      "0x05020000000500010002"  -- { 1; 2 }
+    unpackNegSpec @('TList $ 'Tc 'CInt) "Wrong bytes length"
+      "0x050b000000021234"  -- 0x1234
+
+  describe "Type check failures" $ do
+    unpackNegSpec @('TUnit) "Value type mismatch"
+      "0x050008"  -- 8
+    unpackNegSpec @('TLambda 'TUnit 'TKey) "Lambda type mismatch"
+      "0x050200000000"  -- {}
+    unpackNegSpec @('TLambda 'TUnit 'TKey) "Lambda too large output stack size"
+      "0x0502000000060743035b0005"  -- {PUSH int 5}
+    unpackNegSpec @('TLambda 'TUnit 'TKey) "Lambda empty output stack size"
+      "0x0502000000020320"  -- {DROP}
