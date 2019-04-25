@@ -1,0 +1,25 @@
+# We intentionally ignore some suggestions.
+# For some reason `weeder` thinks that `base-noprelude` is useless
+# while it is not.
+- package:
+  - name: morley
+  - section:
+    - name: exe:morley
+    - message:
+      - name: Redundant build-depends entry
+      - depends: base-noprelude
+  - section:
+    - name: library
+    - message:
+      - name: Redundant build-depends entry
+      - depends:
+        - base-noprelude
+        # We don't use transformers-compat directly,
+        # but we have to specify its version explicitly in .cabal file
+        # because otherwise Hackage build fails.
+        - transformers-compat
+  - section:
+    - name: test:morley-test
+    - message:
+      - name: Redundant build-depends entry
+      - depends: base-noprelude

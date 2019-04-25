@@ -1,12 +1,8 @@
 module Michelson.Parser.Annotations
-  ( note
-  , noteT
-  , noteV
+  ( noteV
   , noteF
-  , noteF2
   , noteTDef
   , noteVDef
-  , noteFDef
   , notesTVF
   , notesTVF2
   , notesTV
@@ -62,9 +58,6 @@ noteTDef = parseDef noteT
 
 noteVDef :: Parser Mi.VarAnn
 noteVDef = parseDef noteV
-
-noteFDef :: Parser Mi.FieldAnn
-noteFDef = parseDef noteF
 
 notesTVF :: Parser (Mi.TypeAnn, Mi.VarAnn, Mi.FieldAnn)
 notesTVF = permute3Def noteT noteV noteF

@@ -84,7 +84,6 @@ import Lorentz.Polymorphic
 import Lorentz.Value
 import Michelson.Typed (Instr(..), Notes(NStar), ToT, Value'(..), forbiddenOp)
 import Michelson.Typed.Arith
-import Michelson.Typed.Polymorphic ()
 
 nop :: s :-> s
 nop = I Nop

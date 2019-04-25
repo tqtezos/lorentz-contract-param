@@ -2,7 +2,6 @@ module Main
   ( main
   ) where
 
-
 import Data.Version (showVersion)
 import Fmt (pretty)
 import Named ((!))

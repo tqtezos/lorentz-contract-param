@@ -30,9 +30,6 @@ module Test.Util.QuickCheck
   , roundtripSpec
   , roundtripSpecSTB
   , aesonRoundtrip
-
-  -- * 'Gen' helpers
-  , runGen
   ) where
 
 import Data.Aeson (FromJSON(..), ToJSON(..))
@@ -42,8 +39,6 @@ import Fmt (Buildable, pretty)
 import Test.Hspec (Spec)
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck (Arbitrary, Property, (===))
-import Test.QuickCheck.Gen (Gen, unGen)
-import Test.QuickCheck.Random (mkQCGen)
 import qualified Text.Show (show)
 
 ----------------------------------------------------------------------------
@@ -105,11 +100,3 @@ aesonRoundtrip ::
      forall x. (Show (ShowThroughBuild x), ToJSON x, FromJSON x, Typeable x, Arbitrary x, Eq x)
   => Spec
 aesonRoundtrip = roundtripSpecSTB (Aeson.encode @x) Aeson.eitherDecode
-
-----------------------------------------------------------------------------
--- Gen
-----------------------------------------------------------------------------
-
--- | Get something out of a quickcheck 'Gen' without having to do IO
-runGen :: Gen a -> a
-runGen g = unGen g (mkQCGen 31415926) 30

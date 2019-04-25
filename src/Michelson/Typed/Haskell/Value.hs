@@ -3,7 +3,7 @@
 -- | Conversions between haskell types/values and Michelson ones.
 module Michelson.Typed.Haskell.Value
   ( IsoValue (..)
-  , GIsoValue (..)
+  , GIsoValue (GValueType)
   , ToTs
 
   , ContractAddr (..)

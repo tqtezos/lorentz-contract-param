@@ -10,7 +10,6 @@ module Michelson.TypeCheck.Helpers
 
     , ensureDistinctAsc
     , eqType
-    , assertEqT
     , checkEqT
     , typeCheckInstrErr
     , typeCheckInstrAnnErr
@@ -164,13 +163,6 @@ checkEqT
   -> Either TCError (a :~: b)
 checkEqT instr i m =
   eqType @a @b `onLeft` (TCFailedOnInstr instr (SomeHST i) (m <> ": ") . Just)
-
-assertEqT
-  :: forall a b ts . (Typeable a, Typeable b, Typeable ts)
-  => Un.ExpandedInstr
-  -> HST ts
-  -> Either TCError (a :~: b)
-assertEqT instr i = checkEqT instr i "unexpected"
 
 -- | Function @eqType@ is a simple wrapper around @Data.Typeable.eqT@ suited
 -- for use within @Either TCTypeError a@ applicative.
