@@ -20,6 +20,7 @@ import Data.Vinyl.Derived (Label)
 import GHC.TypeLits (AppendSymbol)
 import Named ((:!), (:?))
 
+import Lorentz.Base
 import Lorentz.Instr
 import Michelson.Typed.Haskell.Instr
 import Michelson.Typed.Haskell.Value

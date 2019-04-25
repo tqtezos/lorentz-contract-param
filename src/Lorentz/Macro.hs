@@ -75,6 +75,7 @@ import GHC.TypeNats (type (-))
 import qualified GHC.TypeNats as GHC (Nat)
 
 import Lorentz.Instr
+import Lorentz.Base
 import Lorentz.Constraints
 import Lorentz.Arith
 import Lorentz.Value

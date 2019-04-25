@@ -7,8 +7,6 @@ module Test.Lorentz.Contracts.Walker
   , Position (..)
   ) where
 
-import Prelude (Generic, Integer)
-
 import Lorentz
 
 type BoostParams = ("coef1" :! Integer, "coef2" :! Integer)

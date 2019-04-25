@@ -9,7 +9,7 @@ module Lorentz.Ext
 
 import Data.Singletons (SingI)
 
-import Lorentz.Instr
+import Lorentz.Base
 import Michelson.Typed.Haskell
 import Michelson.Typed.Instr
 import Util.Peano

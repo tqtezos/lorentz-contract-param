@@ -1,13 +1,5 @@
 module Lorentz.Instr
-  ( ( # )
-  , (:->) (..)
-  , compileLorentz
-  , type (&)
-  , Lambda
-  , Contract
-  , Coercible_
-  , coerce_
-  , nop
+  ( nop
   , drop
   , dup
   , swap
@@ -85,49 +77,14 @@ module Lorentz.Instr
 import Prelude hiding
   (EQ, GT, LT, abs, and, compare, concat, drop, get, map, not, or, some, swap, xor)
 
-import qualified Data.Kind as Kind
-
 import Lorentz.Arith
+import Lorentz.Base
 import Lorentz.Constraints
 import Lorentz.Polymorphic
 import Lorentz.Value
-import Michelson.Typed ((:+>), Instr(..), Notes(NStar), T(..), ToT, ToTs, Value'(..), forbiddenOp)
+import Michelson.Typed (Instr(..), Notes(NStar), ToT, Value'(..), forbiddenOp)
 import Michelson.Typed.Arith
 import Michelson.Typed.Polymorphic ()
-
-newtype (inp :: [Kind.Type]) :-> (out :: [Kind.Type]) =
-  I { unI :: ToTs inp :+> ToTs out }
-infixr 1 :->
-
--- | For use outside of Lorentz.
-compileLorentz :: (inp :-> out) -> (ToTs inp :+> ToTs out)
-compileLorentz = unI
-
-type (&) (a :: Kind.Type) (b :: [Kind.Type]) = a ': b
-infixr 2 &
-
--- TODO: this is the second operator with this name
--- call it differently?
-(#) :: (a :-> b) -> (b :-> c) -> a :-> c
-I l # I r = I (l `Seq` r)
-
-type Lambda i o = '[i] :-> '[o]
-
-instance IsoValue (Lambda inp out) where
-  type ToT (Lambda inp out) = 'TLambda (ToT inp) (ToT out)
-  toVal = VLam . unI
-  fromVal (VLam l) = I l
-
--- | Whether two types have the same Michelson representation.
-type Coercible_ a b = ToT a ~ ToT b
-
--- | Convert between values of types that have the same representation.
-coerce_ :: Coercible_ a b => a & s :-> b & s
-coerce_ = I Nop
-
-type Contract cp st = '[(cp, st)] :-> '[([Operation], st)]
-
--- TODO: move everything till this point to some Lorentz.Base?
 
 nop :: s :-> s
 nop = I Nop

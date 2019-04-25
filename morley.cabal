@@ -60,11 +60,13 @@ library
 
   other-modules:       Lorentz.ADT
                      , Lorentz.Arith
+                     , Lorentz.Base
                      , Lorentz.Constraints
                      , Lorentz.Ext
                      , Lorentz.Instr
                      , Lorentz.Macro
                      , Lorentz.Polymorphic
+                     , Lorentz.Prelude
                      , Lorentz.Value
                      , Michelson.EqParam
                      , Michelson.Parser.Annotations

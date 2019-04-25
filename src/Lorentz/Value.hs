@@ -7,6 +7,9 @@ module Lorentz.Value
   , CValue (..)
   , toCVal
   , fromCVal
+  , Integer
+  , Natural
+  , ByteString
   , Address
   , Mutez
   , Timestamp
