@@ -34,8 +34,7 @@ import Michelson.Untyped.Type
 -- (specifically @FN@ and @FN_END@).
 data ExtInstrAbstract op =
     STACKTYPE StackTypePattern -- ^ Matches current stack against a type-pattern
-  | FN T.Text StackFn          -- ^ Begin a typed stack function (push a @TcExtFrame@)
-  | FN_END                     -- ^ End a stack function (pop a @TcExtFrame@)
+  | FN T.Text StackFn [op]     -- ^ A typed stack function (push and pop a @TcExtFrame@)
   | UTEST_ASSERT (TestAssert op)   -- ^ Copy the current stack and run an inline assertion on it
   | UPRINT PrintComment         -- ^ Print a comment with optional embedded @StackRef@s
   deriving (Eq, Show, Data, Generic, Functor)

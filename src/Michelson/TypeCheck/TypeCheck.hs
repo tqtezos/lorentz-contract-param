@@ -5,12 +5,19 @@ module Michelson.TypeCheck.TypeCheck
   , TypeCheckEnv (..)
   , TypeCheckT
   , runTypeCheckT
+
+  , tcContractParamL
+  , tcContractsL
+  , tcExtFramesL
   ) where
+
+import Control.Lens (makeLensesWith)
 
 import Michelson.TypeCheck.Error (TCError)
 import Michelson.TypeCheck.Types
 import qualified Michelson.Untyped as U
 import Tezos.Address (Address)
+import Util.Lens
 
 type TypeCheckT a =
   ExceptT TCError
@@ -24,6 +31,8 @@ data TypeCheckEnv = TypeCheckEnv
   , tcContractParam :: U.Type
   , tcContracts     :: TcOriginatedContracts
   }
+
+makeLensesWith postfixLFields ''TypeCheckEnv
 
 runTypeCheckT :: U.Type -> TcOriginatedContracts -> TypeCheckT a -> Either TCError a
 runTypeCheckT param contracts act =

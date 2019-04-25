@@ -6,20 +6,23 @@ module Michelson.TypeCheck.Types
     , SomeValue (..)
     , SomeContract (..)
     , SomeCValue (..)
+    , BoundVars (..)
     , TcExtFrames
+    , noBoundVars
     ) where
 
 import Data.Singletons (SingI)
 import Prelude hiding (EQ, GT, LT)
 import qualified Text.Show
+import qualified Data.Map.Lazy as Map
 
 import Michelson.EqParam (eqParam1)
+import Michelson.Types (Var, Type)
 import Michelson.Typed (HasNoOp, Notes(..), Sing(..), T(..), fromSingT)
 import qualified Michelson.Typed as T
 import Michelson.Typed.Instr
 import Michelson.Typed.Value
 
-import qualified Michelson.Untyped as U
 import Michelson.Untyped.Annotation (VarAnn)
 
 -- | Data type holding type information for stack (Heterogeneous Stack Type).
@@ -141,5 +144,11 @@ data SomeContract where
 
 deriving instance Show SomeContract
 
+-- | Set of variables defined in a let-block.
+data BoundVars = BoundVars (Map Var Type) (Maybe SomeHST)
+
+noBoundVars :: BoundVars
+noBoundVars = BoundVars Map.empty Nothing
+
 -- | State for type checking @nop@
-type TcExtFrames = [(U.ExpandedInstrExtU, SomeHST)]
+type TcExtFrames = [BoundVars]
