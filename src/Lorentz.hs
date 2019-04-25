@@ -2,6 +2,7 @@ module Lorentz
   ( module Exports
   ) where
 
+import Lorentz.ADT as Exports
 import Lorentz.Ext as Exports
 import Lorentz.Instr as Exports
 import Lorentz.Macro as Exports

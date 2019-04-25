@@ -13,6 +13,7 @@ module Michelson.Interpret
   , noMorleyLogs
 
   , interpret
+  , interpretRepeated
   , ContractReturn
 
   , interpretUntyped
@@ -188,23 +189,53 @@ interpretUntyped U.Contract{..} paramU initStU env = do
 type ContractReturn st =
   (Either MichelsonFailed ([Operation Instr], T.Value st), InterpreterState)
 
-interpret
+interpret'
   :: Contract cp st
   -> T.Value cp
   -> T.Value st
   -> ContractEnv
+  -> InterpreterState
   -> ContractReturn st
-interpret instr param initSt env = first (fmap toRes) $
+interpret' instr param initSt env ist = first (fmap toRes) $
   runEvalOp
     (runInstr instr (T.VPair (param, initSt) :& RNil))
     env
-    (InterpreterState def $ ceMaxSteps env)
+    ist
   where
     toRes
       :: (Rec (T.Value' instr) '[ 'TPair ('TList 'TOperation) st ])
       -> ([Operation instr], T.Value' instr st)
     toRes (T.VPair (T.VList ops_, newSt) :& RNil) =
       (map (\(T.VOp op) -> op) ops_, newSt)
+
+interpret
+  :: Contract cp st
+  -> T.Value cp
+  -> T.Value st
+  -> ContractEnv
+  -> ContractReturn st
+interpret instr param initSt env =
+  interpret' instr param initSt env (InterpreterState def $ ceMaxSteps env)
+
+-- | Emulate multiple calls of a contract.
+interpretRepeated
+  :: Contract cp st
+  -> [T.Value cp]
+  -> T.Value st
+  -> ContractEnv
+  -> ContractReturn st
+interpretRepeated instr params initSt env =
+  foldr interpretDo
+    (Right ([], initSt), (InterpreterState def $ ceMaxSteps env))
+    params
+  where
+    interpretDo param (res, ist) =
+      case res of
+        Right (ops, st) ->
+          let (res2, ist2) = interpret' instr param st env ist
+          in (res2 <&> \(ops2, st2) -> (ops ++ ops2, st2), ist2)
+        Left err ->
+          (Left err, ist)
 
 data SomeItStack where
   SomeItStack :: T.ExtInstr inp -> Rec T.Value inp -> SomeItStack

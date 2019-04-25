@@ -13,6 +13,8 @@ module Michelson.Test
   , ContractPropValidator
   , contractProp
   , contractPropVal
+  , contractRepeatedProp
+  , contractRepeatedPropVal
 
   -- * Integrational testing
   -- ** Testing engine

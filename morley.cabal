@@ -54,9 +54,12 @@ library
                      , Util.Alternative
                      , Util.Default
                      , Util.Lens
+                     , Util.Named
                      , Util.Peano
+                     , Util.TypeTuple
 
-  other-modules:       Lorentz.Ext
+  other-modules:       Lorentz.ADT
+                     , Lorentz.Ext
                      , Lorentz.Instr
                      , Lorentz.Macro
                      , Lorentz.Type
@@ -86,6 +89,12 @@ library
                      , Michelson.Typed.CValue
                      , Michelson.Typed.Extract
                      , Michelson.Typed.Instr
+                     , Michelson.Typed.Haskell
+                     , Michelson.Typed.Haskell.Instr
+                     , Michelson.Typed.Haskell.Instr.Helpers
+                     , Michelson.Typed.Haskell.Instr.Product
+                     , Michelson.Typed.Haskell.Instr.Sum
+                     , Michelson.Typed.Haskell.Value
                      , Michelson.Typed.Polymorphic
                      , Michelson.Typed.Scope
                      , Michelson.Typed.Sing
@@ -150,6 +159,7 @@ library
                        BangPatterns
                        ConstraintKinds
                        DataKinds
+                       DefaultSignatures
                        DeriveFoldable
                        DeriveFunctor
                        DeriveGeneric
@@ -259,7 +269,9 @@ test-suite morley-test
                      , Test.Interpreter.EnvironmentSpec
                      , Test.Interpreter.A1.Feather
                      , Test.Interpreter.StringCaller
+                     , Test.Interpreter.Walker
                      , Test.Lorentz.Contracts.Auction
+                     , Test.Lorentz.Contracts.Walker
                      , Test.Macro
                      , Test.Ext
                      , Test.Morley.Runtime
@@ -294,6 +306,7 @@ test-suite morley-test
                      , morley
                      , morley-prelude
                      , mtl
+                     , named
                      , QuickCheck
                      , quickcheck-arbitrary-adt
                      , quickcheck-instances
