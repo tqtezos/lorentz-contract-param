@@ -39,10 +39,8 @@ Workflow is the following:
 
 Lorentz is a powerful meta-programming tool which allows one to write contracts directly in Haskell.
 
-Haskell's type checker and automatic type inference facilitate contracts implementation and reduce boilerplate related to types.
-Later such a contract can be dumped as a plain Michelson contract using functions from [`Michelson.Printer`](/src/Michelson/Printer.hs).
-
-<!-- TODO: Too few, mention more features as they appear -->
+Haskell's type checker and automatic type inference facilitate contracts implementation and reduce boilerplate related to types. Adoption of Algebraic Data Types makes work with complex objects safe and convenient.
+Later Lorentz contract can be dumped as a plain textual Michelson contract using functions from [`Michelson.Printer`](/src/Michelson/Printer.hs).
 
 You can find Lorentz instructions in [`Lorentz`](/src/Lorentz.hs) modules.
 Examples reside in [`Test.Lorentz.Contracts.*`](/test/Test/Lorentz/Contracts/) modules.
