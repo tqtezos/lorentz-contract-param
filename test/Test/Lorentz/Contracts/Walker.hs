@@ -1,4 +1,5 @@
-{-# LANGUAGE DeriveAnyClass, DerivingStrategies #-}
+{-# LANGUAGE DeriveAnyClass, DerivingStrategies, NoApplicativeDo, RebindableSyntax #-}
+{-# OPTIONS_GHC -Wno-unused-do-bind #-}
 
 module Test.Lorentz.Contracts.Walker
   ( walkerContract
@@ -30,35 +31,30 @@ data Storage = Storage { pos :: Position, power :: Power }
 walkerContract :: Contract Parameter Storage
 walkerContract =
   unpair # caseT @Parameter
-    ( #cGoLeft /->
-        modify_ #pos
-          ( modify_ #x
-            ( push @Integer 1 # rsub
-            )
-          )
-    , #cGoRight /->
-        modify_ #pos
-          ( modify_ #x
-            ( push @Integer 1 # add
-            )
-          )
-    , #cGoUp /->
-        modify_ #pos
-          ( modify_ #y
-            ( push @Integer 1 # add
-            )
-          )
-    , #cGoDown /->
-        modify_ #pos
-          ( modify_ #y
-            ( push @Integer 1 # rsub
-            )
-          )
-    , #cBoost /->
-        ( dip (get_ #power)
-        # access_ #coef1
-        # add
-        # set_ #power
-        )
+    ( #cGoLeft /-> do
+        modify_ #pos $ modify_ #x $ do
+          push @Integer 1
+          rsub
+
+    , #cGoRight /-> do
+        modify_ #pos $ modify_ #x $ do
+          push @Integer 1
+          add
+
+    , #cGoUp /-> do
+        modify_ #pos $ modify_ #y $ do
+          push @Integer 1
+          add
+
+    , #cGoDown /-> do
+        modify_ #pos $ modify_ #y $ do
+          push @Integer 1
+          rsub
+
+    , #cBoost /-> do
+        dip (get_ #power)
+        access_ #coef1
+        add
+        set_ #power
     )
   # nil # pair

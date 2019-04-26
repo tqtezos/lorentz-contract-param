@@ -5,6 +5,7 @@ module Lorentz.Base
   ( (:->) (..)
   , type (&)
   , (#)
+
   , compileLorentz
   , compileLorentzContract
 

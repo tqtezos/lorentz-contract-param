@@ -67,6 +67,7 @@ library
                      , Lorentz.Macro
                      , Lorentz.Polymorphic
                      , Lorentz.Prelude
+                     , Lorentz.Rebinded
                      , Lorentz.Value
                      , Michelson.EqParam
                      , Michelson.Parser.Annotations
