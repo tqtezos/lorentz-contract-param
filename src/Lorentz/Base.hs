@@ -1,9 +1,12 @@
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+
 -- | Foundation of Lorentz development.
 module Lorentz.Base
   ( (:->) (..)
   , type (&)
   , (#)
   , compileLorentz
+  , compileLorentzContract
 
   , Contract
   , Lambda
@@ -15,23 +18,29 @@ module Lorentz.Base
 import qualified Data.Kind as Kind
 
 import Lorentz.Value
-import Michelson.Typed ((:+>), Instr(..), T(..), ToT, ToTs, Value'(..))
+import Michelson.Typed (Instr(..), T(..), ToT, ToTs, Value'(..))
 import Michelson.Typed.Polymorphic ()
 
 -- | Alias for instruction which hides inner types representation via 'T'.
 newtype (inp :: [Kind.Type]) :-> (out :: [Kind.Type]) =
-  I { unI :: ToTs inp :+> ToTs out }
+  I { unI :: Instr (ToTs inp) (ToTs out) }
 infixr 1 :->
 
 -- | For use outside of Lorentz.
-compileLorentz :: (inp :-> out) -> (ToTs inp :+> ToTs out)
+compileLorentz :: (inp :-> out) -> Instr (ToTs inp) (ToTs out)
 compileLorentz = unI
+
+-- | Version of 'compileLorentz' specialized to instruction corresponding to
+-- contract code.
+compileLorentzContract
+  :: forall cp st inp out.
+     (inp ~ '[(cp, st)], out ~ '[([Operation], st)])
+  => (inp :-> out) -> Instr (ToTs inp) (ToTs out)
+compileLorentzContract = compileLorentz
 
 type (&) (a :: Kind.Type) (b :: [Kind.Type]) = a ': b
 infixr 2 &
 
--- TODO: this is the second operator with this name
--- call it differently?
 (#) :: (a :-> b) -> (b :-> c) -> a :-> c
 I l # I r = I (l `Seq` r)
 

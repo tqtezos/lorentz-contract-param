@@ -9,8 +9,6 @@ module Michelson.Typed.Instr
   , mkStackRef
   , PrintComment (..)
   , TestAssert (..)
-  , (#)
-  , (:+>)
   , Contract
   ) where
 
@@ -26,18 +24,6 @@ import Michelson.Typed.Scope
 import Michelson.Typed.T (CT(..), T(..))
 import Michelson.Typed.Value (ContractInp, ContractOut, Value'(..))
 import Util.Peano
-
--- | Infix version of @Seq@ constructor.
---
--- One can represent sequence of Michelson opertaions as follows:
--- @SWAP; DROP; DUP;@ -> @SWAP # DROP # DUP@.
-(#) :: Instr a b -> Instr b c -> Instr a c
-(#) = Seq
-
-infixl 0 #
-
-type (:+>) = Instr
-infixr 1 :+>
 
 -- | Representation of Michelson instruction or sequence
 -- of instructions.

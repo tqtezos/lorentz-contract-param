@@ -174,11 +174,11 @@ instance GInstrWrap name x path e => GInstrWrap name (G.D1 i x) path e where
 
 instance (GInstrWrap name x path e, GIsoValue y, SingI (GValueType y)) =>
          GInstrWrap name (x :+: y) ('L ': path) e where
-  gInstrWrap = gInstrWrap @name @x @path @e # LEFT
+  gInstrWrap = gInstrWrap @name @x @path @e `Seq` LEFT
 
 instance (GInstrWrap name y path e, GIsoValue x, SingI (GValueType x)) =>
          GInstrWrap name (x :+: y) ('R ': path) e where
-  gInstrWrap = gInstrWrap @name @y @path @e # RIGHT
+  gInstrWrap = gInstrWrap @name @y @path @e `Seq` RIGHT
 
 instance (IsoValue e) =>
          GInstrWrap name (G.C1 c (G.S1 i (G.Rec0 e))) '[] ('OneField e) where
@@ -319,7 +319,7 @@ instance IsoValue a => GInstrCaseBranch ctor (G.Rec0 a) where
 
 instance GInstrCaseBranch ctor G.U1 where
   type GCaseBranchInput ctor G.U1 = 'CaseClauseParam ctor 'NoFields
-  gInstrCaseBranch (CaseClause i) = DROP # i
+  gInstrCaseBranch (CaseClause i) = DROP `Seq` i
 
 -- Examples
 ----------------------------------------------------------------------------
@@ -327,8 +327,8 @@ instance GInstrCaseBranch ctor G.U1 where
 _caseMyType :: Instr (ToT MyType ': s) (ToT Integer ': s)
 _caseMyType = instrCase @MyType $
      #cMyCtor //-> Nop
-  :& #cComplexThing //-> (DROP # PUSH (toVal @Integer 5))
-  :& #cUselessThing //-> (DROP # PUSH (toVal @Integer 0))
+  :& #cComplexThing //-> (DROP `Seq` PUSH (toVal @Integer 5))
+  :& #cUselessThing //-> (DROP `Seq` PUSH (toVal @Integer 0))
   :& RNil
 
 -- Another version, written via tuple.
@@ -337,15 +337,15 @@ _caseMyType2 = instrCase @MyType $ recFromTuple
   ( #cMyCtor //->
       Nop
   , #cComplexThing //->
-      (DROP # PUSH (toVal @Integer 5))
+      (DROP `Seq` PUSH (toVal @Integer 5))
   , #cUselessThing //->
-      (DROP # PUSH (toVal @Integer 0))
+      (DROP `Seq` PUSH (toVal @Integer 0))
   )
 
 _caseMyEnum :: Instr (ToT MyEnum ': ToT Integer ': s) (ToT Integer ': s)
 _caseMyEnum = instrCase @MyEnum $ recFromTuple
-  ( #cCase1 //-> (DROP # PUSH (toVal @Integer 1))
-  , #cCase2 //-> (DROP # PUSH (toVal @Integer 2))
-  , #cCaseN //-> (DIP DROP # Nop)
+  ( #cCase1 //-> (DROP `Seq` PUSH (toVal @Integer 1))
+  , #cCase2 //-> (DROP `Seq` PUSH (toVal @Integer 2))
+  , #cCaseN //-> (DIP DROP `Seq` Nop)
   , #cCaseDef //-> Nop
   )

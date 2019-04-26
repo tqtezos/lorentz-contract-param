@@ -138,10 +138,10 @@ instance (IsoValue f, ToT f ~ ToT f') =>
   gInstrGet = Nop
 
 instance (GInstrGet name x path f, GIsoValue y) => GInstrGet name (x :*: y) ('L ': path) f where
-  gInstrGet = CAR # gInstrGet @name @x @path @f
+  gInstrGet = CAR `Seq` gInstrGet @name @x @path @f
 
 instance (GInstrGet name y path f, GIsoValue x) => GInstrGet name (x :*: y) ('R ': path) f where
-  gInstrGet = CDR # gInstrGet @name @y @path @f
+  gInstrGet = CDR `Seq` gInstrGet @name @y @path @f
 
 -- Examples
 ----------------------------------------------------------------------------
@@ -166,7 +166,7 @@ _getIntInstr2 :: Instr (ToT MyType2 ': s) (ToT () ': s)
 _getIntInstr2 = instrGet @MyType2 #getUnit
 
 _getIntInstr2' :: Instr (ToT MyType2 ': s) (ToT Integer ': s)
-_getIntInstr2' = instrGet @MyType2 #getMyType1 # instrGet @MyType1 #int
+_getIntInstr2' = instrGet @MyType2 #getMyType1 `Seq` instrGet @MyType1 #int
 
 ----------------------------------------------------------------------------
 -- Value modification instruction
@@ -208,15 +208,15 @@ instance (IsoValue f, ToT f ~ ToT f') =>
 
 instance (GInstrSet name x path f, GIsoValue y) => GInstrSet name (x :*: y) ('L ': path) f where
   gInstrSet =
-    DIP (DUP # DIP CDR # CAR) #
-    gInstrSet @name @x @path @f #
+    DIP (DUP `Seq` DIP CDR `Seq` CAR) `Seq`
+    gInstrSet @name @x @path @f `Seq`
     PAIR
 
 instance (GInstrSet name y path f, GIsoValue x) => GInstrSet name (x :*: y) ('R ': path) f where
   gInstrSet =
-    DIP (DUP # DIP CAR # CDR) #
-    gInstrSet @name @y @path @f #
-    SWAP # PAIR
+    DIP (DUP `Seq` DIP CAR `Seq` CDR) `Seq`
+    gInstrSet @name @y @path @f `Seq`
+    SWAP `Seq` PAIR
 
 -- Examples
 ----------------------------------------------------------------------------
