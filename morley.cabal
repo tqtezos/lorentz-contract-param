@@ -118,7 +118,6 @@ library
                      , base-noprelude >= 4.7 && < 5
                      , base16-bytestring
                      , base58-bytestring
-                     , bifunctors
                      , binary
                      , bytestring
                      , constraints
@@ -139,10 +138,9 @@ library
                      , text
                      , time
                      , timerep
-                     -- Otherwise Hackage fails
+                     -- ↓ We don't use it, but otherwise Hackage fails
                      , transformers-compat == 0.6.2
                      , parser-combinators >= 1.0.0
-                     , directory
                      , singletons
                      , syb
                      , mtl
@@ -204,13 +202,11 @@ executable morley
   default-language:    Haskell2010
   build-depends:       base-noprelude >= 4.7 && < 5
                      , fmt
-                     , megaparsec >= 7.0.0
                      , morley
                      , morley-prelude
                      , named
                      , optparse-applicative
                      , pretty-simple
-                     , text
   ghc-options:        -Weverything
                       -Wno-missing-exported-signatures
                       -Wno-missing-import-lists
@@ -294,7 +290,6 @@ test-suite morley-test
   build-depends:
                        aeson
                      , base-noprelude >= 4.7 && < 5
-                     , base16-bytestring
                      , bytestring
                      , containers
                      , directory
@@ -317,9 +312,6 @@ test-suite morley-test
                      , quickcheck-instances
                      , singletons
                      , text
-                     , time
-                     , universum
-                     , vinyl
   ghc-options:        -Weverything
                       -Wno-missing-exported-signatures
                       -Wno-missing-import-lists

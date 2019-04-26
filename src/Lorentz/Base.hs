@@ -19,7 +19,6 @@ import qualified Data.Kind as Kind
 
 import Lorentz.Value
 import Michelson.Typed (Instr(..), T(..), ToT, ToTs, Value'(..))
-import Michelson.Typed.Polymorphic ()
 
 -- | Alias for instruction which hides inner types representation via 'T'.
 newtype (inp :: [Kind.Type]) :-> (out :: [Kind.Type]) =

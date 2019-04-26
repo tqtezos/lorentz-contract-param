@@ -24,7 +24,6 @@ import Lorentz.Base
 import Lorentz.Instr
 import Michelson.Typed.Haskell.Instr
 import Michelson.Typed.Haskell.Value
-import Michelson.Typed.Instr ()
 import Util.TypeTuple
 
 -- | Extract a field of a datatype.
