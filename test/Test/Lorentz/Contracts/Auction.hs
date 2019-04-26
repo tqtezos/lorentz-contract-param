@@ -5,15 +5,15 @@ module Test.Lorentz.Contracts.Auction
 import Lorentz
 import Prelude hiding (swap)
 
-type Parameter = TKeyHash
+type Parameter = KeyHash
 
-type AuctionEnd = TTimestamp
-type Bid = TPair TMutez TKeyHash
+type AuctionEnd = Timestamp
+type Bid = (Mutez, KeyHash)
 
-type Storage = TPair AuctionEnd Bid
+type Storage = (AuctionEnd, Bid)
 
-type Input = TPair Parameter Storage
-type Output storage = TPair (TList TOperation) storage
+type Input = (Parameter, Storage)
+type Output storage = ([Operation], storage)
 
 auction :: Contract Parameter Storage
 auction =
@@ -24,21 +24,21 @@ auction =
   makeRefund #
   callingConvention
 
-checkIfAuctionHasEnded :: '[ Input ] :+> '[ Input, TTimestamp ]
+checkIfAuctionHasEnded :: '[ Input ] :-> '[ Input, Timestamp ]
 checkIfAuctionHasEnded = dup # cdar # dup # now # gt # if_ fail_ nop # swap
 
-setupReplacementStorage :: '[ Input, TTimestamp] :+> '[ Bid, Storage ]
+setupReplacementStorage :: '[ Input, Timestamp] :-> '[ Bid, Storage ]
 setupReplacementStorage =
   dup # car # dip cddr # amount # pair # swap # dip (swap # pair)
 
-checkNewBidIsGreater :: '[ Bid, Storage ] :+> '[ Bid, Storage ]
+checkNewBidIsGreater :: '[ Bid, Storage ] :-> '[ Bid, Storage ]
 checkNewBidIsGreater = dup # car # amount # le # if_ fail_ nop
 
-getRefund :: '[ Bid, Storage ] :+> '[ TMutez, Bid, Storage ]
+getRefund :: '[ Bid, Storage ] :-> '[ Mutez, Bid, Storage ]
 getRefund = dup # car
 
-makeRefund :: '[ TMutez, Bid, Storage ] :+> '[ TOperation, Storage ]
+makeRefund :: '[ Mutez, Bid, Storage ] :-> '[ Operation, Storage ]
 makeRefund = dip (cdr # implicitAccount) # unit # transferTokens
 
-callingConvention :: '[ TOperation, Storage ] :+> '[ Output Storage ]
+callingConvention :: '[ Operation, Storage ] :-> '[ Output Storage ]
 callingConvention = nil # swap # cons # pair

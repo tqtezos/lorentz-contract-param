@@ -9,9 +9,6 @@ module Michelson.Typed.Instr
   , mkStackRef
   , PrintComment (..)
   , TestAssert (..)
-  , (#)
-  , type ( & )
-  , (:+>)
   , Contract
   ) where
 
@@ -27,21 +24,6 @@ import Michelson.Typed.Scope
 import Michelson.Typed.T (CT(..), T(..))
 import Michelson.Typed.Value (ContractInp, ContractOut, Value'(..))
 import Util.Peano
-
--- | Infix version of @Seq@ constructor.
---
--- One can represent sequence of Michelson opertaions as follows:
--- @SWAP; DROP; DUP;@ -> @SWAP # DROP # DUP@.
-(#) :: Instr a b -> Instr b c -> Instr a c
-(#) = Seq
-
-infixl 0 #
-
-type (&) (a :: T) (b :: [T]) = a ': b
-infixr 2 &
-
-type (:+>) = Instr
-infixr 1 :+>
 
 -- | Representation of Michelson instruction or sequence
 -- of instructions.
@@ -99,10 +81,10 @@ data Instr (inp :: [T]) (out :: [T]) where
   SIZE :: SizeOp c => Instr (c ': s) ('Tc 'CNat ': s)
   EMPTY_SET :: (Typeable e, SingI e) => Instr s ('TSet e ': s)
   EMPTY_MAP :: (Typeable a, Typeable b, SingI a, SingI b) => Instr s ('TMap a b ': s)
-  MAP :: (Typeable (MapOpInp c ': s), MapOp c)
+  MAP :: MapOp c
       => Instr (MapOpInp c ': s) (b ': s)
       -> Instr (c ': s) (MapOpRes c b ': s)
-  ITER :: (Typeable (IterOpEl c ': s), IterOp c) => Instr (IterOpEl c ': s) s -> Instr (c ': s) s
+  ITER :: IterOp c => Instr (IterOpEl c ': s) s -> Instr (c ': s) s
   MEM :: MemOp c => Instr ('Tc (MemOpKey c) ': c ': s) ('Tc 'CBool ': s)
   GET
     :: GetOp c
