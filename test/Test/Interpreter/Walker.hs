@@ -20,11 +20,11 @@ walkerSpec :: Spec
 walkerSpec = do
   it "Go right" $
     walkerProp [GoRight]
-      Storage{ pos = Position 1 0, power = 0 }
+      Storage{ pos = Position 1 0, power = 0, iterId = 0 }
 
   it "Go left" $
     walkerProp [GoLeft]
-      Storage{ pos = Position (-1) 0, power = 0 }
+      Storage{ pos = Position (-1) 0, power = 0, iterId = 0 }
 
   it "Walk a lot" $
     let commands = mconcat
@@ -36,18 +36,28 @@ walkerSpec = do
           , one $ Boost (#coef1 .! 3, #coef2 .! 999)
           ]
     in walkerProp commands
-      Storage{ pos = Position 2 (-2), power = 8 }
+      Storage{ pos = Position 2 (-2), power = 8, iterId = 0 }
+
+  it "Reset" $
+    let commands = mconcat
+          [ replicate 2 GoUp
+          , replicate 2 GoLeft
+          , one $ Reset 2
+          , replicate 1 GoRight
+          ]
+    in walkerProp commands
+      Storage{ pos = Position 1 0, power = 0, iterId = 2 }
 
   it "Too large boost" $
     walkerProp [Boost (#coef1 .! 999, #coef2 .! 999)]
-      Storage{ pos = Position 0 0, power = 100 }
+      Storage{ pos = Position 0 0, power = 100, iterId = 0 }
 
 walkerProp :: [Parameter] -> Storage -> Expectation
 walkerProp params (T.toVal -> expected) =
   contractRepeatedProp
     (compileLorentz walkerContract)
     (validateFinishedWith ([], expected))
-    dummyContractEnv params Storage{ pos = Position 0 0, power = 0 }
+    dummyContractEnv params Storage{ pos = Position 0 0, power = 0, iterId = 0 }
 
 validateFinishedWith
   :: ([T.Operation], T.Value st)

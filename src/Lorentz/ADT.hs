@@ -11,13 +11,14 @@ module Lorentz.ADT
   , (/->)
 
     -- * Useful re-exports
+  , Rec (..)
   , (:!)
   , (:?)
   ) where
 
 import Data.Constraint (Dict(..))
 import qualified Data.Kind as Kind
-import Data.Vinyl.Core (RMap(..), Rec)
+import Data.Vinyl.Core (RMap(..), Rec(..))
 import Data.Vinyl.Derived (Label)
 import GHC.TypeLits (AppendSymbol)
 import Named ((:!), (:?))

@@ -225,11 +225,11 @@ interpretRepeated
   -> ContractEnv
   -> ContractReturn st
 interpretRepeated instr params initSt env =
-  foldr interpretDo
+  foldl interpretDo
     (Right ([], initSt), (InterpreterState def $ ceMaxSteps env))
     params
   where
-    interpretDo param (res, ist) =
+    interpretDo (!res, !ist) param =
       case res of
         Right (ops, st) ->
           let (res2, ist2) = interpret' instr param st env ist
