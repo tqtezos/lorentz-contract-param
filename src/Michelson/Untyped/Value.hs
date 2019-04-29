@@ -10,12 +10,12 @@ module Michelson.Untyped.Value
   , unInternalByteString
   ) where
 
-import Data.Aeson (FromJSON(..), ToJSON(..))
+import Data.Aeson (FromJSON(..), ToJSON(..), withText)
 import Data.Aeson.TH (defaultOptions, deriveJSON)
 import Data.Data (Data(..))
 import qualified Data.List as L
 import Formatting.Buildable (Buildable(build))
-import Text.Hex (encodeHex)
+import Text.Hex (decodeHex, encodeHex)
 import Text.PrettyPrint.Leijen.Text (braces, dquotes, parens, semi, text, textStrict, (<+>))
 
 import Michelson.Printer.Util (RenderDoc(..), buildRenderDoc, renderOps)
@@ -87,10 +87,14 @@ instance (RenderDoc op) => Buildable (Elt op) where
 -- ByteString does not have a ToJSON or FromJSON instance
 
 instance ToJSON InternalByteString where
-  toJSON = toJSON @Text . decodeUtf8 . unInternalByteString
+  toJSON = toJSON . encodeHex . unInternalByteString
 
 instance FromJSON InternalByteString where
-  parseJSON = fmap (InternalByteString . encodeUtf8 @Text) . parseJSON
+  parseJSON =
+    withText "Hex-encoded bytestring" $ \t ->
+      case decodeHex t of
+        Nothing -> fail "Invalid hex encoding"
+        Just res -> pure (InternalByteString res)
 
 deriveJSON defaultOptions ''Value'
 deriveJSON defaultOptions ''Elt
