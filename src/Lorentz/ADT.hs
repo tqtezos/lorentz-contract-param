@@ -126,7 +126,7 @@ data CaseClauseL (inp :: [Kind.Type]) (out :: [Kind.Type]) (param :: CaseClauseP
   -> AppendCtorField x inp :-> out
   -> CaseClauseL inp out ('CaseClauseParam ctor x)
 (/->) _ = CaseClauseL
-infixr 8 /->
+infixr 0 /->
 
 -- | Pattern match on the given sum type.
 --

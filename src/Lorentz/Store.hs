@@ -33,6 +33,7 @@ module Lorentz.Store
   , storeMem
   , storeGet
   , storeInsert
+  , storeInsertNew
   , storeDelete
 
     -- * Instruction constraints
@@ -55,11 +56,13 @@ import Data.Type.Equality (type (==))
 import Data.Vinyl.Derived (Label)
 import GHC.Generics ((:+:))
 import qualified GHC.Generics as G
-import GHC.TypeLits (AppendSymbol, ErrorMessage(..), Symbol, TypeError)
+import GHC.TypeLits (AppendSymbol, ErrorMessage(..), KnownSymbol, Symbol, TypeError, symbolVal)
 import GHC.TypeNats (type (+))
 
 import Lorentz.Base
 import Lorentz.Constraints
+import Lorentz.Instr
+import Lorentz.Macro
 import Michelson.Interpret.Pack
 import Michelson.Typed.Haskell.Instr.Sum
 import Michelson.Typed.Haskell.Value
@@ -233,6 +236,24 @@ type StoreInsertC store name =
   , CtorHasOnlyField name store
       (GetStoreKey store name |-> GetStoreValue store name)
   )
+
+-- | Insert a key-value pair, but fail if it will overwrite some existing entry.
+storeInsertNew
+  :: forall store name s.
+     (StoreInsertC store name, KnownSymbol name)
+  => Label name
+  -> GetStoreKey store name
+      : GetStoreValue store name
+      : Store store
+      : s
+  :-> Store store : s
+storeInsertNew label =
+  duupX @3 # duupX @2 # storeMem label #
+  if_ (push errMsg # pair # failWith @(Text, GetStoreKey store name))
+      (storeInsert label)
+  where
+    errMsg = "Store already has value associated with this key for "
+          <> show (symbolVal (Proxy @name))
 
 storeDelete
   :: forall store name s.
