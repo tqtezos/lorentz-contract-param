@@ -302,7 +302,7 @@ class GIsoValue x =>
 
 instance
   ( GIsoValue x, GIsoValue y
-  , TypeError ('Text "Cannot pattern match on constructors with more then 1 field"
+  , TypeError ('Text "Cannot pattern match on constructors with more than 1 field"
                ':$$: 'Text "Consider using tuples instead")
   ) => GInstrCaseBranch ctor (x :*: y) where
 

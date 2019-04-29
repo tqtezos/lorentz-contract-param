@@ -5,14 +5,21 @@
 module Michelson.Typed.Haskell.Instr.Product
   ( InstrGetC
   , InstrSetC
+  , InstrConstructC
   , instrGet
   , instrSet
+  , instrConstruct
+
+  , ConstructorFieldTypes
+  , FieldConstructor (..)
   ) where
 
 import qualified Data.Kind as Kind
 import Data.Type.Bool (If)
 import Data.Type.Equality (type (==))
+import Data.Vinyl.Core (Rec(..))
 import Data.Vinyl.Derived (Label)
+import Data.Vinyl.TypeLevel (type (++))
 import GHC.Generics ((:*:)(..), (:+:)(..))
 import qualified GHC.Generics as G
 import GHC.TypeLits (ErrorMessage(..), Symbol, TypeError)
@@ -100,7 +107,7 @@ instrGet _ = gInstrGet @name @(G.Rep dt) @path @fieldTy
 
 -- | Constraint for 'instrGet'.
 type InstrGetC dt name fieldTy path =
-  ( IsoValue dt
+  ( IsoValue dt, Generic dt
   , GInstrGet name (G.Rep dt)
       (LnrBranch (GetNamed name dt))
       (LnrFieldType (GetNamed name dt))
@@ -181,7 +188,7 @@ instrSet _ = gInstrSet @name @(G.Rep dt) @path @fieldTy
 
 -- | Constraint for 'instrSet'.
 type InstrSetC dt name fieldTy path =
-  ( IsoValue dt
+  ( IsoValue dt, Generic dt
   , GInstrSet name (G.Rep dt)
       (LnrBranch (GetNamed name dt))
       (LnrFieldType (GetNamed name dt))
@@ -196,8 +203,7 @@ class GIsoValue x =>
     (path :: Path)
     (fieldTy :: Kind.Type) where
   gInstrSet
-    :: GIsoValue x
-    => Instr (ToT fieldTy ': GValueType x ': s) (GValueType x ': s)
+    :: Instr (ToT fieldTy ': GValueType x ': s) (GValueType x ': s)
 
 instance GInstrSet name x path f => GInstrSet name (G.M1 t i x) path f where
   gInstrSet = gInstrSet @name @x @path @f
@@ -223,3 +229,72 @@ instance (GInstrSet name y path f, GIsoValue x) => GInstrSet name (x :*: y) ('R 
 
 _setIntInstr1 :: Instr (ToT Integer ': ToT MyType2 ': s) (ToT MyType2 ': s)
 _setIntInstr1 = instrSet @MyType2 #getInt
+
+----------------------------------------------------------------------------
+-- Value construction instruction
+----------------------------------------------------------------------------
+
+-- | Way to construct one of the fields in a complex datatype.
+newtype FieldConstructor (st :: [k]) (field :: Kind.Type) =
+  FieldConstructor (Instr (ToTs' st) (ToT field ': ToTs' st))
+
+-- | For given complex type @dt@ and its field @fieldTy@ update the field value.
+instrConstruct
+  :: forall dt st. InstrConstructC dt
+  => Rec (FieldConstructor st) (ConstructorFieldTypes dt)
+  -> Instr st (ToT dt ': st)
+instrConstruct = gInstrConstruct @(G.Rep dt)
+
+-- | Types of all fields in a datatype.
+type ConstructorFieldTypes dt = GFieldTypes (G.Rep dt)
+
+-- | Constraint for 'instrConstruct'.
+type InstrConstructC dt =
+  ( IsoValue dt, Generic dt, GInstrConstruct (G.Rep dt)
+  , GValueType (G.Rep dt) ~ ToT dt
+  )
+
+-- | Generic traversal for 'instrConstruct'.
+class GIsoValue x => GInstrConstruct (x :: Kind.Type -> Kind.Type) where
+  type GFieldTypes x :: [Kind.Type]
+  gInstrConstruct :: Rec (FieldConstructor st) (GFieldTypes x) -> Instr st (GValueType x ': st)
+
+instance GInstrConstruct x => GInstrConstruct (G.M1 t i x) where
+  type GFieldTypes (G.M1 t i x) = GFieldTypes x
+  gInstrConstruct = gInstrConstruct @x
+
+instance ( GInstrConstruct x, GInstrConstruct y
+         , RSplit (GFieldTypes x) (GFieldTypes y)
+         ) => GInstrConstruct (x :*: y) where
+  type GFieldTypes (x :*: y) = GFieldTypes x ++ GFieldTypes y
+  gInstrConstruct fs =
+    let (lfs, rfs) = rsplit fs
+        linstr = gInstrConstruct @x lfs
+        rinstr = gInstrConstruct @y rfs
+    in linstr `Seq` DIP rinstr `Seq` PAIR
+
+instance GInstrConstruct G.U1 where
+  type GFieldTypes G.U1 = '[]
+  gInstrConstruct RNil = UNIT
+
+instance ( TypeError ('Text "Cannot construct sum type")
+         , GIsoValue x, GIsoValue y
+         ) => GInstrConstruct (x :+: y) where
+  type GFieldTypes (x :+: y) = '[]
+  gInstrConstruct = error "impossible"
+
+instance IsoValue a => GInstrConstruct (G.Rec0 a) where
+  type GFieldTypes (G.Rec0 a) = '[a]
+  gInstrConstruct (FieldConstructor i :& RNil) = i
+
+-- Examples
+----------------------------------------------------------------------------
+
+_constructInstr1 :: Instr (ToT MyType1 ': s) (ToT MyType2 ': ToT MyType1 ': s)
+_constructInstr1 =
+  instrConstruct @MyType2 $
+    FieldConstructor (PUSH (toVal @Integer 5)) :&
+    FieldConstructor (PUSH (toVal @Text "")) :&
+    FieldConstructor UNIT :&
+    FieldConstructor DUP :&
+    RNil

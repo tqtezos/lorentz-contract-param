@@ -3,6 +3,8 @@ module Lorentz.ADT
   , get_
   , set_
   , modify_
+  , construct
+  , fieldCtor
   , wrap_
   , case_
   , caseT
@@ -60,6 +62,29 @@ modify_
   -> (forall st0. (fieldTy ': st0) :-> (fieldTy ': st0))
   -> dt & st :-> dt & st
 modify_ l i = get_ @dt l # i # set_ @dt l
+
+-- | Make up a datatype. You provide a pack of individual fields constructors.
+--
+-- Each element of the accepted record should be an instruction wrapped with
+-- 'fieldCtor' function. This instruction will have access to the stack at
+-- the moment of calling @construct@.
+-- Instructions have to output fields of the built datatype, one per instruction;
+-- instructions order is expected to correspond to the order of fields in the
+-- datatype.
+construct
+  :: forall dt st.
+     ( InstrConstructC dt
+     , RMap (ConstructorFieldTypes dt)
+     )
+  => Rec (FieldConstructor st) (ConstructorFieldTypes dt)
+  -> st :-> dt & st
+construct fctors =
+  I $ instrConstruct @dt $
+  rmap (\(FieldConstructor i) -> FieldConstructor i) fctors
+
+-- | Lift an instruction to field constructor.
+fieldCtor :: (st :-> f & st) -> FieldConstructor st f
+fieldCtor (I i) = FieldConstructor i
 
 -- | Wrap entry in constructor. Useful for sum types.
 wrap_
