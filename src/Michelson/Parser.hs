@@ -17,6 +17,8 @@ module Michelson.Parser
   -- * For tests
   , codeEntry
   , type_
+  , explicitType
+  , letType
   , stringLiteral
   , bytesLiteral
   , intLiteral
@@ -80,10 +82,10 @@ contract = do
   return $ Contract p s c
   where
     parameter :: Parser Type
-    parameter = symbol "parameter" *> type_
+    parameter = symbol "parameter" *> explicitType
 
     storage :: Parser Type
-    storage = symbol "storage" *> type_
+    storage = symbol "storage" *> explicitType
 
     code :: Parser [ParsedOp]
     code = symbol "code" *> codeEntry

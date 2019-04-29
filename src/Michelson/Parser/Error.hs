@@ -17,12 +17,15 @@ data CustomParserException
   = UnknownTypeException
   | OddNumberBytesException
   | UnexpectedLineBreak
+  | ProhibitedLetType Text
   deriving stock (Eq, Data, Ord, Show)
 
 instance ShowErrorComponent CustomParserException where
   showErrorComponent UnknownTypeException = "unknown type"
   showErrorComponent OddNumberBytesException = "odd number bytes"
   showErrorComponent UnexpectedLineBreak = "unexpected linebreak"
+  showErrorComponent (ProhibitedLetType t) =
+    "prohibited name for type alias in let macros: " <> toString t
 
 data ParserException =
   ParserException (ParseErrorBundle Text CustomParserException)
