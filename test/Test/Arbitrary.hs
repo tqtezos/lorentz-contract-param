@@ -4,11 +4,9 @@ module Test.Arbitrary () where
 
 import Prelude hiding (EQ, GT, LT)
 
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
-
-import Test.QuickCheck (Arbitrary(..), Gen, choose, elements, listOf, oneof, suchThatMap, vector)
+import Test.QuickCheck (Arbitrary(..), Gen, choose, elements, oneof, suchThatMap, vector)
 import Test.QuickCheck.Arbitrary.ADT (ToADTArbitrary(..))
+import Test.QuickCheck.Instances.ByteString ()
 import Test.QuickCheck.Instances.Semigroup ()
 import Test.QuickCheck.Instances.Text ()
 
@@ -21,7 +19,7 @@ import Michelson.Untyped
 import Tezos.Core (Mutez(..))
 
 instance Arbitrary InternalByteString where
-  arbitrary = InternalByteString . T.encodeUtf8 . T.pack <$> listOf arbitrary
+  arbitrary = InternalByteString <$> arbitrary
 
 instance Arbitrary Var where
   arbitrary = Var <$> arbitrary
