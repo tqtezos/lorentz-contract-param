@@ -91,6 +91,9 @@ code {
 This `push num 3` instruction pushes the value 3 with the type `int :num` onto
 the stack.
 
+Note that type synonyms with names `Parameter` and `Storage` are prohibited, these
+names are used for implicit contracts parameter and storage types.
+
 The interaction between type synonyms and type annotations is that if the
 synonym's definition contains no annotation, the name of the synonym will be
 used. If the synonym definition does contain a type annotation, the annotation
