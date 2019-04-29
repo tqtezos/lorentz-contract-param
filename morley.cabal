@@ -29,6 +29,7 @@ library
                        Lorentz
                      , Michelson.Interpret
                      , Michelson.Interpret.Pack
+                     , Michelson.Let
                      , Michelson.Macro
                      , Michelson.Parser
                      , Michelson.Printer
@@ -38,7 +39,6 @@ library
                      , Michelson.Runtime.TxData
                      , Michelson.TypeCheck
                      , Michelson.Typed
-                     , Michelson.Types
                      , Michelson.Typed.Value
                      , Michelson.Test
                      , Michelson.Test.Dummy

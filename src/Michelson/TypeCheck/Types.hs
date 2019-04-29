@@ -17,7 +17,7 @@ import qualified Text.Show
 import qualified Data.Map.Lazy as Map
 
 import Michelson.EqParam (eqParam1)
-import Michelson.Types (Var, Type)
+import Michelson.Untyped (Var, Type)
 import Michelson.Typed (HasNoOp, Notes(..), Sing(..), T(..), fromSingT)
 import qualified Michelson.Typed as T
 import Michelson.Typed.Instr

@@ -14,9 +14,8 @@ import Michelson.TypeCheck.Types (SomeHST(..))
 import qualified Michelson.Typed as T
 import Michelson.Typed.Annotation (AnnConvergeError(..))
 import Michelson.Typed.Extract (TypeConvergeError(..), toUType)
+import Michelson.Untyped (StackFn, Type, Var)
 import qualified Michelson.Untyped as U
-
-import Michelson.Types
 
 -- | Data type that represents various errors
 -- which are related to type system.

@@ -37,8 +37,7 @@ import Michelson.Parser.Macro
 import Michelson.Parser.Type
 import Michelson.Parser.Types
 import Michelson.Parser.Value
-import Michelson.Types (ParsedOp(..))
-import qualified Michelson.Types as Mi
+import Michelson.Macro (Macro(..), ParsedOp(..), ParsedInstr, ParsedValue)
 import Michelson.Untyped
 
 ----------------------------------------------------------------------------
@@ -71,14 +70,14 @@ program = runReaderT programInner noLetEnv
       local (const env) contract
 
 -- | Michelson contract
-contract :: Parser (Mi.Contract' ParsedOp)
+contract :: Parser (Contract' ParsedOp)
 contract = do
   mSpace
   (p,s,c) <- intercalateEffect semicolon $
               (,,) <$> toPermutation parameter
                    <*> toPermutation storage
                    <*> toPermutation code
-  return $ Mi.Contract p s c
+  return $ Contract p s c
   where
     parameter :: Parser Type
     parameter = symbol "parameter" *> type_
@@ -93,14 +92,14 @@ contract = do
 -- Value
 ------------------
 
-value :: Parser Mi.ParsedValue
+value :: Parser ParsedValue
 value = value' parsedOp
 
 
 -- Primitive instruction
 ------------------
 
-prim :: Parser Mi.ParsedInstr
+prim :: Parser ParsedInstr
 prim = primInstr contract parsedOp
 
 -- Parsed operations (primitive instructions, macros, extras, etc.)
@@ -112,19 +111,19 @@ prim = primInstr contract parsedOp
 codeEntry :: Parser [ParsedOp]
 codeEntry = ops
 
-parsedOp :: Parser Mi.ParsedOp
+parsedOp :: Parser ParsedOp
 parsedOp = do
   lms <- asks letMacros
   choice
-    [ (Mi.Prim . Mi.EXT) <$> extInstr ops
-    , Mi.LMac <$> mkLetMac lms
-    , Mi.Prim <$> prim
-    , Mi.Mac <$> macro parsedOp
+    [ (Prim . EXT) <$> extInstr ops
+    , LMac <$> mkLetMac lms
+    , Prim <$> prim
+    , Mac <$> macro parsedOp
     , primOrMac
-    , Mi.Seq <$> ops
+    , Seq <$> ops
     ]
 
-ops :: Parser [Mi.ParsedOp]
+ops :: Parser [ParsedOp]
 ops = ops' parsedOp
 
 -------------------------------------------------------------------------------
@@ -132,17 +131,17 @@ ops = ops' parsedOp
 -- These are needed for better error messages
 -------------------------------------------------------------------------------
 
-ifOrIfX :: Parser Mi.ParsedOp
+ifOrIfX :: Parser ParsedOp
 ifOrIfX = do
   symbol' "IF"
   a <- eitherP cmpOp ops
   case a of
-    Left cmp -> Mi.Mac <$> (Mi.IFX cmp <$> ops <*> ops)
-    Right op -> Mi.Prim <$> (Mi.IF op <$> ops)
+    Left cmp -> Mac <$> (IFX cmp <$> ops <*> ops)
+    Right op -> Prim <$> (IF op <$> ops)
 
 -- Some of the operations and macros have the same prefixes in their names
 -- So this case should be handled separately
-primOrMac :: Parser Mi.ParsedOp
-primOrMac = ((Mi.Mac <$> ifCmpMac parsedOp) <|> ifOrIfX)
-  <|> ((Mi.Mac <$> mapCadrMac parsedOp) <|> (Mi.Prim <$> mapOp parsedOp))
-  <|> (try (Mi.Prim <$> pairOp) <|> Mi.Mac <$> pairMac)
+primOrMac :: Parser ParsedOp
+primOrMac = ((Mac <$> ifCmpMac parsedOp) <|> ifOrIfX)
+  <|> ((Mac <$> mapCadrMac parsedOp) <|> (Prim <$> mapOp parsedOp))
+  <|> (try (Prim <$> pairOp) <|> Mac <$> pairMac)

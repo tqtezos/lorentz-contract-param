@@ -13,12 +13,13 @@ import Prelude hiding (EQ, GT, LT, many, note, some, try)
 
 import Text.Megaparsec (choice, sepEndBy, try)
 
+import Michelson.Let (LetValue(..))
+import Michelson.Macro (ParsedInstr, ParsedOp(..))
 import Michelson.Parser.Annotations
 import Michelson.Parser.Lexer
 import Michelson.Parser.Type
 import Michelson.Parser.Types (Parser, letValues)
 import Michelson.Parser.Value
-import Michelson.Types (LetValue(..), ParsedInstr, ParsedOp(..))
 import Michelson.Untyped
 
 -- | Parser for primitive Michelson instruction (no macros and extensions).
