@@ -12,6 +12,7 @@ import Options.Applicative
 import qualified Options.Applicative as Opt
 import Options.Applicative.Help.Pretty (Doc, linebreak)
 import Paths_morley (version)
+import System.IO (utf8)
 import Text.Pretty.Simple (pPrint)
 
 import Michelson.Macro (expandContract, expandValue)
@@ -27,6 +28,7 @@ import Tezos.Address (Address, parseAddress)
 import Tezos.Core
   (Mutez, Timestamp(..), mkMutez, parseTimestamp, timestampFromSeconds, unMutez, unsafeMkMutez)
 import Tezos.Crypto
+import Util.IO (withEncoding)
 
 data CmdLnArgs
   = Parse (Maybe FilePath) Bool
@@ -292,7 +294,7 @@ maybeAddDefault printer = maybe mempty addDefault
     addDefault v = value v <> showDefaultWith printer
 
 main :: IO ()
-main = do
+main = withEncoding stdin utf8 $ do
   cmdLnArgs <- execParser programInfo
   run cmdLnArgs `catchAny` (die . displayException)
   where

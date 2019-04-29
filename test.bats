@@ -65,3 +65,11 @@ setup () {
     contracts/big_map_in_storage.tz  --storage 'Pair {Elt 4 5; Elt 3 6} 0' --parameter 1
   [ "$status" -ne 0 ]
 }
+
+@test "invoking morley to parse contract with cyrillic comments from stdin" {
+  cat contracts/add1_with_cyrillic_comments.tz | $morley parse
+}
+
+@test "invoking morley to print contract with cyrillic comments" {
+  $morley print --contract contracts/add1_with_cyrillic_comments.tz
+}

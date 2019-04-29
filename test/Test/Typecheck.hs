@@ -28,6 +28,7 @@ import qualified Michelson.Typed as T
 import Michelson.Untyped (CT(..), T(..), Type(..), noAnn)
 import qualified Michelson.Untyped as Un
 import Tezos.Address (Address, unsafeParseAddress)
+import Util.IO (readFileUtf8)
 
 import Test.Util.Contracts (getIllTypedContracts, getWellTypedContracts)
 
@@ -113,7 +114,7 @@ unit_Unreachable_code :: Assertion
 unit_Unreachable_code = do
   let file = "contracts/ill-typed/fail-before-nop.tz"
   let ics = InstrCallStack [] (srcPos 3 13)
-  econtract <- readContract @'T.TUnit @'T.TUnit file <$> readFile file
+  econtract <- readContract @'T.TUnit @'T.TUnit file <$> readFileUtf8 file
   econtract @?= Left (ICETypeCheck $ TCUnreachableCode ics (one $ Un.WithSrcEx ics $ Un.SeqEx []))
 
 test_StackRef :: [TestTree]
