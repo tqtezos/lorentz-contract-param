@@ -1,7 +1,24 @@
+{-# LANGUAGE DeriveDataTypeable, DerivingStrategies #-}
+
 module Michelson.Macro
   (
+  -- * Macros types
+    CadrStruct (..)
+  , PairStruct (..)
+  , Macro (..)
+  , LetMacro (..)
+
+  -- * Morley Parsed value types
+  , ParsedValue
+
+  -- * Morley Parsed instruction types
+  , ParsedInstr
+  , ParsedOp (..)
+  , ParsedUTestAssert
+  , ParsedUExtInstr
+
     -- * For utilities
-    expandContract
+  , expandContract
   , expandValue
 
     -- * For parsing
@@ -17,8 +34,125 @@ module Michelson.Macro
   , expandMapCadr
   ) where
 
-import Michelson.Types
-import Michelson.Untyped (Contract, ExtInstrAbstract(..))
+import Data.Aeson.TH (defaultOptions, deriveJSON)
+import Data.Data (Data(..))
+import qualified Data.Text as T
+import Fmt (Buildable(build), genericF, (+|), (|+))
+import qualified Text.PrettyPrint.Leijen.Text as PP (empty)
+
+import Michelson.Printer (RenderDoc(..))
+import Michelson.Untyped
+
+-- | A programmer-defined macro
+data LetMacro = LetMacro
+  { lmName :: T.Text
+  , lmSig :: StackFn
+  , lmExpr :: [ParsedOp]
+  } deriving (Eq, Show, Data, Generic)
+
+instance Buildable LetMacro where
+  build = genericF
+
+data PairStruct
+  = F (VarAnn, FieldAnn)
+  | P PairStruct PairStruct
+  deriving (Eq, Show, Data, Generic)
+
+instance Buildable PairStruct where
+  build = genericF
+
+data CadrStruct
+  = A
+  | D
+  deriving (Eq, Show, Data, Generic)
+
+instance Buildable CadrStruct where
+  build = genericF
+
+-- | Unexpanded instructions produced directly by the @ops@ parser, which
+-- contains primitive Michelson Instructions, inline-able macros and sequences
+data ParsedOp
+  = Prim ParsedInstr -- ^ Primitive Michelson instruction
+  | Mac Macro        -- ^ Built-in Michelson macro defined by the specification
+  | LMac LetMacro    -- ^ User-defined macro with instructions to be inlined
+  | Seq [ParsedOp]   -- ^ A sequence of instructions
+  deriving (Eq, Show, Data, Generic)
+
+-- dummy value
+instance RenderDoc ParsedOp where
+  renderDoc _ = PP.empty
+
+instance Buildable ParsedOp where
+  build (Prim parseInstr) = "<Prim: "+|parseInstr|+">"
+  build (Mac macro)       = "<Mac: "+|macro|+">"
+  build (LMac letMacro)   = "<LMac: "+|letMacro|+">"
+  build (Seq parsedOps)   = "<Seq: "+|parsedOps|+">"
+
+-------------------------------------
+-- Types produced by parser
+-------------------------------------
+
+type ParsedUTestAssert = TestAssert ParsedOp
+
+type ParsedUExtInstr = ExtInstrAbstract ParsedOp
+
+type ParsedInstr = InstrAbstract ParsedOp
+
+type ParsedValue = Value' ParsedOp
+
+-- | Built-in Michelson Macros defined by the specification
+data Macro
+  = CASE (NonEmpty [ParsedOp])
+  | VIEW [ParsedOp]
+  | VOID [ParsedOp]
+  | CMP ParsedInstr VarAnn
+  | IFX ParsedInstr [ParsedOp] [ParsedOp]
+  | IFCMP ParsedInstr VarAnn [ParsedOp] [ParsedOp]
+  | FAIL
+  | PAPAIR PairStruct TypeAnn VarAnn
+  | UNPAIR PairStruct
+  | CADR [CadrStruct] VarAnn FieldAnn
+  | SET_CADR [CadrStruct] VarAnn FieldAnn
+  | MAP_CADR [CadrStruct] VarAnn FieldAnn [ParsedOp]
+  | DIIP Integer [ParsedOp]
+  | DUUP Integer VarAnn
+  | ASSERT
+  | ASSERTX ParsedInstr
+  | ASSERT_CMP ParsedInstr
+  | ASSERT_NONE
+  | ASSERT_SOME
+  | ASSERT_LEFT
+  | ASSERT_RIGHT
+  | IF_SOME [ParsedOp] [ParsedOp]
+  | IF_RIGHT [ParsedOp] [ParsedOp]
+  deriving (Eq, Show, Data, Generic)
+
+instance Buildable Macro where
+  build (CASE parsedInstrs) = "<CASE: "+|toList parsedInstrs|+">"
+  build (VIEW code) = "<VIEW: "+|code|+">"
+  build (VOID code) = "<VOID: "+|code|+">"
+  build (CMP parsedInstr carAnn) = "<CMP: "+|parsedInstr|+", "+|carAnn|+">"
+  build (IFX parsedInstr parsedOps1 parsedOps2) = "<IFX: "+|parsedInstr|+", "+|parsedOps1|+", "+|parsedOps2|+">"
+  build (IFCMP parsedInstr varAnn parsedOps1 parsedOps2) = "<IFCMP: "+|parsedInstr|+", "+|varAnn|+", "+|parsedOps1|+", "+|parsedOps2|+">"
+  build FAIL = "FAIL"
+  build (PAPAIR pairStruct typeAnn varAnn) = "<PAPAIR: "+|pairStruct|+", "+|typeAnn|+", "+|varAnn|+">"
+  build (UNPAIR pairStruct) = "<UNPAIR: "+|pairStruct|+">"
+  build (CADR cadrStructs varAnn fieldAnn) = "<CADR: "+|cadrStructs|+", "+|varAnn|+", "+|fieldAnn|+">"
+  build (SET_CADR cadrStructs varAnn fieldAnn) = "<SET_CADR: "+|cadrStructs|+", "+|varAnn|+", "+|fieldAnn|+">"
+  build (MAP_CADR cadrStructs varAnn fieldAnn parsedOps) = "<MAP_CADR: "+|cadrStructs|+", "+|varAnn|+", "+|fieldAnn|+", "+|parsedOps|+">"
+  build (DIIP integer parsedOps) = "<DIIP: "+|integer|+", "+|parsedOps|+">"
+  build (DUUP integer varAnn) = "<DUUP: "+|integer|+", "+|varAnn|+">"
+  build ASSERT = "ASSERT"
+  build (ASSERTX parsedInstr) = "<ASSERTX: "+|parsedInstr|+">"
+  build (ASSERT_CMP parsedInstr) = "<ASSERT_CMP: "+|parsedInstr|+">"
+  build ASSERT_NONE  = "ASSERT_NONE"
+  build ASSERT_SOME  = "ASSERT_SOME"
+  build ASSERT_LEFT  = "ASSERT_LEFT"
+  build ASSERT_RIGHT = "ASSERT_RIGHT"
+  build (IF_SOME parsedOps1 parsedOps2) = "<IF_SOME: "+|parsedOps1|+", "+|parsedOps2|+">"
+  build (IF_RIGHT parsedOps1 parsedOps2) = "<IF_RIGHT: "+|parsedOps1|+", "+|parsedOps2|+">"
+
+---------------------------------------------------
 
 expandList :: [ParsedOp] -> [ExpandedOp]
 expandList = fmap expand
@@ -199,3 +333,9 @@ leavesST (F _) = do
   where
     getLeaf (a:as) = (a, as)
     getLeaf _      = ((noAnn, noAnn), [])
+
+deriveJSON defaultOptions ''ParsedOp
+deriveJSON defaultOptions ''LetMacro
+deriveJSON defaultOptions ''PairStruct
+deriveJSON defaultOptions ''CadrStruct
+deriveJSON defaultOptions ''Macro

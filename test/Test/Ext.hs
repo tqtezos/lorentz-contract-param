@@ -11,10 +11,9 @@ import Michelson.Test.Dummy (dummyContractEnv)
 import Michelson.TypeCheck (HST(..), SomeHST(..), runTypeCheckT, typeCheckExt, typeCheckList)
 import Michelson.Typed (CValue(..), extractNotes, fromUType, withSomeSingT)
 import qualified Michelson.Typed as T
-import Michelson.Types
 import Michelson.Untyped
-  (CT(..), ExpandedExtInstr, ExtInstrAbstract(..), StackTypePattern(..), T(..), Type(..), ann,
-  noAnn)
+  (CT(..), ExpandedExtInstr, ExtInstrAbstract(..), StackTypePattern(..), T(..), TyVar(..), Type(..),
+  ann, noAnn)
 
 interpretHandlerSpec :: Spec
 interpretHandlerSpec = describe "interpretHandler PRINT/TEST_ASSERT tests" $ do

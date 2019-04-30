@@ -11,7 +11,8 @@ import qualified Data.Map as Map
 import Text.Megaparsec (Parsec)
 
 import Michelson.Parser.Error
-import Michelson.Types (LetMacro, LetType, LetValue)
+import Michelson.Let (LetType, LetValue)
+import Michelson.Macro (LetMacro)
 
 type Parser = ReaderT LetEnv (Parsec CustomParserException Text)
 

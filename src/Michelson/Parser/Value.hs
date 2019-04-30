@@ -20,11 +20,12 @@ import Text.Megaparsec (choice, customFailure, many, manyTill, satisfy, takeWhil
 import Text.Megaparsec.Char (char, string)
 import qualified Text.Megaparsec.Char.Lexer as L
 
+import Michelson.Let (LetValue(..))
+import Michelson.Macro (ParsedOp, ParsedValue)
 import Michelson.Parser.Error
 import Michelson.Parser.Helpers
 import Michelson.Parser.Lexer
 import Michelson.Parser.Types (Parser, letValues)
-import Michelson.Types
 import qualified Michelson.Untyped as U
 
 -- | Parse untyped 'ParsedValue'. Take instruction parser as argument

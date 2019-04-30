@@ -15,8 +15,9 @@ import Michelson.TypeCheck.TypeCheck
 import Michelson.TypeCheck.Types
 import Michelson.Typed (converge, extractNotes, mkUType)
 import qualified Michelson.Typed as T
-import Michelson.Types
-import Michelson.Untyped (CT(..))
+import Michelson.Untyped
+  (CT(..), ExpandedOp, Type, TyVar(..), StackFn, Var, VarAnn, inPattern, outPattern,
+  quantifiedVars, varSet)
 import qualified Michelson.Untyped as U
 import Util.Peano (Sing(SS, SZ))
 

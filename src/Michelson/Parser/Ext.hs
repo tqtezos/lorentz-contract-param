@@ -15,10 +15,10 @@ import Text.Megaparsec (choice, satisfy, try)
 import Text.Megaparsec.Char (alphaNumChar, string)
 import qualified Text.Megaparsec.Char.Lexer as L
 
+import Michelson.Macro (ParsedOp(..), ParsedUExtInstr, ParsedUTestAssert)
 import Michelson.Parser.Lexer
 import Michelson.Parser.Type
 import Michelson.Parser.Types (Parser)
-import Michelson.Types (ParsedOp(..), ParsedUExtInstr, ParsedUTestAssert)
 import qualified Michelson.Untyped as U
 
 extInstr :: Parser [ParsedOp] -> Parser ParsedUExtInstr

@@ -7,9 +7,9 @@ import Test.Hspec (Expectation, Spec, describe, expectationFailure, it, shouldBe
 import Text.Megaparsec (parse)
 import Text.Megaparsec.Error (ErrorFancy(ErrorCustom), ParseError(FancyError), bundleErrors)
 
+import Michelson.Macro as Mo
 import Michelson.Parser as P
-import Michelson.Types as Mo
-import Michelson.Untyped
+import Michelson.Untyped as Mo
 
 import Test.Util.Contracts (getIllTypedContracts, getWellTypedContracts)
 

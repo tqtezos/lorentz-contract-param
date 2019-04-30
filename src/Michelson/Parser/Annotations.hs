@@ -23,7 +23,7 @@ import Text.Megaparsec.Char (string)
 import Michelson.Parser.Helpers (parseDef)
 import Michelson.Parser.Lexer
 import Michelson.Parser.Types (Parser)
-import qualified Michelson.Types as Mi
+import Michelson.Untyped as U
 import Util.Default
 
 -- General T/V/F Annotation parser
@@ -41,39 +41,39 @@ note c = lexeme $ string c >> (note' <|> emptyNote)
       b <- takeWhileP Nothing validChar
       return $ T.append a b
 
-noteT :: Parser Mi.TypeAnn
-noteT = Mi.ann <$> note ":"
+noteT :: Parser U.TypeAnn
+noteT = U.ann <$> note ":"
 
-noteV :: Parser Mi.VarAnn
-noteV = Mi.ann <$> note "@"
+noteV :: Parser U.VarAnn
+noteV = U.ann <$> note "@"
 
-noteF :: Parser Mi.FieldAnn
-noteF = Mi.ann <$> note "%"
+noteF :: Parser U.FieldAnn
+noteF = U.ann <$> note "%"
 
-noteF2 :: Parser (Mi.FieldAnn, Mi.FieldAnn)
+noteF2 :: Parser (U.FieldAnn, U.FieldAnn)
 noteF2 = do a <- noteF; b <- noteF; return (a, b)
 
-noteTDef :: Parser Mi.TypeAnn
+noteTDef :: Parser U.TypeAnn
 noteTDef = parseDef noteT
 
-noteVDef :: Parser Mi.VarAnn
+noteVDef :: Parser U.VarAnn
 noteVDef = parseDef noteV
 
-notesTVF :: Parser (Mi.TypeAnn, Mi.VarAnn, Mi.FieldAnn)
+notesTVF :: Parser (U.TypeAnn, U.VarAnn, U.FieldAnn)
 notesTVF = permute3Def noteT noteV noteF
 
-notesTVF2 :: Parser (Mi.TypeAnn, Mi.VarAnn, (Mi.FieldAnn, Mi.FieldAnn))
+notesTVF2 :: Parser (U.TypeAnn, U.VarAnn, (U.FieldAnn, U.FieldAnn))
 notesTVF2 = permute3Def noteT noteV noteF2
 
-notesTV :: Parser (Mi.TypeAnn, Mi.VarAnn)
+notesTV :: Parser (U.TypeAnn, U.VarAnn)
 notesTV = permute2Def noteT noteV
 
-notesVF :: Parser (Mi.VarAnn, Mi.FieldAnn)
+notesVF :: Parser (U.VarAnn, U.FieldAnn)
 notesVF  = permute2Def noteV noteF
 
 fieldType :: Default a
           => Parser a
-          -> Parser (a, Mi.TypeAnn)
+          -> Parser (a, U.TypeAnn)
 fieldType fp = runPermutation $
   (,) <$> toPermutationWithDefault  def     fp
-      <*> toPermutationWithDefault Mi.noAnn noteT
+      <*> toPermutationWithDefault U.noAnn noteT
