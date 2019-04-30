@@ -71,6 +71,9 @@ tests:
   morley-test:
     <<: *test-common
 
+    default-extensions:
+      - DerivingStrategies
+
     dependencies:
       - aeson
       - base-noprelude >= 4.7 && < 5
