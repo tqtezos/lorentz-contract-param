@@ -9,6 +9,7 @@ module Lorentz.Value
   , fromCVal
   , Integer
   , Natural
+  , Text
   , ByteString
   , Address
   , Mutez

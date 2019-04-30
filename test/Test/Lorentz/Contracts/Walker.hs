@@ -55,6 +55,15 @@ walkerContract =
         dip (get_ #power)
         access_ #coef1
         add
+        limitPower
         set_ #power
     )
   # nil # pair
+  where
+    limitPower = do
+      let maxPower = 100 :: Integer
+      dup
+      push maxPower
+      if IsGt
+        then nop
+        else do drop; push maxPower

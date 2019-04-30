@@ -38,6 +38,10 @@ walkerSpec = do
     in walkerProp commands
       Storage{ pos = Position 2 (-2), power = 8 }
 
+  it "Too large boost" $
+    walkerProp [Boost (#coef1 .! 999, #coef2 .! 999)]
+      Storage{ pos = Position 0 0, power = 100 }
+
 walkerProp :: [Parameter] -> Storage -> Expectation
 walkerProp params (T.toVal -> expected) =
   contractRepeatedProp
