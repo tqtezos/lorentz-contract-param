@@ -1,24 +1,25 @@
 -- | Tests for 'Tezos.Address'.
 
 module Test.Tezos.Address
-  ( spec_Roundtrip
+  ( test_Roundtrip
   , test_parseAddress
   ) where
 
-import Test.Hspec (Spec, describe, shouldSatisfy)
-import Test.Tasty (TestTree)
+import Test.Hspec (shouldSatisfy)
+import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase)
 
 import Tezos.Address (Address, formatAddress, parseAddress)
 
-import Test.Util.QuickCheck (ShowThroughBuild(..), aesonRoundtrip, roundtripSpecSTB)
+import Test.Util.QuickCheck (ShowThroughBuild(..), aesonRoundtrip, roundtripTestSTB)
 
-spec_Roundtrip :: Spec
-spec_Roundtrip = do
-    describe "parse . format ≡ pure" $ do
-      roundtripSpecSTB formatAddress parseAddress
-    describe "JSON encoding/deconding" $ do
-      aesonRoundtrip @Address
+test_Roundtrip :: [TestTree]
+test_Roundtrip =
+    [ testGroup "parse . format ≡ pure"
+      [ roundtripTestSTB formatAddress parseAddress ]
+    , testGroup "JSON encoding/deconding"
+      [ aesonRoundtrip @Address ]
+    ]
 
 test_parseAddress :: [TestTree]
 test_parseAddress =

@@ -1,33 +1,36 @@
 -- | Tests for 'Tezos.Crypto'.
 
 module Test.Tezos.Crypto
-  ( spec_Roundtrip
+  ( test_Roundtrip
   , test_Signing
   , test_Bytes_Hashing
   , unit_Key_Hashing
   ) where
 
 import Fmt (fmt, hexF, pretty)
-import Test.Hspec (Expectation, Spec, describe, shouldSatisfy)
+import Test.Hspec (Expectation, shouldSatisfy)
 import Test.HUnit (Assertion, (@?=))
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase)
 
 import Tezos.Crypto
 
-import Test.Util.QuickCheck (aesonRoundtrip, roundtripSpecSTB)
+import Test.Util.QuickCheck (aesonRoundtrip, roundtripTestSTB)
 
-spec_Roundtrip :: Spec
-spec_Roundtrip = do
-  describe "parse . format ≡ pure" $ do
-    roundtripSpecSTB formatPublicKey parsePublicKey
-    roundtripSpecSTB formatSecretKey parseSecretKey
-    roundtripSpecSTB formatSignature parseSignature
-    roundtripSpecSTB formatKeyHash parseKeyHash
-  describe "JSON encoding/deconding" $ do
-    aesonRoundtrip @PublicKey
-    aesonRoundtrip @Signature
-    aesonRoundtrip @KeyHash
+test_Roundtrip :: [TestTree]
+test_Roundtrip =
+  [ testGroup "parse . format ≡ pure"
+    [ roundtripTestSTB formatPublicKey parsePublicKey
+    , roundtripTestSTB formatSecretKey parseSecretKey
+    , roundtripTestSTB formatSignature parseSignature
+    , roundtripTestSTB formatKeyHash parseKeyHash
+    ]
+  , testGroup "JSON encoding/deconding"
+    [ aesonRoundtrip @PublicKey
+    , aesonRoundtrip @Signature
+    , aesonRoundtrip @KeyHash
+    ]
+  ]
 
 ----------------------------------------------------------------------------
 -- Signing
