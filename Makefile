@@ -20,11 +20,11 @@ test:
 
 # Run haddock for all packages.
 haddock:
-	stack haddock morley
+	stack haddock $(STACK_DEV_OPTIONS) morley
 
 # Run haddock for all our packages, but not for dependencies.
 haddock-no-deps:
-	stack haddock morley --no-haddock-deps
+	stack haddock $(STACK_DEV_OPTIONS) morley --no-haddock-deps
 
 stylish:
 	stylish-haskell -i `find src -iname '*.hs'`
