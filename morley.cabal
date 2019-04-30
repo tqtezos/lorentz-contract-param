@@ -59,6 +59,9 @@ library
                      , Util.Named
                      , Util.Peano
                      , Util.TypeTuple
+                     , Util.TypeTuple.Class
+                     , Util.TypeTuple.Instances
+                     , Util.TypeTuple.TH
 
   other-modules:       Lorentz.ADT
                      , Lorentz.Arith
@@ -142,6 +145,7 @@ library
                      , QuickCheck
                      , singletons
                      , syb
+                     , template-haskell
                      , text
                      , time
                      , timerep
