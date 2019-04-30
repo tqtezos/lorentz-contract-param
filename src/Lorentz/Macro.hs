@@ -1,7 +1,8 @@
 -- | Common Michelson macros defined using Lorentz syntax.
 module Lorentz.Macro
   ( -- * Compare
-    eq
+    IfCmpXConstraints
+  , eq
   , neq
   , lt
   , gt

@@ -2,4 +2,5 @@
 module Lorentz.Prelude
   ( ($)
   , Generic
+  , fromString
   ) where
