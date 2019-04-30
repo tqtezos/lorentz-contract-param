@@ -48,11 +48,11 @@ instance Arbitrary LetName where
 
 instance ToADTArbitrary InstrCallStack
 instance Arbitrary InstrCallStack where
-  arbitrary = liftA2 InstrCallStack arbitrary arbitrary
+  arbitrary = liftA2 InstrCallStack (vector 2) arbitrary
 
 instance ToADTArbitrary ExpandedOp
 instance Arbitrary ExpandedOp where
-  arbitrary = liftA2 PrimEx arbitrary arbitrary
+  arbitrary = liftA2 WithSrcEx arbitrary (PrimEx <$> arbitrary)
 
 instance ToADTArbitrary Mutez
 

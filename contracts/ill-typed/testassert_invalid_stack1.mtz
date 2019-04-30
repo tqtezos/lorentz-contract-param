@@ -3,7 +3,7 @@ storage unit;
 code {
   car;
   unpair;
-  test_assert InvalidStack "Refer to %[1]"
+  test_assert InvalidStack "Inner code doesn't return Bool. Refer to %[1]"
     {drop;};
   drop;
   drop;

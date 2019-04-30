@@ -3,12 +3,12 @@ module Test.Ext
   , test_STACKTYPE
   ) where
 
+import Data.Default (def)
 import Test.Hspec (Spec, describe, it, shouldSatisfy)
 import Test.HUnit (Assertion, assertFailure)
 import Test.Tasty (TestTree)
 import Test.Tasty.HUnit (testCase)
 
-import Michelson.ErrorPos (defExistingIcs)
 import Michelson.Interpret (InterpreterState(..), MorleyLogs(..), interpret)
 import Michelson.Test (specWithTypedContract)
 import Michelson.Test.Dummy (dummyContractEnv)
@@ -16,14 +16,14 @@ import Michelson.TypeCheck (HST(..), SomeHST(..), runTypeCheck, typeCheckExt, ty
 import Michelson.Typed (CValue(..), extractNotes, fromUType, withSomeSingT)
 import qualified Michelson.Typed as T
 import Michelson.Untyped
-  (CT(..), ExpandedExtInstr, ExtInstrAbstract(..), StackTypePattern(..), T(..), TyVar(..), Type(..),
-  ann, noAnn)
+  (CT(..), ExpandedExtInstr, ExtInstrAbstract(..), StackTypePattern(..), T(..), TyVar(..),
+  Type(..), ann, noAnn)
 
 spec_Ext_Intepreter :: Spec
 spec_Ext_Intepreter = describe "PRINT/TEST_ASSERT tests" $ do
-  specWithTypedContract "contracts/testassert_square.tz" $
+  specWithTypedContract "contracts/testassert_square.mtz" $
     testAssertSquareSpec
-  specWithTypedContract "contracts/testassert_square2.tz" $
+  specWithTypedContract "contracts/testassert_square2.mtz" $
     testAssertSquareSpec
   where
     testAssertSquareSpec c = do
@@ -83,7 +83,7 @@ test_STACKTYPE =
         SomeHST is -> SomeHST ((sing, nt, noAnn) ::& is)
 
     nh (ni, si) =
-      runTypeCheck (Type TKey noAnn) mempty $ usingReaderT defExistingIcs $ typeCheckExt typeCheckList ni si
+      runTypeCheck (Type TKey noAnn) mempty $ usingReaderT def $ typeCheckExt typeCheckList ni si
 
     runExtTest :: (ExpandedExtInstr, SomeHST) -> Bool -> Assertion
     runExtTest (ui, SomeHST hst) correct = case (nh (ui, hst), correct) of

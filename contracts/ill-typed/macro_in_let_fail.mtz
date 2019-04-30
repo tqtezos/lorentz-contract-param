@@ -1,0 +1,14 @@
+let {
+  cmpLet :: '[string, int]
+            -> '[bool]
+  = { cmpeq;
+    };
+};
+
+parameter string;
+storage int;
+code {
+      UNPAIR; cmpLet;
+      DROP; PUSH int 3;
+      NIL operation; PAIR;
+     };

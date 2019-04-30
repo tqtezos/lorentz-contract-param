@@ -212,8 +212,8 @@ expand cs (LMac l pos) = expandLetMac l
 
 expandMacro :: InstrCallStack -> Macro -> [ExpandedOp]
 expandMacro p@InstrCallStack{icsCallStack=cs,icsSrcPos=macroPos} = \case
-  VIEW a             -> [ expand cs $ mac $ UNPAIR $ P (F (noAnn,noAnn)) (F (noAnn,noAnn))
-                        , primEx (DIP [expand cs $ mac $ DUUP 2 noAnn])
+  VIEW a             -> expandMacro p (UNPAIR $ P (F (noAnn,noAnn)) (F (noAnn,noAnn))) ++
+                        [ primEx (DIP $ expandMacro p $ DUUP 2 noAnn)
                         , primEx $ DUP noAnn
                         , primEx $ DIP $ concat [
                               [primEx $ PAIR noAnn noAnn noAnn noAnn]
@@ -228,8 +228,8 @@ expandMacro p@InstrCallStack{icsCallStack=cs,icsSrcPos=macroPos} = \case
                         , primEx $ CONS noAnn
                         , primEx $ PAIR noAnn noAnn noAnn noAnn
                         ]
-  VOID a             -> [ expand cs $ mac $ UNPAIR (P (F (noAnn,noAnn)) (F (noAnn,noAnn)))
-                        , primEx SWAP
+  VOID a             -> expandMacro p (UNPAIR (P (F (noAnn,noAnn)) (F (noAnn,noAnn)))) ++
+                        [ primEx SWAP
                         , primEx $ DIP $ expand cs <$> a
                         , primEx SWAP
                         , primEx $ EXEC noAnn
@@ -244,26 +244,26 @@ expandMacro p@InstrCallStack{icsCallStack=cs,icsSrcPos=macroPos} = \case
   IF_SOME bt bf      -> [primEx (IF_NONE (xp bf) (xp bt))]
   IF_RIGHT bt bf     -> [primEx (IF_LEFT (xp bf) (xp bt))]
   FAIL               -> primEx <$> [UNIT noAnn noAnn, FAILWITH]
-  ASSERT             -> xol $ IF [] [mac FAIL]
+  ASSERT             -> oprimEx $ IF [] (expandMacro p FAIL)
   ASSERTX i          -> [expand cs $ mac $ IFX i [] [mac FAIL]]
   ASSERT_CMP i       -> [expand cs $ mac $ IFCMP i noAnn [] [mac FAIL]]
-  ASSERT_NONE        -> xol $ IF_NONE [] [mac FAIL]
-  ASSERT_SOME        -> xol $ IF_NONE [mac FAIL] []
-  ASSERT_LEFT        -> xol $ IF_LEFT [] [mac FAIL]
-  ASSERT_RIGHT       -> xol $ IF_LEFT [mac FAIL] []
+  ASSERT_NONE        -> oprimEx $ IF_NONE [] (expandMacro p FAIL)
+  ASSERT_SOME        -> oprimEx $ IF_NONE (expandMacro p FAIL) []
+  ASSERT_LEFT        -> oprimEx $ IF_LEFT [] (expandMacro p FAIL)
+  ASSERT_RIGHT       -> oprimEx $ IF_LEFT (expandMacro p FAIL) []
   PAPAIR ps t v      -> expandPapair p ps t v
   UNPAIR ps          -> expandUnpapair p ps
   CADR c v f         -> expandCadr p c v f
   SET_CADR c v f     -> expandSetCadr p c v f
   MAP_CADR c v f ops -> expandMapCadr p c v f ops
-  DIIP 1 ops         -> [primEx $ DIP (xp ops)]
-  DIIP n ops         -> xol $ DIP [mac $ DIIP (n - 1) ops]
-  DUUP 1 v           -> [primEx $ DUP v]
-  DUUP n v           -> [xo (DIP [mac $ DUUP (n - 1) v]), primEx SWAP]
+  DIIP 1 ops         -> oprimEx $ DIP (xp ops)
+  DIIP n ops         -> oprimEx $ DIP $ expandMacro p (DIIP (n - 1) ops)
+  DUUP 1 v           -> oprimEx $ DUP v
+  DUUP n v           -> PrimEx <$> [DIP (expandMacro p (DUUP (n - 1) v)), SWAP]
   where
     mac = flip Mac macroPos
     primEx = PrimEx
-    xol = one . xo
+    oprimEx = one . PrimEx
     xo = primEx . fmap (expand cs)
     xp = fmap (expand cs)
 

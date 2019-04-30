@@ -12,7 +12,7 @@ import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase)
 
 import Michelson.Interpret (ContractEnv(..), InterpretUntypedResult(..), interpretUntyped)
-import Michelson.ErrorPos (InstrCallStack(..), existingInstrPos)
+import Michelson.ErrorPos (InstrCallStack(..), SrcPos (..), Pos (..))
 import Michelson.Runtime
 import Michelson.Runtime.GState (GState(..), initGState)
 import Michelson.Test.Dummy (dummyContractEnv, dummyMaxSteps, dummyNow, dummyOrigination)
@@ -116,7 +116,7 @@ simpleTest ops predicate =
 ----------------------------------------------------------------------------
 
 ics :: Word -> InstrCallStack
-ics x = InstrCallStack [] (existingInstrPos x 0)
+ics x = InstrCallStack [] (SrcPos (Pos x) (Pos 0))
 
 contractAux1 :: ContractAux
 contractAux1 = ContractAux
@@ -131,9 +131,9 @@ contractAux1 = ContractAux
       { para = Type tstring noAnn
       , stor = Type tbool noAnn
       , code =
-        [ PrimEx (CDR noAnn noAnn) (ics 0)
-        , PrimEx (NIL noAnn noAnn $ Type TOperation noAnn) (ics 1)
-        , PrimEx (PAIR noAnn noAnn noAnn noAnn) (ics 2)
+        [ WithSrcEx (ics 0) $ PrimEx (CDR noAnn noAnn)
+        , WithSrcEx (ics 1) $ PrimEx (NIL noAnn noAnn $ Type TOperation noAnn)
+        , WithSrcEx (ics 2) $ PrimEx (PAIR noAnn noAnn noAnn noAnn)
         ]
       }
 
@@ -141,10 +141,10 @@ contractAux2 :: ContractAux
 contractAux2 = contractAux1
   { caContract = (caContract contractAux1)
     { code =
-      [ PrimEx (CDR noAnn noAnn) (ics 0)
-      , PrimEx (NOT noAnn) (ics 1)
-      , PrimEx (NIL noAnn noAnn $ Type TOperation noAnn) (ics 2)
-      , PrimEx (PAIR noAnn noAnn noAnn noAnn) (ics 3)
+      [ WithSrcEx (ics 0) $ PrimEx (CDR noAnn noAnn)
+      , WithSrcEx (ics 1) $ PrimEx (NOT noAnn)
+      , WithSrcEx (ics 2) $ PrimEx (NIL noAnn noAnn $ Type TOperation noAnn)
+      , WithSrcEx (ics 3) $ PrimEx (PAIR noAnn noAnn noAnn noAnn)
       ]
     }
   }
