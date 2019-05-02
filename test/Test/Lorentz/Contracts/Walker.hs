@@ -11,12 +11,14 @@ module Test.Lorentz.Contracts.Walker
 import Lorentz
 
 type BoostParams = ("coef1" :! Integer, "coef2" :! Integer)
+type IterationId = Natural
 data Parameter
   = GoLeft
   | GoRight
   | GoUp
   | GoDown
   | Boost BoostParams
+  | Reset IterationId
   deriving stock Generic
   deriving anyclass IsoValue
 
@@ -24,7 +26,7 @@ type Power = Integer
 data Position = Position { x :: Integer, y :: Integer }
   deriving stock Generic
   deriving anyclass IsoValue
-data Storage = Storage { pos :: Position, power :: Power }
+data Storage = Storage { pos :: Position, power :: Power, iterId :: IterationId }
   deriving stock Generic
   deriving anyclass IsoValue
 
@@ -57,6 +59,15 @@ walkerContract =
         add
         limitPower
         set_ #power
+
+    , #cReset /-> do
+        dip drop
+        construct $
+             fieldCtor (push Position{ x = 0, y = 0 })
+          :& fieldCtor (push 0)
+          :& fieldCtor dup
+          :& RNil
+        dip drop
     )
   # nil # pair
   where

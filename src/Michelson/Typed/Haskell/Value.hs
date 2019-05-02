@@ -5,6 +5,8 @@ module Michelson.Typed.Haskell.Value
   ( IsoValue (..)
   , GIsoValue (GValueType)
   , ToTs
+  , ToT'
+  , ToTs'
 
   , ContractAddr (..)
   , BigMap (..)
@@ -48,9 +50,20 @@ class IsoValue a where
     => Value (ToT a) -> a
   fromVal = G.to . gFromValue
 
+-- | Type function to convert a Haskell stack type to @T@-based one.
 type family ToTs (ts :: [Kind.Type]) :: [T] where
   ToTs '[] = '[]
   ToTs (x ': xs) = ToT x ': ToTs xs
+
+-- | Overloaded version of 'ToT' to work on Haskell and @T@ types.
+type family ToT' (t :: k) :: T where
+  ToT' (t :: T) = t
+  ToT' (t :: Kind.Type) = ToT t
+
+-- | Overloaded version of 'ToTs' to work on Haskell and @T@ stacks.
+type family ToTs' (t :: [k]) :: [T] where
+  ToTs' (t :: [T]) = t
+  ToTs' (a :: [Kind.Type]) = ToTs a
 
 instance IsoValue Integer where
   type ToT Integer = 'Tc (ToCT Integer)

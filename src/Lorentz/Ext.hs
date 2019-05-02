@@ -1,10 +1,8 @@
 module Lorentz.Ext
-  (
-  -- * PRINT Morley command
-    stackRef
+  ( stackRef
   , printComment
-  -- * TEST_ASSERT Morley command
   , testAssert
+  , stackType
   ) where
 
 import Data.Singletons (SingI)
@@ -29,5 +27,11 @@ testAssert
 testAssert msg comment (I instr) =
   I . (Ext . TEST_ASSERT) $ TestAssert msg comment instr
 
+stackType :: forall s. s :-> s
+stackType = I Nop
+
 _sample1 :: s ~ (a & s') => s :-> s
 _sample1 = printComment $ "Head is " <> stackRef @0
+
+_sample2 :: Integer & Natural & s :-> Integer & Natural & s
+_sample2 = stackType @(Integer & _)

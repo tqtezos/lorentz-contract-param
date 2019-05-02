@@ -15,6 +15,7 @@ module Lorentz.Rebinded
 
     -- * Re-exports required for RebindableSyntax
   , fromInteger
+  , fromString
   , fromLabel
   ) where
 
