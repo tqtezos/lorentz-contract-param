@@ -43,6 +43,7 @@ import qualified Text.PrettyPrint.Leijen.Text as PP (empty)
 
 import Michelson.Printer (RenderDoc(..))
 import Michelson.Untyped
+import Util.Generic
 
 -- | A programmer-defined macro
 data LetMacro = LetMacro
@@ -221,9 +222,8 @@ expandMacro = \case
                            , Prim SWAP, Prim $ DIP a, Prim SWAP, Prim $ EXEC noAnn
                            , Prim FAILWITH
                            ]
-  CASE (x:|[])       -> expand <$> x
-  CASE (i:|i':[])    -> xol $ IF_LEFT i i'
-  CASE (i:|i':is)    -> xol $ IF_LEFT i [Mac $ CASE (i':|is)]
+  CASE is            -> mkGenericTree (one . PrimEx ... IF_LEFT)
+                                      (map expand <$> is)
   CMP i v            -> [PrimEx (COMPARE v), xo i]
   IFX i bt bf        -> [xo i, PrimEx (IF (xp bt) (xp bf))]
   IFCMP i v bt bf    -> PrimEx <$> [COMPARE v, expand <$> i, IF (xp bt) (xp bf)]

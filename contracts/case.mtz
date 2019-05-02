@@ -1,0 +1,16 @@
+parameter
+  ( int
+  | string
+  | option string
+  | or string string
+  | list string
+  );
+storage string;
+code { car; case
+       { drop; push string "int" }
+       { drop; push string "string" }
+       { if_none { push string "" } {} }
+       { drop; push string "or string string" }
+       { concat };
+       nil Operation; pair;
+     }

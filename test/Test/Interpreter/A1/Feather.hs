@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveAnyClass, DerivingStrategies #-}
+
 -- | Tests for feathering as described in TZIP-A1.
 
 module Test.Interpreter.A1.Feather
@@ -14,6 +16,7 @@ import Test.QuickCheck.Arbitrary.Generic (genericArbitrary)
 import Test.QuickCheck.Instances.Natural ()
 
 import Lorentz (View, Void_)
+import qualified Lorentz as L
 import Michelson.Interpret (MichelsonFailed(..))
 import Michelson.Interpret.Pack (packValue')
 import Michelson.Test
@@ -33,34 +36,28 @@ makeLenses ''Outcome
 
 featherSpec :: Spec
 featherSpec =
-  specWithContract "contracts/A1/counter.mtz" $ \counter ->
-  specWithContract "contracts/A1/feather.mtz" $ \feather ->
-  specWithContract "contracts/A1/caller-add.mtz" $ \callerAdd ->
-  specWithContract "contracts/A1/caller-append.mtz" $ \callerAppend ->
+  specWithContractL "contracts/A1/counter.mtz" $ \counter ->
+  specWithContractL "contracts/A1/feather.mtz" $ \feather ->
+  specWithContractL "contracts/A1/caller-add.mtz" $ \callerAdd ->
+  specWithContractL "contracts/A1/caller-append.mtz" $ \callerAppend ->
   specImpl counter feather callerAdd callerAppend
 
--- TODO: add to Lorenz
-type family MultiOr (ts :: [T.T]) :: T.T where
-  MultiOr '[] = 'T.TUnit
-  MultiOr (t:t1:'[]) = 'T.TOr t t1
-  MultiOr (t:ts) = 'T.TOr t (MultiOr ts)
+data CounterParameter
+  = AntibumpCounter
+  | BumpCounter
+  | ResetCounter Natural
+  | GetCount (View () Natural)
+  | HashCount (Void_ () ByteString)
+  deriving stock Generic
+  deriving anyclass T.IsoValue
+type CounterStorage = Natural
 
-type CounterParameter =
-  MultiOr
-  [ 'T.TUnit
-  , 'T.TUnit
-  , 'T.Tc 'T.CNat
-  , T.ToT (View () Natural)
-  , T.ToT (Void_ () ByteString)
-  ]
-type CounterStorage = T.ToT Natural
+type FeatherParameter = ((), Maybe Natural)
+type FeatherStorage = (Address, Maybe Address)
 
-type FeatherParameter = T.ToT ((), Maybe Natural)
-type FeatherStorage = T.ToT (Address, Maybe Address)
-
-type CallerParameter = T.ToT (Either Natural ())
-type CallerAddStorage = T.ToT ((Natural, Address))
-type CallerAppendStorage = T.ToT (([Natural], Address))
+type CallerParameter = Either Natural ()
+type CallerAddStorage = (Natural, Address)
+type CallerAppendStorage = ([Natural], Address)
 
 -- Actions that can be performed by this scenario.
 data Action
@@ -148,10 +145,10 @@ expectedOutcome Fixture {..} =
         oList %= (c:)
 
 specImpl ::
-     (U.Contract, T.Contract CounterParameter CounterStorage)
-  -> (U.Contract, T.Contract FeatherParameter FeatherStorage)
-  -> (U.Contract, T.Contract CallerParameter CallerAddStorage)
-  -> (U.Contract, T.Contract CallerParameter CallerAppendStorage)
+     (U.Contract, L.Contract CounterParameter CounterStorage)
+  -> (U.Contract, L.Contract FeatherParameter FeatherStorage)
+  -> (U.Contract, L.Contract CallerParameter CallerAddStorage)
+  -> (U.Contract, L.Contract CallerParameter CallerAppendStorage)
   -> Spec
 specImpl (counter, _) (feather, _) (callerAdd, _) (callerAppend, _) =
   prop "A mix of random actions is handled as expected" $
@@ -168,20 +165,20 @@ specImpl (counter, _) (feather, _) (callerAdd, _) (callerAppend, _) =
         toUntypedValue = T.untypeValue . T.toVal
 
       counterAddress <-
-        originate counter "counter" (toUntypedValue @CounterStorage fInitialCounter) initBalance
+        originate counter "counter" (toUntypedValue @(T.ToT CounterStorage) fInitialCounter) initBalance
 
       let
         defaultFeatherValue =
-          toUntypedValue @FeatherStorage (counterAddress, Nothing @Address)
+          toUntypedValue @(T.ToT FeatherStorage) (counterAddress, Nothing @Address)
 
       featherAddress <-
         originate feather "feather" defaultFeatherValue initBalance
       cAddAddress <-
         originate callerAdd "caller-add"
-        (toUntypedValue @CallerAddStorage (fInitialSum, featherAddress)) initBalance
+        (toUntypedValue @(T.ToT CallerAddStorage) (fInitialSum, featherAddress)) initBalance
       cAppendAddress <-
         originate callerAppend "caller-append"
-        (toUntypedValue @CallerAppendStorage (fInitialList, featherAddress)) initBalance
+        (toUntypedValue @(T.ToT CallerAppendStorage) (fInitialList, featherAddress)) initBalance
 
       let
         transfer' ::
@@ -195,39 +192,25 @@ specImpl (counter, _) (feather, _) (callerAdd, _) (callerAppend, _) =
                 }
            in transfer txData addr
 
-        transferToCounter :: T.Value CounterParameter -> IntegrationalScenarioM ()
-        transferToCounter = transfer' counterAddress
+        transferToCounter :: CounterParameter -> IntegrationalScenarioM ()
+        transferToCounter = transfer' counterAddress . T.toVal
 
-        transferToAdd :: T.Value CallerParameter -> IntegrationalScenarioM ()
-        transferToAdd = transfer' cAddAddress
+        transferToAdd :: CallerParameter -> IntegrationalScenarioM ()
+        transferToAdd = transfer' cAddAddress . T.toVal
 
-        transferToAppend :: T.Value CallerParameter -> IntegrationalScenarioM ()
-        transferToAppend = transfer' cAppendAddress
+        transferToAppend :: CallerParameter -> IntegrationalScenarioM ()
+        transferToAppend = transfer' cAppendAddress . T.toVal
 
         performAction :: Action -> IntegrationalScenarioM ()
         performAction = \case
-          Antibump -> transferToCounter $
-            T.VOr $ Left T.VUnit
-          Bump -> transferToCounter $
-            T.VOr $ Right $
-            T.VOr $ Left T.VUnit
-          Reset x -> transferToCounter $
-            T.VOr $ Right $
-            T.VOr $ Right $
-            T.VOr $ Left (T.toVal x)
-          HashCounter -> transferToCounter $
-            T.VOr $ Right $
-            T.VOr $ Right $
-            T.VOr $ Right $
-            T.VOr $ Right $ T.VPair (T.VUnit, T.VLam T.Nop)
-          Add x -> transferToAdd $
-            T.VOr $ Left (T.toVal x)
-          AddRecord -> transferToAdd $
-            T.VOr $ Right T.VUnit
-          Append x -> transferToAppend $
-            T.VOr $ Left (T.toVal x)
-          AppendRecord -> transferToAppend $
-            T.VOr $ Right T.VUnit
+          Antibump -> transferToCounter AntibumpCounter
+          Bump -> transferToCounter BumpCounter
+          Reset x -> transferToCounter $ ResetCounter x
+          HashCounter -> transferToCounter $ HashCount ((), L.nop)
+          Add x -> transferToAdd $ Left x
+          AddRecord -> transferToAdd $ Right ()
+          Append x -> transferToAppend $ Left x
+          AppendRecord -> transferToAppend $ Right ()
 
       mapM_ performAction fActions
 
@@ -247,11 +230,11 @@ specImpl (counter, _) (feather, _) (callerAdd, _) (callerAppend, _) =
             , -- Counter, caller-add and caller-append have values
               -- according to 'Outcome'.
               expectStorageConst counterAddress
-              (toUntypedValue @CounterStorage _oCounter)
+              (toUntypedValue @(T.ToT CounterStorage) _oCounter)
             , expectStorageConst cAddAddress
-              (toUntypedValue @CallerAddStorage (_oSum, featherAddress))
+              (toUntypedValue @(T.ToT CallerAddStorage) (_oSum, featherAddress))
             , expectStorageConst cAppendAddress
-              (toUntypedValue @CallerAppendStorage (_oList, featherAddress))
+              (toUntypedValue @(T.ToT CallerAppendStorage) (_oList, featherAddress))
             , -- Balances must not change
               expectBalance counterAddress initBalance
             , expectBalance featherAddress initBalance

@@ -54,6 +54,7 @@ library
                      , Tezos.Crypto
                      , Util.Alternative
                      , Util.Default
+                     , Util.Generic
                      , Util.Lens
                      , Util.Named
                      , Util.Peano
@@ -135,17 +136,18 @@ library
                      , megaparsec >= 7.0.0
                      , memory
                      , morley-prelude
+                     , mtl
                      , named
+                     , parser-combinators >= 1.0.0
                      , QuickCheck
+                     , singletons
+                     , syb
                      , text
                      , time
                      , timerep
                      -- ↓ We don't use it, but otherwise Hackage fails
                      , transformers-compat == 0.6.2
-                     , parser-combinators >= 1.0.0
-                     , singletons
-                     , syb
-                     , mtl
+                     , vector
                      , vinyl
                      , wl-pprint-text
   ghc-options:        -Weverything

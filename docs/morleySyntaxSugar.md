@@ -81,6 +81,17 @@ When bars are nested, parenthesis may be omitted:
 (a | b | c) ~ (a | (b | c))
 ```
 
+Unsugaring will be performed in a way which provides the best average access time.
+In essence, the union is split so that the left part has less by one
+or the same size as the right part, these parts are recursively split
+until one element remains, and resulting pieces are merged into an `Or` tree.
+
+For instance:
+
+```
+(a | b | c | d | e) ~ ((a | b) | (c | (d | e)))
+```
+
 Annotations follow the same pattern as Tuples:
 ```
 (a | b | c) :t %f ~ (a | (b | c)) :t %f
@@ -101,7 +112,7 @@ The `Unit` value may also be written this way:
 Unit ~ ()
 ```
 
-## Lambda: 
+## Lambda:
 
 They `lambda` type may be written:
 
@@ -117,4 +128,3 @@ The `list` and `set` types may be written:
 (list a) ~ [a]
 (set a) ~ {a}
 ```
-
