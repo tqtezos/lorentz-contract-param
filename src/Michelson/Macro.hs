@@ -38,7 +38,7 @@ import Data.Aeson.TH (defaultOptions, deriveJSON)
 import Data.Data (Data(..))
 import Data.Generics (everywhere, mkT)
 import qualified Data.Text as T
-import Fmt (Buildable(build), genericF, (+|), (|+))
+import Fmt (Buildable(build), genericF, (+|), (+||), (|+), (||+))
 import qualified Text.PrettyPrint.Leijen.Text as PP (empty)
 
 import Michelson.Printer (RenderDoc(..))
@@ -105,6 +105,7 @@ type ParsedValue = Value' ParsedOp
 -- | Built-in Michelson Macros defined by the specification
 data Macro
   = CASE (NonEmpty [ParsedOp])
+  | TAG Natural (NonEmpty Type)
   | VIEW [ParsedOp]
   | VOID [ParsedOp]
   | CMP ParsedInstr VarAnn
@@ -130,6 +131,7 @@ data Macro
   deriving (Eq, Show, Data, Generic)
 
 instance Buildable Macro where
+  build (TAG idx ty) = "<TAG: #"+||idx||+" from "+|toList ty|+""
   build (CASE parsedInstrs) = "<CASE: "+|toList parsedInstrs|+">"
   build (VIEW code) = "<VIEW: "+|code|+">"
   build (VOID code) = "<VOID: "+|code|+">"
@@ -222,8 +224,9 @@ expandMacro = \case
                            , Prim SWAP, Prim $ DIP a, Prim SWAP, Prim $ EXEC noAnn
                            , Prim FAILWITH
                            ]
-  CASE is            -> mkGenericTree (one . PrimEx ... IF_LEFT)
+  CASE is            -> mkGenericTree (\_ l r -> one . PrimEx $ IF_LEFT l r)
                                       (map expand <$> is)
+  TAG idx uty        -> expandTag (fromIntegral idx) uty
   CMP i v            -> [PrimEx (COMPARE v), xo i]
   IFX i bt bf        -> [xo i, PrimEx (IF (xp bt) (xp bf))]
   IFCMP i v bt bf    -> PrimEx <$> [COMPARE v, expand <$> i, IF (xp bt) (xp bf)]
@@ -325,6 +328,16 @@ expandMapCadr cs v f ops = case cs of
     carN = CAR noAnn noAnn
     cdrN = CDR noAnn noAnn
     pairN = PAIR noAnn v noAnn noAnn
+
+expandTag :: Int -> NonEmpty Type -> [ExpandedOp]
+expandTag idx unionTy =
+  reverse . fst $ mkGenericTree merge (([], ) <$> unionTy)
+  where
+    merge i (li, lt) (ri, rt) =
+      let ty = Type (TOr noAnn noAnn lt rt) noAnn
+      in if idx < i
+          then (PrimEx (LEFT noAnn noAnn noAnn noAnn rt) : li, ty)
+          else (PrimEx (RIGHT noAnn noAnn noAnn noAnn lt) : ri, ty)
 
 mapLeaves :: [(VarAnn, FieldAnn)] -> PairStruct -> PairStruct
 mapLeaves fs p = evalState (leavesST p) fs

@@ -29,11 +29,11 @@ lexeme = L.lexeme mSpace
 mSpace :: Parser ()
 mSpace = L.space space1 (L.skipLineComment "#") (L.skipBlockComment "/*" "*/")
 
-symbol :: Tokens Text -> Parser (Tokens Text)
-symbol = L.symbol mSpace
+symbol :: Tokens Text -> Parser ()
+symbol = void . L.symbol mSpace
 
-symbol' :: Text -> Parser (Tokens Text)
-symbol' str = symbol str <|> symbol (T.map toLower str)
+symbol' :: Text -> Parser ()
+symbol' str = void $ symbol str <|> symbol (T.map toLower str)
 
 string' :: (MonadParsec e s f, Tokens s ~ Text) => Text -> f Text
 string' str = string str <|> string (T.map toLower str)
@@ -50,10 +50,10 @@ brackets = between (symbol "[") (symbol "]")
 brackets' :: Parser a -> Parser a
 brackets' = between (string "[") (string "]")
 
-semicolon :: Parser (Tokens Text)
+semicolon :: Parser ()
 semicolon = symbol ";"
 
-comma :: Parser (Tokens Text)
+comma :: Parser ()
 comma = symbol ","
 
 varID :: Parser U.Var

@@ -166,6 +166,13 @@ spec_Interpreter = do
       it "Case 4" $ caseTest (Case4 $ Right "b") "or string string"
       it "Case 5" $ caseTest (Case5 $ ["a", "b"]) "ab"
 
+  specWithTypedContract "contracts/tag.mtz" $ \contract -> do
+    it "TAG instruction" $
+      let expected = mconcat ["unit", "o", "ab", "nat", "int"] :: Text
+      in contractProp contract (validateStorageIs expected) dummyContractEnv
+         () ("" :: Text)
+
+
 data Union1
   = Case1 Integer
   | Case2 Text

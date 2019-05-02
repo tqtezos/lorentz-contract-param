@@ -146,7 +146,7 @@ t_or implicit fp = core <|> bar
       return (f, Type ty t)
     barInner = do
       fs <- sepBy2 implicitF (symbol "|")
-      let mergeTwo (l, a) (r, b) = (noAnn, Type (TOr l r a b) noAnn)
+      let mergeTwo _ (l, a) (r, b) = (noAnn, Type (TOr l r a b) noAnn)
       return $ mkGenericTree mergeTwo fs
     implicitF = field implicit <|> (,) <$> noteFDef <*> implicit
 

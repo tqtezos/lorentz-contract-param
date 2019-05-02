@@ -1,12 +1,11 @@
 let {
+  type CounterParameter = (Unit | Unit | Nat | View Unit Nat | Void Unit Bytes);
+
   toCounter :: '[Parameter, Storage]
             -> '[(List Operation, Storage)]
   = { car; dip {self}; pair;
-      left (Void Unit Bytes);
-      right nat;
-      right unit;
-      right unit;
-      dip {dup; car; contract (Unit | Unit | Nat | View Unit Nat | Void Unit Bytes); assert_some; amount};
+      tag 3 CounterParameter;
+      dip {dup; car; contract CounterParameter; assert_some; amount};
       transfer_tokens;
       nil operation; swap; cons;
       dip {car; sender; some; swap; pair}; pair

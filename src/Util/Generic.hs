@@ -9,17 +9,22 @@ import qualified Data.Vector as V
 
 -- | Rebuild a list into a binary tree of exactly the same form which
 -- 'Data.Generic' uses to represent datatypes.
-mkGenericTree :: (a -> a -> a) -> NonEmpty a -> a
+--
+-- Along with the original list you have to provide constructor for intermediate
+-- nodes - it accepts zero-based index of the leftmost element of the right tree
+-- and merged trees themselves.
+mkGenericTree :: (Int -> a -> a -> a) -> NonEmpty a -> a
 mkGenericTree mkNode = mkGenericTreeVec id mkNode . V.fromList . toList
 
-mkGenericTreeVec :: HasCallStack => (a -> b) -> (b -> b -> b) -> V.Vector a -> b
+mkGenericTreeVec :: HasCallStack => (a -> b) -> (Int -> b -> b -> b) -> V.Vector a -> b
 mkGenericTreeVec mkLeaf mkNode vector
   | V.null vector = error "Empty vector"
-  | otherwise = mkTreeDo vector
+  | otherwise = mkTreeDo 0 vector
   where
-    mkTreeDo es
+    mkTreeDo idxBase es
       | V.length es == 1 = mkLeaf $ V.head es
       | otherwise = assert (V.length es > 1) $
           let mid = V.length es `div` 2
+              mid' = idxBase + mid
               (h, t) = V.splitAt mid es
-          in mkNode (mkTreeDo h) (mkTreeDo t)
+          in mkNode mid' (mkTreeDo idxBase h) (mkTreeDo mid' t)
