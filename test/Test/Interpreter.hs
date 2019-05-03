@@ -1,5 +1,5 @@
 module Test.Interpreter
-  ( spec
+  ( spec_Interpreter
   ) where
 
 import Data.Singletons (SingI)
@@ -27,8 +27,8 @@ import Test.Interpreter.EnvironmentSpec (environmentSpec)
 import Test.Interpreter.StringCaller (stringCallerSpec)
 import Test.Interpreter.Walker (walkerSpec)
 
-spec :: Spec
-spec = describe "Advanced type interpreter tests" $ do
+spec_Interpreter :: Spec
+spec_Interpreter = do
   let contractResShouldBe (res, _) expected =
         case res of
           Left err -> expectationFailure $ "Unexpected failure: " <> pretty err

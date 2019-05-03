@@ -1,25 +1,20 @@
 module Test.Macro
-  ( spec
+  ( unit_PAPAIR
+  , unit_UNPAIR
+  , unit_CADR
+  , unit_SET_CADR
+  , unit_MAP_CADR
+  , unit_mapLeaves
+  , unit_expand
+  , unit_expandValue
   ) where
 
 import Michelson.Macro
-import Michelson.Untyped
-  (ExpandedOp(..), InstrAbstract(..), Value, Value'(..), ann, noAnn)
-import Test.Hspec (Expectation, Spec, describe, it, shouldBe)
+import Michelson.Untyped (ExpandedOp(..), InstrAbstract(..), Value, Value'(..), ann, noAnn)
+import Test.Hspec.Expectations (Expectation, shouldBe)
 
-spec :: Spec
-spec = describe "Macros tests" $ do
-  it "expand test" expandTest
-  it "papair test" expandPapairTest
-  it "unpapair test" expandUnpapairTest
-  it "expandCadr test" expandCadrTest
-  it "expandSetCadr test" expandSetCadrTest
-  it "expandMapCadr test" expandMapCadrTest
-  it "mapLeaves test" mapLeavesTest
-  it "expandValue test" expandValueTest
-
-expandPapairTest :: Expectation
-expandPapairTest = do
+unit_PAPAIR :: Expectation
+unit_PAPAIR = do
   expandPapair pair n n `shouldBe` [Prim $ PAIR n n n n]
   expandPapair (P leaf pair) n n `shouldBe`
     [Prim $ DIP [Mac $ PAPAIR pair n n], Prim $ PAIR n n n n]
@@ -34,8 +29,8 @@ expandPapairTest = do
     leaf = F (n, n)
     pair = P leaf leaf
 
-expandUnpapairTest :: Expectation
-expandUnpapairTest = do
+unit_UNPAIR :: Expectation
+unit_UNPAIR = do
   expandUnpapair pair `shouldBe`
     [Prim $ DUP n, Prim $ CAR n n, Prim $ DIP [Prim $ CDR n n]]
   expandList [Mac $ UNPAIR $ P leaf pair] `shouldBe`
@@ -60,8 +55,8 @@ expandUnpapairTest = do
     leaf = F (n, n)
     pair = P leaf leaf
 
-expandCadrTest :: Expectation
-expandCadrTest = do
+unit_CADR :: Expectation
+unit_CADR = do
   expandCadr ([A]) v f `shouldBe` [Prim $ CAR v f]
   expandCadr ([D]) v f `shouldBe` [Prim $ CDR v f]
   expandCadr (A:xs) v f `shouldBe` [Prim $ CAR n n, Mac $ CADR xs v f]
@@ -72,8 +67,8 @@ expandCadrTest = do
     n = noAnn
     xs = [A, D]
 
-expandSetCadrTest :: Expectation
-expandSetCadrTest = do
+unit_SET_CADR :: Expectation
+unit_SET_CADR = do
   expandSetCadr [A] v f `shouldBe` Prim <$> [ DUP noAnn, CAR noAnn f, DROP
                                             , CDR (ann "%%") noAnn, SWAP, PAIR noAnn v f (ann "@")]
   expandSetCadr [D] v f `shouldBe` Prim <$> [ DUP noAnn, CDR noAnn f, DROP
@@ -90,8 +85,8 @@ expandSetCadrTest = do
     cdrN = CDR noAnn noAnn
     pairN = PAIR noAnn v noAnn noAnn
 
-expandMapCadrTest :: Expectation
-expandMapCadrTest = do
+unit_MAP_CADR :: Expectation
+unit_MAP_CADR = do
   expandMapCadr [A] v f ops `shouldBe`
     Prim <$> [DUP noAnn, cdrN, DIP [Prim $ CAR noAnn f, Seq ops], SWAP, pairN]
   expandMapCadr [D] v f ops `shouldBe`
@@ -110,8 +105,8 @@ expandMapCadrTest = do
     cdrN = CDR noAnn noAnn
     pairN = PAIR noAnn v noAnn noAnn
 
-mapLeavesTest :: Expectation
-mapLeavesTest = do
+unit_mapLeaves :: Expectation
+unit_mapLeaves = do
   mapLeaves [(v, f), (v, f)] pair `shouldBe` P (F (v, f)) (F (v, f))
   mapLeaves annotations (P pair (F (n, n))) `shouldBe`
     P (P (leaf "var1" "field1") (leaf "var2" "field2")) (leaf "var3" "field3")
@@ -125,8 +120,8 @@ mapLeavesTest = do
     leaf v' f' = F (ann v', ann f')
     pair = P (F (n, n)) (F (n, n))
 
-expandTest :: Expectation
-expandTest = do
+unit_expand :: Expectation
+unit_expand = do
   expand diip `shouldBe` expandedDiip
   expand (Prim $ IF [diip] [diip]) `shouldBe` (PrimEx $ IF [expandedDiip] [expandedDiip])
   expand (Seq [diip, diip]) `shouldBe` (SeqEx $ [expandedDiip, expandedDiip])
@@ -136,8 +131,8 @@ expandTest = do
     expandedDiip :: ExpandedOp
     expandedDiip = SeqEx [PrimEx (DIP [SeqEx [PrimEx (DIP [PrimEx SWAP])]])]
 
-expandValueTest :: Expectation
-expandValueTest = do
+unit_expandValue :: Expectation
+unit_expandValue = do
   expandValue parsedPair `shouldBe` expandedPair
   expandValue parsedPapair `shouldBe` expandedPapair
   expandValue parsedLambdaWithMac `shouldBe` expandedLambdaWithMac

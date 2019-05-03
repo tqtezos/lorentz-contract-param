@@ -6,7 +6,6 @@ further subdivide this into a section describing the problem you are solving and
 another describing your solution.
 -->
 
-[//]: # (Here you can add a link to the corresponding issue tracker, e. g. https://issues.serokell.io/issue/AD-)
 ## Related issue(s)
 
 <!--
@@ -33,7 +32,7 @@ you must be able to justify that.
 
 #### Related changes (conditional)
 
-- Tests
+- Tests (see [short guidelines](../blob/master/CONTRIBUTING.md#tests))
   - [ ] If I added new functionality, I added tests covering it.
   - [ ] If I fixed a bug, I added a regression test to prevent the bug from
         silently reappearing again.

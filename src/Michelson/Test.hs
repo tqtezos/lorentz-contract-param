@@ -7,6 +7,7 @@ module Michelson.Test
     specWithContract
   , specWithTypedContract
   , specWithUntypedContract
+  , importUntypedContract
 
   -- * Unit testing
   , ContractReturn

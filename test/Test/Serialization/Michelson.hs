@@ -1,6 +1,8 @@
 {-# LANGUAGE OverloadedLists #-}
 
-module Test.Serialization.Michelson (spec) where
+module Test.Serialization.Michelson
+  ( spec_Packing
+  ) where
 
 import Prelude hiding (Ordering(..))
 
@@ -22,8 +24,8 @@ import Tezos.Address (Address(..), unsafeParseAddress)
 import Tezos.Core (Mutez, Timestamp, timestampFromSeconds, unsafeMkMutez)
 import Tezos.Crypto (KeyHash(..), parseKeyHash, parsePublicKey, parseSignature)
 
-spec :: Spec
-spec = do
+spec_Packing :: Spec
+spec_Packing = do
   describe "pack tests for comparable values (CValue)" $ do
     intTest
     natTest
