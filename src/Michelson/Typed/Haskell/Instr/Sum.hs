@@ -5,15 +5,20 @@
 module Michelson.Typed.Haskell.Instr.Sum
   ( InstrWrapC
   , InstrCaseC
+  , InstrUnwrapC
   , instrWrap
+  , hsWrap
   , instrCase
   , (//->)
+  , instrUnwrapUnsafe
+  , hsUnwrap
 
   , CaseClauseParam (..)
   , CaseClause (..)
   , CaseClauses
 
   , CtorField (..)
+  , ExtractCtorField
   , AppendCtorField
   , AppendCtorFieldAxiom
   , appendCtorFieldAxiom
@@ -53,6 +58,11 @@ import Util.TypeTuple
 data CtorField
   = OneField Kind.Type
   | NoFields
+
+-- | Get /something/ as field of the given constructor.
+type family ExtractCtorField (cf :: CtorField) where
+  ExtractCtorField ('OneField t) = t
+  ExtractCtorField 'NoFields = ()
 
 -- | Push field to stack, if any.
 type family AppendCtorField (cf :: CtorField) (l :: [k]) :: [k] where
@@ -181,12 +191,25 @@ instrWrap _ =
                          @(LnrFieldType (GetNamed name dt))
 
 type InstrWrapC dt name =
-  ( IsoValue dt
+  ( IsoValue dt, Generic dt
   , GInstrWrap (G.Rep dt)
       (LnrBranch (GetNamed name dt))
       (LnrFieldType (GetNamed name dt))
   , GValueType (G.Rep dt) ~ ToT dt
   )
+
+-- | Wrap a haskell value into a constructor with the given name.
+--
+-- This is symmetric to 'instrWrap'.
+hsWrap
+  :: forall dt name.
+     InstrWrapC dt name
+  => Label name
+  -> ExtractCtorField (GetCtorField dt name)
+  -> dt
+hsWrap _ =
+  G.to . gHsWrap @(G.Rep dt) @(LnrBranch (GetNamed name dt))
+                             @(LnrFieldType (GetNamed name dt))
 
 -- | Generic traversal for 'instrWrap'.
 class GIsoValue x =>
@@ -197,24 +220,32 @@ class GIsoValue x =>
   gInstrWrap
     :: GIsoValue x
     => Instr (AppendCtorField entryTy s) (GValueType x ': s)
+  gHsWrap
+    :: GIsoValue x
+    => ExtractCtorField entryTy -> x p
 
 instance GInstrWrap x path e => GInstrWrap (G.D1 i x) path e where
   gInstrWrap = gInstrWrap @x @path @e
+  gHsWrap = G.M1 . gHsWrap @x @path @e
 
 instance (GInstrWrap x path e, GIsoValue y, SingI (GValueType y)) =>
          GInstrWrap (x :+: y) ('L ': path) e where
   gInstrWrap = gInstrWrap @x @path @e `Seq` LEFT
+  gHsWrap = G.L1 . gHsWrap @x @path @e
 
 instance (GInstrWrap y path e, GIsoValue x, SingI (GValueType x)) =>
          GInstrWrap (x :+: y) ('R ': path) e where
   gInstrWrap = gInstrWrap @y @path @e `Seq` RIGHT
+  gHsWrap = G.R1 . gHsWrap @y @path @e
 
 instance (IsoValue e) =>
          GInstrWrap (G.C1 c (G.S1 i (G.Rec0 e))) '[] ('OneField e) where
   gInstrWrap = Nop
+  gHsWrap = G.M1 . G.M1 . G.K1
 
 instance GInstrWrap (G.C1 c G.U1) '[] 'NoFields where
   gInstrWrap = PUSH VUnit
+  gHsWrap () = G.M1 G.U1
 
 -- Examples
 ----------------------------------------------------------------------------
@@ -378,3 +409,89 @@ _caseMyEnum = instrCase @MyEnum $ recFromTuple
   , #cCaseN //-> (DIP DROP `Seq` Nop)
   , #cCaseDef //-> Nop
   )
+
+----------------------------------------------------------------------------
+-- Constructor unwrapping instruction
+----------------------------------------------------------------------------
+
+-- | Unwrap a constructor with the given name.
+--
+-- Rules which apply to 'instrWrap' function work here as well.
+-- Although, unlike @instrWrap@, this function does not work for nullary
+-- constructors.
+instrUnwrapUnsafe
+  :: forall dt name st.
+     InstrUnwrapC dt name
+  => Label name
+  -> Instr (ToT dt ': st)
+           (ToT (CtorOnlyField name dt) ': st)
+instrUnwrapUnsafe _ =
+  gInstrUnwrapUnsafe @(G.Rep dt) @(LnrBranch (GetNamed name dt))
+                                 @(CtorOnlyField name dt)
+
+type InstrUnwrapC dt name =
+  ( IsoValue dt, Generic dt
+  , GInstrUnwrap (G.Rep dt)
+      (LnrBranch (GetNamed name dt))
+      (CtorOnlyField name dt)
+  , GValueType (G.Rep dt) ~ ToT dt
+  )
+
+-- | Try to unwrap a constructor with the given name.
+hsUnwrap
+  :: forall dt name.
+     InstrUnwrapC dt name
+  => Label name
+  -> dt
+  -> Maybe (CtorOnlyField name dt)
+hsUnwrap _ =
+  gHsUnwrap @(G.Rep dt) @(LnrBranch (GetNamed name dt))
+            @(CtorOnlyField name dt) .
+  G.from
+
+class GIsoValue x =>
+  GInstrUnwrap
+    (x :: Kind.Type -> Kind.Type)
+    (path :: Path)
+    (entryTy :: Kind.Type) where
+  gInstrUnwrapUnsafe
+    :: GIsoValue x
+    => Instr (GValueType x ': s) (ToT entryTy ': s)
+  gHsUnwrap
+    :: x p -> Maybe entryTy
+
+instance GInstrUnwrap x path e => GInstrUnwrap (G.D1 i x) path e where
+  gInstrUnwrapUnsafe = gInstrUnwrapUnsafe @x @path @e
+  gHsUnwrap = gHsUnwrap @x @path @e . G.unM1
+
+instance (GInstrUnwrap x path e, GIsoValue y, SingI (GValueType y)) =>
+         GInstrUnwrap (x :+: y) ('L ': path) e where
+  gInstrUnwrapUnsafe = IF_LEFT (gInstrUnwrapUnsafe @x @path @e) failWithWrongCtor
+  gHsUnwrap = \case
+    G.L1 x -> gHsUnwrap @x @path @e x
+    G.R1 _ -> Nothing
+
+instance (GInstrUnwrap y path e, GIsoValue x, SingI (GValueType x)) =>
+         GInstrUnwrap (x :+: y) ('R ': path) e where
+  gInstrUnwrapUnsafe = IF_LEFT failWithWrongCtor (gInstrUnwrapUnsafe @y @path @e)
+  gHsUnwrap = \case
+    G.R1 y -> gHsUnwrap @y @path @e y
+    G.L1 _ -> Nothing
+
+instance (IsoValue e) =>
+         GInstrUnwrap (G.C1 c (G.S1 i (G.Rec0 e))) '[] e where
+  gInstrUnwrapUnsafe = Nop
+  gHsUnwrap = Just . G.unK1 . G.unM1 . G.unM1
+
+-- | Failure indicating that we expected value created with one constructor,
+-- but got value with different one.
+failWithWrongCtor :: Instr i o
+failWithWrongCtor =
+  PUSH (toVal @Text "unwrapUnsafe: unexpected constructor") `Seq`
+  FAILWITH
+
+-- Examples
+----------------------------------------------------------------------------
+
+_unwrapMyType :: Instr (ToT MyType ': s) (ToT Integer ': s)
+_unwrapMyType = instrUnwrapUnsafe @MyType #cMyCtor
