@@ -17,6 +17,9 @@ module Michelson.Typed.Haskell.Instr.Sum
   , AppendCtorField
   , AppendCtorFieldAxiom
   , appendCtorFieldAxiom
+  , GetCtorField
+  , CtorHasOnlyField
+  , CtorOnlyField
   ) where
 
 import qualified Data.Kind as Kind
@@ -73,10 +76,13 @@ appendCtorFieldAxiom =
   -- In order to avoid a lot of boilerplate and burdening GHC type checker we
   -- write an unsafe code. Its correctness is tested in dummy constraints of
   -- this function.
+  -- Alternative approach I compare this unsafe one with
+  -- would be to implement @instance SingI@ for 'CtorField' and consider cases
+  -- of 'CtorField' one by one, but this would require propagading
+  -- @SingI (cf :: CtorField)@ constraint to all users of 'appendCtorFieldAxiom'.
   unsafeCoerce $ Dict @(AppendCtorFieldAxiom 'NoFields '[])
 
--- | Result of field or constructor lookup - entry type and path to it in
--- the tree.
+-- | Result of constructor lookup - entry type and path to it in the tree.
 data LookupNamedResult = LNR CtorField Path
 
 type family LnrFieldType (lnr :: LookupNamedResult) where
@@ -132,6 +138,27 @@ type family GExtractFields (x :: Kind.Type -> Kind.Type)
     --- ^ @martoon: Probably we will have no use cases for such scenario
     --- anyway, tuples seem to be not worse than separate fields in most cases.
 
+-- | Get type of constructor fields (one or zero) referred by given datatype
+-- and name.
+type GetCtorField dt ctor =
+  LnrFieldType (GetNamed ctor dt)
+
+-- | Expect referred constructor to have only one field (in form of constraint)
+-- and extract its type.
+type CtorHasOnlyField ctor dt f =
+  GetCtorField dt ctor ~ 'OneField f
+
+type family RequireOneField (ctor :: Symbol) (cf :: CtorField) :: Kind.Type where
+  RequireOneField _ ('OneField f) = f
+  RequireOneField ctor 'NoFields = TypeError
+    ('Text "Expected exactly one field" ':$$:
+     'Text "In constructor " ':<>: 'ShowType ctor)
+
+-- | Expect referred constructor to have only one field
+-- (otherwise compile error is raised) and extract its type.
+type CtorOnlyField name dt =
+  RequireOneField name (GetCtorField dt name)
+
 ----------------------------------------------------------------------------
 -- Constructor wrapping instruction
 ----------------------------------------------------------------------------
@@ -141,27 +168,29 @@ type family GExtractFields (x :: Kind.Type -> Kind.Type)
 -- Mentioned constructor must have only one field.
 --
 -- Since labels interpretable by "OverloadedLabels" extension cannot
--- start with capital latter, prepent constructor name with letter
+-- start with capital latter, prepend constructor name with letter
 -- "c" (see examples below).
 instrWrap
-  :: forall dt name entry st path.
-     InstrWrapC dt name entry st path
-  => Label name -> Instr (AppendCtorField entry st) (ToT dt ': st)
-instrWrap _ = gInstrWrap @name @(G.Rep dt) @path @entry
+  :: forall dt name st.
+     InstrWrapC dt name
+  => Label name
+  -> Instr (AppendCtorField (GetCtorField dt name) st)
+           (ToT dt ': st)
+instrWrap _ =
+  gInstrWrap @(G.Rep dt) @(LnrBranch (GetNamed name dt))
+                         @(LnrFieldType (GetNamed name dt))
 
-type InstrWrapC dt name entry st path =
+type InstrWrapC dt name =
   ( IsoValue dt
-  , GInstrWrap name (G.Rep dt)
+  , GInstrWrap (G.Rep dt)
       (LnrBranch (GetNamed name dt))
       (LnrFieldType (GetNamed name dt))
-  , 'LNR entry path ~ GetNamed name dt
   , GValueType (G.Rep dt) ~ ToT dt
   )
 
 -- | Generic traversal for 'instrWrap'.
 class GIsoValue x =>
   GInstrWrap
-    (name :: Symbol)
     (x :: Kind.Type -> Kind.Type)
     (path :: Path)
     (entryTy :: CtorField) where
@@ -169,22 +198,22 @@ class GIsoValue x =>
     :: GIsoValue x
     => Instr (AppendCtorField entryTy s) (GValueType x ': s)
 
-instance GInstrWrap name x path e => GInstrWrap name (G.D1 i x) path e where
-  gInstrWrap = gInstrWrap @name @x @path @e
+instance GInstrWrap x path e => GInstrWrap (G.D1 i x) path e where
+  gInstrWrap = gInstrWrap @x @path @e
 
-instance (GInstrWrap name x path e, GIsoValue y, SingI (GValueType y)) =>
-         GInstrWrap name (x :+: y) ('L ': path) e where
-  gInstrWrap = gInstrWrap @name @x @path @e `Seq` LEFT
+instance (GInstrWrap x path e, GIsoValue y, SingI (GValueType y)) =>
+         GInstrWrap (x :+: y) ('L ': path) e where
+  gInstrWrap = gInstrWrap @x @path @e `Seq` LEFT
 
-instance (GInstrWrap name y path e, GIsoValue x, SingI (GValueType x)) =>
-         GInstrWrap name (x :+: y) ('R ': path) e where
-  gInstrWrap = gInstrWrap @name @y @path @e `Seq` RIGHT
+instance (GInstrWrap y path e, GIsoValue x, SingI (GValueType x)) =>
+         GInstrWrap (x :+: y) ('R ': path) e where
+  gInstrWrap = gInstrWrap @y @path @e `Seq` RIGHT
 
 instance (IsoValue e) =>
-         GInstrWrap name (G.C1 c (G.S1 i (G.Rec0 e))) '[] ('OneField e) where
+         GInstrWrap (G.C1 c (G.S1 i (G.Rec0 e))) '[] ('OneField e) where
   gInstrWrap = Nop
 
-instance GInstrWrap name (G.C1 c G.U1) '[] 'NoFields where
+instance GInstrWrap (G.C1 c G.U1) '[] 'NoFields where
   gInstrWrap = PUSH VUnit
 
 -- Examples
