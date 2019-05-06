@@ -23,7 +23,7 @@ import Michelson.Typed.T (T(..))
 import qualified Michelson.Untyped as Un
 
 -- | Extracts 'T' type from 'Michelson.Untyped.Type'.
-fromUType :: Un.Type -> T
+fromUType :: HasCallStack => Un.Type -> T
 fromUType (Un.Type wholeT _) = conv wholeT
   where
     conv (Un.Tc ct) = Tc ct
@@ -40,7 +40,10 @@ fromUType (Un.Type wholeT _) = conv wholeT
     conv (Un.TLambda lT rT) = TLambda (fromUType lT) (fromUType rT)
     conv (Un.TMap (Un.Comparable key _) val) = TMap key (fromUType val)
     conv (Un.TBigMap (Un.Comparable key _) val) = TBigMap key (fromUType val)
-
+fromUType Un.TypeParameter
+  = error "Parameter implicit type cannot be represented in Typed.T"
+fromUType Un.TypeStorage
+  = error "Parameter implicit type cannot be represented in Typed.T"
 
 mkUType :: Sing x -> Notes x -> Un.Type
 mkUType sing notes = case (sing, notes) of
@@ -88,17 +91,26 @@ mkUType sing notes = case (sing, notes) of
   mt = Un.Type
   na = Un.noAnn
 
-data TypeConvergeError = TypeConvergeError Un.T T
+data TypeConvergeError
+  = TypeConvergeError Un.T T
+  | TParameterConvergeError
+  | TStorageConvergeError
   deriving (Show, Eq)
 
 instance Buildable TypeConvergeError where
   build (TypeConvergeError type1 type2) =
     "Failed to construct annotation, provided types do not match: "
     +| type1 |+ " /= " +| show type2
+  build (TParameterConvergeError) =
+    "Cannot converge TypeParameter"
+  build (TStorageConvergeError) =
+    "Cannot converge TypeStorage"
 
 -- | Extracts @Notes t@ type from 'Michelson.Type.Type' and corresponding
 -- singleton.
 extractNotes :: Un.Type -> Sing t -> Either TypeConvergeError (Notes t)
+extractNotes Un.TypeParameter _ = Left TParameterConvergeError
+extractNotes Un.TypeStorage _ = Left TStorageConvergeError
 extractNotes (Un.Type wholeT tn) s = conv wholeT s
   where
     conv :: Un.T -> Sing t -> Either TypeConvergeError (Notes t)

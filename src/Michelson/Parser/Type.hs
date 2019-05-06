@@ -2,6 +2,7 @@
 
 module Michelson.Parser.Type
   ( type_
+  , explicitType
   , comparable
   ) where
 
@@ -21,16 +22,29 @@ import Michelson.Untyped
 
 -- | Parse untyped Michelson 'Type` (i. e. one with annotations).
 type_ :: Parser Type
-type_ = (ti <|> parens ti) <|> (customFailure UnknownTypeException)
-  where
-    ti = snd <$> (lexeme $ typeInner (pure noAnn))
+type_ = typeHelper implicitTypes
 
-typeInner :: Parser FieldAnn -> Parser (FieldAnn, Type)
-typeInner fp = choice $ (\x -> x fp) <$>
-  [ t_ct, t_key, t_unit, t_signature, t_option, t_list, t_set, t_operation
-  , t_contract, t_pair, t_or, t_lambda, t_map, t_big_map, t_view, t_void
-  , t_letType
+-- | Parse only explicit `Type`, `Parameter` and `Storage` are prohibited
+explicitType :: Parser Type
+explicitType = typeHelper empty
+
+typeHelper :: Parser Type -> Parser Type
+typeHelper implicitParser = ti <|> parens ti <|> customFailure UnknownTypeException
+  where
+    ti = snd <$> (lexeme $ typeInner implicitParser (pure noAnn)) <|> implicitParser
+
+typeInner
+  :: Parser Type
+  -> Parser FieldAnn -> Parser (FieldAnn, Type)
+typeInner implicit fp = choice $ (\x -> x fp) <$>
+  [ t_ct, t_key, t_unit, t_signature, t_option implicit, t_list implicit, t_set
+  , t_operation, t_contract implicit, t_pair implicit, t_or implicit
+  , t_lambda implicit, t_map implicit, t_big_map implicit, t_view implicit
+  , t_void implicit, t_letType
   ]
+
+implicitTypes :: Parser Type
+implicitTypes = choice [t_parameter, t_storage]
 
 ----------------------------------------------------------------------------
 -- Comparable types
@@ -38,6 +52,12 @@ typeInner fp = choice $ (\x -> x fp) <$>
 
 comparable :: Parser Comparable
 comparable = let c = do ct' <- ct; Comparable ct' <$> noteTDef in parens c <|> c
+
+t_parameter :: Parser Type
+t_parameter = do void $ symbol' "Parameter"; return TypeParameter
+
+t_storage :: Parser Type
+t_storage = do void $ symbol' "Storage"; return TypeStorage
 
 t_ct :: (Default a) => Parser a -> Parser (a, Type)
 t_ct fp = do ct' <- ct; (f,t) <- fieldType fp; return (f, Type (Tc ct') t)
@@ -57,10 +77,10 @@ ct =  (symbol' "Int" >> return CInt)
 -- Non-comparable types
 ----------------------------------------------------------------------------
 
-field :: Parser (FieldAnn, Type)
-field = lexeme (fi <|> parens fi)
+field :: Parser Type -> Parser (FieldAnn, Type)
+field implicit = lexeme (fi <|> parens fi)
   where
-    fi = typeInner noteF
+    fi = typeInner implicit noteF
 
 t_key :: (Default a) => Parser a -> Parser (a, Type)
 t_key fp = do symbol' "Key"; (f,t) <- fieldType fp; return (f, Type TKey t)
@@ -71,11 +91,11 @@ t_signature fp = do symbol' "Signature"; (f, t) <- fieldType fp; return (f, Type
 t_operation :: (Default a) => Parser a -> Parser (a, Type)
 t_operation fp = do symbol' "Operation"; (f, t) <- fieldType fp; return (f, Type TOperation t)
 
-t_contract :: (Default a) => Parser a -> Parser (a, Type)
-t_contract  fp = do
+t_contract :: (Default a) => Parser Type -> Parser a -> Parser (a, Type)
+t_contract implicit fp = do
   symbol' "Contract"
   (f, t) <- fieldType fp
-  a <- type_
+  a <- typeHelper implicit
   return (f, Type (TContract a) t)
 
 t_unit :: (Default a) => Parser a -> Parser (a, Type)
@@ -84,87 +104,90 @@ t_unit fp = do
   (f,t) <- fieldType fp
   return (f, Type TUnit t)
 
-t_pair :: (Default a) => Parser a -> Parser (a, Type)
-t_pair fp = core <|> tuple
+t_pair :: (Default a) => Parser Type -> Parser a -> Parser (a, Type)
+t_pair implicit fp = core <|> tuple
   where
     core = do
       symbol' "Pair"
       (f, t) <- fieldType fp
-      (l, a) <- field
-      (r, b) <- field
+      (l, a) <- implicitF
+      (r, b) <- implicitF
       return (f, Type (TPair l r a b) t)
     tuple = try $ do
       symbol "("
-      (l, a) <- field
+      (l, a) <- implicitF
       comma
-      (r, b) <- tupleInner <|> field
+      (r, b) <- tupleInner <|> implicitF
       symbol ")"
       (f, t) <- fieldType fp
       return (f, Type (TPair l r a b) t)
     tupleInner = try $ do
-      (l, a) <- field
+      (l, a) <- field implicit
       comma
-      (r, b) <- tupleInner <|> field
+      (r, b) <- tupleInner <|> implicitF
       return (noAnn, Type (TPair l r a b) noAnn)
+    implicitF = field implicit <|> (,) <$> noteFDef <*> implicit
 
-t_or :: (Default a) => Parser a -> Parser (a, Type)
-t_or fp = core <|> bar
+t_or :: (Default a) => Parser Type -> Parser a -> Parser (a, Type)
+t_or implicit fp = core <|> bar
   where
     core = do
       symbol' "Or"
       (f, t) <- fieldType fp
-      (l, a) <- field
-      (r, b) <- field
+      (l, a) <- implicitF
+      (r, b) <- implicitF
       return (f, Type (TOr l r a b) t)
     bar = try $ do
       symbol "("
-      (l, a) <- field
+      (l, a) <- implicitF
       symbol "|"
-      (r, b) <- barInner <|> field
+      (r, b) <- barInner <|> implicitF
       symbol ")"
       (f, t) <- fieldType fp
       return (f, Type (TOr l r a b) t)
     barInner = try $ do
-      (l, a) <- field
+      (l, a) <- implicitF
       symbol "|"
-      (r, b) <- barInner <|> field
+      (r, b) <- barInner <|> implicitF
       return (noAnn, Type (TOr l r a b) noAnn)
+    implicitF = field implicit <|> (,) <$> noteFDef <*> implicit
 
-t_option :: (Default a) => Parser a -> Parser (a, Type)
-t_option fp = do
+t_option :: (Default a) => Parser Type -> Parser a -> Parser (a, Type)
+t_option implicit fp = do
   symbol' "Option"
   (f, t) <- fieldType fp
-  (fa, a) <- field
+  (fa, a) <- field implicit <|> (,) <$> noteFDef <*> implicit
   return (f, Type (TOption fa a) t)
 
-t_lambda :: (Default a) => Parser a -> Parser (a, Type)
-t_lambda fp = core <|> slashLambda
+t_lambda :: (Default a) => Parser Type -> Parser a -> Parser (a, Type)
+t_lambda implicit fp = core <|> slashLambda
   where
     core = do
       symbol' "Lambda"
       (f, t) <- fieldType fp
-      a <- type_
-      b <- type_
+      a <- implicitType
+      b <- implicitType
       return (f, Type (TLambda a b) t)
     slashLambda = do
       symbol "\\"
       (f, t) <- fieldType fp
-      a <- type_
+      a <- implicitType
       symbol "->"
-      b <- type_
+      b <- implicitType
       return (f, Type (TLambda a b) t)
+    implicitType = typeHelper implicit
 
 -- Container types
-t_list :: (Default a) => Parser a -> Parser (a, Type)
-t_list fp = core <|> bracketList
+t_list :: (Default a) => Parser Type -> Parser a -> Parser (a, Type)
+t_list implicit fp = core <|> bracketList
   where
     core = do
       symbol' "List"
       (f, t) <- fieldType fp
-      a <- type_
+      a <- typeHelper implicit
       return (f, Type (TList a) t)
     bracketList = do
-      a <- brackets type_
+      a <- brackets (typeHelper implicit)
       (f, t) <- fieldType fp
       return (f, Type (TList a) t)
 
@@ -181,42 +204,42 @@ t_set fp = core <|> braceSet
       (f, t) <- fieldType fp
       return (f, Type (TSet a) t)
 
-t_map :: (Default a) => Parser a -> Parser (a, Type)
-t_map fp = do
+t_map :: (Default a) => Parser Type -> Parser a -> Parser (a, Type)
+t_map implicit fp = do
   symbol' "Map"
   (f, t) <- fieldType fp
   a <- comparable
-  b <- type_
+  b <- typeHelper implicit
   return (f, Type (TMap a b) t)
 
-t_big_map :: (Default a) => Parser a -> Parser (a, Type)
-t_big_map fp = do
+t_big_map :: (Default a) => Parser Type -> Parser a -> Parser (a, Type)
+t_big_map implicit fp = do
   symbol' "BigMap" <|> symbol "big_map"
   (f, t) <- fieldType fp
   a <- comparable
-  b <- type_
+  b <- typeHelper implicit
   return (f, Type (TBigMap a b) t)
 
 ----------------------------------------------------------------------------
 -- Non-standard types (Morley extensions)
 ----------------------------------------------------------------------------
 
-t_view :: Default a => Parser a -> Parser (a, Type)
-t_view fp = do
+t_view :: Default a => Parser Type -> Parser a -> Parser (a, Type)
+t_view implicit fp = do
   symbol' "View"
-  a <- type_
-  r <- type_
+  a <- typeHelper implicit
+  r <- typeHelper implicit
   (f, t) <- fieldType fp
   let r' = Type (TOption noAnn r) noAnn
   let c = Type (TPair noAnn noAnn a r') noAnn
   let c' = Type (TContract c) noAnn
   return (f, Type (TPair noAnn noAnn a c') t)
 
-t_void :: Default a => Parser a -> Parser (a, Type)
-t_void fp = do
+t_void :: Default a => Parser Type -> Parser a -> Parser (a, Type)
+t_void implicit fp = do
   symbol' "Void"
-  a <- type_
-  b <- type_
+  a <- typeHelper implicit
+  b <- typeHelper implicit
   (f, t) <- fieldType fp
   let c = Type (TLambda b b) noAnn
   return (f, Type (TPair noAnn noAnn a c) t)

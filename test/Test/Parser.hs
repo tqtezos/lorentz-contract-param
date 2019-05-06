@@ -10,9 +10,11 @@ module Test.Parser
   , unit_lambda_type
   , unit_list_type
   , unit_set_type
+  , unit_explicitType
   , unit_Pair_constructor
   , unit_PrintComment
   , unit_ParserException
+  , unit_letType
   ) where
 
 import qualified Data.List.NonEmpty as NE
@@ -94,6 +96,8 @@ unit_pair_type :: Expectation
 unit_pair_type = do
   P.parseNoEnv P.type_ "" "pair unit unit" `shouldBe` Right unitPair
   P.parseNoEnv P.type_ "" "(unit, unit)" `shouldBe` Right unitPair
+  P.parseNoEnv P.type_ "" "(Parameter, (int, (Storage, bool)))"
+    `shouldSatisfy` isRight
   where
     unitPair :: Mo.Type
     unitPair =
@@ -103,6 +107,8 @@ unit_or_type :: Expectation
 unit_or_type = do
   P.parseNoEnv P.type_ "" "or unit unit" `shouldBe` Right unitOr
   P.parseNoEnv P.type_ "" "(unit | unit)" `shouldBe` Right unitOr
+  P.parseNoEnv P.type_ "" "Parameter | (int | (Storage | bool)))"
+    `shouldSatisfy` isRight
   where
     unitOr :: Mo.Type
     unitOr =
@@ -112,6 +118,7 @@ unit_lambda_type :: Expectation
 unit_lambda_type = do
   P.parseNoEnv P.type_ "" "lambda unit unit" `shouldBe` Right lambdaUnitUnit
   P.parseNoEnv P.type_ "" "\\unit -> unit" `shouldBe` Right lambdaUnitUnit
+  P.parseNoEnv P.type_ "" "lambda int (Storage, int)" `shouldSatisfy` isRight
   where
     lambdaUnitUnit :: Mo.Type
     lambdaUnitUnit =
@@ -121,6 +128,7 @@ unit_list_type :: Expectation
 unit_list_type = do
   P.parseNoEnv P.type_ "" "list unit" `shouldBe` Right unitList
   P.parseNoEnv P.type_ "" "[unit]" `shouldBe` Right unitList
+  P.parseNoEnv P.type_ "" "[(Parameter, Storage)]" `shouldSatisfy` isRight
   where
     unitList :: Mo.Type
     unitList =
@@ -134,6 +142,17 @@ unit_set_type = do
     intSet :: Mo.Type
     intSet =
       Mo.Type (Mo.TSet (Mo.Comparable Mo.CInt noAnn)) noAnn
+
+unit_explicitType :: Expectation
+unit_explicitType = do
+  P.parseNoEnv P.explicitType "" "Parameter" `shouldSatisfy` isLeft
+  P.parseNoEnv P.explicitType "" "Storage" `shouldSatisfy` isLeft
+  P.parseNoEnv P.explicitType "" "List Parameter" `shouldSatisfy` isLeft
+  P.parseNoEnv P.explicitType "" "Void int Parameter" `shouldSatisfy` isLeft
+  P.parseNoEnv P.explicitType "" "(Parameter, (int, (bool, Storage)))"
+    `shouldSatisfy` isLeft
+  P.parseNoEnv P.explicitType "" "int"
+    `shouldBe` (Right $ Mo.Type (Mo.Tc Mo.CInt) noAnn)
 
 unit_Pair_constructor :: Expectation
 unit_Pair_constructor = do
@@ -175,3 +194,9 @@ unit_ParserException = do
             [(ErrorCustom e)] -> e `shouldBe` customException
             _ -> expectationFailure "expecting single ErrorCustom"
           _ -> expectationFailure "expecting single ErrorCustom"
+
+unit_letType :: Expectation
+unit_letType = do
+  P.parseNoEnv P.letType "" "type kek = int" `shouldSatisfy` isRight
+  P.parseNoEnv P.letType "" "type Parameter = int" `shouldSatisfy` isLeft
+  P.parseNoEnv P.letType "" "type Storage = int" `shouldSatisfy` isLeft

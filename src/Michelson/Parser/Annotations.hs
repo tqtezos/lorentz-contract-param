@@ -1,6 +1,7 @@
 module Michelson.Parser.Annotations
   ( noteV
   , noteF
+  , noteFDef
   , noteTDef
   , noteVDef
   , notesTVF
@@ -49,6 +50,9 @@ noteV = U.ann <$> note "@"
 
 noteF :: Parser U.FieldAnn
 noteF = U.ann <$> note "%"
+
+noteFDef :: Parser U.FieldAnn
+noteFDef = parseDef noteF
 
 noteF2 :: Parser (U.FieldAnn, U.FieldAnn)
 noteF2 = do a <- noteF; b <- noteF; return (a, b)

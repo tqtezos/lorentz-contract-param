@@ -36,6 +36,7 @@ module Michelson.Macro
 
 import Data.Aeson.TH (defaultOptions, deriveJSON)
 import Data.Data (Data(..))
+import Data.Generics (everywhere, mkT)
 import qualified Data.Text as T
 import Fmt (Buildable(build), genericF, (+|), (|+))
 import qualified Text.PrettyPrint.Leijen.Text as PP (empty)
@@ -152,15 +153,21 @@ instance Buildable Macro where
   build (IF_SOME parsedOps1 parsedOps2) = "<IF_SOME: "+|parsedOps1|+", "+|parsedOps2|+">"
   build (IF_RIGHT parsedOps1 parsedOps2) = "<IF_RIGHT: "+|parsedOps1|+", "+|parsedOps2|+">"
 
----------------------------------------------------
-
 expandList :: [ParsedOp] -> [ExpandedOp]
 expandList = fmap expand
 
 -- | Expand all macros in parsed contract.
 expandContract :: Contract' ParsedOp -> Contract
 expandContract Contract {..} =
-  Contract para stor (expandList $ code)
+  Contract para stor (map (substituteTypes para stor) . expandList $ code)
+
+substituteTypes :: Parameter -> Storage -> ExpandedOp -> ExpandedOp
+substituteTypes param stor =
+  everywhere $ mkT $
+  \x -> case x of
+    TypeParameter -> param
+    TypeStorage -> stor
+    t@(Type {}) -> t
 
 -- Probably, some SYB can be used here
 expandValue :: ParsedValue -> Value

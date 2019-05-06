@@ -55,7 +55,12 @@ import Tezos.Core (Mutez, Timestamp)
 import Tezos.Crypto (KeyHash)
 
 -- Annotated type
-data Type = Type T TypeAnn
+data Type
+  = Type T TypeAnn
+  | TypeParameter
+  -- ^ Implicit Parameter type which can be used in contract code
+  | TypeStorage
+  -- ^ Implicit Storage type which can be used in contract code
   deriving (Eq, Show, Data, Generic)
 
 instance RenderDoc Comparable where
@@ -63,6 +68,8 @@ instance RenderDoc Comparable where
 
 instance RenderDoc Type where
   renderDoc (Type t ta) = renderType t (Just ta) Nothing
+  renderDoc TypeParameter = "Parameter"
+  renderDoc TypeStorage = "Storage"
 
 instance RenderDoc T where
   renderDoc t = renderType t Nothing Nothing
@@ -77,7 +84,12 @@ instance RenderDoc T where
 renderType :: T -> Maybe TypeAnn -> Maybe FieldAnn -> Doc
 renderType t mta mfa =
   let rta = case mta of Just ta -> renderDoc ta; Nothing -> ""
-      rfa = case mfa of Just fa -> renderDoc fa; Nothing -> "" in
+      rfa = case mfa of Just fa -> renderDoc fa; Nothing -> ""
+      renderer type_ mfa' =
+        case type_ of
+          Type tt ta -> renderType tt (Just ta) mfa'
+          tt -> renderDoc tt
+  in
   case t of
     Tc ct             -> wrapInParens $ renderDoc ct :| [rta, rfa]
     TKey              -> wrapInParens $ "key"  :| [rta, rfa]
@@ -87,34 +99,38 @@ renderType t mta mfa =
     TOption fa1 (Type t1 ta1) ->
       parens ("option" <+> rta <+> rfa
               <+> renderType t1 (Just ta1) (Just fa1))
+    TOption _fa1 t1 ->
+      parens ("option" <+> rta <+> rfa <+> renderDoc t1)
     TList (Type t1 ta1)       -> parens ("list" <+> rta <+> rfa <+> renderType t1 (Just ta1) Nothing)
+    TList t1                  -> parens ("list" <+> rta <+> rfa <+> renderDoc t1)
     TSet (Comparable ct1 ta1) -> parens ("set" <+> rta <+> rfa <+> renderType (Tc ct1) (Just ta1) Nothing)
     TContract (Type t1 ta1)   -> parens ("contract" <+> rta <+> rfa <+> renderType t1 (Just ta1) Nothing)
+    TContract t1              -> parens ("contract" <+> rta <+> rfa <+> renderDoc t1)
 
-    TPair fa1 fa2 (Type t1 ta1) (Type t2 ta2) ->
+    TPair fa1 fa2 t1 t2 ->
       parens ("pair" <+> rta <+> rfa
-              <+> (renderType t1 (Just ta1) (Just fa1))
-              <+> (renderType t2 (Just ta2) (Just fa2)))
+              <+> renderer t1 (Just fa1)
+              <+> renderer t2 (Just fa2))
 
-    TOr fa1 fa2 (Type t1 ta1) (Type t2 ta2) ->
+    TOr fa1 fa2 t1 t2 ->
       parens ("or" <+> rta <+> rfa
-              <+> (renderType t1 (Just ta1) (Just fa1))
-              <+> (renderType t2 (Just ta2) (Just fa2)))
+              <+> renderer t1 (Just fa1)
+              <+> renderer t2 (Just fa2))
 
-    TLambda (Type t1 ta1) (Type t2 ta2) ->
+    TLambda t1 t2 ->
       parens ("lambda" <+> rta <+> rfa
-              <+> (renderType t1 (Just ta1) Nothing)
-              <+> (renderType t2 (Just ta2) Nothing))
+             <+> renderer t1 Nothing
+             <+> renderer t2 Nothing)
 
-    TMap (Comparable ct1 ta1) (Type t2 ta2) ->
+    TMap (Comparable ct1 ta1) t2 ->
       parens ("map" <+> rta <+> rfa
               <+> (renderType (Tc ct1) (Just ta1) Nothing)
-              <+> (renderType t2 (Just ta2) Nothing))
+              <+> renderer t2 Nothing)
 
-    TBigMap (Comparable ct1 ta1) (Type t2 ta2) ->
+    TBigMap (Comparable ct1 ta1) t2 ->
       parens ("big_map" <+> rta <+> rfa
               <+> (renderType (Tc ct1) (Just ta1) Nothing)
-              <+> (renderType t2 (Just ta2) Nothing))
+              <+> renderer t2 Nothing)
 
 instance RenderDoc CT where
   renderDoc = \case

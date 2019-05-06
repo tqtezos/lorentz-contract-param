@@ -3,6 +3,8 @@
 module Michelson.Parser.Let
   ( letBlock
   , mkLetMac
+  -- * For tests
+  , letType
   ) where
 
 import Prelude hiding (try)
@@ -11,11 +13,12 @@ import qualified Data.Char as Char
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-import Text.Megaparsec (choice, satisfy, try)
+import Text.Megaparsec (choice, customFailure, satisfy, try)
 import Text.Megaparsec.Char (lowerChar, upperChar)
 
 import Michelson.Let (LetValue(..), LetType(..))
 import Michelson.Macro (ParsedOp(..), LetMacro(..))
+import Michelson.Parser.Error
 import Michelson.Parser.Ext
 import Michelson.Parser.Helpers
 import Michelson.Parser.Instr
@@ -81,6 +84,7 @@ letType :: Parser LetType
 letType = lexeme $ do
   symbol "type"
   n <- letName upperChar <|> letName lowerChar
+  when (n == "Parameter" || n == "Storage") (customFailure $ ProhibitedLetType n)
   symbol "="
   t <- type_
   case t of
@@ -88,6 +92,7 @@ letType = lexeme $ do
       if a == noAnn
       then return $ LetType n (Type t' (ann n))
       else return $ LetType n t
+    _ -> return $ LetType n t
 
 letValue :: Parser ParsedOp -> Parser LetValue
 letValue opParser = lexeme $ do
