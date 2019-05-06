@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveAnyClass, DerivingStrategies #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
--- | Impementation of @Store@ - object, incapsulating multiple 'BigMap's.
+-- | Impementation of @Store@ - object incapsulating multiple 'BigMap's.
 --
 -- We represent it as @big_map bytes (a | b | ...)@.
 --
@@ -41,8 +41,9 @@ module Lorentz.Store
   , StoreInsertC
   , StoreDeleteC
 
-    -- * Store creation from Haskell
+    -- * Store management from Haskell
   , storePiece
+  , storeLookup
   ) where
 
 import Data.Default (Default)

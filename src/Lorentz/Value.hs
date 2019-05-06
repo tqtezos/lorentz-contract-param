@@ -10,6 +10,7 @@ module Lorentz.Value
   , Integer
   , Natural
   , Text
+  , Bool
   , ByteString
   , Address
   , Mutez
