@@ -1,5 +1,7 @@
 module Lorentz.ADT
-  ( access_
+  ( HasField
+  , HasFieldOfType
+  , access_
   , get_
   , set_
   , modify_
@@ -30,38 +32,48 @@ import Michelson.Typed.Haskell.Instr
 import Michelson.Typed.Haskell.Value
 import Util.TypeTuple
 
+type HasField dt fname =
+  ( InstrGetC dt fname
+  , InstrSetC dt fname
+  )
+
+type HasFieldOfType dt fname fieldTy =
+  ( HasField dt fname
+  , GetFieldType dt fname ~ fieldTy
+  )
+
 -- | Extract a field of a datatype.
 --
 -- For this and the following functions you have to specify field name
 -- which is either record name or name attached with @(:!)@ operator.
 access_
-  :: forall dt name fieldTy st path.
-     InstrGetC dt name fieldTy path
-  => Label name -> dt & st :-> fieldTy & st
+  :: forall dt name st.
+     InstrGetC dt name
+  => Label name -> dt & st :-> GetFieldType dt name & st
 access_ = I . instrGet @dt
 
 -- | Extract a field of a datatype, leaving the original datatype on stack.
 get_
-  :: forall dt name fieldTy st path.
-     InstrGetC dt name fieldTy path
-  => Label name -> dt & st :-> fieldTy & dt ': st
+  :: forall dt name st.
+     InstrGetC dt name
+  => Label name -> dt & st :-> GetFieldType dt name & dt ': st
 get_ l = dup # access_ @dt l
 
 -- | Set a field of a datatype.
 set_
-  :: forall dt name fieldTy st path.
-     InstrSetC dt name fieldTy path
-  => Label name -> (fieldTy ': dt ': st) :-> (dt ': st)
+  :: forall dt name st.
+     InstrSetC dt name
+  => Label name -> (GetFieldType dt name ': dt ': st) :-> (dt ': st)
 set_ = I . instrSet @dt
 
 -- | Apply given modifier to a datatype field.
 modify_
-  :: forall dt name fieldTy st path.
-     ( InstrGetC dt name fieldTy path
-     , InstrSetC dt name fieldTy path
+  :: forall dt name st.
+     ( InstrGetC dt name
+     , InstrSetC dt name
      )
   => Label name
-  -> (forall st0. (fieldTy ': st0) :-> (fieldTy ': st0))
+  -> (forall st0. (GetFieldType dt name ': st0) :-> (GetFieldType dt name ': st0))
   -> dt & st :-> dt & st
 modify_ l i = get_ @dt l # i # set_ @dt l
 

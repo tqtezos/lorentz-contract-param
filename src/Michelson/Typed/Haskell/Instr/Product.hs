@@ -10,6 +10,7 @@ module Michelson.Typed.Haskell.Instr.Product
   , instrSet
   , instrConstruct
 
+  , GetFieldType
   , ConstructorFieldTypes
   , FieldConstructor (..)
   ) where
@@ -94,24 +95,29 @@ type family LNMergeFound
   LNMergeFound name ('Just _) ('Just _) = TypeError
     ('Text "Ambigous reference to datatype field: " ':<>: 'ShowType name)
 
+-- | Get type of field by datatype it is contained in and field name.
+type GetFieldType dt name = LnrFieldType (GetNamed name dt)
+
 ----------------------------------------------------------------------------
 -- Value accessing instruction
 ----------------------------------------------------------------------------
 
 -- | Make an instruction which accesses given field of the given datatype.
 instrGet
-  :: forall dt name fieldTy st path.
-     InstrGetC dt name fieldTy path
-  => Label name -> Instr (ToT dt ': st) (ToT fieldTy ': st)
-instrGet _ = gInstrGet @name @(G.Rep dt) @path @fieldTy
+  :: forall dt name st.
+     InstrGetC dt name
+  => Label name -> Instr (ToT dt ': st) (ToT (GetFieldType dt name) ': st)
+instrGet _ =
+  gInstrGet @name @(G.Rep dt) @(LnrBranch (GetNamed name dt))
+    @(GetFieldType dt name)
 
 -- | Constraint for 'instrGet'.
-type InstrGetC dt name fieldTy path =
+type InstrGetC dt name =
   ( IsoValue dt, Generic dt
   , GInstrGet name (G.Rep dt)
       (LnrBranch (GetNamed name dt))
       (LnrFieldType (GetNamed name dt))
-  , 'LNR fieldTy path ~ GetNamed name dt, GValueType (G.Rep dt) ~ ToT dt
+  , GValueType (G.Rep dt) ~ ToT dt
   )
 
 {- Note about bulkiness of `instrGet` type signature:
@@ -181,18 +187,20 @@ _getIntInstr2' = instrGet @MyType2 #getMyType1 `Seq` instrGet @MyType1 #int
 
 -- | For given complex type @dt@ and its field @fieldTy@ update the field value.
 instrSet
-  :: forall dt name fieldTy st path.
-     InstrSetC dt name fieldTy path
-  => Label name -> Instr (ToT fieldTy ': ToT dt ': st) (ToT dt ': st)
-instrSet _ = gInstrSet @name @(G.Rep dt) @path @fieldTy
+  :: forall dt name st.
+     InstrSetC dt name
+  => Label name -> Instr (ToT (GetFieldType dt name) ': ToT dt ': st) (ToT dt ': st)
+instrSet _ =
+  gInstrSet @name @(G.Rep dt) @(LnrBranch (GetNamed name dt))
+    @(GetFieldType dt name)
 
 -- | Constraint for 'instrSet'.
-type InstrSetC dt name fieldTy path =
+type InstrSetC dt name =
   ( IsoValue dt, Generic dt
   , GInstrSet name (G.Rep dt)
       (LnrBranch (GetNamed name dt))
       (LnrFieldType (GetNamed name dt))
-  , 'LNR fieldTy path ~ GetNamed name dt, GValueType (G.Rep dt) ~ ToT dt
+  , GValueType (G.Rep dt) ~ ToT dt
   )
 
 -- | Generic traversal for 'instrSet'.
