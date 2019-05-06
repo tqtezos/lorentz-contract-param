@@ -145,7 +145,7 @@ typeCheckValImpl _ sq@(U.ValueSeq (toList -> mels)) t@(STSet vt, _) = do
   els <- liftEither $ typeCheckCVals mels (fromSingCT vt)
           `onLeft` \(cv, err) -> TCFailedOnValue cv (fromSingT $ STc vt)
                                       "wrong type of set element:" (Just err)
-  elsS <- liftEither $ S.fromDistinctAscList <$> ensureDistinctAsc els
+  elsS <- liftEither $ S.fromDistinctAscList <$> ensureDistinctAsc id els
             `onLeft` \msg -> TCFailedOnValue sq (fromSingT $ STc vt) msg Nothing
   pure $ VSet elsS :::: t
 
@@ -157,7 +157,7 @@ typeCheckValImpl tcDo sq@(U.ValueMap (toList -> mels)) t@(STMap kt vt, ann) = do
                                       "wrong type of map key:" (Just err)
   let vn = notesCase NStar (\(NTMap _ _ nt) -> nt) ann
   (vals, _) <- typeCheckValsImpl tcDo (map (\(U.Elt _ v) -> v) mels) (vt, vn)
-  ksS <- liftEither $ ensureDistinctAsc ks
+  ksS <- liftEither $ ensureDistinctAsc id ks
         `onLeft` \msg -> TCFailedOnValue sq (fromSingT $ STc kt) msg Nothing
   pure $ VMap (M.fromDistinctAscList $ zip ksS vals) :::: t
 

@@ -1,4 +1,6 @@
 -- | Module, carrying logic of @PACK@ instruction.
+--
+-- This is nearly symmetric to adjacent Unpack.hs module.
 module Michelson.Interpret.Pack
   ( packValue
   , packValue'
@@ -268,7 +270,7 @@ encodeInstr = \case
   INT ->
     "\x03\x30"
   SELF ->
-    "\x03\x49"
+    error "SELF should not appear in lambda"
   CONTRACT _ | _ :: Proxy ('TOption ('TContract t) ': s) <- Proxy @out ->
     "\x05\x55" <> encodeT' @t
   TRANSFER_TOKENS ->
@@ -283,6 +285,8 @@ encodeInstr = \case
           , "\x05\x01" <> encodeT' @g
           , "\x05\x02" <> encodeInstrs instr
           ]
+    -- TODO [TM-96] These ^ should be encoded in the same order in which
+    -- they appear in the original code
     in "\x05\x1d" <> encodeList id contents
   IMPLICIT_ACCOUNT ->
    "\x03\x1e"

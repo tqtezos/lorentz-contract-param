@@ -29,6 +29,7 @@ library
                        Lorentz
                      , Michelson.Interpret
                      , Michelson.Interpret.Pack
+                     , Michelson.Interpret.Unpack
                      , Michelson.Let
                      , Michelson.Macro
                      , Michelson.Parser

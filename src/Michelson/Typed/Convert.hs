@@ -105,11 +105,12 @@ untypeCValue cVal = case cVal of
 
 instrToOps :: Instr inp out -> [U.ExpandedOp]
 instrToOps instr = case instr of
+  Seq i1 i2 -> instrToOps i1 <> instrToOps i2
   Nested sq -> one $ U.SeqEx $ instrToOps sq
   i -> U.PrimEx <$> handleInstr i
   where
     handleInstr :: Instr inp out -> [U.ExpandedInstr]
-    handleInstr (Seq i1 i2) = handleInstr i1 <> handleInstr i2
+    handleInstr (Seq _ _) = error "impossible"
     handleInstr Nop = []
     handleInstr (Ext (nop :: ExtInstr inp)) = [U.EXT $ extInstrToOps nop]
     handleInstr (Nested _) = error "impossible"
