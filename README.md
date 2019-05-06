@@ -7,13 +7,13 @@ effective.
 
 It consists of the following parts:
 
-- `Tezos.*` hierarchy is designed to implement cryptographic primitives, string and byte formats, and any other functionality specific to the Tezos protocol which is required for testing/execution of Michelson contracts but is used not only by Michelson.
-- `Michelson.Untyped` and `Michelson.Typed` hierarchies define Haskell data types that assemble a Michelson contract. See [michelsonTypes.md](/docs/michelsonTypes.md).
-- `Michelson.TypeCheck`: A typechecker that validates Michelson contracts according to the Michelson's typing rules. Essentially, it performs conversion from untyped representation to the typed one. See [morleyTypechecker.md](/docs/morleyTypechecker.md).
-- `Michelson.Interpret`: An interpreter for Michelson contracts which doesn't perform any side effects. See [morleyInterpreter.md](/docs/morleyInterpreter.md).
-- `Michelson.Macro` Types for macros, syntactic sugar, and other extensions that are described in the next chapter.
-- `Michelson.Parser` A parser to turn a `.tz` or `.mtz` file (`.mtz` is a Michelson contract with Morley extensions) into a Haskell ADT.
-- `Michelson.Runtime`: A high-level interface to Morley functionality, see [morleyRuntime.md](/docs/morleyRuntime.md).
+- [`Tezos.*`](/src/Tezos/) hierarchy is designed to implement cryptographic primitives, string and byte formats, and any other functionality specific to the Tezos protocol which is required for testing/execution of Michelson contracts but is used not only by Michelson.
+- [`Michelson.Untyped`](/src/Michelson/Untyped.hs) and [`Michelson.Typed`](src/Michelson/Typed.hs) hierarchies define Haskell data types that assemble a Michelson contract. See [michelsonTypes.md](/docs/michelsonTypes.md).
+- [`Michelson.TypeCheck`](/src/Michelson/TypeCheck.hs): A typechecker that validates Michelson contracts according to the Michelson's typing rules. Essentially, it performs conversion from untyped representation to the typed one. See [morleyTypechecker.md](/docs/morleyTypechecker.md).
+- [`Michelson.Interpret`](/src/Michelson/Interpret.hs): An interpreter for Michelson contracts which doesn't perform any side effects. See [morleyInterpreter.md](/docs/morleyInterpreter.md).
+- [`Michelson.Macro`](/src/Michelson/Macro.hs) Types for macros, syntactic sugar, and other extensions that are described in the next chapter.
+- [`Michelson.Parser`](/src/Michelson/Parser.hs) A parser to turn a `.tz` or `.mtz` file (`.mtz` is a Michelson contract with Morley extensions) into a Haskell ADT.
+- [`Michelson.Runtime`](/src/Michelson/Runtime.hs): A high-level interface to Morley functionality, see [morleyRuntime.md](/docs/morleyRuntime.md).
 
 ## II: Morley extensions
 

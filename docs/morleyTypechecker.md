@@ -30,7 +30,7 @@ You can see all the unresolved issues in our [issue tracker](https://issues.sero
 
 An internal structure of the typechecker is pretty well described in Haddock comments.
 Two main modules are:
-* `Michelson.TypeCheck.Value` contains logic for checking Michelson values.
-* `Michelson.TypeCheck.Instr` contains logic for checking Michelson instructions and the whole contract.
+* [`Michelson.TypeCheck.Value`](/src/Michelson/TypeCheck/Value.hs) contains logic for checking Michelson values.
+* [`Michelson.TypeCheck.Instr`](/src/Michelson/TypeCheck/Instr.hs) contains logic for checking Michelson instructions and the whole contract.
 
-Their functionality is re-exported from the `Michelson.TypeCheck` module along with some auxiliary types and functions.
+Their functionality is re-exported from the [`Michelson.TypeCheck`](/src/Michelson/TypeCheck.hs) module along with some auxiliary types and functions.
