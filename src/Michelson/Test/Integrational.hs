@@ -32,16 +32,17 @@ module Michelson.Test.Integrational
   , expectMichelsonFailed
   ) where
 
-import Control.Lens (assign, at, makeLenses, (.=), (<>=))
+import Control.Lens (assign, at, makeLenses, (.=), (<>=), (%=))
 import Control.Monad.Except (Except, runExcept, throwError)
 import qualified Data.List as List
-import Fmt (blockListF, pretty, (+|), (|+))
+import Data.Map as Map (empty, insert, lookup)
+import Fmt (Buildable(..), blockListF, pretty, (+|), (|+))
 import Test.Hspec (Expectation, expectationFailure)
 import Test.QuickCheck (Property)
 
 import Michelson.Interpret (InterpretUntypedError(..), MichelsonFailed(..), RemainingSteps)
 import Michelson.Runtime
-  (InterpreterError(..), InterpreterOp(..), InterpreterRes(..), interpreterPure)
+  (InterpreterError, InterpreterError'(..), InterpreterOp(..), InterpreterRes(..), interpreterPure)
 import Michelson.Runtime.GState
 import Michelson.Runtime.TxData
 import Michelson.Test.Dummy
@@ -60,6 +61,8 @@ data InternalState = InternalState
   , _isGState :: !GState
   , _isOperations :: ![InterpreterOp]
   -- ^ Operations to be interpreted when 'TOValidate' is encountered.
+  , _isContractsNames :: !(Map Address Text)
+  -- ^ Map from contracts addresses to humanreadable names.
   }
 
 makeLenses ''InternalState
@@ -74,17 +77,61 @@ makeLenses ''InternalState
 type IntegrationalValidator = Either (InterpreterError -> Bool) SuccessValidator
 
 -- | Validator for integrational testing that expects successful execution.
-type SuccessValidator = (GState -> [GStateUpdate] -> Either Text ())
+type SuccessValidator = (InternalState -> GState -> [GStateUpdate] -> Either ValidationError ())
 
 -- | A monad inside which integrational tests can be described using
 -- do-notation.
-type IntegrationalScenarioM = StateT InternalState (Except Text)
+type IntegrationalScenarioM = StateT InternalState (Except ValidationError)
 
 -- | A dummy data type that ensures that `validate` is called in the
 -- end of each scenario. It is intentionally not exported.
 data Validated = Validated
 
 type IntegrationalScenario = IntegrationalScenarioM Validated
+
+newtype ExpectedStorage = ExpectedStorage Value deriving (Show)
+newtype ExpectedBalance = ExpectedBalance Mutez deriving (Show)
+
+data AddressName = AddressName (Maybe Text) Address deriving (Show)
+
+addrToAddrName :: Address -> InternalState -> AddressName
+addrToAddrName addr iState =
+  AddressName (lookup addr (iState ^. isContractsNames)) addr
+
+instance Buildable AddressName where
+  build (AddressName mbName addr) =
+    build addr +| maybe "" (\cName -> " (" +|cName |+ ")") mbName
+
+type IntegrationalInterpreterError = InterpreterError' AddressName
+
+data ValidationError
+  = UnexpectedInterpreterError IntegrationalInterpreterError
+  | ExpectingInterpreterToFail
+  | IncorrectUpdates ValidationError [GStateUpdate]
+  | IncorrectStorageUpdate AddressName Text
+  | InvalidStorage AddressName ExpectedStorage Text
+  | InvalidBalance AddressName ExpectedBalance Text
+  | CustomError Text
+  deriving (Show)
+
+instance Buildable ValidationError where
+  build (UnexpectedInterpreterError iErr) =
+    "Unexpected interpreter error. Reason: " +| iErr |+ ""
+  build ExpectingInterpreterToFail =
+    "Interpreter unexpectedly didn't fail"
+  build (IncorrectUpdates vErr updates) =
+    "Updates are incorrect: " +| vErr |+ " . Updates are:"
+    +| blockListF updates |+ ""
+  build (IncorrectStorageUpdate addr msg) =
+    "Storage of " +| addr |+ "is updated incorrectly: " +| msg |+ ""
+  build (InvalidStorage addr (ExpectedStorage expected) msg) =
+    "Expected " +| addr |+ " to have storage " +| expected |+ ", but " +| msg |+ ""
+  build (InvalidBalance addr (ExpectedBalance expected) msg) =
+    "Expected " +| addr |+ " to have balance " +| expected |+ ", but " +| msg |+ ""
+  build (CustomError msg) = pretty msg
+
+instance Exception ValidationError where
+  displayException = pretty
 
 -- | Integrational test that executes given operations and validates
 -- them using given validator. It can fail using 'Expectation'
@@ -94,20 +141,23 @@ type IntegrationalScenario = IntegrationalScenarioM Validated
 -- by performing some operations.
 integrationalTestExpectation :: IntegrationalScenario -> Expectation
 integrationalTestExpectation =
-  integrationalTest (maybe pass (expectationFailure . toString))
+  integrationalTest (maybe pass (expectationFailure . pretty))
 
 -- | Integrational test similar to 'integrationalTestExpectation'.
 -- It can fail using 'Property' capability.
 -- It can be used with QuickCheck's @forAll@ to make a
 -- property-based test with arbitrary data.
 integrationalTestProperty :: IntegrationalScenario -> Property
-integrationalTestProperty = integrationalTest (maybe succeededProp failedProp)
+integrationalTestProperty =
+  integrationalTest (maybe succeededProp (failedProp . pretty))
 
 -- | Originate a contract with given initial storage and balance. Its
 -- address is returned.
-originate :: Contract -> Value -> Mutez -> IntegrationalScenarioM Address
-originate contract value balance =
-  mkContractAddress origination <$ putOperation originateOp
+originate :: Contract -> Text -> Value -> Mutez -> IntegrationalScenarioM Address
+originate contract contractName value balance = do
+  address <- mkContractAddress origination <$ putOperation originateOp
+  isContractsNames %= (insert address contractName)
+  pure address
   where
     origination = (dummyOrigination value contract) {ooBalance = balance}
     originateOp = OriginateOp origination
@@ -125,8 +175,9 @@ validate validator = Validated <$ do
   maxSteps <- use isMaxSteps
   gState <- use isGState
   ops <- use isOperations
+  iState <- get
   mUpdatedGState <-
-    lift $ validateResult validator $ interpreterPure now maxSteps gState ops
+    lift $ validateResult validator (interpreterPure now maxSteps gState ops) iState
   isOperations .= mempty
   whenJust mUpdatedGState $ \newGState -> isGState .= newGState
 
@@ -149,7 +200,7 @@ putOperation op = isOperations <>= one op
 
 -- | 'SuccessValidator' that always passes.
 expectAnySuccess :: SuccessValidator
-expectAnySuccess _ _ = pass
+expectAnySuccess _ _ _ = pass
 
 -- | Check that storage value is updated for given address. Takes a
 -- predicate that is used to check the value.
@@ -158,13 +209,14 @@ expectAnySuccess _ _ = pass
 -- updated more than once).
 expectStorageUpdate ::
      Address
-  -> (Value -> Either Text ())
+  -> (Value -> Either ValidationError ())
   -> SuccessValidator
-expectStorageUpdate addr predicate _ updates =
+expectStorageUpdate addr predicate is _ updates =
   case List.find checkAddr (reverse updates) of
-    Nothing -> Left $ "Storage of " +| addr |+ " is not updated"
+    Nothing -> Left $
+      IncorrectStorageUpdate (addrToAddrName addr is) "storage wasn't updated"
     Just (GSSetStorageValue _ val) ->
-      first (("Storage of " +| addr |+ "is updated incorrectly: ") <>) $
+      first (IncorrectStorageUpdate (addrToAddrName addr is) . pretty) $
       predicate val
     -- 'checkAddr' ensures that only 'GSSetStorageValue' can be found
     Just _ -> error "expectStorageUpdate: internal error"
@@ -177,42 +229,41 @@ expectStorageUpdateConst ::
      Address
   -> Value
   -> SuccessValidator
-expectStorageUpdateConst addr expected =
-  expectStorageUpdate addr predicate
+expectStorageUpdateConst addr expected is =
+  expectStorageUpdate addr predicate is
   where
     predicate val
       | val == expected = pass
-      | otherwise = Left $ "expected " +| expected |+ ""
+      | otherwise = Left $
+        IncorrectStorageUpdate (addrToAddrName addr is) $ pretty expected
 
 -- | Check that eventually address has some particular storage value.
 expectStorageConst :: Address -> Value -> SuccessValidator
-expectStorageConst addr expected gs _ =
+expectStorageConst addr expected is gs _ =
   case gsAddresses gs ^. at addr of
     Just (ASContract cs)
       | csStorage cs == expected -> pass
       | otherwise ->
-        Left $ intro +|  "its storage is " +| csStorage cs |+ ""
+        Left $ intro $ "its actual storage is: " <> (pretty $ csStorage cs)
     Just (ASSimple {}) ->
-      Left $ intro +| "it's a simple address"
-    Nothing -> Left $ intro +| "it's unknown"
+      Left $ intro $ "it's a simple address"
+    Nothing -> Left $ intro $ "it's unknown"
   where
-    intro = "Expected " +| addr |+ " to have storage " +| expected |+ ", but "
+    intro = InvalidStorage (addrToAddrName addr is) (ExpectedStorage expected)
 
 -- | Check that eventually address has some particular balance.
 expectBalance :: Address -> Mutez -> SuccessValidator
-expectBalance addr balance gs _ =
+expectBalance addr balance is gs _ =
   case gsAddresses gs ^. at addr of
     Nothing ->
       Left $
-      "Expected " +| addr |+ " to have balance " +| balance |+
-      ", but it's unknown"
+      InvalidBalance (addrToAddrName addr is) (ExpectedBalance balance) "it's unknown"
     Just (asBalance -> realBalance)
       | realBalance == balance -> pass
       | otherwise ->
         Left $
-        "Expected " +| addr |+ " to have balance " +| balance |+
-        ", but its balance is " +| realBalance |+ ""
-
+        InvalidBalance (addrToAddrName addr is) (ExpectedBalance balance) $
+        "its actual balance is: " <> pretty realBalance
 -- | Compose two success validators.
 --
 -- For example:
@@ -256,10 +307,11 @@ initIS = InternalState
   , _isMaxSteps = dummyMaxSteps
   , _isGState = initGState
   , _isOperations = mempty
+  , _isContractsNames = Map.empty
   }
 
 integrationalTest ::
-     (Maybe Text -> res)
+     (Maybe ValidationError -> res)
   -> IntegrationalScenario
   -> res
 integrationalTest howToFail scenario =
@@ -268,20 +320,33 @@ integrationalTest howToFail scenario =
 validateResult ::
      IntegrationalValidator
   -> Either InterpreterError InterpreterRes
-  -> Except Text (Maybe GState)
-validateResult validator result =
+  -> InternalState
+  -> Except ValidationError (Maybe GState)
+validateResult validator result iState =
   case (validator, result) of
     (Left validateError, Left err)
       | validateError err -> pure Nothing
     (_, Left err) ->
-      doFail $ "Unexpected interpreter error: " <> pretty err
+      doFail $ UnexpectedInterpreterError $ mkError err iState
     (Left _, Right _) ->
-      doFail $ "Interpreter unexpectedly didn't fail"
+      doFail $ ExpectingInterpreterToFail
     (Right validateUpdates, Right ir)
-      | Left bad <- validateUpdates (_irGState ir) (_irUpdates ir) ->
-        doFail $
-        "Updates are incorrect: " +| bad |+ ". Updates are: \n" +|
-        blockListF (_irUpdates ir) |+ ""
+      | Left bad <- validateUpdates iState (_irGState ir) (_irUpdates ir) ->
+        doFail $ IncorrectUpdates bad (_irUpdates ir)
       | otherwise -> pure $ Just $ _irGState ir
   where
     doFail = throwError
+    mkError
+      :: InterpreterError -> InternalState -> IntegrationalInterpreterError
+    mkError iErr is = case iErr of
+      IEUnknownContract addr -> IEUnknownContract $ addrToAddrName addr is
+      IEInterpreterFailed addr err ->
+        IEInterpreterFailed (addrToAddrName addr is) err
+      IEAlreadyOriginated addr cs ->
+        IEAlreadyOriginated (addrToAddrName addr is) cs
+      IEUnknownSender addr -> IEUnknownSender $ addrToAddrName addr is
+      IEUnknownManager addr -> IEUnknownManager $ addrToAddrName addr is
+      IENotEnoughFunds addr amount ->
+        IENotEnoughFunds (addrToAddrName addr is) amount
+      IEFailedToApplyUpdates err -> IEFailedToApplyUpdates err
+      IEIllTypedContract err -> IEIllTypedContract err

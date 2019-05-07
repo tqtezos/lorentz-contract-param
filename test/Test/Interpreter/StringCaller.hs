@@ -55,9 +55,9 @@ integrationalScenario stringCaller failOrStoreAndTransfer str = do
 
   -- Originate both contracts
   failOrStoreAndTransferAddress <-
-    originate failOrStoreAndTransfer (U.ValueString "hello") initFailOrStoreBalance
+    originate failOrStoreAndTransfer "failOrStoreAndTransfer" (U.ValueString "hello") initFailOrStoreBalance
   stringCallerAddress <-
-    originate stringCaller
+    originate stringCaller "stringCaller"
     (U.ValueString $ formatAddress failOrStoreAndTransferAddress)
     initStringCallerBalance
 

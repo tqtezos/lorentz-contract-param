@@ -86,7 +86,7 @@ specImpl (uSelfCaller, selfCaller) = modifyMaxSuccess (min 10) $ do
 integrationalScenario :: U.Contract -> Fixture -> IntegrationalScenario
 integrationalScenario uSelfCaller fixture = do
   setMaxSteps (fMaxSteps fixture)
-  address <- originate uSelfCaller (U.ValueInt 0) (unsafeMkMutez 1)
+  address <- originate uSelfCaller "self-caller" (U.ValueInt 0) (unsafeMkMutez 1)
   let
     txData :: TxData
     txData = TxData

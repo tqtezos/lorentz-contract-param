@@ -168,19 +168,19 @@ specImpl (counter, _) (feather, _) (callerAdd, _) (callerAppend, _) =
         toUntypedValue = T.untypeValue . T.toVal
 
       counterAddress <-
-        originate counter (toUntypedValue @CounterStorage fInitialCounter) initBalance
+        originate counter "counter" (toUntypedValue @CounterStorage fInitialCounter) initBalance
 
       let
         defaultFeatherValue =
           toUntypedValue @FeatherStorage (counterAddress, Nothing @Address)
 
       featherAddress <-
-        originate feather defaultFeatherValue initBalance
+        originate feather "feather" defaultFeatherValue initBalance
       cAddAddress <-
-        originate callerAdd
+        originate callerAdd "caller-add"
         (toUntypedValue @CallerAddStorage (fInitialSum, featherAddress)) initBalance
       cAppendAddress <-
-        originate callerAppend
+        originate callerAppend "caller-append"
         (toUntypedValue @CallerAppendStorage (fInitialList, featherAddress)) initBalance
 
       let
