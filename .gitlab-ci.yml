@@ -57,7 +57,7 @@ build-and-test:
         --test --no-run-tests
         --bench --no-run-benchmarks
         --haddock --no-haddock-deps
-    - stack test morley
+    - stack test morley --test-arguments="--xml=report/test_report.xml"
     # Run weeder after our code is built
     - weeder/bin/weeder .
     # Test EDSL examples
@@ -66,6 +66,10 @@ build-and-test:
   artifacts:
     paths:
       - tmp/morley
+      - report/test_report.xml
+    reports:
+      junit:
+        - report/*.xml
 
 test-shell-script:
   image: alpine

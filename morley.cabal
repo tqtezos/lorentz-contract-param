@@ -289,9 +289,11 @@ test-suite morley-test
                      , Test.Tezos.Crypto
                      , Test.Typecheck
                      , Test.Util.Contracts
+                     , Test.Util.Ingredients
                      , Test.Util.Parser
                      , Test.Util.QuickCheck
                      , Test.ValConversion
+                     , Tree
 
                      -- Workaround
                      , Test.Tasty.HUnit
@@ -321,6 +323,7 @@ test-suite morley-test
                      , quickcheck-instances
                      , singletons
                      , tasty
+                     , tasty-ant-xml
                      , tasty-hspec
                      , tasty-quickcheck
                      , text
