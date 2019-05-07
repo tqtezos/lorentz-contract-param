@@ -3,6 +3,7 @@
 module Michelson.Test.Import
   ( readContract
   , specWithContract
+  , specWithContractL
   , specWithTypedContract
   , specWithUntypedContract
   , importContract
@@ -15,10 +16,11 @@ import Data.Typeable ((:~:)(..), TypeRep, eqT, typeRep)
 import Fmt (Buildable(build), pretty, (+|), (|+), (||+))
 import Test.Hspec (Spec, describe, expectationFailure, it, runIO)
 
+import qualified Lorentz as L
 import Michelson.Parser.Error (ParserException(..))
 import Michelson.Runtime (parseExpandContract, prepareContract)
 import Michelson.TypeCheck (SomeContract(..), TCError, typeCheckContract)
-import Michelson.Typed (Contract)
+import Michelson.Typed (Contract, ToT)
 import qualified Michelson.Untyped as U
 
 -- | Import contract and use it in the spec. Both versions of contract are
@@ -28,9 +30,15 @@ import qualified Michelson.Untyped as U
 -- will be generated (so tests will run unexceptionally, but a failing
 -- result will notify about problem).
 specWithContract
-  :: (Typeable cp, Typeable st)
+  :: (Typeable cp, Typeable st, HasCallStack)
   => FilePath -> ((U.Contract, Contract cp st) -> Spec) -> Spec
 specWithContract = specWithContractImpl importContract
+
+-- | Like 'specWithContract', but for Lorentz types.
+specWithContractL
+  :: (Typeable (ToT cp), Typeable (ToT st), HasCallStack)
+  => FilePath -> ((U.Contract, L.Contract cp st) -> Spec) -> Spec
+specWithContractL file mkSpec = specWithContract file (mkSpec . second L.I)
 
 -- | A version of 'specWithContract' which passes only the typed
 -- representation of the contract.

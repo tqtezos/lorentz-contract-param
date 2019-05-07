@@ -5,6 +5,7 @@
 module Michelson.Test
   ( -- * Importing a contract
     specWithContract
+  , specWithContractL
   , specWithTypedContract
   , specWithUntypedContract
   , importUntypedContract

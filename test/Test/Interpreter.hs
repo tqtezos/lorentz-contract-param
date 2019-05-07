@@ -1,9 +1,11 @@
+{-# LANGUAGE DeriveAnyClass, DerivingStrategies #-}
+
 module Test.Interpreter
   ( spec_Interpreter
   ) where
 
 import Data.Singletons (SingI)
-import Fmt (pretty)
+import Fmt (pretty, (+|), (|+))
 import Test.Hspec (Expectation, Spec, describe, expectationFailure, it, shouldBe, shouldSatisfy)
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck (Property, label, (.&&.), (===))
@@ -15,7 +17,7 @@ import Michelson.Interpret
 import Michelson.Test (ContractPropValidator, contractProp, specWithTypedContract)
 import Michelson.Test.Dummy (dummyContractEnv)
 import Michelson.Test.Util (failedProp)
-import Michelson.Typed (CT(..), CValue(..), T(..), ToT, fromVal, toVal)
+import Michelson.Typed (CT(..), CValue(..), IsoValue(..), T(..))
 import qualified Michelson.Typed as T
 import Test.Interpreter.A1.Feather (featherSpec)
 import Test.Interpreter.Auction (auctionSpec)
@@ -141,8 +143,57 @@ spec_Interpreter = do
                           # L.drop # L.nil @T.Operation # L.pair
     contractProp (L.compileLorentzContract @() contract) (isRight . fst) dummyContractEnv () ()
 
-validateSuccess :: ContractPropValidator t Expectation
+  specWithTypedContract "contracts/union.mtz" $ \contract -> do
+    describe "Union corresponds to Haskell types properly" $ do
+      let caseTest param =
+            contractProp contract validateSuccess dummyContractEnv param ()
+
+      it "Case 1" $ caseTest (Case1 3)
+      it "Case 2" $ caseTest (Case2 "a")
+      it "Case 3" $ caseTest (Case3 $ Just "b")
+      it "Case 4" $ caseTest (Case4 $ Left "b")
+      it "Case 5" $ caseTest (Case5 ["q"])
+
+  specWithTypedContract "contracts/case.mtz" $ \contract -> do
+    describe "CASE instruction" $ do
+      let caseTest param expectedStorage =
+            contractProp contract (validateStorageIs @Text expectedStorage)
+              dummyContractEnv param ("" :: Text)
+
+      it "Case 1" $ caseTest (Case1 5) "int"
+      it "Case 2" $ caseTest (Case2 "a") "string"
+      it "Case 3" $ caseTest (Case3 $ Just "aa") "aa"
+      it "Case 4" $ caseTest (Case4 $ Right "b") "or string string"
+      it "Case 5" $ caseTest (Case5 $ ["a", "b"]) "ab"
+
+  specWithTypedContract "contracts/tag.mtz" $ \contract -> do
+    it "TAG instruction" $
+      let expected = mconcat ["unit", "o", "ab", "nat", "int"] :: Text
+      in contractProp contract (validateStorageIs expected) dummyContractEnv
+         () ("" :: Text)
+
+
+data Union1
+  = Case1 Integer
+  | Case2 Text
+  | Case3 (Maybe Text)
+  | Case4 (Either Text Text)
+  | Case5 [Text]
+  deriving stock (Generic)
+  deriving anyclass (IsoValue)
+
+validateSuccess :: ContractPropValidator st Expectation
 validateSuccess (res, _) = res `shouldSatisfy` isRight
+
+validateStorageIs
+  :: IsoValue st
+  => st -> ContractPropValidator (ToT st) Expectation
+validateStorageIs expected (res, _) =
+  case res of
+    Left err ->
+      expectationFailure $ "Unexpected interpretation failure: " +| err |+ ""
+    Right (_ops, got) ->
+      got `shouldBe` toVal expected
 
 validateBasic1
   :: [Integer] -> ContractPropValidator ('TList ('Tc 'CInt)) Property

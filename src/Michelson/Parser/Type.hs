@@ -19,6 +19,7 @@ import Michelson.Parser.Helpers
 import Michelson.Parser.Lexer
 import Michelson.Parser.Types (Parser, letTypes)
 import Michelson.Untyped
+import Util.Generic
 
 -- | Parse untyped Michelson 'Type` (i. e. one with annotations).
 type_ :: Parser Type
@@ -139,17 +140,14 @@ t_or implicit fp = core <|> bar
       return (f, Type (TOr l r a b) t)
     bar = try $ do
       symbol "("
-      (l, a) <- implicitF
-      symbol "|"
-      (r, b) <- barInner <|> implicitF
+      (_, Type ty _) <- barInner
       symbol ")"
       (f, t) <- fieldType fp
-      return (f, Type (TOr l r a b) t)
-    barInner = try $ do
-      (l, a) <- implicitF
-      symbol "|"
-      (r, b) <- barInner <|> implicitF
-      return (noAnn, Type (TOr l r a b) noAnn)
+      return (f, Type ty t)
+    barInner = do
+      fs <- sepBy2 implicitF (symbol "|")
+      let mergeTwo _ (l, a) (r, b) = (noAnn, Type (TOr l r a b) noAnn)
+      return $ mkGenericTree mergeTwo fs
     implicitF = field implicit <|> (,) <$> noteFDef <*> implicit
 
 t_option :: (Default a) => Parser Type -> Parser a -> Parser (a, Type)
