@@ -23,3 +23,10 @@
     - message:
       - name: Redundant build-depends entry
       - depends: base-noprelude
+  - section:
+    - name: test:morley-test
+    - message:
+      - name: Weeds exported
+      - identifier:
+        - ingredients
+        - main
