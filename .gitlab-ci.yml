@@ -17,7 +17,7 @@ variables:
   STACK_GLOBAL_CONFIG: "$CI_PROJECT_DIR/.stack-root/config.yaml"
   # Resolver that we use to build code outside our repository
   STACK_RESOLVER: "lts-13.3"
-  CROSSREF_VERIFIER_COMMIT: "b6c7cd6aea888690ec5b1df2c6ebf82da981cebc"
+  CROSSREF_VERIFIER_COMMIT: "77cba6ccf2d637325eae25585b11fedc37f69a98"
 
 before_script:
   - 'touch "$STACK_GLOBAL_CONFIG"'
@@ -135,6 +135,7 @@ verify-doc-links:
   script:
     - "git clone https://github.com/serokell/crossref-verifier.git || :"
     - cd crossref-verifier
+    - git fetch
     - git checkout $CROSSREF_VERIFIER_COMMIT
     - stack install --local-bin-path ./bin
       --resolver $STACK_RESOLVER
