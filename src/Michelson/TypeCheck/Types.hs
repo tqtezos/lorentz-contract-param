@@ -18,7 +18,8 @@ import qualified Data.Map.Lazy as Map
 
 import Michelson.EqParam (eqParam1)
 import Michelson.Untyped (Var, Type)
-import Michelson.Typed (HasNoOp, Notes(..), Sing(..), T(..), fromSingT)
+import Michelson.Typed
+  (HasNoBigMap, HasNoOp, Notes(..), Sing(..), BigMapConstraint, T(..), fromSingT)
 import qualified Michelson.Typed as T
 import Michelson.Typed.Instr
 import Michelson.Typed.Value
@@ -136,7 +137,8 @@ data SomeCValue where
 
 data SomeContract where
   SomeContract
-    :: Each [Typeable, SingI, HasNoOp] [st, cp]
+    :: (Each [Typeable, SingI, HasNoOp] [st, cp]
+       , HasNoBigMap cp, BigMapConstraint st)
     => Contract cp st
     -> HST (ContractInp cp st)
     -> HST (ContractOut st)

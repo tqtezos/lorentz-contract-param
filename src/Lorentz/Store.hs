@@ -167,7 +167,7 @@ type GetStoreValue store name = MSValue (GetStore name store)
 
 packKey
   :: forall (idx :: CtorIdx) t s.
-     (KnownNat idx, Typeable t, SingI t, HasNoOp t)
+     (KnownNat idx, Typeable t, SingI t, HasNoOp t, HasNoBigMap t)
   => Instr (t : s) (ToT ByteString : s)
 packKey =
   PUSH (toVal . natVal $ Proxy @idx) `Seq`
@@ -175,7 +175,7 @@ packKey =
   PACK
 
 type StoreOpC store name =
-  ( Each [Typeable, SingI, HasNoOp] '[ToT (MSKey (GetStore name store))]
+  ( Each [Typeable, SingI, HasNoOp, HasNoBigMap] '[ToT (MSKey (GetStore name store))]
   , KnownNat (MSCtorIdx (GetStore name store))
   )
 

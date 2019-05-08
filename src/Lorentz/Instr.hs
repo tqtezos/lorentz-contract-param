@@ -82,7 +82,9 @@ import Lorentz.Base
 import Lorentz.Constraints
 import Lorentz.Polymorphic
 import Lorentz.Value
-import Michelson.Typed (Instr(..), Notes(NStar), ToT, Value'(..), forbiddenOp)
+import Michelson.Typed
+  (Instr(..), Notes(NStar), ToT, Value'(..), checkBigMapConstraint, forbiddenBigMap,
+  forbiddenOp)
 import Michelson.Typed.Arith
 
 nop :: s :-> s
@@ -97,8 +99,8 @@ dup = I DUP
 swap :: a & b & s :-> b & a & s
 swap = I SWAP
 
-push :: forall t s .(KnownValue t, NoOperation t, IsoValue t) => t -> (s :-> t & s)
-push a = I $ forbiddenOp @(ToT t) $ PUSH (toVal a)
+push :: forall t s .(KnownValue t, NoOperation t, NoBigMap t, IsoValue t) => t -> (s :-> t & s)
+push a = I $ forbiddenOp @(ToT t) $ forbiddenBigMap @(ToT t) $ PUSH (toVal a)
 
 some :: a & s :-> Maybe a & s
 some = I SOME
@@ -198,11 +200,15 @@ failWith = I FAILWITH
 cast :: KnownValue a => (a & s :-> a & s)
 cast = I CAST
 
-pack :: forall a s. (KnownValue a, NoOperation a) => a & s :-> ByteString & s
-pack = I $ forbiddenOp @(ToT a) PACK
+pack
+  :: forall a s. (KnownValue a, NoOperation a, NoBigMap a)
+  => a & s :-> ByteString & s
+pack = I $ forbiddenOp @(ToT a) $ forbiddenBigMap @(ToT a) PACK
 
-unpack :: forall a s. (KnownValue a, NoOperation a) => ByteString & s :-> Maybe a & s
-unpack = I $ forbiddenOp @(ToT a) UNPACK
+unpack
+  :: forall a s. (KnownValue a, NoOperation a, NoBigMap a)
+  => ByteString & s :-> Maybe a & s
+unpack = I $ forbiddenOp @(ToT a) $ forbiddenBigMap @(ToT a) UNPACK
 
 concat :: ConcatOpHs c => c & c & s :-> c & s
 concat = I CONCAT
@@ -308,9 +314,9 @@ contract :: (KnownValue p) => Address & s :-> Maybe (ContractAddr p) & s
 contract = I (CONTRACT NStar)
 
 transferTokens
-  :: forall p s. (KnownValue p, NoOperation p)
+  :: forall p s. (KnownValue p, NoOperation p, NoBigMap p)
   => p & Mutez & ContractAddr p & s :-> Operation & s
-transferTokens = I $ forbiddenOp @(ToT p) TRANSFER_TOKENS
+transferTokens = I $ forbiddenOp @(ToT p) $ forbiddenBigMap @(ToT p) TRANSFER_TOKENS
 
 setDelegate :: Maybe KeyHash & s :-> Operation & s
 setDelegate = I SET_DELEGATE
@@ -320,13 +326,15 @@ createAccount :: KeyHash & Maybe KeyHash & Bool & Mutez & s
 createAccount = I CREATE_ACCOUNT
 
 
-createContract :: forall p g s.
-                  (KnownValue p, NoOperation p, KnownValue g, NoOperation g)
-               => '[(p, g)] :-> '[(List Operation, g)]
-               -> KeyHash & Maybe KeyHash & Bool & Bool & Mutez & g & s
-               :-> Operation & Address & s
+createContract
+  :: forall p g s. (KnownValue p, NoOperation p, KnownValue g, NoOperation g
+                   , NoBigMap p, CanHaveBigMap g)
+  => '[(p, g)] :-> '[(List Operation, g)]
+  -> KeyHash & Maybe KeyHash & Bool & Bool & Mutez & g & s
+  :-> Operation & Address & s
 createContract (I c) =
-  I $ forbiddenOp @(ToT p) $ forbiddenOp @(ToT g) (CREATE_CONTRACT c)
+  I $ forbiddenOp @(ToT p) $ forbiddenOp @(ToT g) $
+  forbiddenBigMap @(ToT p) $ checkBigMapConstraint @(ToT g) $ CREATE_CONTRACT c
 
 implicitAccount :: KeyHash & s :-> ContractAddr () & s
 implicitAccount = I IMPLICIT_ACCOUNT

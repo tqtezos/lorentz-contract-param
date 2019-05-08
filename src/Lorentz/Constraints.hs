@@ -1,7 +1,9 @@
 module Lorentz.Constraints
-  ( KnownValue
+  ( CanHaveBigMap
+  , KnownValue
   , KnownCValue
   , NoOperation
+  , NoBigMap
   ) where
 
 import Data.Singletons (SingI)
@@ -15,3 +17,7 @@ type KnownCValue a = (IsoValue a, Typeable (ToCT a), SingI (ToCT a))
 
 -- | Ensure given type does not contain "operation".
 type NoOperation a = ForbidOp (ToT a)
+
+type NoBigMap a = ForbidBigMap (ToT a)
+
+type CanHaveBigMap a = AllowBigMap (ToT a)
