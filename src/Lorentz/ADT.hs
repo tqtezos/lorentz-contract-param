@@ -4,6 +4,7 @@ module Lorentz.ADT
   , set_
   , modify_
   , construct
+  , constructT
   , fieldCtor
   , wrap_
   , case_
@@ -82,6 +83,18 @@ construct
 construct fctors =
   I $ instrConstruct @dt $
   rmap (\(FieldConstructor i) -> FieldConstructor i) fctors
+
+-- | Version of 'construct' which accepts tuple of field constructors.
+constructT
+  :: forall dt fctors st.
+     ( InstrConstructC dt
+     , RMap (ConstructorFieldTypes dt)
+     , fctors ~ Rec (FieldConstructor st) (ConstructorFieldTypes dt)
+     , RecFromTuple fctors
+     )
+  => IsoRecTuple fctors
+  -> st :-> dt & st
+constructT = construct . recFromTuple
 
 -- | Lift an instruction to field constructor.
 fieldCtor :: (st :-> f & st) -> FieldConstructor st f

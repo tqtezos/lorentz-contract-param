@@ -20,9 +20,6 @@ import qualified Data.Kind as Kind
 import Michelson.Typed
 import Tezos.Core (Mutez)
 
--- | A useful property which holds for all 'CT' types.
-type IsComparable c = ToT c ~ 'Tc (ToCT c)
-
 -- | Lifted 'MemOpKey'.
 class ( MemOp (ToT c)
       , ToT (MemOpKeyHs c) ~ 'Tc (MemOpKey (ToT c))

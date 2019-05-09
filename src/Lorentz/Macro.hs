@@ -63,6 +63,12 @@ module Lorentz.Macro
   , unpair
   , setCar
   , setCdr
+  , setInsert
+  , mapInsert
+  , setInsertNew
+  , mapInsertNew
+  , deleteMap
+  , setDelete
 
   -- * Additional Morley macros
   , View (..)
@@ -85,6 +91,7 @@ import Lorentz.Constraints
 import Lorentz.Arith
 import Lorentz.Value
 import Michelson.Typed.Arith
+import Michelson.Typed.Haskell.Value
 import Util.Peano
 
 ----------------------------------------------------------------------------
@@ -362,6 +369,56 @@ ifRight l r = ifLeft r l
 ifSome
   :: (a & s :-> s') -> (s :-> s') -> (Maybe a & s :-> s')
 ifSome s n = ifNone n s
+
+-- | Various convenient instructions on maps.
+class MapInstrs map where
+  -- | Specialized version of 'update'.
+  mapUpdate :: IsComparable k => k : Maybe v : map k v : s :-> map k v : s
+
+  -- | Insert given element into map.
+  mapInsert :: IsComparable k => k : v : map k v : s :-> map k v : s
+  mapInsert = dip some # mapUpdate
+
+  -- | Insert given element into map, ensuring that it does not overwrite
+  -- any existing entry.
+  --
+  -- As first argument accepts container name (for error message).
+  mapInsertNew
+    :: (IsComparable k, KnownValue k)
+    => Text -> k : v : map k v : s :-> map k v : s
+
+  -- | Delete element from the map.
+  deleteMap
+    :: forall k v s. (IsComparable k, KnownValue k, KnownValue v)
+    => k : map k v : s :-> map k v : s
+  deleteMap = dip (none @v) # mapUpdate
+
+instance MapInstrs Map where
+  mapUpdate = update
+  mapInsertNew desc = failingWhenPresent desc # mapInsert
+instance MapInstrs BigMap where
+  mapUpdate = update
+  mapInsertNew desc = failingWhenPresent desc # mapInsert
+
+-- | Insert given element into set.
+--
+-- This is a separate function from 'updateMap' because stacks they operate with
+-- differ in length.
+setInsert :: IsComparable e => e & Set e & s :-> Set e & s
+setInsert = dip (push True) # update
+
+-- | Insert given element into set, ensuring that it does not overwrite
+-- any existing entry.
+--
+-- As first argument accepts container name.
+setInsertNew
+  :: (IsComparable e, KnownValue e)
+  => Text -> e & Set e & s :-> Set e & s
+setInsertNew desc = dip (push True) # failingWhenPresent desc # update
+
+-- | Delete given element from the set.
+setDelete :: IsComparable e => e & Set e & s :-> Set e & s
+setDelete = dip (push False) # update
 
 ----------------------------------------------------------------------------
 -- Additional Morley macros

@@ -8,6 +8,7 @@ module Michelson.Typed.Haskell.Value
   , ToTs
   , ToT'
   , ToTs'
+  , IsComparable
 
   , ContractAddr (..)
   , BigMap (..)
@@ -123,6 +124,9 @@ type family ToT' (t :: k) :: T where
 type family ToTs' (t :: [k]) :: [T] where
   ToTs' (t :: [T]) = t
   ToTs' (a :: [Kind.Type]) = ToTs a
+
+-- | A useful property which holds for all 'CT' types.
+type IsComparable c = ToT c ~ 'Tc (ToCT c)
 
 instance IsoValue Integer where
   type ToT Integer = 'Tc (ToCT Integer)

@@ -24,6 +24,8 @@ module Lorentz.Instr
   , mem
   , get
   , update
+  , failingWhenPresent
+  , updateNew
   , if_
   , ifCons
   , loop
@@ -32,6 +34,9 @@ module Lorentz.Instr
   , exec
   , dip
   , failWith
+  , failText
+  , failTagged
+  , failUnexpected
   , cast
   , pack
   , unpack
@@ -76,6 +81,8 @@ module Lorentz.Instr
 
 import Prelude hiding
   (EQ, GT, LT, abs, and, compare, concat, drop, get, map, not, or, some, swap, xor)
+
+import Fmt ((+|), (|+))
 
 import Lorentz.Arith
 import Lorentz.Base
@@ -191,7 +198,7 @@ lambda (I l) = I (LAMBDA $ VLam l)
 exec :: a & Lambda a b & s :-> b & s
 exec = I EXEC
 
-dip :: (s :-> s') -> (a & s :-> a & s')
+dip :: forall a s s'. (s :-> s') -> (a & s :-> a & s')
 dip (I a) = I (DIP a)
 
 failWith :: (KnownValue a) => a & s :-> t
@@ -374,3 +381,51 @@ sender = I SENDER
 
 address :: ContractAddr a & s :-> Address & s
 address = I ADDRESS
+
+----------------------------------------------------------------------------
+-- Non-canonical instructions
+----------------------------------------------------------------------------
+
+-- | Helper instruction.
+--
+-- Checks whether given key present in the storage and fails if it is.
+-- This instruction leaves stack intact.
+failingWhenPresent
+  :: forall c k s v st.
+     ( UpdOpHs c, MemOpHs c, k ~ UpdOpKeyHs c, k ~ MemOpKeyHs c
+     , KnownValue k
+     , st ~ (k & v & c & s)
+     )
+  => Text
+  -> st :-> st
+failingWhenPresent desc =
+  dip (dip dup # swap) # swap # dip dup # swap # mem #
+  if_ (failTagged @k errMsg) nop
+  where
+    errMsg = "Entry already exists in the container (" <> desc <> ")"
+
+-- | Like 'update', but throw an error on attempt to overwrite existing entry.
+updateNew
+  :: forall c k s.
+     ( UpdOpHs c, MemOpHs c, k ~ UpdOpKeyHs c, k ~ MemOpKeyHs c
+     , KnownValue k
+     )
+  => Text
+  -> k & UpdOpParamsHs c & c & s :-> c & s
+updateNew desc = failingWhenPresent desc # update
+
+-- | Fail with a given message.
+failText :: Text -> s :-> t
+failText msg = push msg # failWith
+
+-- | Fail with a given message and the top of the current stack.
+failTagged :: (KnownValue a) => Text -> a & s :-> t
+failTagged tag = push tag # pair # failWith
+
+-- | Fail, providing a reference to the place in the code where
+-- this function is called.
+--
+-- For internal errors only.
+failUnexpected :: HasCallStack => s :-> t
+failUnexpected =
+  failText $ "Unexpected failure\n" +| prettyCallStack callStack |+ ""

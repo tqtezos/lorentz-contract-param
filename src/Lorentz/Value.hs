@@ -9,7 +9,7 @@ module Lorentz.Value
   , Integer
   , Natural
   , Text
-  , Bool
+  , Bool (..)
   , ByteString
   , Address
   , Mutez
@@ -19,7 +19,9 @@ module Lorentz.Value
   , Signature
   , Set
   , Map
+  , M.BigMap
   , M.Operation
+  , Maybe (..)
   , List
   , M.ContractAddr (..)
   , unsafeMkMutez
