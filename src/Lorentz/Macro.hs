@@ -1,3 +1,6 @@
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE DeriveAnyClass #-}
+
 -- | Common Michelson macros defined using Lorentz syntax.
 module Lorentz.Macro
   ( -- * Compare
@@ -62,10 +65,11 @@ module Lorentz.Macro
   , setCdr
 
   -- * Additional Morley macros
-  , View
-  , Void_
+  , View (..)
+  , Void_ (..)
   , view_
   , void_
+  , mkVoid
   ) where
 
 import Prelude hiding (compare, some, swap)
@@ -364,22 +368,35 @@ ifSome s n = ifNone n s
 ----------------------------------------------------------------------------
 
 -- | @view@ type synonym as described in A1.
-type family View (a :: Kind.Type) (r :: Kind.Type) :: Kind.Type where
-  View a r = (a, (ContractAddr (a, Maybe r)))
+data View (a :: Kind.Type) (r :: Kind.Type) = View
+  { viewParam :: a
+  , viewCallbackTo :: ContractAddr (a, Maybe r)
+  } deriving stock Generic
+    deriving anyclass IsoValue
 
 view_ ::
      (KnownValue a, KnownValue r, NoOperation (a, r), NoBigMap (a, r))
   => (forall s0. (a, storage) & s0 :-> r : s0)
   -> View a r & storage & s :-> (List Operation, storage) & s
 view_ code =
+  coerce_ #
   unpair # dip (duupX @2) # dup # dip (pair # code # some) # pair # dip amount #
   transferTokens # nil # swap # cons # pair
 
 -- | @void@ type synonym as described in A1.
-type family Void_ (a :: Kind.Type) (b :: Kind.Type) :: Kind.Type where
-  Void_ a b = (a, Lambda b b)
+data Void_ (a :: Kind.Type) (b :: Kind.Type) = Void_
+  { voidParam :: a
+  , voidProxy :: Lambda b b
+  } deriving stock Generic
+    deriving anyclass IsoValue
 
-void_ :: (KnownValue b) =>
-  a & s :-> b & s' ->
-  Void_ a b & s :-> b & anything
-void_ code = unpair # swap # dip code # swap # exec # failWith
+mkVoid :: a -> Void_ a b
+mkVoid a = Void_ a nop
+
+void_
+  :: forall a b s s' anything.
+      (KnownValue b)
+  => a & s :-> b & s' -> Void_ a b & s :-> b & anything
+void_ code =
+  coerce_ @_ @(_, Lambda b b) #
+  unpair # swap # dip code # swap # exec # failWith

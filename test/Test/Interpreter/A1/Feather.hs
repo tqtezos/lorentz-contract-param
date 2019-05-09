@@ -206,7 +206,7 @@ specImpl (counter, _) (feather, _) (callerAdd, _) (callerAppend, _) =
           Antibump -> transferToCounter AntibumpCounter
           Bump -> transferToCounter BumpCounter
           Reset x -> transferToCounter $ ResetCounter x
-          HashCounter -> transferToCounter $ HashCount ((), L.nop)
+          HashCounter -> transferToCounter $ HashCount (L.mkVoid ())
           Add x -> transferToAdd $ Left x
           AddRecord -> transferToAdd $ Right ()
           Append x -> transferToAppend $ Left x

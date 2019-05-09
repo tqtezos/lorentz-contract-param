@@ -5,6 +5,7 @@ module Lorentz.Value
   ( Value
   , IsoValue (..)
   , IsoCValue (..)
+  , CValue (..)
   , Integer
   , Natural
   , Text
@@ -26,6 +27,7 @@ module Lorentz.Value
 
 import Michelson.Typed (IsoCValue(..), IsoValue(..), Value)
 import qualified Michelson.Typed as M
+import Michelson.Typed.CValue (CValue(..))
 import Tezos.Address (Address)
 import Tezos.Core (Mutez, Timestamp, unsafeMkMutez)
 import Tezos.Crypto (KeyHash, PublicKey, Signature)
