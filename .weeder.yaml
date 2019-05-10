@@ -30,3 +30,12 @@
       - identifier:
         - ingredients
         - main
+
+- package:
+  - name: morley-prelude
+  - section:
+    - name: library
+    - message:
+      - name: Redundant build-depends entry
+      - depends:
+        - base-noprelude
