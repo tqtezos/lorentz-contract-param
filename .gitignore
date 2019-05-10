@@ -2,3 +2,6 @@
 db.json
 .DS_Store
 TAGS
+
+# hpack
+**/*.cabal
