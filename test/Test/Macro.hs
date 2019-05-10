@@ -21,6 +21,12 @@ defPos = srcPos 1 1
 defICS :: InstrCallStack
 defICS = InstrCallStack [] defPos
 
+-- TODO: it seems to me that these duplicated "where" blocks should be
+-- replaced with some reasonable mini-EDSL - at least to facilitate tests
+-- writing - and that would be a rather big refactoring.
+-- Dunno how to deal with this duplication otherwise.
+{-# ANN module ("HLint: ignore Reduce duplication" :: Text) #-}
+
 unit_PAPAIR :: Expectation
 unit_PAPAIR = do
   expandPapair defICS pair n n `shouldBe` [primEx $ PAIR n n n n]

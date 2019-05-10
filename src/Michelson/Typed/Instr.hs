@@ -12,8 +12,7 @@ module Michelson.Typed.Instr
   , Contract
   ) where
 
-import Data.Singletons (SingI)
-import Data.Singletons (sing)
+import Data.Singletons (SingI(..))
 import Fmt ((+||), (||+))
 import qualified Text.Show
 

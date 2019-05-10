@@ -78,7 +78,8 @@ test_STACKTYPE =
     convertToHST :: [Type] -> SomeHST
     convertToHST [] = SomeHST SNil
     convertToHST (t : ts) = withSomeSingT (fromUType t) $ \sing ->
-      let nt = either (const $ error "unexpected trouble with extracting annotations") id (extractNotes t sing) in
+      let nt = fromRight (error "unexpected trouble with extracting annotations")
+                         (extractNotes t sing) in
       case convertToHST ts of
         SomeHST is -> SomeHST ((sing, nt, noAnn) ::& is)
 

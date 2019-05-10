@@ -12,7 +12,6 @@ module Test.Tasty.HUnit
   , testCaseSteps
   ) where
 
-import GHC.Stack (prettySrcLoc)
 import Test.HUnit (Assertion)
 import Test.HUnit.Lang (HUnitFailure(..), formatFailureReason)
 import Test.Tasty (TestName, TestTree)

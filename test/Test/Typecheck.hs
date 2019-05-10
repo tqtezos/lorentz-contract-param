@@ -13,7 +13,7 @@ import Data.Default (def)
 import qualified Data.Map as M
 import Data.Singletons (sing)
 import Test.Hspec (expectationFailure)
-import Test.Hspec.Expectations (Expectation, shouldBe)
+import Test.Hspec.Expectations (Expectation)
 import Test.HUnit (Assertion, assertFailure, (@?=))
 import Test.QuickCheck (total, within)
 import Test.Tasty (TestTree)
@@ -32,10 +32,10 @@ import Tezos.Address (Address, unsafeParseAddress)
 import Test.Util.Contracts (getIllTypedContracts, getWellTypedContracts)
 
 unit_Good_contracts :: Assertion
-unit_Good_contracts = mapM_ (\f -> checkFile [] True f (const $ pure ())) =<< getWellTypedContracts
+unit_Good_contracts = mapM_ (\f -> checkFile [] True f (const pass)) =<< getWellTypedContracts
 
 unit_Bad_contracts :: Assertion
-unit_Bad_contracts = mapM_ (\f -> checkFile [] False f (const $ pure ())) =<< getIllTypedContracts
+unit_Bad_contracts = mapM_ (\f -> checkFile [] False f (const pass)) =<< getIllTypedContracts
 
 test_OriginatedContracts :: [TestTree]
 test_OriginatedContracts =
@@ -49,7 +49,7 @@ test_OriginatedContracts =
     checkFile' [(cAddr, tPair string intQ)] False pushContrFile
   ]
   where
-    checkFile' a b f = checkFile a b f (const $ pure ())
+    checkFile' a b f = checkFile a b f (const pass)
     pushContrFile = "contracts/ill-typed/push_contract.tz"
     tPair t1 t2 = Type (TPair noAnn noAnn t1 t2) noAnn
     intP = Type (Tc CInt) "p"
@@ -63,12 +63,7 @@ pattern IsSrcPos l c <- InstrCallStack [] (SrcPos (Pos l) (Pos c))
 
 test_srcPosition :: [TestTree]
 test_srcPosition =
-  [ testCase "Unreachable code is handled properly" $ do
-      let file = "contracts/ill-typed/fail-before-nop.tz"
-      let ics = InstrCallStack [] (srcPos 3 13)
-      econtract <- readContract @'T.TUnit @'T.TUnit file <$> readFile file
-      econtract `shouldBe` Left (ICETypeCheck $ TCUnreachableCode ics $ one $ Un.WithSrcEx ics $ Un.SeqEx [])
-  , testProperty "Verify instruction position in a typecheck error" $ do
+  [ testProperty "Verify instruction position in a typecheck error" $ do
       checkIllFile "contracts/ill-typed/basic3.tz" $ \case
           TCFailedOnInstr (Un.CONS _) _ _ (IsSrcPos 4 6) (Just (AnnError _)) -> True
           _ -> False

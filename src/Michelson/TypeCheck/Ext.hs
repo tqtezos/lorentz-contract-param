@@ -17,7 +17,7 @@ import Michelson.TypeCheck.Types
 import Michelson.Typed (converge, extractNotes, mkUType)
 import qualified Michelson.Typed as T
 import Michelson.Untyped
-  (CT(..), ExpandedOp, Type, TyVar(..), StackFn, Var, VarAnn, inPattern, outPattern,
+  (CT(..), ExpandedOp, StackFn, TyVar(..), Type, Var, VarAnn, inPattern, outPattern,
   quantifiedVars, varSet)
 import qualified Michelson.Untyped as U
 import Util.Peano (Sing(SS, SZ))
@@ -76,7 +76,7 @@ checkVars :: Text -> StackFn -> Either ExtError ()
 checkVars t sf = case quantifiedVars sf of
   Just qs
     | varSet (inPattern sf) /= qs -> Left $ VarError t sf
-  _ -> pure ()
+  _ -> pass
 
 -- | Executes function body, pushing @ExtFrame@ onto the state and checks
 -- the pattern in @FN@.
