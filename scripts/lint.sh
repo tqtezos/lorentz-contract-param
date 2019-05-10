@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 
-hlint --hint .hlint.yaml --hint .hlint-universum.yaml src
+# To make tput work in gitlab runner
+export TERM="${TERM:-xterm}"
+
+hlint --hint .hlint.yaml --hint .hlint-universum.yaml */
 
 ex=$?
 

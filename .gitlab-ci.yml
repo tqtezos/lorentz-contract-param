@@ -153,3 +153,15 @@ verify-doc-links:
       --resolver $STACK_RESOLVER
     - cd ..
     - ./crossref-verifier/bin/crossref-verify -v --no-progress -m full
+
+lint:
+  stage: test
+  only:
+    refs:
+      - merge_requests
+    changes: *changes
+  script:
+    - rm -rf crossref-verifier  # TODO: remove in June
+    - stack --resolver $STACK_RESOLVER
+        install hlint
+    - ./scripts/lint.sh
