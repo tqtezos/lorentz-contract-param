@@ -3,7 +3,7 @@
 # To make tput work in gitlab runner
 export TERM="${TERM:-xterm}"
 
-hlint --hint .hlint.yaml --hint .hlint-universum.yaml */
+hlint --hint .hlint.yaml --hint .hlint-universum.yaml --ignore='Parse error' */
 
 ex=$?
 
