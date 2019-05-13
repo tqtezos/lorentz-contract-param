@@ -11,7 +11,7 @@ another describing your solution.
 <!--
 - Short description of how the MR relates to the issue, including an issue link.
 For example
-- Fixed #1 by adding lenses to exported items
+- Fixed #999 by adding lenses to exported items
 
 Write 'None' if there are no related issues (which is discouraged).
 -->
