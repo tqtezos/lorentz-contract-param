@@ -109,7 +109,7 @@ parsePackSpec name suites =
   forM_ @[_] testMethods $ \(TestMethod mname method) ->
     describe mname $
       describe name $ forM_ suites $ \(codeText, packed) ->
-        it (toString codeText) $ do
+        it (truncateName $ toString codeText) $ do
           parsed <- Parser.codeEntry `shouldParse` codeText
           let code = expandList parsed
           let _ :/ typed = typeCheckList code initStack
@@ -128,6 +128,9 @@ parsePackSpec name suites =
                 Nothing ->
                   error "Output type unexpectedly mismatched"
   where
+    truncateName s
+      | length s < 60 = s
+      | otherwise = take 60 s <> " ..."
     initTypeCheckST = error "Type check state is not defined"
     initStack = (sing @inp, NStar, noAnn) ::& SNil
 

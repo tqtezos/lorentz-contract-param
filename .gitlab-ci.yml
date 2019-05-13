@@ -39,10 +39,12 @@ build-and-test:
       - stack.yaml
       - test.bats
       - app/**/*
-      - src/**/*
-      - prelude/**/*
+      - contracts/**/*
       - examples/EDSL/**/*
+      - prelude/**/*
       - scripts/morley.sh
+      - src/**/*
+      - test/**/*
   script:
     - mkdir -p ./weeder/bin
     - stack --resolver $STACK_RESOLVER --local-bin-path ./weeder/bin
