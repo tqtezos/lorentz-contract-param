@@ -17,7 +17,7 @@ variables:
   STACK_GLOBAL_CONFIG: "$CI_PROJECT_DIR/.stack-root/config.yaml"
   # Resolver that we use to build code outside our repository
   STACK_RESOLVER: "lts-13.3"
-  CROSSREF_VERIFIER_COMMIT: "77cba6ccf2d637325eae25585b11fedc37f69a98"
+  CROSSREF_VERIFIER_COMMIT: "b3615befce62a483699e1705fd6715c7135820e6"
 
 before_script:
   - 'touch "$STACK_GLOBAL_CONFIG"'
