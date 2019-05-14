@@ -1,0 +1,102 @@
+<<: !include "./hpack/module.yaml"
+
+name:                morley
+version:             0.2.0.1
+synopsis:            Developer tools for the Michelson Language
+description:
+  A library to make writing smart contracts in Michelson — the smart contract
+  language of the Tezos blockchain — pleasant and effective.
+category:            Language
+extra-source-files:
+  - CHANGES.md
+  - CONTRIBUTING.md
+  - README.md
+
+library:
+  <<: *lib-common
+
+  dependencies:
+    - aeson
+    - aeson-options
+    - aeson-pretty
+    - base16-bytestring
+    - base58-bytestring
+    - binary
+    - bytestring
+    - constraints
+    - containers
+    - cryptonite
+    - data-default
+    - fmt
+    - formatting
+    - ghc-prim
+    - hex-text
+    - hspec
+    - lens
+    - megaparsec >= 7.0.0
+    - memory
+    - morley-prelude
+    - mtl
+    - named
+    - parser-combinators >= 1.0.0
+    - QuickCheck
+    - singletons
+    - syb
+    - template-haskell
+    - text
+    - time
+    - timerep
+    # ↓ We don't use it, but otherwise Hackage fails
+    - transformers-compat == 0.6.2
+    - vector
+    - vinyl
+    - wl-pprint-text
+
+executables:
+  morley:
+    <<: *exec-common
+
+    generated-other-modules:
+      - Paths_morley
+
+    dependencies:
+      - fmt
+      - morley
+      - morley-prelude
+      - named
+      - optparse-applicative
+      - pretty-simple
+
+tests:
+  morley-test:
+    <<: *test-common
+
+    dependencies:
+      - aeson
+      - base-noprelude >= 4.7 && < 5
+      - bytestring
+      - containers
+      - directory
+      - filepath
+      - fmt
+      - formatting
+      - generic-arbitrary
+      - hex-text
+      - hspec
+      - hspec-expectations
+      - HUnit
+      - lens
+      - megaparsec >= 7.0.0
+      - morley
+      - morley-prelude
+      - mtl
+      - named
+      - QuickCheck
+      - quickcheck-arbitrary-adt
+      - quickcheck-instances
+      - singletons
+      - tasty
+      - tasty-ant-xml
+      - tasty-hspec
+      - tasty-quickcheck
+      - text
