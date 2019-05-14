@@ -89,12 +89,12 @@ fieldCtor (I i) = FieldConstructor i
 
 -- | Wrap entry in constructor. Useful for sum types.
 wrap_
-  :: forall dt name entry st path.
-     ( InstrWrapC dt name entry st path
-     , AppendCtorFieldAxiom entry st
-     )
-  => Label name -> (AppendCtorField entry st) :-> dt & st
-wrap_ = I . instrWrap @dt
+  :: forall dt name st.
+     InstrWrapC dt name
+  => Label name -> (AppendCtorField (GetCtorField dt name) st) :-> dt & st
+wrap_ =
+  case appendCtorFieldAxiom @(GetCtorField dt name) @st of
+    Dict -> I . instrWrap @dt
 
 -- | Lorentz analogy of 'CaseClause', it works on plain 'Kind.Type' types.
 data CaseClauseL (inp :: [Kind.Type]) (out :: [Kind.Type]) (param :: CaseClauseParam) where
@@ -128,10 +128,10 @@ case_
 case_ = I . instrCase @dt . rmap coerceCaseClause
   where
     coerceCaseClause
-      :: forall ccp. ()
-      => CaseClauseL inp out ccp -> CaseClause (ToTs inp) (ToTs out) ccp
+      :: forall clauses.
+         CaseClauseL inp out clauses -> CaseClause (ToTs inp) (ToTs out) clauses
     coerceCaseClause (CaseClauseL (I cc)) =
-      CaseClause $ case Proxy @ccp of
+      CaseClause $ case Proxy @clauses of
         (_ :: Proxy ('CaseClauseParam ctor cc)) ->
           case appendCtorFieldAxiom @cc @inp of Dict -> cc
 

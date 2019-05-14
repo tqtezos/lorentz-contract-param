@@ -4,10 +4,11 @@ module Test.Interpreter.Walker
   ( walkerSpec
   ) where
 
+import Data.Default (def)
 import Fmt ((+|), (|+))
-import Test.Hspec (Expectation, Spec, expectationFailure, it, shouldBe)
+import Test.Hspec (Expectation, Spec, expectationFailure, it)
 
-import Lorentz (compileLorentz)
+import Lorentz (compileLorentz, storeLookup, storePiece)
 import Michelson.Test (ContractPropValidator, contractRepeatedProp)
 import Michelson.Test.Dummy
 import qualified Michelson.Typed as T
@@ -18,15 +19,15 @@ import Test.Lorentz.Contracts.Walker
 -- | Spec to test walker contract.
 walkerSpec :: Spec
 walkerSpec = do
-  it "Go right" $
-    walkerProp [GoRight]
-      Storage{ pos = Position 1 0, power = 0, iterId = 0 }
+  it "Go " $
+    walkerProp def [GoRight]
+      (\s -> pos s == Position 1 0)
 
   it "Go left" $
-    walkerProp [GoLeft]
-      Storage{ pos = Position (-1) 0, power = 0, iterId = 0 }
+    walkerProp def [GoLeft]
+      (\s -> pos s == Position (-1) 0)
 
-  it "Walk a lot" $
+  it "Walk a lot (ADT test)" $
     let commands = mconcat
           [ replicate 1 GoUp
           , replicate 2 GoLeft
@@ -35,8 +36,8 @@ walkerSpec = do
           , replicate 4 GoRight
           , one $ Boost (#coef1 .! 3, #coef2 .! 999)
           ]
-    in walkerProp commands
-      Storage{ pos = Position 2 (-2), power = 8, iterId = 0 }
+    in walkerProp def commands
+      (\s -> pos s == Position 2 (-2) && power s == 8)
 
   it "Reset" $
     let commands = mconcat
@@ -45,23 +46,46 @@ walkerSpec = do
           , one $ Reset 2
           , replicate 1 GoRight
           ]
-    in walkerProp commands
-      Storage{ pos = Position 1 0, power = 0, iterId = 2 }
+    in walkerProp def commands
+      (\s -> pos s == Position 1 0 && iterId s == 2)
 
-  it "Too large boost" $
-    walkerProp [Boost (#coef1 .! 999, #coef2 .! 999)]
-      Storage{ pos = Position 0 0, power = 100, iterId = 0 }
+  it "Too large boost (`if then else` test)" $
+    walkerProp def [Boost (#coef1 .! 999, #coef2 .! 999)]
+      (\s -> power s == 100)
 
-walkerProp :: [Parameter] -> Storage -> Expectation
-walkerProp params (T.toVal -> expected) =
+  it "Power ups work (`Store` access test)" $
+    walkerProp
+      def{ world = mconcat
+           [ storePiece #cPowerUps (Position 1 1) (BoostPowerUp 7)
+           ]
+         }
+      [GoRight, GoUp]
+      (\s -> power s == 7)
+
+  it "Visited cells tracking works (`Store` insert test)" $
+    walkerProp
+      def
+      [GoRight, GoUp]
+      $ \s -> and
+         [ storeLookup #cVisited (Position 1 1) (world s) == Just ()
+         , storeLookup #cVisited (Position 0 0) (world s) == Nothing
+         , storeLookup #cVisited (Position 1 0) (world s) == Just ()
+         , storeLookup #cVisited (Position 0 1) (world s) == Nothing
+         ]
+
+walkerProp :: Storage -> [Parameter] -> (Storage -> Bool) -> Expectation
+walkerProp storage params predicate =
   contractRepeatedProp
     (compileLorentz walkerContract)
-    (validateFinishedWith ([], expected))
-    dummyContractEnv params Storage{ pos = Position 0 0, power = 0, iterId = 0 }
+    (validateStorageSatisfies (predicate . T.fromVal))
+    dummyContractEnv params storage
 
-validateFinishedWith
-  :: ([T.Operation], T.Value st)
+validateStorageSatisfies
+  :: (T.Value st -> Bool)
   -> ContractPropValidator st Expectation
-validateFinishedWith expected (res, _) = case res of
+validateStorageSatisfies predicate (res, _) = case res of
   Left err -> expectationFailure $ "Interpretation failed: " +| err |+ ""
-  Right got -> got `shouldBe` expected
+  Right (_, got) ->
+    if predicate got
+    then pass
+    else expectationFailure $ "Bad resulting storage: " <> show got

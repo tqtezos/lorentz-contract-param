@@ -13,6 +13,7 @@ module Michelson.Typed.Haskell.Value
   ) where
 
 import qualified Data.Kind as Kind
+import Data.Default (Default)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import GHC.Generics ((:*:)(..), (:+:)(..))
@@ -173,6 +174,8 @@ instance IsoValue (ContractAddr cp) where
   fromVal (VContract a) = ContractAddr a
 
 newtype BigMap k v = BigMap { unBigMap :: Map k v }
+  deriving stock (Eq, Show)
+  deriving newtype (Default, Semigroup, Monoid)
 
 instance (Ord k, ToCVal k, FromCVal k, IsoValue v) => IsoValue (BigMap k v) where
   type ToT (BigMap k v) = 'TBigMap (ToCT k) (ToT v)
