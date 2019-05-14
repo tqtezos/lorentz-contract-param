@@ -27,8 +27,9 @@ module Test.Util.QuickCheck
   ( ShowThroughBuild (..)
 
   -- * Roundtrip properties
-  , roundtripSpec
-  , roundtripSpecSTB
+  , roundtripTest
+  , roundtripADTTest
+  , roundtripTestSTB
   , aesonRoundtrip
   ) where
 
@@ -36,9 +37,11 @@ import Data.Aeson (FromJSON(..), ToJSON(..))
 import qualified Data.Aeson as Aeson
 import Data.Typeable (typeRep)
 import Fmt (Buildable, pretty)
-import Test.Hspec (Spec)
-import Test.Hspec.QuickCheck (prop)
-import Test.QuickCheck (Arbitrary, Property, (===))
+import Test.Tasty (TestTree)
+import Test.Tasty.QuickCheck (Property, testProperty, (===), (.&&.))
+import Test.QuickCheck (Arbitrary, ioProperty, generate)
+import Test.QuickCheck.Arbitrary.ADT
+  (ADTArbitrary(..), ConstructorArbitraryPair(..), ToADTArbitrary(..))
 import qualified Text.Show (show)
 
 ----------------------------------------------------------------------------
@@ -60,43 +63,66 @@ instance Show (ShowThroughBuild ByteString) where
 -- Formatting
 ----------------------------------------------------------------------------
 
--- | This 'Spec' contains a property based test for conversion from
+-- | This 'TestTree' contains a property based test for conversion from
 -- some @x@ to some @y@ and back to @x@ (it should successfully return
 -- the initial @x@).
-roundtripSpec ::
+roundtripTest ::
      forall x y err.
      ( Show x
+     , Show err
      , Typeable x
      , Arbitrary x
      , Eq x
-     , Show err
      , Eq err
      )
   => (x -> y)
   -> (y -> Either err x)
-  -> Spec
-roundtripSpec xToY yToX = prop typeName check
+  -> TestTree
+roundtripTest xToY yToX = testProperty typeName check
   where
     typeName = show $ typeRep (Proxy @x)
     check :: x -> Property
     check x = yToX (xToY x) === Right x
 
--- | Version of 'roundtripSpec' which shows values using 'Buildable' instance.
-roundtripSpecSTB ::
+roundtripADTTest ::
      forall x y err.
-     ( Show (ShowThroughBuild x)
+     ( Show x
+     , Show err
      , Typeable x
-     , Arbitrary x
+     , ToADTArbitrary x
      , Eq x
-     , Show (ShowThroughBuild err)
      , Eq err
      )
   => (x -> y)
   -> (y -> Either err x)
-  -> Spec
-roundtripSpecSTB xToY yToX = roundtripSpec (xToY . unSTB) (bimap STB STB . yToX)
+  -> TestTree
+roundtripADTTest xToY yToX = testProperty typeName $ ioProperty prop
+  where
+    prop :: IO Property
+    prop = do
+      adt <- generate $ toADTArbitrary (Proxy @x)
+      return $
+        foldr (.&&.) z $ map (check . capArbitrary) $ adtCAPs adt
+    typeName = show $ typeRep (Proxy @x)
+    check x = yToX (xToY x) === Right x
+    z = True === True
+
+-- | Version of 'roundtripTest' which shows values using 'Buildable' instance.
+roundtripTestSTB ::
+     forall x y err.
+     ( Show (ShowThroughBuild x)
+     , Show (ShowThroughBuild err)
+     , Typeable x
+     , Arbitrary x
+     , Eq x
+     , Eq err
+     )
+  => (x -> y)
+  -> (y -> Either err x)
+  -> TestTree
+roundtripTestSTB xToY yToX = roundtripTest (xToY . unSTB) (bimap STB STB . yToX)
 
 aesonRoundtrip ::
      forall x. (Show (ShowThroughBuild x), ToJSON x, FromJSON x, Typeable x, Arbitrary x, Eq x)
-  => Spec
-aesonRoundtrip = roundtripSpecSTB (Aeson.encode @x) Aeson.eitherDecode
+  => TestTree
+aesonRoundtrip = roundtripTestSTB (Aeson.encode @x) Aeson.eitherDecode

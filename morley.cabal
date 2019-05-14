@@ -310,7 +310,6 @@ test-suite morley-test
                      , hex-text
                      , hspec
                      , hspec-expectations
-                     , hspec-golden-aeson
                      , HUnit
                      , lens
                      , megaparsec >= 7.0.0
