@@ -6,6 +6,7 @@ module Michelson.TypeCheck.TypeCheck
   , TypeCheck
   , runTypeCheck
   , TypeCheckInstr
+  , runTypeCheckTest
 
   , tcContractParamL
   , tcContractsL
@@ -39,6 +40,20 @@ makeLensesWith postfixLFields ''TypeCheckEnv
 runTypeCheck :: U.Type -> TcOriginatedContracts -> TypeCheck a -> Either TCError a
 runTypeCheck param contracts act =
   evaluatingState (TypeCheckEnv [] param contracts) $ runExceptT act
+
+-- | Run type checker as if it worked isolated from other world -
+-- no access to environment of the current contract is allowed.
+--
+-- Use this function for test purposes only.
+runTypeCheckTest :: TypeCheck a -> Either TCError a
+runTypeCheckTest = evaluatingState initSt . runExceptT
+  where
+  initSt =
+    TypeCheckEnv
+    { tcExtFrames = []
+    , tcContractParam = error "Contract param touched"
+    , tcContracts = mempty
+    }
 
 type TcResult inp = Either TCError (SomeInstr inp)
 
