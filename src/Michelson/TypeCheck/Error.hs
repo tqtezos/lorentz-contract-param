@@ -10,6 +10,7 @@ import Data.Data (TypeRep)
 import Fmt (Buildable(..), pretty, (+|), (+||), (|+), (||+))
 import qualified Text.Show (show)
 
+import Michelson.ErrorPos (InstrCallStack)
 import Michelson.TypeCheck.Types (SomeHST(..))
 import qualified Michelson.Typed as T
 import Michelson.Typed.Annotation (AnnConvergeError(..))
@@ -47,21 +48,23 @@ instance Buildable TCTypeError where
 
 -- | Type check error
 data TCError
-  = TCFailedOnInstr U.ExpandedInstr SomeHST Text (Maybe TCTypeError)
-  | TCFailedOnValue U.Value T.T Text (Maybe TCTypeError)
+  = TCFailedOnInstr U.ExpandedInstr SomeHST Text InstrCallStack (Maybe TCTypeError)
+  | TCFailedOnValue U.Value T.T Text InstrCallStack (Maybe TCTypeError)
   | TCContractError Text (Maybe TCTypeError)
-  | TCUnreachableCode (NonEmpty U.ExpandedOp)
-  | TCExtError SomeHST ExtError
+  | TCUnreachableCode InstrCallStack (NonEmpty U.ExpandedOp)
+  | TCExtError SomeHST InstrCallStack ExtError
   deriving (Eq)
 
+-- TODO pva701: an instruction position should be used in
+-- Buildable instance within TM-151.
 instance Buildable TCError where
   build = \case
-    TCFailedOnInstr instr (SomeHST t) custom mbTCTypeError ->
+    TCFailedOnInstr instr (SomeHST t) custom _ mbTCTypeError ->
       "Error checking expression "
       +| instr |+ " against input stack type "
       +| t ||+ bool (": " +| custom |+ " ") "" (null custom)
       +| (maybe "" (\e -> " " +| e |+ "") mbTCTypeError)
-    TCFailedOnValue v t custom mbTCTypeError ->
+    TCFailedOnValue v t custom _ mbTCTypeError ->
       "Error checking value "
       +| v |+ " against type "
       +| toUType t |+ bool (": " +| custom |+ " ") "" (null custom)
@@ -69,9 +72,9 @@ instance Buildable TCError where
     TCContractError msg typeError ->
       "Error occured during contract typecheck: "
       +|| msg ||+ (maybe "" (\e -> " " +| e |+ "") typeError)
-    TCUnreachableCode instrs ->
+    TCUnreachableCode _ instrs ->
       "Unreachable code: " +| take 3 (toList instrs) |+ " ..."
-    TCExtError (SomeHST t) e ->
+    TCExtError (SomeHST t) _ e ->
       "Error occured during Morley extension typecheck: "
       +| e |+ " on stack " +| t ||+ ""
 

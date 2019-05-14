@@ -10,6 +10,7 @@ import Test.QuickCheck.Instances.ByteString ()
 import Test.QuickCheck.Instances.Semigroup ()
 import Test.QuickCheck.Instances.Text ()
 
+import Michelson.ErrorPos (InstrCallStack(..), LetName(..), Pos(..), SrcPos(..))
 import Michelson.Test ()
 import Michelson.Untyped
   (Annotation(..), CT(..), Comparable(..), Contract'(..), Elt(..), ExpandedExtInstr,
@@ -33,9 +34,25 @@ instance Arbitrary StackTypePattern where
 instance Arbitrary ExpandedExtInstr where
   arbitrary = oneof [STACKTYPE <$> arbitrary]
 
+instance ToADTArbitrary Pos
+instance Arbitrary Pos where
+  arbitrary = Pos <$> arbitrary
+
+instance ToADTArbitrary SrcPos
+instance Arbitrary SrcPos where
+  arbitrary = liftA2 SrcPos arbitrary arbitrary
+
+instance ToADTArbitrary LetName
+instance Arbitrary LetName where
+  arbitrary = LetName <$> arbitrary
+
+instance ToADTArbitrary InstrCallStack
+instance Arbitrary InstrCallStack where
+  arbitrary = liftA2 InstrCallStack (vector 2) arbitrary
+
 instance ToADTArbitrary ExpandedOp
 instance Arbitrary ExpandedOp where
-  arbitrary = PrimEx <$> arbitrary
+  arbitrary = liftA2 WithSrcEx arbitrary (PrimEx <$> arbitrary)
 
 instance ToADTArbitrary Mutez
 

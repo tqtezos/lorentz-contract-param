@@ -25,6 +25,7 @@ import qualified Data.Bits as Bits
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import Data.Constraint (Dict(..))
+import Data.Default (def)
 import qualified Data.Kind as Kind
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -389,7 +390,7 @@ decodeTypeCheckLam UnpackEnv{..} uinstr =
                 tout = Type TUnit noAnn
             in throwError $
               TCFailedOnInstr (LAMBDA noAnn tinp tout uinstr) (SomeHST inp)
-              "Unexpected lambda output type" (Just err)
+              "Unexpected lambda output type" def (Just err)
       AnyOutInstr instr ->
         return instr
   where

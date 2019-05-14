@@ -28,8 +28,11 @@ module Michelson.Parser
 import Prelude hiding (try)
 
 import Control.Applicative.Permutations (intercalateEffect, toPermutation)
-import Text.Megaparsec (Parsec, choice, eitherP, parse, try)
+import Text.Megaparsec (Parsec, choice, eitherP, getSourcePos, parse, try)
+import Text.Megaparsec.Pos (SourcePos(..), unPos)
 
+import Michelson.ErrorPos (SrcPos(..), mkPos)
+import Michelson.Macro (LetMacro, Macro(..), ParsedInstr, ParsedOp(..), ParsedValue)
 import Michelson.Parser.Error
 import Michelson.Parser.Ext
 import Michelson.Parser.Instr
@@ -39,7 +42,6 @@ import Michelson.Parser.Macro
 import Michelson.Parser.Type
 import Michelson.Parser.Types
 import Michelson.Parser.Value
-import Michelson.Macro (Macro(..), ParsedOp(..), ParsedInstr, ParsedValue)
 import Michelson.Untyped
 
 ----------------------------------------------------------------------------
@@ -116,14 +118,38 @@ codeEntry = ops
 parsedOp :: Parser ParsedOp
 parsedOp = do
   lms <- asks letMacros
+  pos <- getSrcPos
   choice
-    [ (Prim . EXT) <$> extInstr ops
-    , LMac <$> mkLetMac lms
-    , Prim <$> prim
-    , Mac <$> macro parsedOp
+    [ flip Prim pos <$> (EXT <$> extInstr ops)
+    , lmacWithPos (mkLetMac lms)
+    , flip Prim pos <$> prim
+    , flip Mac pos <$> macro parsedOp
     , primOrMac
-    , Seq <$> ops
+    , flip Seq pos <$> ops
     ]
+  where
+    lmacWithPos :: Parser LetMacro -> Parser ParsedOp
+    lmacWithPos act = do
+      srcPos <- getSrcPos
+      flip LMac srcPos <$> act
+
+getSrcPos :: Parser SrcPos
+getSrcPos = do
+  sp <- getSourcePos
+  let l = unPos $ sourceLine sp
+  let c = unPos $ sourceColumn sp
+  -- reindexing starting from 0
+  pure $ SrcPos (mkPos $ l - 1) (mkPos $ c - 1)
+
+primWithPos :: Parser ParsedInstr -> Parser ParsedOp
+primWithPos act = do
+  srcPos <- getSrcPos
+  flip Prim srcPos <$> act
+
+macWithPos :: Parser Macro -> Parser ParsedOp
+macWithPos act = do
+  srcPos <- getSrcPos
+  flip Mac srcPos <$> act
 
 ops :: Parser [ParsedOp]
 ops = ops' parsedOp
@@ -135,15 +161,17 @@ ops = ops' parsedOp
 
 ifOrIfX :: Parser ParsedOp
 ifOrIfX = do
+  pos <- getSrcPos
   symbol' "IF"
   a <- eitherP cmpOp ops
   case a of
-    Left cmp -> Mac <$> (IFX cmp <$> ops <*> ops)
-    Right op -> Prim <$> (IF op <$> ops)
+    Left cmp -> flip Mac pos <$> (IFX cmp <$> ops <*> ops)
+    Right op -> flip Prim pos <$> (IF op <$> ops)
 
 -- Some of the operations and macros have the same prefixes in their names
 -- So this case should be handled separately
 primOrMac :: Parser ParsedOp
-primOrMac = ((Mac <$> ifCmpMac parsedOp) <|> ifOrIfX)
-  <|> ((Mac <$> mapCadrMac parsedOp) <|> (Prim <$> mapOp parsedOp))
-  <|> (try (Prim <$> pairOp) <|> Mac <$> pairMac)
+primOrMac = (macWithPos (ifCmpMac parsedOp) <|> ifOrIfX)
+  <|> (macWithPos (mapCadrMac parsedOp) <|> primWithPos (mapOp parsedOp))
+  <|> (try (primWithPos pairOp) <|> macWithPos pairMac)
+

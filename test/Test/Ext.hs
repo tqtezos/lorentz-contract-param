@@ -3,6 +3,7 @@ module Test.Ext
   , test_STACKTYPE
   ) where
 
+import Data.Default (def)
 import Test.Hspec (Spec, describe, it, shouldSatisfy)
 import Test.HUnit (Assertion, assertFailure)
 import Test.Tasty (TestTree)
@@ -11,18 +12,18 @@ import Test.Tasty.HUnit (testCase)
 import Michelson.Interpret (InterpreterState(..), MorleyLogs(..), interpret)
 import Michelson.Test (specWithTypedContract)
 import Michelson.Test.Dummy (dummyContractEnv)
-import Michelson.TypeCheck (HST(..), SomeHST(..), runTypeCheckT, typeCheckExt, typeCheckList)
+import Michelson.TypeCheck (HST(..), SomeHST(..), runTypeCheck, typeCheckExt, typeCheckList)
 import Michelson.Typed (CValue(..), extractNotes, fromUType, withSomeSingT)
 import qualified Michelson.Typed as T
 import Michelson.Untyped
-  (CT(..), ExpandedExtInstr, ExtInstrAbstract(..), StackTypePattern(..), T(..), TyVar(..), Type(..),
-  ann, noAnn)
+  (CT(..), ExpandedExtInstr, ExtInstrAbstract(..), StackTypePattern(..), T(..), TyVar(..),
+  Type(..), ann, noAnn)
 
 spec_Ext_Intepreter :: Spec
 spec_Ext_Intepreter = describe "PRINT/TEST_ASSERT tests" $ do
-  specWithTypedContract "contracts/testassert_square.tz" $
+  specWithTypedContract "contracts/testassert_square.mtz" $
     testAssertSquareSpec
-  specWithTypedContract "contracts/testassert_square2.tz" $
+  specWithTypedContract "contracts/testassert_square2.mtz" $
     testAssertSquareSpec
   where
     testAssertSquareSpec c = do
@@ -34,8 +35,8 @@ spec_Ext_Intepreter = describe "PRINT/TEST_ASSERT tests" $ do
         runTest False c -1 -2
 
     runTest corr contract x y = do
-      let x' = T.VC $ CvInt x :: T.Value ('T.Tc 'T.CInt)
-      let y' = T.VC $ CvInt y :: T.Value ('T.Tc 'T.CInt)
+      let x' = T.VC $ T.CvInt x :: T.Value ('T.Tc 'T.CInt)
+      let y' = T.VC $ T.CvInt y :: T.Value ('T.Tc 'T.CInt)
       let area' = T.VC $ CvInt $ x * y :: T.Value ('T.Tc 'T.CInt)
       let check (a, InterpreterState s _) =
             if corr then isRight a && s == MorleyLogs ["Area is " <> show area']
@@ -82,7 +83,7 @@ test_STACKTYPE =
         SomeHST is -> SomeHST ((sing, nt, noAnn) ::& is)
 
     nh (ni, si) =
-      runTypeCheckT (Type TKey noAnn) mempty $ typeCheckExt typeCheckList ni si
+      runTypeCheck (Type TKey noAnn) mempty $ usingReaderT def $ typeCheckExt typeCheckList ni si
 
     runExtTest :: (ExpandedExtInstr, SomeHST) -> Bool -> Assertion
     runExtTest (ui, SomeHST hst) correct = case (nh (ui, hst), correct) of

@@ -11,10 +11,10 @@ module Michelson.TypeCheck.Helpers
     , ensureDistinctAsc
     , eqType
     , checkEqT
+    , onTypeCheckInstrAnnErr
+    , onTypeCheckInstrTypeErr
+    , onTypeCheckInstrErr
     , typeCheckInstrErr
-    , typeCheckInstrAnnErr
-    , typeCheckInstrTypeErr
-    , typeCheckInstrErrM
     , typeCheckImpl
     , compareTypes
 
@@ -36,13 +36,14 @@ module Michelson.TypeCheck.Helpers
 
 import Prelude hiding (EQ, GT, LT)
 
-import Control.Monad.Except (throwError)
+import Control.Monad.Except (MonadError, throwError, liftEither)
 import Data.Default (def)
 import Data.Singletons (SingI(sing))
 import qualified Data.Text as T
 import Data.Typeable ((:~:)(..), eqT, typeRep)
 import Fmt ((+||), (||+))
 
+import Michelson.ErrorPos (InstrCallStack)
 import Michelson.TypeCheck.Error (TCError(..), TCTypeError(..))
 import Michelson.TypeCheck.TypeCheck
 import Michelson.TypeCheck.Types
@@ -156,59 +157,79 @@ ensureDistinctAsc toCmp = \case
   l -> Right l
 
 checkEqT
-  :: forall a b ts . (Typeable a, Typeable b, Typeable ts)
+  :: forall a b ts m .
+  ( Typeable a, Typeable b, Typeable ts
+  , MonadReader InstrCallStack m, MonadError TCError m
+  )
   => Un.ExpandedInstr
   -> HST ts
   -> Text
-  -> Either TCError (a :~: b)
-checkEqT instr i m =
-  eqType @a @b `onLeft` (TCFailedOnInstr instr (SomeHST i) (m <> ": ") . Just)
+  -> m (a :~: b)
+checkEqT instr i m = do
+  pos <- ask
+  liftEither $ eqType @a @b `onLeft` (TCFailedOnInstr instr (SomeHST i) (m <> ": ") pos . Just)
 
 -- | Function @eqType@ is a simple wrapper around @Data.Typeable.eqT@ suited
 -- for use within @Either TCTypeError a@ applicative.
 eqType :: forall a b . (Typeable a, Typeable b) => Either TCTypeError (a :~: b)
 eqType = maybe (Left $ TypeEqError (typeRep (Proxy @a)) (typeRep (Proxy @b))) pure eqT
 
-typeCheckInstrErr :: Un.ExpandedInstr -> SomeHST -> Text -> TCTypeError -> Either TCError a
-typeCheckInstrErr instr hst msg e =
-  Left ... TCFailedOnInstr instr hst msg (Just e)
+onTypeCheckInstrErr
+  :: (MonadReader InstrCallStack m, MonadError TCError m)
+  => Un.ExpandedInstr -> SomeHST -> Text -> Either TCTypeError a -> m a
+onTypeCheckInstrErr instr hst msg ei = do
+  pos <- ask
+  liftEither $ ei `onLeft` (TCFailedOnInstr instr hst msg pos . Just)
 
-typeCheckInstrErrM :: Un.ExpandedInstr -> SomeHST -> Text -> TCTypeError -> TypeCheckT a
-typeCheckInstrErrM instr hst msg e =
-  throwError ... TCFailedOnInstr instr hst msg (Just e)
-typeCheckInstrAnnErr
-  :: Typeable ts
-  => Un.ExpandedInstr -> HST ts -> Text -> AnnConvergeError -> TCError
-typeCheckInstrAnnErr instr i msg =
-  (TCFailedOnInstr instr (SomeHST i) msg) . Just . AnnError
+typeCheckInstrErr
+  :: (MonadReader InstrCallStack m, MonadError TCError m)
+  => Un.ExpandedInstr -> SomeHST -> Text -> m a
+typeCheckInstrErr instr hst msg = do
+  pos <- ask
+  throwError $ TCFailedOnInstr instr hst msg pos Nothing
 
-typeCheckInstrTypeErr
-  :: Typeable ts
-  => Un.ExpandedInstr -> HST ts -> Text-> TypeConvergeError -> TCError
-typeCheckInstrTypeErr instr i msg =
-  (TCFailedOnInstr instr (SomeHST i) msg) . Just . ExtractionTypeMismatch
+onTypeCheckInstrAnnErr
+  :: (MonadReader InstrCallStack m, MonadError TCError m, Typeable ts)
+  => Un.ExpandedInstr -> HST ts -> Text -> Either AnnConvergeError a -> m a
+onTypeCheckInstrAnnErr instr i msg ei =
+  onTypeCheckInstrErr instr (SomeHST i) msg (ei `onLeft` AnnError)
+
+onTypeCheckInstrTypeErr
+  :: (MonadReader InstrCallStack m, MonadError TCError m, Typeable ts)
+  => Un.ExpandedInstr -> HST ts -> Text -> Either TypeConvergeError a -> m a
+onTypeCheckInstrTypeErr instr i msg ei =
+  onTypeCheckInstrErr instr (SomeHST i) msg (ei `onLeft` ExtractionTypeMismatch)
 
 typeCheckImpl
-  :: forall inp.
-     (Typeable inp)
+  :: forall inp . Typeable inp
   => TcInstrHandler
   -> [Un.ExpandedOp]
   -> HST inp
-  -> TypeCheckT (SomeInstr inp)
+  -> TypeCheckInstr (SomeInstr inp)
 typeCheckImpl tcInstr instrs t@(a :: HST a) =
   case instrs of
-    [Un.PrimEx i]       -> tcInstr i t
-    (Un.SeqEx sq  : rs) -> typeCheckImplDo (typeCheckImpl tcInstr sq) Nested rs
-    (Un.PrimEx p_ : rs) -> typeCheckImplDo (tcInstr p_) id rs
-    []                  -> pure $ a :/ Nop ::: a
+    Un.WithSrcEx _ (i@(Un.WithSrcEx _ _)) : rs -> typeCheckImpl tcInstr (i : rs) t
+    Un.WithSrcEx cs (Un.PrimEx i) : rs -> typeCheckPrim (Just cs) i rs
+    Un.WithSrcEx cs (Un.SeqEx sq) : rs -> typeCheckSeq (Just cs) sq rs
+    Un.PrimEx i : rs                 -> typeCheckPrim Nothing i rs
+    Un.SeqEx sq : rs                 -> typeCheckSeq Nothing sq rs
+    []                               -> pure $ a :/ Nop ::: a
   where
+    typeCheckPrim (Just cs) i [] = local (const cs) $ tcInstr i t
+    typeCheckPrim (Just cs) i rs = local (const cs) $ typeCheckImplDo (tcInstr i t) id rs
+    typeCheckPrim Nothing i [] = tcInstr i t
+    typeCheckPrim Nothing i rs = typeCheckImplDo (tcInstr i t) id rs
+
+    typeCheckSeq (Just cs) sq = local (const cs) . typeCheckImplDo (typeCheckImpl tcInstr sq t) Nested
+    typeCheckSeq Nothing sq = typeCheckImplDo (typeCheckImpl tcInstr sq t) Nested
+
     typeCheckImplDo
-      :: (HST inp -> TypeCheckT (SomeInstr inp))
+      :: TypeCheckInstr (SomeInstr inp)
       -> (forall inp' out . Instr inp' out -> Instr inp' out)
       -> [Un.ExpandedOp]
-      -> TypeCheckT (SomeInstr inp)
+      -> TypeCheckInstr (SomeInstr inp)
     typeCheckImplDo f wrap rs = do
-      _ :/ pi' <- f t
+      _ :/ pi' <- f
       case pi' of
         p ::: b -> do
           _ :/ qi <- typeCheckImpl tcInstr rs b
@@ -223,7 +244,11 @@ typeCheckImpl tcInstr instrs t@(a :: HST a) =
             [] ->
               pure $ a :/ AnyOutInstr instr
             r : rr ->
-              throwError $ TCUnreachableCode (r :| rr)
+              throwError $ TCUnreachableCode (extractInstrPos r) (r :| rr)
+
+    extractInstrPos :: Un.ExpandedOp -> InstrCallStack
+    extractInstrPos (Un.WithSrcEx cs _) = cs
+    extractInstrPos _ = def
 
 -- | Check whether typed and untyped types converge
 compareTypes :: forall t . Typeable t => (Sing t, Notes t) -> Un.Type -> Either TCTypeError ()
@@ -238,91 +263,100 @@ compareTypes (_, n) tp = withSomeSingT (fromUType tp) $ \(t :: Sing ct) -> do
 
 -- | Generic implementation for MEMeration
 memImpl
-  :: forall (q :: CT) (c :: T) ts inp .
-    ( Typeable ts, Typeable q, Typeable (MemOpKey c), MemOp c
+  :: forall (q :: CT) (c :: T) ts inp m .
+    ( MonadReader InstrCallStack m, MonadError TCError m, Typeable ts
+    , Typeable q, Typeable (MemOpKey c), MemOp c
     , inp ~ ('Tc q : c : ts)
     )
   => Un.ExpandedInstr
   -> HST inp
   -> VarAnn
-  -> TcResult inp
-memImpl instr i@(_ ::& _ ::& rs) vn =
+  -> m (SomeInstr inp)
+memImpl instr i@(_ ::& _ ::& rs) vn = do
+  pos <- ask
   case eqType @q @(MemOpKey c) of
     Right Refl -> pure $ i :/ MEM ::: ((STc SCBool, NStar, vn) ::& rs)
-    Left m     -> Left $ TCFailedOnInstr instr (SomeHST i)
-                "query element type is not equal to set's element type" (Just m)
+    Left m     -> throwError $
+      TCFailedOnInstr instr (SomeHST i) "query element type is not equal to set's element type" pos (Just m)
 
 getImpl
-  :: forall c getKey rs inp .
+  :: forall c getKey rs inp m .
     ( GetOp c, Typeable (GetOpKey c)
     , Typeable (GetOpVal c)
     , SingI (GetOpVal c)
     , inp ~ (getKey : c : rs)
+    , MonadReader InstrCallStack m
+    , MonadError TCError m
     )
   => Un.ExpandedInstr
   -> HST (getKey ': c ': rs)
   -> Sing (GetOpVal c)
   -> Notes (GetOpVal c)
   -> VarAnn
-  -> TcResult inp
+  -> m (SomeInstr inp)
 getImpl instr i@(_ ::& _ ::& rs) rt vns vn = do
+  pos <- ask
   case eqType @getKey @('Tc (GetOpKey c)) of
     Right Refl -> do
       let rn = mkNotes $ NTOption def def vns
       pure $ i :/ GET ::: ((STOption rt, rn, vn) ::& rs)
-    Left m -> Left $ TCFailedOnInstr instr (SomeHST i) "wrong key stack type" (Just m)
+    Left m -> throwError $ TCFailedOnInstr instr (SomeHST i) "wrong key stack type" pos (Just m)
 
 updImpl
-  :: forall c updKey updParams rs inp .
+  :: forall c updKey updParams rs inp m .
     ( UpdOp c, Typeable (UpdOpKey c), Typeable (UpdOpParams c)
     , inp ~ (updKey : updParams : c : rs)
+    , MonadReader InstrCallStack m
+    , MonadError TCError m
     )
   => Un.ExpandedInstr
   -> HST (updKey ': updParams ': c ': rs)
-  -> TcResult inp
+  -> m (SomeInstr inp)
 updImpl instr i@(_ ::& _ ::& crs) = do
+  pos <- ask
   case (eqType @updKey @('Tc (UpdOpKey c)), eqType @updParams @(UpdOpParams c)) of
     (Right Refl, Right Refl) -> pure $ i :/ UPDATE ::: crs
-    (Left m, _) -> Left $ TCFailedOnInstr instr (SomeHST i)
-                      "wrong key stack type" (Just m)
-    (_, Left m) -> Left $ TCFailedOnInstr instr (SomeHST i)
-                      "wrong update value stack type" (Just m)
+    (Left m, _) -> throwError $ TCFailedOnInstr instr (SomeHST i)
+                      "wrong key stack type" pos (Just m)
+    (_, Left m) -> throwError $ TCFailedOnInstr instr (SomeHST i)
+                      "wrong update value stack type" pos (Just m)
 
 sizeImpl
-  :: (SizeOp c, inp ~ (c ': rs))
+  :: (SizeOp c, inp ~ (c ': rs), Monad m)
   => HST inp
   -> VarAnn
-  -> TcResult inp
-sizeImpl i@(_ ::& rs) vn =
-  pure $ i :/ SIZE ::: ((STc SCNat, NStar, vn) ::& rs)
+  -> m (SomeInstr inp)
+sizeImpl i@(_ ::& rs) vn = pure $ i :/ SIZE ::: ((STc SCNat, NStar, vn) ::& rs)
 
 sliceImpl
-  :: (SliceOp c, Typeable c, inp ~ ('Tc 'CNat ': 'Tc 'CNat ': c ': rs))
+  :: (SliceOp c, Typeable c, inp ~ ('Tc 'CNat ': 'Tc 'CNat ': c ': rs), Monad m)
   => HST inp
   -> Un.VarAnn
-  -> TcResult inp
+  -> m (SomeInstr inp)
 sliceImpl i@(_ ::& _ ::& (c, cn, cvn) ::& rs) vn = do
   let vn' = vn `orAnn` deriveVN "slice" cvn
       rn = mkNotes $ NTOption def def cn
   pure $ i :/ SLICE ::: ((STOption c, rn, vn') ::& rs)
 
 concatImpl'
-  :: (ConcatOp c, Typeable c, inp ~ ('TList c : rs))
+  :: (ConcatOp c, Typeable c, inp ~ ('TList c : rs), Monad m)
   => HST inp
   -> Un.VarAnn
-  -> TcResult inp
+  -> m (SomeInstr inp)
 concatImpl' i@((STList c, ln, _) ::& rs) vn = do
   let cn = notesCase NStar (\(NTList _ n) -> n) ln
   pure $ i :/ CONCAT' ::: ((c, cn, vn) ::& rs)
 
 concatImpl
-  :: (ConcatOp c, Typeable c, inp ~ (c ': c ': rs))
+  :: ( ConcatOp c, Typeable c, inp ~ (c ': c ': rs)
+     , MonadReader InstrCallStack m
+     , MonadError TCError m
+     )
   => HST inp
   -> Un.VarAnn
-  -> TcResult inp
+  -> m (SomeInstr inp)
 concatImpl i@((c, cn1, _) ::& (_, cn2, _) ::& rs) vn = do
-  cn <- converge cn1 cn2 `onLeft`
-    ((TCFailedOnInstr (Un.CONCAT vn) (SomeHST i) "wrong operand types for concat operation") . Just . AnnError)
+  cn <- onTypeCheckInstrAnnErr (Un.CONCAT vn) i "wrong operand types for concat operation" (converge cn1 cn2)
   pure $ i :/ CONCAT ::: ((c, cn, vn) ::& rs)
 
 -- | Helper function to construct instructions for binary arithmetic
@@ -332,21 +366,24 @@ arithImpl
      , SingI (ArithRes aop n m)
      , Typeable ('Tc (ArithRes aop n m) ': s)
      , inp ~ ('Tc n ': 'Tc m ': s)
+     , Monad t
      )
   => Instr inp ('Tc (ArithRes aop n m) ': s)
   -> HST inp
   -> VarAnn
-  -> TcResult inp
-arithImpl mkInstr i@(_ ::& _ ::& rs) vn =
-  pure $ i :/ mkInstr ::: ((sing, NStar, vn) ::& rs)
+  -> t (SomeInstr inp)
+arithImpl mkInstr i@(_ ::& _ ::& rs) vn = pure $ i :/ mkInstr ::: ((sing, NStar, vn) ::& rs)
 
 addImpl
-  :: forall a b inp rs.
-     (Typeable rs, Typeable a, Typeable b, inp ~ ('Tc a ': 'Tc b ': rs))
+  :: forall a b inp rs m.
+     ( Typeable rs, Typeable a, Typeable b, inp ~ ('Tc a ': 'Tc b ': rs)
+     , MonadReader InstrCallStack m
+     , MonadError TCError m
+     )
   => Sing a -> Sing b
   -> HST inp
   -> VarAnn
-  -> TcResult inp
+  -> m (SomeInstr inp)
 addImpl SCInt SCInt = arithImpl @Add ADD
 addImpl SCInt SCNat = arithImpl @Add ADD
 addImpl SCNat SCInt = arithImpl @Add ADD
@@ -354,27 +391,29 @@ addImpl SCNat SCNat = arithImpl @Add ADD
 addImpl SCInt SCTimestamp = arithImpl @Add ADD
 addImpl SCTimestamp SCInt = arithImpl @Add ADD
 addImpl SCMutez SCMutez = arithImpl @Add ADD
-addImpl _ _ = \i vn -> typeCheckInstrErr (Un.ADD vn) (SomeHST i)
+addImpl _ _ = \i vn -> onTypeCheckInstrErr (Un.ADD vn) (SomeHST i)
   "wrong operand types for add operation"
-  (UnsupportedTypes [typeRep (Proxy @a), typeRep (Proxy @b)])
+  (Left $ UnsupportedTypes [typeRep (Proxy @a), typeRep (Proxy @b)])
 
 edivImpl
-  :: forall a b inp rs.
-     (Typeable rs, Typeable a, Typeable b, inp ~ ('Tc a ': 'Tc b ': rs))
+  :: forall a b inp rs m.
+     ( Typeable rs, Typeable a, Typeable b, inp ~ ('Tc a ': 'Tc b ': rs)
+     , MonadReader InstrCallStack m
+     , MonadError TCError m
+     )
   => Sing a -> Sing b
   -> HST inp
   -> VarAnn
-  -> TcResult inp
+  -> m (SomeInstr inp)
 edivImpl SCInt SCInt = edivImplDo
 edivImpl SCInt SCNat = edivImplDo
 edivImpl SCNat SCInt = edivImplDo
 edivImpl SCNat SCNat = edivImplDo
 edivImpl SCMutez SCMutez = edivImplDo
 edivImpl SCMutez SCNat = edivImplDo
-edivImpl _ _ = \i vn -> typeCheckInstrErr (Un.EDIV vn) (SomeHST i)
+edivImpl _ _ = \i vn -> onTypeCheckInstrErr (Un.EDIV vn) (SomeHST i)
   "wrong operand types for ediv operation"
-  (UnsupportedTypes [typeRep (Proxy @a), typeRep (Proxy @b)])
-
+  (Left $ UnsupportedTypes [typeRep (Proxy @a), typeRep (Proxy @b)])
 
 edivImplDo
   :: ( EDivOp n m
@@ -383,20 +422,24 @@ edivImplDo
      , SingI (EDivOpRes n m)
      , Typeable (EDivOpRes n m)
      , inp ~ ('Tc n ': 'Tc m ': s)
+     , Monad t
      )
   => HST inp
   -> VarAnn
-  -> TcResult inp
+  -> t (SomeInstr inp)
 edivImplDo i@(_ ::& _ ::& rs) vn =
   pure $ i :/ EDIV ::: ((sing, NStar, vn) ::& rs)
 
 subImpl
-  :: forall a b inp rs.
-     (Typeable rs, Typeable a, Typeable b, inp ~ ('Tc a ': 'Tc b ': rs))
+  :: forall a b inp rs m.
+     ( Typeable rs, Typeable a, Typeable b, inp ~ ('Tc a ': 'Tc b ': rs)
+     , MonadReader InstrCallStack m
+     , MonadError TCError m
+     )
   => Sing a -> Sing b
   -> HST inp
   -> VarAnn
-  -> TcResult inp
+  -> m (SomeInstr inp)
 subImpl SCInt SCInt = arithImpl @Sub SUB
 subImpl SCInt SCNat = arithImpl @Sub SUB
 subImpl SCNat SCInt = arithImpl @Sub SUB
@@ -404,33 +447,40 @@ subImpl SCNat SCNat = arithImpl @Sub SUB
 subImpl SCTimestamp SCTimestamp = arithImpl @Sub SUB
 subImpl SCTimestamp SCInt = arithImpl @Sub SUB
 subImpl SCMutez SCMutez = arithImpl @Sub SUB
-subImpl _ _ = \i vn -> typeCheckInstrErr (Un.SUB vn) (SomeHST i)
+subImpl _ _ = \i vn -> onTypeCheckInstrErr (Un.SUB vn) (SomeHST i)
   "wrong operand types for sub operation"
-  (UnsupportedTypes [typeRep (Proxy @a), typeRep (Proxy @b)])
+  (Left $ UnsupportedTypes [typeRep (Proxy @a), typeRep (Proxy @b)])
+
 mulImpl
-  :: forall a b inp rs.
-     (Typeable rs, Typeable a, Typeable b, inp ~ ('Tc a ': 'Tc b ': rs))
+  :: forall a b inp rs m.
+     ( Typeable rs, Typeable a, Typeable b, inp ~ ('Tc a ': 'Tc b ': rs)
+     , MonadReader InstrCallStack m
+     , MonadError TCError m
+     )
   => Sing a -> Sing b
   -> HST inp
   -> VarAnn
-  -> TcResult inp
+  -> m (SomeInstr inp)
 mulImpl SCInt SCInt = arithImpl @Mul MUL
 mulImpl SCInt SCNat = arithImpl @Mul MUL
 mulImpl SCNat SCInt = arithImpl @Mul MUL
 mulImpl SCNat SCNat = arithImpl @Mul MUL
 mulImpl SCNat SCMutez = arithImpl @Mul MUL
 mulImpl SCMutez SCNat = arithImpl @Mul MUL
-mulImpl _ _ = \i vn -> typeCheckInstrErr (Un.MUL vn) (SomeHST i)
+mulImpl _ _ = \i vn -> onTypeCheckInstrErr (Un.MUL vn) (SomeHST i)
   "wrong operand types for mul operation"
-  (UnsupportedTypes [typeRep (Proxy @a), typeRep (Proxy @b)])
+  (Left $ UnsupportedTypes [typeRep (Proxy @a), typeRep (Proxy @b)])
 
 compareImpl
-  :: forall a b inp rs.
-     (Typeable rs, Typeable a, Typeable b, inp ~ ('Tc a ': 'Tc b ': rs))
+  :: forall a b inp rs m.
+     ( Typeable rs, Typeable a, Typeable b, inp ~ ('Tc a ': 'Tc b ': rs)
+     , MonadReader InstrCallStack m
+     , MonadError TCError m
+     )
   => Sing a -> Sing b
   -> HST inp
   -> VarAnn
-  -> TcResult inp
+  -> m (SomeInstr inp)
 compareImpl SCBool SCBool = arithImpl @Compare COMPARE
 compareImpl SCNat SCNat = arithImpl @Compare COMPARE
 compareImpl SCAddress SCAddress = arithImpl @Compare COMPARE
@@ -440,21 +490,22 @@ compareImpl SCBytes SCBytes = arithImpl @Compare COMPARE
 compareImpl SCTimestamp SCTimestamp = arithImpl @Compare COMPARE
 compareImpl SCKeyHash SCKeyHash = arithImpl @Compare COMPARE
 compareImpl SCMutez SCMutez = arithImpl @Compare COMPARE
-compareImpl _ _ = \i vn -> typeCheckInstrErr (Un.COMPARE vn) (SomeHST i)
+compareImpl _ _ = \i vn -> onTypeCheckInstrErr (Un.COMPARE vn) (SomeHST i)
   "wrong operand types for compare operation"
-  (UnsupportedTypes [typeRep (Proxy @a), typeRep (Proxy @b)])
+  (Left $ UnsupportedTypes [typeRep (Proxy @a), typeRep (Proxy @b)])
 
 -- | Helper function to construct instructions for binary arithmetic
---erations.
+-- operations.
 unaryArithImpl
   :: ( Typeable (UnaryArithRes aop n)
      , SingI (UnaryArithRes aop n)
      , Typeable ('Tc (UnaryArithRes aop n) ': s)
      , inp ~ ('Tc n ': s)
+     , Monad t
      )
   => Instr inp ('Tc (UnaryArithRes aop n) ': s)
   -> HST inp
   -> VarAnn
-  -> TcResult inp
+  -> t (SomeInstr inp)
 unaryArithImpl mkInstr i@(_ ::& rs) vn =
   pure $ i :/ mkInstr ::: ((sing, NStar, vn) ::& rs)
