@@ -57,15 +57,26 @@ build-and-test:
         --test --no-run-tests
         --bench --no-run-benchmarks
         --haddock --no-haddock-deps
-    - stack test morley
+    - stack test morley --test-arguments="--xml=report/test_report.xml"
     # Run weeder after our code is built
     - weeder/bin/weeder .
     # Test EDSL examples
     - stack --stack-yaml examples/EDSL/stack.yaml test
     - rm -rf "$STACK_ROOT/programs"  # Faster to download them again
+  after_script:
+    # Edit xml report due to bug with `classname` field in test xml reports in CI
+    # https://gitlab.com/gitlab-org/gitlab-ce/issues/52997
+    - sed -i -r
+        's:<testcase name="([^<>]*?)" time="([0-9.]*?)" classname="([^<>]*?)">:<testcase name="\3.\1" time="\2" classname="\3">:g'
+        report/test_report.xml
+
   artifacts:
     paths:
       - tmp/morley
+      - report/test_report.xml
+    reports:
+      junit:
+        - report/*.xml
 
 test-shell-script:
   image: alpine
