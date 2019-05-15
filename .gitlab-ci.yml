@@ -73,7 +73,6 @@ build-and-test:
   artifacts:
     paths:
       - tmp/morley
-      - report/test_report.xml
     reports:
       junit:
         - report/*.xml
