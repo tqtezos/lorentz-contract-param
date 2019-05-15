@@ -1,6 +1,6 @@
 -- | Ingridients that we use in our test suite.
 
-module Test.Util.Ingredients
+module Util.Test.Ingredients
   ( ourIngredients
   ) where
 

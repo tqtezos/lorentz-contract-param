@@ -1,0 +1,32 @@
+<<: !include "../hpack/module.yaml"
+
+name:                lorentz-contracts
+version:             0.2.0.1
+synopsis:            Set of Michelson contracts implemented in Lorentz eDSL.
+description:
+  Various contracts including simple examples, DS Token and other.
+category:            Language
+
+library:
+  <<: *lib-common
+
+  dependencies:
+    - data-default
+    - morley
+    - morley-prelude
+
+tests:
+  lorentz-contracts-test:
+    <<: *test-common
+
+    dependencies:
+      - data-default
+      - fmt
+      - hspec
+      - hspec-expectations
+      - lorentz-contracts
+      - morley
+      - morley-prelude
+      - QuickCheck
+      - tasty
+      - tasty-hspec

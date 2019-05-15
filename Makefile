@@ -8,15 +8,17 @@ STACK_BUILD_MORE_OPTIONS = --test --bench --no-run-tests --no-run-benchmarks
 STACK_DEV_TEST_OPTIONS = --fast
 # Addtional (specified by user) options passed to test executable
 TEST_ARGUMENTS ?= ""
+# Packages to apply the command (build, test, e.t.c) for.
+PACKAGES ?= morley lorentz-contracts
 
 define call_test
-	stack test morley $(STACK_DEV_TEST_OPTIONS) \
+	stack test $(PACKAGES) $(STACK_DEV_TEST_OPTIONS) \
 		--test-arguments "--color always $(TEST_ARGUMENTS) $1"
 endef
 
 # Build everything (including tests and benchmarks) with development options.
 dev:
-	stack build $(STACK_DEV_OPTIONS) $(STACK_BUILD_MORE_OPTIONS) morley
+	stack build $(STACK_DEV_OPTIONS) $(STACK_BUILD_MORE_OPTIONS) $(PACKAGES)
 
 # Run tests in all packages which have them.
 test:
@@ -35,11 +37,11 @@ test-hide-successes:
 
 # Run haddock for all packages.
 haddock:
-	stack haddock $(STACK_DEV_OPTIONS) morley
+	stack haddock $(STACK_DEV_OPTIONS) $(PACKAGES)
 
 # Run haddock for all our packages, but not for dependencies.
 haddock-no-deps:
-	stack haddock $(STACK_DEV_OPTIONS) morley --no-haddock-deps
+	stack haddock $(STACK_DEV_OPTIONS) $(PACKAGES) --no-haddock-deps
 
 stylish:
 	stylish-haskell -i `find src -iname '*.hs'`

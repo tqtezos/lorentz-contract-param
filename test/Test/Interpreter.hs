@@ -20,14 +20,12 @@ import Michelson.Test.Util (failedProp)
 import Michelson.Typed (CT(..), CValue(..), IsoValue(..), T(..))
 import qualified Michelson.Typed as T
 import Test.Interpreter.A1.Feather (featherSpec)
-import Test.Interpreter.Auction (auctionSpec)
 import Test.Interpreter.CallSelf (selfCallerSpec)
 import Test.Interpreter.Compare (compareSpec)
 import Test.Interpreter.Conditionals (conditionalsSpec)
 import Test.Interpreter.ContractOp (contractOpSpec)
 import Test.Interpreter.EnvironmentSpec (environmentSpec)
 import Test.Interpreter.StringCaller (stringCallerSpec)
-import Test.Interpreter.Walker (walkerSpec)
 
 spec_Interpreter :: Spec
 spec_Interpreter = do
@@ -97,7 +95,6 @@ spec_Interpreter = do
           let param = (False, "Err" :: Text)
           contractProp contract validateSuccess dummyContractEnv param ()
 
-  auctionSpec
   compareSpec
   conditionalsSpec
   stringCallerSpec
@@ -105,7 +102,6 @@ spec_Interpreter = do
   environmentSpec
   contractOpSpec
   featherSpec
-  walkerSpec
 
   specWithTypedContract "contracts/steps_to_quota_test1.tz" $ \contract -> do
     it "Amount of steps should reduce" $ do

@@ -42,6 +42,8 @@ library:
     - QuickCheck
     - singletons
     - syb
+    - tasty
+    - tasty-ant-xml
     - template-haskell
     - text
     - time
@@ -76,7 +78,6 @@ tests:
 
     dependencies:
       - aeson
-      - base-noprelude >= 4.7 && < 5
       - bytestring
       - containers
       - data-default
@@ -94,13 +95,11 @@ tests:
       - morley
       - morley-prelude
       - mtl
-      - named
       - QuickCheck
       - quickcheck-arbitrary-adt
       - quickcheck-instances
       - singletons
       - tasty
-      - tasty-ant-xml
       - tasty-hspec
       - tasty-quickcheck
       - text

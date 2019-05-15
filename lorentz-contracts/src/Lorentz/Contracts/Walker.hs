@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveAnyClass, DerivingStrategies, NoApplicativeDo, RebindableSyntax #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
 
-module Test.Lorentz.Contracts.Walker
+module Lorentz.Contracts.Walker
   ( walkerContract
   , Parameter (..)
   , Storage (..)

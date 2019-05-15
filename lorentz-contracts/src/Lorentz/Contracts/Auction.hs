@@ -1,12 +1,11 @@
 {-# LANGUAGE NoApplicativeDo, RebindableSyntax #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
 
-module Test.Lorentz.Contracts.Auction
+module Lorentz.Contracts.Auction
   ( auction
   ) where
 
 import Lorentz
-import Prelude ()
 
 type Parameter = KeyHash
 
