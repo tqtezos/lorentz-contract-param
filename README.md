@@ -30,7 +30,7 @@ Morley-to-Michelson transpiler can be used to produce a Michelson contract from 
 You should use it if you want to develop contracts in Morley and submit them to the Tezos network.
 Workflow is the following:
 
-1. If your contract is called `foo.mtz`, use `morley print --contract foo.mtz > foo.tz`. Note that normally you should not use `morley` directly, you should use `morley.sh` or `stack exec -- morley`. See usage instructions below.
+1. If your contract is called `foo.mtz`, use `morley print --contract foo.mtz --output foo.tz`. Note that normally you should not use `morley` directly, you should use `morley.sh` or `stack exec -- morley`. See usage instructions below.
 2. After that, you can use existing Tezos tools to deploy your contract. You can also typecheck or interpret it using a reference implementation. If you are not familiar with the Tezos tooling, please read [Tezos documentation](http://tezos.gitlab.io/zeronet/index.html) or [Michelson tutorial](https://gitlab.com/morley-framework/michelson-tutorial).
 
 ## IV: Lorentz EDSL
