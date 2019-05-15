@@ -1,5 +1,6 @@
-<<: !include "../hpack/module.yaml"
+<<: !include "./hpack/module.yaml"
 
+<<: *meta
 name:                lorentz-contracts
 version:             0.2.0.1
 synopsis:            Set of Michelson contracts implemented in Lorentz eDSL.
@@ -8,7 +9,7 @@ description:
 category:            Language
 
 library:
-  <<: *lib-common
+  <<: *lorentz-lib-common
 
   dependencies:
     - data-default

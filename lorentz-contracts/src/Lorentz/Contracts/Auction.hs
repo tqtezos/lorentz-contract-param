@@ -1,6 +1,3 @@
-{-# LANGUAGE NoApplicativeDo, RebindableSyntax #-}
-{-# OPTIONS_GHC -Wno-unused-do-bind #-}
-
 module Lorentz.Contracts.Auction
   ( auction
   ) where
