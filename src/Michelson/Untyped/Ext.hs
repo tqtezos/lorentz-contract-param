@@ -20,6 +20,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as T
 import Fmt (Buildable(build), Builder, genericF, listF)
 
+import Michelson.Printer.Util (RenderDoc(..), renderOpsList)
 import Michelson.Untyped.Type
 
 -- | Implementation-specific instructions embedded in a @NOP@ primitive, which
@@ -38,6 +39,16 @@ data ExtInstrAbstract op =
   | UTEST_ASSERT (TestAssert op)   -- ^ Copy the current stack and run an inline assertion on it
   | UPRINT PrintComment         -- ^ Print a comment with optional embedded @StackRef@s
   deriving (Eq, Show, Data, Generic, Functor)
+
+instance RenderDoc op => RenderDoc (ExtInstrAbstract op) where
+  renderDoc =
+    \case
+      FN _ _ ops -> renderOpsList True ops
+      _ -> mempty
+  isRenderable =
+    \case
+      FN {} -> True
+      _ -> False
 
 instance Buildable op => Buildable (ExtInstrAbstract op) where
   build = genericF
