@@ -85,6 +85,7 @@ cadrMac = lexeme $ do
 cadrInner :: Parser CadrStruct
 cadrInner = (string' "A" >> return A) <|> (string' "D" >> return D)
 
+{-# ANN module ("HLint: ignore Reduce duplication" :: Text) #-}
 setCadrMac :: Parser Macro
 setCadrMac = do
   string' "SET_C"

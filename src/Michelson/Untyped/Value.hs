@@ -13,7 +13,6 @@ module Michelson.Untyped.Value
 import Data.Aeson (FromJSON(..), ToJSON(..), withText)
 import Data.Aeson.TH (defaultOptions, deriveJSON)
 import Data.Data (Data(..))
-import qualified Data.List as L
 import Formatting.Buildable (Buildable(build))
 import Text.Hex (decodeHex, encodeHex)
 import Text.PrettyPrint.Leijen.Text (braces, dquotes, parens, semi, text, textStrict, (<+>))
@@ -66,8 +65,8 @@ instance RenderDoc op => RenderDoc (Value' op) where
       ValueRight r   -> parens $ ("Right" <+> renderDoc r)
       ValueSome x    -> parens $ ("Some"  <+> renderDoc x)
       ValueNone      -> "None"
-      ValueSeq xs    -> braces $ mconcat $ (L.intersperse semi (renderDoc <$> toList xs))
-      ValueMap xs    -> braces $ mconcat $ (L.intersperse semi (renderDoc <$> toList xs))
+      ValueSeq xs    -> braces $ mconcat $ (intersperse semi (renderDoc <$> toList xs))
+      ValueMap xs    -> braces $ mconcat $ (intersperse semi (renderDoc <$> toList xs))
       ValueLambda xs -> renderOps True xs
 
 instance RenderDoc op => RenderDoc (Elt op) where

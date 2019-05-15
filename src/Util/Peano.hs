@@ -6,7 +6,7 @@
 -- We take Peano numbers as base for operations because they make it
 -- much easer to prove things to compiler. Their performance does not
 -- seem to introduce a problem, because we use nats primarily along with
--- stack which is a linked list with a similar performance characteristics.
+-- stack which is a linked list with similar performance characteristics.
 --
 -- Many of things we introduce here are covered in @type-natural@ package,
 -- but unfortunatelly it does not work with GHC 8.6 at the moment of writing

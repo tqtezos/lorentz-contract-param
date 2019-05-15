@@ -15,7 +15,7 @@ import Michelson.Test ()
 import Michelson.Untyped
   (Annotation(..), CT(..), Comparable(..), Contract'(..), Elt(..), ExpandedExtInstr,
   ExpandedOp(..), ExtInstrAbstract(..), FieldAnn, InstrAbstract(..), InternalByteString(..),
-  StackTypePattern(..), T(..), Type(..), TypeAnn, TyVar(..), Value'(..), Var(..), VarAnn)
+  StackTypePattern(..), T(..), TyVar(..), Type(..), TypeAnn, Value'(..), Var(..), VarAnn)
 import Tezos.Core (Mutez(..))
 
 instance Arbitrary InternalByteString where
@@ -93,68 +93,30 @@ instance (Arbitrary op, Arbitrary (ExtInstrAbstract op)) => Arbitrary (InstrAbst
       , SOME <$> arbitrary <*> arbitrary <*> arbitrary
       , NONE <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       , UNIT <$> arbitrary <*> arbitrary
-      , (do size1 <- smallSize
-            size2 <- smallSize
-            l1 <- vector size1
-            l2 <- vector size2
-            pure $ IF_NONE l1 l2
-        )
+      , IF_NONE <$> smallList <*> smallList
       , PAIR <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       , CAR <$> arbitrary <*> arbitrary
       , CDR <$> arbitrary <*> arbitrary
       , LEFT <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       , RIGHT <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      , (do size1 <- smallSize
-            size2 <- smallSize
-            l1 <- vector size1
-            l2 <- vector size2
-            pure $ IF_LEFT l1 l2
-        )
+      , IF_LEFT <$> smallList <*> smallList
       , NIL <$> arbitrary <*> arbitrary <*> arbitrary
       , CONS <$> arbitrary
-      , (do size1 <- smallSize
-            size2 <- smallSize
-            l1 <- vector size1
-            l2 <- vector size2
-            pure $ IF_CONS l1 l2
-        )
+      , IF_CONS <$> smallList <*> smallList
       , SIZE <$> arbitrary
       , EMPTY_SET <$> arbitrary <*> arbitrary <*> arbitrary
       , EMPTY_MAP <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      , (do size1 <- smallSize
-            l1 <- vector size1
-            MAP <$> arbitrary <*> pure l1
-        )
-      , (do size1 <- smallSize
-            l1 <- vector size1
-            pure $ ITER l1
-        )
+      , MAP <$> arbitrary <*> smallList
+      , ITER <$> smallList
       , MEM <$> arbitrary
       , GET <$> arbitrary
       , pure UPDATE
-      , (do size1 <- smallSize
-            size2 <- smallSize
-            l1 <- vector size1
-            l2 <- vector size2
-            pure $ IF l1 l2
-        )
-      , (do size1 <- smallSize
-            l1 <- vector size1
-            pure $ LOOP l1
-        )
-      , (do size1 <- smallSize
-            l1 <- vector size1
-            pure $ LOOP_LEFT l1
-        )
-      , (do size1 <- smallSize
-            l1 <- vector size1
-            LAMBDA <$> arbitrary <*> arbitrary <*> arbitrary <*> pure l1
-        )
+      , IF <$> smallList <*> smallList
+      , LOOP <$> smallList
+      , LOOP_LEFT <$> smallList
+      , LAMBDA <$> arbitrary <*> arbitrary <*> arbitrary <*> smallList
       , EXEC <$> arbitrary
-      , (do size1 <- smallSize
-            l1 <- vector size1
-            pure $ DIP l1
-        )
+      , DIP <$> smallList
       , pure FAILWITH
       , CAST <$> arbitrary <*> arbitrary
       , RENAME <$> arbitrary

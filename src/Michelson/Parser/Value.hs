@@ -82,7 +82,7 @@ bytesLiteral = do
   else customFailure OddNumberBytesException
 
 intLiteral :: Parser (U.Value' op)
-intLiteral = try $ U.ValueInt <$> (L.signed (return ()) L.decimal)
+intLiteral = try $ U.ValueInt <$> L.signed pass L.decimal
 
 unitValue :: Parser ParsedValue
 unitValue = do symbol "Unit"; return U.ValueUnit
@@ -102,11 +102,9 @@ pairValue opParser = core <|> tuple
       U.ValuePair a <$> value' opParser
     tuple = try $ do
       symbol "("
-      a <- value' opParser
-      comma
-      b <- tupleInner <|> value' opParser
+      ty <- tupleInner
       symbol ")"
-      return $ U.ValuePair a b
+      return ty
     tupleInner = try $ do
       a <- value' opParser
       comma

@@ -79,7 +79,7 @@ deriveSpecialFNs "@" "@" (Un.Annotation pvn) (Un.Annotation qvn) = (vn, pfn, qfn
   where
     ps = T.splitOn "." pvn
     qs = T.splitOn "." qvn
-    fns = fst <$> takeWhile (\(a, b) -> a == b) (zip ps qs)
+    fns = fst <$> takeWhile (uncurry (==)) (zip ps qs)
     vn = Un.Annotation $ T.intercalate "." fns
     pfn = Un.Annotation $ T.intercalate "." $ drop (length fns) ps
     qfn = Un.Annotation $ T.intercalate "." $ drop (length fns) qs

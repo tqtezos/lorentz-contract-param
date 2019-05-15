@@ -9,7 +9,7 @@ traversal:
     - .stack-work
 
     # Verifier repo itself, added in CI
-    - crossref-verifier
+    - .crossref-verifier
 
 # Verification parameters.
 verification:

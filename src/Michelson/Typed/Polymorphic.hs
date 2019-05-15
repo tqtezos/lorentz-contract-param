@@ -135,11 +135,11 @@ class ConcatOp (c :: T) where
 instance ConcatOp ('Tc 'CString) where
   evalConcat (VC (CvString s1)) (VC (CvString s2)) = (VC . CvString) (s1 <> s2)
   evalConcat' l =
-    (VC . CvString . fromString) $ concat $ (map (\(VC (CvString s)) -> toString s)) l
+    (VC . CvString . fromString) $ concatMap (\(VC (CvString s)) -> toString s) l
 instance ConcatOp ('Tc 'CBytes) where
   evalConcat (VC (CvBytes b1)) (VC (CvBytes b2)) = (VC . CvBytes) (b1 <> b2)
   evalConcat' l =
-    (VC . CvBytes) $ foldr (<>) mempty (map (\(VC (CvBytes b)) -> b) l)
+    (VC . CvBytes) $ foldr ((<>) . (\(VC (CvBytes b)) -> b)) mempty l
 
 class SliceOp (c :: T) where
   evalSlice :: Natural -> Natural -> Value' cp c -> Maybe (Value' cp c)

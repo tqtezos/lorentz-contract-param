@@ -42,10 +42,10 @@ import qualified Data.Text as T
 import Fmt (Buildable(build), genericF, (+|), (+||), (|+), (||+))
 import qualified Text.PrettyPrint.Leijen.Text as PP (empty)
 
+import Michelson.ErrorPos
 import Michelson.Printer (RenderDoc(..))
 import Michelson.Untyped
 import Util.Generic
-import Michelson.ErrorPos
 
 -- | A programmer-defined macro
 data LetMacro = LetMacro
@@ -168,8 +168,7 @@ expandContract Contract {..} =
 
 substituteTypes :: Parameter -> Storage -> ExpandedOp -> ExpandedOp
 substituteTypes param stor =
-  everywhere $ mkT $
-  \x -> case x of
+  everywhere $ mkT $ \case
     TypeParameter -> param
     TypeStorage -> stor
     t@(Type {}) -> t
@@ -213,37 +212,37 @@ expand cs (LMac l pos) = expandLetMac l
 expandMacro :: InstrCallStack -> Macro -> [ExpandedOp]
 expandMacro p@InstrCallStack{icsCallStack=cs,icsSrcPos=macroPos} = \case
   VIEW a             -> expandMacro p (UNPAIR $ P (F (noAnn,noAnn)) (F (noAnn,noAnn))) ++
-                        [ primEx (DIP $ expandMacro p $ DUUP 2 noAnn)
-                        , primEx $ DUP noAnn
-                        , primEx $ DIP $ concat [
-                              [primEx $ PAIR noAnn noAnn noAnn noAnn]
+                        [ PrimEx (DIP $ expandMacro p $ DUUP 2 noAnn)
+                        , PrimEx $ DUP noAnn
+                        , PrimEx $ DIP $ concat [
+                              [PrimEx $ PAIR noAnn noAnn noAnn noAnn]
                             , expand cs <$> a
-                            , [primEx $ SOME noAnn noAnn noAnn]
+                            , [PrimEx $ SOME noAnn noAnn noAnn]
                             ]
-                        , primEx $ PAIR noAnn noAnn noAnn noAnn
-                        , primEx (DIP [primEx $ AMOUNT noAnn])
-                        , primEx $ TRANSFER_TOKENS noAnn
-                        , primEx $ NIL noAnn noAnn (Type TOperation noAnn)
-                        , primEx $ SWAP
-                        , primEx $ CONS noAnn
-                        , primEx $ PAIR noAnn noAnn noAnn noAnn
+                        , PrimEx $ PAIR noAnn noAnn noAnn noAnn
+                        , PrimEx (DIP [PrimEx $ AMOUNT noAnn])
+                        , PrimEx $ TRANSFER_TOKENS noAnn
+                        , PrimEx $ NIL noAnn noAnn (Type TOperation noAnn)
+                        , PrimEx $ SWAP
+                        , PrimEx $ CONS noAnn
+                        , PrimEx $ PAIR noAnn noAnn noAnn noAnn
                         ]
   VOID a             -> expandMacro p (UNPAIR (P (F (noAnn,noAnn)) (F (noAnn,noAnn)))) ++
-                        [ primEx SWAP
-                        , primEx $ DIP $ expand cs <$> a
-                        , primEx SWAP
-                        , primEx $ EXEC noAnn
-                        , primEx FAILWITH
+                        [ PrimEx SWAP
+                        , PrimEx $ DIP $ expand cs <$> a
+                        , PrimEx SWAP
+                        , PrimEx $ EXEC noAnn
+                        , PrimEx FAILWITH
                         ]
   CASE is            -> mkGenericTree (\_ l r -> one . PrimEx $ IF_LEFT l r)
                                       (map (expand cs) <$> is)
   TAG idx uty        -> expandTag (fromIntegral idx) uty
-  CMP i v            -> [primEx (COMPARE v), xo i]
-  IFX i bt bf        -> [xo i, primEx $ IF (xp bt) (xp bf)]
-  IFCMP i v bt bf    -> primEx <$> [COMPARE v, expand cs <$> i, IF (xp bt) (xp bf)]
-  IF_SOME bt bf      -> [primEx (IF_NONE (xp bf) (xp bt))]
-  IF_RIGHT bt bf     -> [primEx (IF_LEFT (xp bf) (xp bt))]
-  FAIL               -> primEx <$> [UNIT noAnn noAnn, FAILWITH]
+  CMP i v            -> [PrimEx (COMPARE v), xo i]
+  IFX i bt bf        -> [xo i, PrimEx $ IF (xp bt) (xp bf)]
+  IFCMP i v bt bf    -> PrimEx <$> [COMPARE v, expand cs <$> i, IF (xp bt) (xp bf)]
+  IF_SOME bt bf      -> [PrimEx (IF_NONE (xp bf) (xp bt))]
+  IF_RIGHT bt bf     -> [PrimEx (IF_LEFT (xp bf) (xp bt))]
+  FAIL               -> PrimEx <$> [UNIT noAnn noAnn, FAILWITH]
   ASSERT             -> oprimEx $ IF [] (expandMacro p FAIL)
   ASSERTX i          -> [expand cs $ mac $ IFX i [] [mac FAIL]]
   ASSERT_CMP i       -> [expand cs $ mac $ IFCMP i noAnn [] [mac FAIL]]
@@ -262,71 +261,74 @@ expandMacro p@InstrCallStack{icsCallStack=cs,icsSrcPos=macroPos} = \case
   DUUP n v           -> PrimEx <$> [DIP (expandMacro p (DUUP (n - 1) v)), SWAP]
   where
     mac = flip Mac macroPos
-    primEx = PrimEx
     oprimEx = one . PrimEx
-    xo = primEx . fmap (expand cs)
+    xo = PrimEx . fmap (expand cs)
     xp = fmap (expand cs)
 
 -- the correctness of type-annotation expansion is currently untested, as these
 -- expansions are not explicitly documented in the Michelson Specification
 expandPapair :: InstrCallStack -> PairStruct -> TypeAnn -> VarAnn -> [ExpandedOp]
 expandPapair ics ps t v = case ps of
-  P (F a) (F b) -> [primEx $ PAIR t v (snd a) (snd b)]
-  P (F a) r     -> primEx <$> [ DIP $ expandMacro ics (PAPAIR r noAnn noAnn)
+  P (F a) (F b) -> [PrimEx $ PAIR t v (snd a) (snd b)]
+  P (F a) r     -> PrimEx <$> [ DIP $ expandMacro ics (PAPAIR r noAnn noAnn)
                               , PAIR t v (snd a) noAnn]
   P l     (F b) -> expandMacro ics (PAPAIR l noAnn noAnn) ++
-                   [primEx $ PAIR t v noAnn (snd b)]
+                   [PrimEx $ PAIR t v noAnn (snd b)]
   P l     r     -> expandMacro ics (PAPAIR l noAnn noAnn) ++
-                   [ primEx $ DIP $ expandMacro ics (PAPAIR r noAnn noAnn)
-                   , primEx $ PAIR t v noAnn noAnn]
+                   [ PrimEx $ DIP $ expandMacro ics (PAPAIR r noAnn noAnn)
+                   , PrimEx $ PAIR t v noAnn noAnn]
   F _           -> [] -- Do nothing in this case.
   -- It's impossible from the structure of PairStruct and considered cases above,
   -- but if it accidentally happened let's just do nothing.
-  where
-    primEx = PrimEx
 
 expandUnpapair :: InstrCallStack -> PairStruct -> [ExpandedOp]
 expandUnpapair ics = \case
   P (F (v,f)) (F (w,g)) ->
-    primEx <$> [ DUP noAnn
+    PrimEx <$> [ DUP noAnn
                , CAR v f
-               , DIP [primEx $ CDR w g]
+               , DIP [PrimEx $ CDR w g]
                ]
   P (F (v, f)) r ->
-    primEx <$> [ DUP noAnn
+    PrimEx <$> [ DUP noAnn
                , CAR v f
-               , DIP (primEx (CDR noAnn noAnn) : expandMacro ics (UNPAIR r))
+               , DIP (PrimEx (CDR noAnn noAnn) : expandMacro ics (UNPAIR r))
                ]
   P l     (F (v, f))    ->
-    map primEx [ DUP noAnn
-               , DIP [primEx $ CDR v f]
+    map PrimEx [ DUP noAnn
+               , DIP [PrimEx $ CDR v f]
                , CAR noAnn noAnn
                ] ++
                expandMacro ics (UNPAIR l)
   P l      r ->
     expandMacro ics unpairOne ++
-    [primEx $ DIP $ expandMacro ics $ UNPAIR r] ++
+    [PrimEx $ DIP $ expandMacro ics $ UNPAIR r] ++
     expandMacro ics (UNPAIR l)
   F _                   -> [] -- Do nothing in this case.
   -- It's impossible from the structure of PairStruct and considered cases above,
   -- but if it accidentally happened let's just do nothing.
   where
-    primEx = PrimEx
     unpairOne = UNPAIR (P fn fn)
     fn = F (noAnn, noAnn)
 
 expandCadr :: InstrCallStack -> [CadrStruct] -> VarAnn -> FieldAnn -> [ExpandedOp]
 expandCadr ics cs v f = case cs of
   []    -> []
-  [A]  -> [primEx $ CAR v f]
-  [D]  -> [primEx $ CDR v f]
-  A:css -> primEx (CAR noAnn noAnn) : expandMacro ics (CADR css v f)
-  D:css -> primEx (CDR noAnn noAnn) : expandMacro ics (CADR css v f)
-  where
-    primEx = PrimEx
+  [A]  -> [PrimEx $ CAR v f]
+  [D]  -> [PrimEx $ CDR v f]
+  A:css -> PrimEx (CAR noAnn noAnn) : expandMacro ics (CADR css v f)
+  D:css -> PrimEx (CDR noAnn noAnn) : expandMacro ics (CADR css v f)
+
+carNoAnn :: InstrAbstract op
+carNoAnn = CAR noAnn noAnn
+
+cdrNoAnn :: InstrAbstract op
+cdrNoAnn = CDR noAnn noAnn
+
+pairNoAnn :: VarAnn -> InstrAbstract op
+pairNoAnn v = PAIR noAnn v noAnn noAnn
 
 expandSetCadr :: InstrCallStack -> [CadrStruct] -> VarAnn -> FieldAnn -> [ExpandedOp]
-expandSetCadr ics cs v f = primEx <$> case cs of
+expandSetCadr ics cs v f = PrimEx <$> case cs of
   []    -> []
   [A]   -> [DUP noAnn, CAR noAnn f, DROP,
            -- ↑ These operations just check that the left element of pair has %f
@@ -334,26 +336,16 @@ expandSetCadr ics cs v f = primEx <$> case cs of
   [D]   -> [DUP noAnn, CDR noAnn f, DROP,
            -- ↑ These operations just check that the right element of pair has %f
            CAR (ann "%%") noAnn, PAIR noAnn v (ann "@") f]
-  A:css -> [DUP noAnn, DIP (primEx carN : expandMacro ics (SET_CADR css noAnn f)), cdrN, SWAP, pairN]
-  D:css -> [DUP noAnn, DIP (primEx cdrN : expandMacro ics (SET_CADR css noAnn f)), carN, pairN]
-  where
-    primEx = PrimEx
-    carN = CAR noAnn noAnn
-    cdrN = CDR noAnn noAnn
-    pairN = PAIR noAnn v noAnn noAnn
+  A:css -> [DUP noAnn, DIP (PrimEx carNoAnn : expandMacro ics (SET_CADR css noAnn f)), cdrNoAnn, SWAP, pairNoAnn v]
+  D:css -> [DUP noAnn, DIP (PrimEx cdrNoAnn : expandMacro ics (SET_CADR css noAnn f)), carNoAnn, pairNoAnn v]
 
 expandMapCadr :: InstrCallStack -> [CadrStruct] -> VarAnn -> FieldAnn -> [ParsedOp] -> [ExpandedOp]
 expandMapCadr ics@InstrCallStack{icsCallStack=cls} cs v f ops = case cs of
   []    -> []
-  [A]   -> primEx <$> [DUP noAnn, cdrN, DIP [primEx $ CAR noAnn f, SeqEx (expand cls <$> ops)], SWAP, pairN]
-  [D]   -> concat [primEx <$> [DUP noAnn, CDR noAnn f], [SeqEx (expand cls <$> ops)], primEx <$> [SWAP, carN, pairN]]
-  A:css -> primEx <$> [DUP noAnn, DIP (primEx carN : expandMacro ics (MAP_CADR css noAnn f ops)), cdrN, SWAP, pairN]
-  D:css -> primEx <$> [DUP noAnn, DIP (primEx cdrN : expandMacro ics (MAP_CADR css noAnn f ops)), carN, pairN]
-  where
-    primEx = PrimEx
-    carN = CAR noAnn noAnn
-    cdrN = CDR noAnn noAnn
-    pairN = PAIR noAnn v noAnn noAnn
+  [A]   -> PrimEx <$> [DUP noAnn, cdrNoAnn, DIP [PrimEx $ CAR noAnn f, SeqEx (expand cls <$> ops)], SWAP, pairNoAnn v]
+  [D]   -> concat [PrimEx <$> [DUP noAnn, CDR noAnn f], [SeqEx (expand cls <$> ops)], PrimEx <$> [SWAP, carNoAnn, pairNoAnn v]]
+  A:css -> PrimEx <$> [DUP noAnn, DIP (PrimEx carNoAnn : expandMacro ics (MAP_CADR css noAnn f ops)), cdrNoAnn, SWAP, pairNoAnn v]
+  D:css -> PrimEx <$> [DUP noAnn, DIP (PrimEx cdrNoAnn : expandMacro ics (MAP_CADR css noAnn f ops)), carNoAnn, pairNoAnn v]
 
 expandTag :: Int -> NonEmpty Type -> [ExpandedOp]
 expandTag idx unionTy =

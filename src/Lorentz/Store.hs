@@ -66,6 +66,8 @@ import Michelson.Typed.Haskell.Value
 import Michelson.Typed.Instr
 import Michelson.Typed.Scope
 
+{-# ANN module ("HLint: ignore Use 'natVal' from Universum" :: Text) #-}
+
 -- | Gathers multple 'BigMap's under one object.
 --
 -- Type argument of this datatype stands for a "map template" -

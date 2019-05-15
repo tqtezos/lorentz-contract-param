@@ -36,8 +36,7 @@ import Formatting.Buildable (Buildable(build))
 import System.IO.Error (IOError, isDoesNotExistError)
 
 import Michelson.TypeCheck (TcOriginatedContracts)
-import Michelson.Untyped (Contract, Value)
-import Michelson.Untyped (Type, para)
+import Michelson.Untyped (Contract, Type, Value, para)
 import Tezos.Address (Address(..))
 import Tezos.Core (Mutez)
 import Tezos.Crypto (KeyHash, parseKeyHash)
@@ -128,7 +127,7 @@ readGState fp = (LBS.readFile fp >>= parseFile) `catch` onExc
   where
     parseFile :: LByteString -> IO GState
     parseFile lByteString =
-      if length lByteString == 0
+      if null lByteString
       then pure initGState
       else (either (throwM . GStateParseError) pure . Aeson.eitherDecode') lByteString
     onExc :: IOError -> IO GState

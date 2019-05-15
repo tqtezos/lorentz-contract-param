@@ -67,10 +67,10 @@ walkerSpec = do
       def
       [GoRight, GoUp]
       $ \s -> and
-         [ storeLookup #cVisited (Position 1 1) (world s) == Just ()
-         , storeLookup #cVisited (Position 0 0) (world s) == Nothing
-         , storeLookup #cVisited (Position 1 0) (world s) == Just ()
-         , storeLookup #cVisited (Position 0 1) (world s) == Nothing
+         [ isJust    $ storeLookup #cVisited (Position 1 1) (world s)
+         , isNothing $ storeLookup #cVisited (Position 0 0) (world s)
+         , isJust    $ storeLookup #cVisited (Position 1 0) (world s)
+         , isNothing $ storeLookup #cVisited (Position 0 1) (world s)
          ]
 
 walkerProp :: Storage -> [Parameter] -> (Storage -> Bool) -> Expectation

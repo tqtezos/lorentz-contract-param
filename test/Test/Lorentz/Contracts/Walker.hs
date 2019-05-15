@@ -122,9 +122,7 @@ applyPowerUp = caseT
 applyCurrentPowerUps :: Storage : s :-> Storage : s
 applyCurrentPowerUps = do
   get_ #pos
-  duupX @2
-  access_ #world
-  swap
+  dip $ get_ #world
   storeGet #cPowerUps
   if IsSome
     then applyPowerUp
@@ -133,9 +131,7 @@ applyCurrentPowerUps = do
 markCellVisited :: Storage : s :-> Storage : s
 markCellVisited = do
   get_ #pos
-  duupX @2
-  access_ #world
-  swap
+  dip $ get_ #world
   dip unit
   storeInsert #cVisited
   set_ #world

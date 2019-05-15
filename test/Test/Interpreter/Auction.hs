@@ -133,7 +133,7 @@ validateAuction env newKeyHash (endOfAuction, (amount, keyHash)) (resE, _)
      = let counterE msg =
               counterexample $ "Invalid money back operation (" <> msg <> ")"
         in case ops of
-            OpTransferTokens (TransferTokens T.VUnit retAmount (T.VContract retAddr)) : [] ->
+            [OpTransferTokens (TransferTokens T.VUnit retAmount (T.VContract retAddr))] ->
               counterE "wrong amount" (retAmount === amount)
                 .&&.
               counterE "wrong address" (KeyAddress keyHash === retAddr)

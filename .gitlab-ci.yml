@@ -5,7 +5,7 @@ cache:
   paths:
     - .stack-root/
     - .stack-work/
-    - crossref-verifier/
+    - $CROSSREF_VERIFIER_DIR/
 
 stages:
   - test
@@ -17,7 +17,8 @@ variables:
   STACK_GLOBAL_CONFIG: "$CI_PROJECT_DIR/.stack-root/config.yaml"
   # Resolver that we use to build code outside our repository
   STACK_RESOLVER: "lts-13.3"
-  CROSSREF_VERIFIER_COMMIT: "77cba6ccf2d637325eae25585b11fedc37f69a98"
+  CROSSREF_VERIFIER_COMMIT: "b3615befce62a483699e1705fd6715c7135820e6"
+  CROSSREF_VERIFIER_DIR: ".crossref-verifier"
 
 before_script:
   - 'touch "$STACK_GLOBAL_CONFIG"'
@@ -145,11 +146,23 @@ verify-doc-links:
     refs:
       - merge_requests
   script:
-    - "git clone https://github.com/serokell/crossref-verifier.git || :"
-    - cd crossref-verifier
+    - "git clone https://github.com/serokell/crossref-verifier.git $CROSSREF_VERIFIER_DIR || :"
+    - cd $CROSSREF_VERIFIER_DIR
     - git fetch
     - git checkout $CROSSREF_VERIFIER_COMMIT
     - stack install --local-bin-path ./bin
       --resolver $STACK_RESOLVER
     - cd ..
-    - ./crossref-verifier/bin/crossref-verify -v --no-progress -m full
+    - ${CROSSREF_VERIFIER_DIR}/bin/crossref-verify -v --no-progress -m full
+
+lint:
+  stage: test
+  only:
+    refs:
+      - merge_requests
+    changes: *changes
+  script:
+    - rm -rf crossref-verifier  # TODO: remove in June
+    - stack --resolver $STACK_RESOLVER
+        install hlint
+    - ./scripts/lint.sh

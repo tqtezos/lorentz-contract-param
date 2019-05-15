@@ -20,6 +20,6 @@ getContracts dir = mapMaybe convertPath <$> listDirectory dir
   where
     convertPath :: FilePath -> Maybe FilePath
     convertPath fileName
-      | (isSuffixOf ".tz" fileName) || (isSuffixOf ".mtz" fileName) =
+      | (".tz" `isSuffixOf` fileName) || (".mtz" `isSuffixOf` fileName) =
         Just (dir </> fileName)
       | otherwise = Nothing

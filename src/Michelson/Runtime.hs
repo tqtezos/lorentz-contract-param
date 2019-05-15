@@ -40,8 +40,7 @@ import Text.Megaparsec (parse)
 
 import Michelson.Interpret
   (ContractEnv(..), InterpretUntypedError(..), InterpretUntypedResult(..), InterpreterState(..),
-  MorleyLogs(..), RemainingSteps(..))
-import Michelson.Interpret (interpretUntyped)
+  MorleyLogs(..), RemainingSteps(..), interpretUntyped)
 import Michelson.Macro (ParsedOp, expandContract)
 import qualified Michelson.Parser as P
 import Michelson.Runtime.GState

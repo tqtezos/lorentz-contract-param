@@ -105,15 +105,26 @@ t_unit fp = do
   (f,t) <- fieldType fp
   return (f, Type TUnit t)
 
+t_pair_like
+  :: (Default a)
+  => (FieldAnn -> FieldAnn -> Type -> Type -> T)
+  -> Parser Type
+  -> Parser a
+  -> Parser (a, Type)
+t_pair_like mkPair implicit fp = do
+  (f, t) <- fieldType fp
+  (l, a) <- implicitF
+  (r, b) <- implicitF
+  return (f, Type (mkPair l r a b) t)
+  where
+    implicitF = field implicit <|> (,) <$> noteFDef <*> implicit
+
 t_pair :: (Default a) => Parser Type -> Parser a -> Parser (a, Type)
 t_pair implicit fp = core <|> tuple
   where
     core = do
       symbol' "Pair"
-      (f, t) <- fieldType fp
-      (l, a) <- implicitF
-      (r, b) <- implicitF
-      return (f, Type (TPair l r a b) t)
+      t_pair_like TPair implicit fp
     tuple = try $ do
       symbol "("
       (l, a) <- implicitF
@@ -134,10 +145,7 @@ t_or implicit fp = core <|> bar
   where
     core = do
       symbol' "Or"
-      (f, t) <- fieldType fp
-      (l, a) <- implicitF
-      (r, b) <- implicitF
-      return (f, Type (TOr l r a b) t)
+      t_pair_like TOr implicit fp
     bar = try $ do
       symbol "("
       (_, Type ty _) <- barInner
@@ -202,20 +210,25 @@ t_set fp = core <|> braceSet
       (f, t) <- fieldType fp
       return (f, Type (TSet a) t)
 
-t_map :: (Default a) => Parser Type -> Parser a -> Parser (a, Type)
-t_map implicit fp = do
-  symbol' "Map"
+t_map_like
+  :: Default a
+  => Parser Type -> Parser a -> Parser (Comparable, Type, a, TypeAnn)
+t_map_like implicit fp = do
   (f, t) <- fieldType fp
   a <- comparable
   b <- typeHelper implicit
+  return (a, b, f, t)
+
+t_map :: (Default a) => Parser Type -> Parser a -> Parser (a, Type)
+t_map implicit fp = do
+  symbol' "Map"
+  (a, b, f, t) <- t_map_like implicit fp
   return (f, Type (TMap a b) t)
 
 t_big_map :: (Default a) => Parser Type -> Parser a -> Parser (a, Type)
 t_big_map implicit fp = do
   symbol' "BigMap" <|> symbol "big_map"
-  (f, t) <- fieldType fp
-  a <- comparable
-  b <- typeHelper implicit
+  (a, b, f, t) <- t_map_like implicit fp
   return (f, Type (TBigMap a b) t)
 
 ----------------------------------------------------------------------------
