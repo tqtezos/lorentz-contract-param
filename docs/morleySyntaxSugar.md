@@ -43,7 +43,18 @@ When tuples are nested, parenthesis may be omitted:
 (a,b,c) ~ (a,(b,c))
 ```
 
-But if so, only the outer pair may be annotated:
+Unsugaring will be performed in a way which provides the best average access time.
+In essence, the tuple is split so that the left part has less by one
+or the same size as the right part, these parts are recursively split
+until one element remains, and resulting pieces are merged into an `Pair` tree.
+
+For instance:
+
+```
+(a, b, c, d, e) ~ ((a, b), (c, (d, e)))
+```
+
+For nested tuples, only the outer pair may be annotated:
 
 ```
 (a, b, c) :t %f ~ (a, (b, c)) :t %f
@@ -81,16 +92,7 @@ When bars are nested, parenthesis may be omitted:
 (a | b | c) ~ (a | (b | c))
 ```
 
-Unsugaring will be performed in a way which provides the best average access time.
-In essence, the union is split so that the left part has less by one
-or the same size as the right part, these parts are recursively split
-until one element remains, and resulting pieces are merged into an `Or` tree.
-
-For instance:
-
-```
-(a | b | c | d | e) ~ ((a | b) | (c | (d | e)))
-```
+As for tuples, desugaring large unions produces right-balanced trees of `Or`s.
 
 Annotations follow the same pattern as Tuples:
 ```
