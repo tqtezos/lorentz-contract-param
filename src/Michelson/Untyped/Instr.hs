@@ -10,6 +10,7 @@ module Michelson.Untyped.Instr
   , ExpandedInstr
   , InstrExtU
   , ExpandedInstrExtU
+  , flattenExpandedOp
 
   -- * Contract's address
   , OriginationOperation (..)
@@ -20,6 +21,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as BSL
 import Data.Data (Data(..))
 import Fmt (Buildable(build), (+|), (|+))
+import Generics.SYB (everywhere, mkT)
 import Prelude hiding (EQ, GT, LT)
 import Text.PrettyPrint.Leijen.Text (braces, nest, (<$$>), (<+>))
 
@@ -69,6 +71,30 @@ instance Buildable ExpandedOp where
   build (WithSrcEx _ op) = build op
   build (PrimEx expandedInstr) = "<PrimEx: "+|expandedInstr|+">"
   build (SeqEx expandedOps)    = "<SeqEx: "+|expandedOps|+">"
+
+-- | Flatten all 'SeqEx' in 'ExpandedOp'. This function is mostly for
+-- testing. It returns instructions with the same logic, but they are
+-- not strictly equivalent, because they are serialized differently
+-- (grouping instructions into sequences affects the way they are
+-- PACK'ed).
+--
+-- Note: it does not return a list of 'Instr' because this type is not
+-- used anywhere and should probably be removed.
+flattenExpandedOp :: ExpandedOp -> [ExpandedInstr]
+flattenExpandedOp =
+  \case
+    PrimEx i -> [flattenInstr i]
+    SeqEx ops -> concatMap flattenExpandedOp ops
+    WithSrcEx _ op -> flattenExpandedOp op
+  where
+    flattenInstr :: ExpandedInstr -> ExpandedInstr
+    flattenInstr = everywhere (mkT flattenOps)
+
+    flattenOps :: [ExpandedOp] -> [ExpandedOp]
+    flattenOps [] = []
+    flattenOps (SeqEx s : xs) = s ++ flattenOps xs
+    flattenOps (x@(PrimEx _) : xs) = x : flattenOps xs
+    flattenOps (WithSrcEx _ op : xs) = op : flattenOps xs
 
 -------------------------------------
 -- Abstract instruction
@@ -165,7 +191,7 @@ data InstrAbstract op
 
 instance (RenderDoc op) => RenderDoc (InstrAbstract op) where
   renderDoc = \case
-    EXT _                 -> ""
+    EXT extInstr          -> renderDoc extInstr
     DROP                  -> "DROP"
     DUP va                -> "DUP" <+> renderDoc va
     SWAP                  -> "SWAP"
@@ -249,7 +275,7 @@ instance (RenderDoc op) => RenderDoc (InstrAbstract op) where
       renderOps = renderOpsList True
 
   isRenderable = \case
-    EXT {} -> False
+    EXT extInstr -> isRenderable extInstr
     _ -> True
 
 instance (RenderDoc op, Buildable op) => Buildable (InstrAbstract op) where

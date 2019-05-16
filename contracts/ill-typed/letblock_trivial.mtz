@@ -1,0 +1,7 @@
+let {
+  x :: '[Storage] -> '[Storage]
+  = { unit; drop; };
+};
+parameter unit;
+storage unit;
+code {cdr; x;}
