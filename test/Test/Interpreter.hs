@@ -167,6 +167,23 @@ spec_Interpreter = do
       in contractProp contract (validateStorageIs expected) dummyContractEnv
          () [mt||]
 
+  specWithTypedContract "contracts/access.mtz" $ \contract -> do
+    it "ACCESS instruction" $
+      contractProp @Tuple1 contract validateSuccess dummyContractEnv
+        (1, [mt|a|], Just [mt|a|], Right [mt|a|], [[mt|a|]]) ()
+
+  specWithTypedContract "contracts/set.mtz" $ \contract -> do
+    it "SET instruction" $
+      let expected = (2, [mt|za|], Just [mt|wa|], Right [mt|ya|], [[mt|ab|]]) :: Tuple1
+      in contractProp @_ @Tuple1 contract (validateStorageIs expected)
+        dummyContractEnv () (1, [mt|a|], Just [mt|a|], Right [mt|a|], [[mt|a|], [mt|b|]])
+
+  specWithTypedContract "contracts/construct.mtz" $ \contract -> do
+    it "CONSTRUCT instruction" $
+      let expected = (1, [mt|a|], Just [mt|b|], Left [mt|q|], []) :: Tuple1
+      in contractProp @_ @Tuple1 contract (validateStorageIs expected)
+        dummyContractEnv () (0, [mt||], Nothing, Right [mt||], [])
+
   specWithTypedContract "contracts/tezos_examples/split_bytes.tz" $ \contract -> do
     it "splits given byte sequence into parts" $
       let expected = ["\11", "\12", "\13"] :: [ByteString]
@@ -207,6 +224,8 @@ data Union1
   | Case5 [MText]
   deriving stock (Generic)
   deriving anyclass (IsoValue)
+
+type Tuple1 = (Integer, MText, Maybe MText, Either MText MText, [MText])
 
 validateSuccess :: ContractPropValidator st Expectation
 validateSuccess (res, _) = res `shouldSatisfy` isRight
