@@ -73,3 +73,7 @@ setup () {
 @test "invoking morley to print contract with cyrillic comments" {
   $morley print --contract contracts/add1_with_cyrillic_comments.tz
 }
+
+@test "invoking morley to parse an invalid contract with non-ascii characters in error message" {
+  $morley parse --contract contracts/unparsable/non-ascii-error.mtz 2>&1 | grep 'unknown type'
+}

@@ -1,0 +1,3 @@
+parameter ы;
+storage unit;
+code { drop; unit; nil operation; pair}
