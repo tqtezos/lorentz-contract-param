@@ -31,7 +31,7 @@ import Tezos.Address (Address, parseAddress)
 import Tezos.Core
   (Mutez, Timestamp(..), mkMutez, parseTimestamp, timestampFromSeconds, unMutez, unsafeMkMutez)
 import Tezos.Crypto
-import Util.IO (withEncoding)
+import Util.IO (hSetTranslit, withEncoding)
 
 ----------------------------------------------------------------------------
 -- Command line options
@@ -344,6 +344,8 @@ displayUncaughtException = mapIOExceptions wrapUnlessExitCode
 
 main :: IO ()
 main = displayUncaughtException $ withEncoding stdin utf8 $ do
+  hSetTranslit stdout
+  hSetTranslit stderr
   cmdLnArgs <- execParser programInfo
   run cmdLnArgs
   where
