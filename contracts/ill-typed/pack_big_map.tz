@@ -1,0 +1,9 @@
+parameter unit;
+storage (pair (big_map int int) int);
+code {DUP;
+      CDR;
+      PACK;
+      DROP;
+      CDR;
+      NIL operation;
+      PAIR};

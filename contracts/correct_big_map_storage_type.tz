@@ -1,0 +1,7 @@
+parameter unit;
+storage (pair (big_map int int) int);
+code {CDR;
+      LAMBDA (big_map int int) (big_map int int) {PUSH (option int) None; PUSH int 5; UPDATE};
+      DROP;
+      NIL operation;
+      PAIR};

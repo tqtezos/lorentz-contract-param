@@ -1,0 +1,5 @@
+parameter unit;
+storage (big_map int int);
+code {CDR;
+      NIL operation;
+      PAIR};

@@ -1,0 +1,8 @@
+parameter unit;
+storage (pair (big_map int int) int);
+code {PUSH bytes 0xabcd;
+      UNPACK (big_map int int);
+      DROP;
+      CDR;
+      NIL operation;
+      PAIR};
