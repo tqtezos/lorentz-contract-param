@@ -20,7 +20,8 @@ module Test.Parser
 import qualified Data.List.NonEmpty as NE
 import Test.Hspec.Expectations (Expectation, expectationFailure, shouldBe, shouldSatisfy)
 import Text.Megaparsec (parse)
-import Text.Megaparsec.Error (ErrorFancy(ErrorCustom), ParseError(FancyError), bundleErrors)
+import Text.Megaparsec.Error
+  (ErrorFancy(ErrorCustom), ParseError(FancyError), bundleErrors, errorBundlePretty)
 
 import Michelson.ErrorPos (srcPos)
 import Michelson.Macro as Mo
@@ -38,7 +39,9 @@ unit_Parse_contracts = do
     checkFile :: FilePath -> Expectation
     checkFile file = do
       code <- readFileUtf8 file
-      parse P.program file code `shouldSatisfy` isRight
+      case parse P.program file code of
+        Left err -> expectationFailure $ errorBundlePretty err
+        Right _ -> pass
 
 unit_Value :: Expectation
 unit_Value = do
