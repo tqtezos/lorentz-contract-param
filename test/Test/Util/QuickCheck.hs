@@ -37,7 +37,7 @@ import Data.Aeson (FromJSON(..), ToJSON(..))
 import qualified Data.Aeson as Aeson
 import Data.Typeable (typeRep)
 import Fmt (Buildable, pretty)
-import Test.QuickCheck (Arbitrary, forAll)
+import Test.QuickCheck (Arbitrary, forAll, resize)
 import Test.QuickCheck.Arbitrary.ADT
   (ADTArbitrary(..), ConstructorArbitraryPair(..), ToADTArbitrary(..))
 import Test.Tasty (TestTree)
@@ -100,7 +100,7 @@ roundtripADTTest xToY yToX = testProperty typeName prop
   where
     prop :: Property
     prop =
-      forAll (toADTArbitrary (Proxy @x)) $ \adt ->
+      forAll (resize 1 $ toADTArbitrary (Proxy @x)) $ \adt ->
         foldr ((.&&.) . check . capArbitrary) z (adtCAPs adt)
     typeName = show $ typeRep (Proxy @x)
     check x = yToX (xToY x) === Right x
