@@ -48,7 +48,7 @@ build-and-test:
       - test/**/*
   script:
     - mkdir -p ./weeder/bin
-    - stack --resolver $STACK_RESOLVER --local-bin-path ./weeder/bin
+    - stack --resolver $STACK_RESOLVER
         install weeder
     - cp /usr/lib/gcc/x86_64-linux-gnu/6/crtbeginT.o /usr/lib/gcc/x86_64-linux-gnu/6/crtbeginT.o.orig
     - cp /usr/lib/gcc/x86_64-linux-gnu/6/crtbeginS.o /usr/lib/gcc/x86_64-linux-gnu/6/crtbeginT.o
@@ -60,7 +60,7 @@ build-and-test:
         --haddock --no-haddock-deps
     - stack test morley --test-arguments="--xml=report/test_report.xml"
     # Run weeder after our code is built
-    - weeder/bin/weeder .
+    - weeder .
     # Test EDSL examples
     - stack --stack-yaml examples/EDSL/stack.yaml test
     - rm -rf "$STACK_ROOT/programs"  # Faster to download them again
@@ -150,10 +150,10 @@ verify-doc-links:
     - cd $CROSSREF_VERIFIER_DIR
     - git fetch
     - git checkout $CROSSREF_VERIFIER_COMMIT
-    - stack install --local-bin-path ./bin
-      --resolver $STACK_RESOLVER
+    - stack --resolver $STACK_RESOLVER
+        install crossref-verifier
     - cd ..
-    - ${CROSSREF_VERIFIER_DIR}/bin/crossref-verify -v --no-progress -m full
+    - crossref-verify -v --no-progress -m full
 
 lint:
   stage: test
