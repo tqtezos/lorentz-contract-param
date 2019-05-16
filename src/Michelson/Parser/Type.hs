@@ -127,18 +127,19 @@ t_pair implicit fp = core <|> tuple
       t_pair_like TPair implicit fp
     tuple = try $ do
       symbol "("
-      (l, a) <- implicitF
-      comma
-      (r, b) <- tupleInner <|> implicitF
+      (l, r, a, b) <- typePair
       symbol ")"
       (f, t) <- fieldType fp
       return (f, Type (TPair l r a b) t)
     tupleInner = try $ do
-      (l, a) <- field implicit
-      comma
-      (r, b) <- tupleInner <|> implicitF
+      (l, r, a, b) <- typePair
       return (noAnn, Type (TPair l r a b) noAnn)
     implicitF = field implicit <|> (,) <$> noteFDef <*> implicit
+    typePair = do
+      (l, a) <- implicitF
+      comma
+      (r, b) <- tupleInner <|> implicitF
+      return (l, r, a, b)
 
 t_or :: (Default a) => Parser Type -> Parser a -> Parser (a, Type)
 t_or implicit fp = core <|> bar

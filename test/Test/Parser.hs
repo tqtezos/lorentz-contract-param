@@ -99,6 +99,8 @@ unit_pair_type = do
   P.parseNoEnv P.type_ "" "(unit, unit)" `shouldBe` Right unitPair
   P.parseNoEnv P.type_ "" "(Parameter, (int, (Storage, bool)))"
     `shouldSatisfy` isRight
+  P.parseNoEnv P.type_ "" "(Parameter, Parameter, Storage, bool)"
+    `shouldSatisfy` isRight
   where
     unitPair :: Mo.Type
     unitPair =
