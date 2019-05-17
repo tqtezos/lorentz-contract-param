@@ -7,6 +7,7 @@ import Control.Monad.Except (liftEither, throwError)
 import Data.Default (def)
 import qualified Data.Map as M
 import qualified Data.Set as S
+import Data.Singletons (SingI)
 import Data.Typeable ((:~:)(..), typeRep)
 import Fmt (pretty)
 import Prelude hiding (EQ, GT, LT)
@@ -159,15 +160,16 @@ typeCheckValImpl _ sq@(U.ValueSeq (toList -> mels)) t@(STSet vt, _) = do
 typeCheckValImpl _ U.ValueNil t@(STMap _ _, _) = pure $ T.VMap M.empty :::: t
 
 typeCheckValImpl tcDo sq@(U.ValueMap (toList -> mels)) t@(STMap kt vt, ann) = do
-  instrPos <- ask
-  ks <- liftEither $ typeCheckCVals (map (\(U.Elt k _) -> k) mels) (fromSingCT kt)
-          `onLeft` \(cv, err) -> TCFailedOnValue cv (fromSingT $ STc kt)
-                                      "wrong type of map key:" instrPos (Just err)
   let vn = notesCase NStar (\(NTMap _ _ nt) -> nt) ann
-  (vals, _) <- typeCheckValsImpl tcDo (map (\(U.Elt _ v) -> v) mels) (vt, vn)
-  ksS <- liftEither $ ensureDistinctAsc id ks
-        `onLeft` \msg -> TCFailedOnValue sq (fromSingT $ STc kt) msg instrPos Nothing
-  pure $ VMap (M.fromDistinctAscList $ zip ksS vals) :::: t
+  keyOrderedElts <- typeCheckMapVal tcDo mels sq vn kt vt
+  pure $ VMap (M.fromDistinctAscList keyOrderedElts) :::: t
+
+typeCheckValImpl _ U.ValueNil t@(STBigMap _ _ , _) = pure $ T.VBigMap M.empty :::: t
+
+typeCheckValImpl tcDo sq@(U.ValueMap (toList -> mels)) t@(STBigMap kt vt, ann) = do
+  let vn = notesCase NStar (\(NTBigMap _ _ nt) -> nt) ann
+  keyOrderedElts <- typeCheckMapVal tcDo mels sq vn kt vt
+  pure $ VBigMap (M.fromDistinctAscList keyOrderedElts) :::: t
 
 typeCheckValImpl tcDo v (t@(STLambda (it :: Sing it) (ot :: Sing ot)), ann) = do
   mp <- case v of
@@ -193,6 +195,30 @@ typeCheckValImpl tcDo v (t@(STLambda (it :: Sing it) (ot :: Sing ot)), ann) = do
       pure $ VLam lam :::: (lamS, lamN NStar)
 
 typeCheckValImpl _ v (t, _) = tcFailedOnValue v (fromSingT t) "unknown value" Nothing
+
+-- | Function @typeCheckMapVal@ typechecks given list of @Elt@s and
+-- ensures, that its keys are in ascending order.
+--
+-- It return list of pairs (key, value) with keys in ascending order
+-- so it is safe to call @fromDistinctAscList@ on returned list
+typeCheckMapVal
+  :: (SingI kt, Typeable kt, Typeable vt)
+  => TcInstrHandler
+  -> [U.Elt U.ExpandedOp]
+  -> U.Value
+  -> Notes vt
+  -> Sing kt
+  -> Sing vt
+  -> TypeCheckInstr [(CValue kt, T.Value vt)]
+typeCheckMapVal tcDo mels sq vn kt vt = do
+  instrPos <- ask
+  ks <- liftEither $ typeCheckCVals (map (\(U.Elt k _) -> k) mels) (fromSingCT kt)
+          `onLeft` \(cv, err) -> TCFailedOnValue cv (fromSingT $ STc kt)
+                                      "wrong type of map key:" instrPos (Just err)
+  (vals, _) <- typeCheckValsImpl tcDo (map (\(U.Elt _ v) -> v) mels) (vt, vn)
+  ksS <- liftEither $ ensureDistinctAsc id ks
+        `onLeft` \msg -> TCFailedOnValue sq (fromSingT $ STc kt) msg instrPos Nothing
+  pure $ zip ksS vals
 
 typeCheckValsImpl
   :: forall t . (Typeable t)
