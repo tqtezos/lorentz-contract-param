@@ -65,3 +65,13 @@ setup () {
   run "$morley" $custom_executable print --contract "$contract"
   [ "$status" -eq 0 ]
 }
+
+@test "run contract with big_map passed in storage" {
+  "$morley" $custom_executable run --contract \
+  contracts/big_map_in_storage.tz  --storage 'Pair {} 0' --parameter 1
+  "$morley" $custom_executable run --contract \
+  contracts/big_map_in_storage.tz  --storage 'Pair {Elt 3 5; Elt 4 6} 0' --parameter 1
+  run "$morley" $custom_executable run --contract \
+  contracts/big_map_in_storage.tz  --storage 'Pair {Elt 4 5; Elt 3 6} 0' --parameter 1
+  [ "$status" -ne 0 ]
+}

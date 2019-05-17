@@ -1,0 +1,5 @@
+parameter int;
+storage (pair (big_map int int) nat);
+code {
+      CDR;
+      NIL operation; PAIR;};
