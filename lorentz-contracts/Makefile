@@ -1,11 +1,11 @@
-.PHONY: morley test haddock haddock-no-deps stylish lint clean all
+.PHONY: lorentz-contracts test haddock haddock-no-deps clean all
 
 # Build target from the common utility Makefile
-MAKEU = $(MAKE) -C make/
+MAKEU = $(MAKE) -C ../make/
 
-MAKE_PACKAGE = $(MAKEU) PACKAGE=morley
+MAKE_PACKAGE = $(MAKEU) PACKAGE=lorentz-contracts
 
-morley:
+lorentz-contracts:
 	$(MAKE_PACKAGE) dev
 test:
 	$(MAKE_PACKAGE) test
@@ -17,12 +17,8 @@ haddock:
 	$(MAKE_PACKAGE) haddock
 haddock-no-deps:
 	$(MAKE_PACKAGE) haddock-no-deps
-stylish:
-	$(MAKE_PACKAGE) stylish
-lint:
-	$(MAKE_PACKAGE) lint
 clean:
 	$(MAKE_PACKAGE) clean
 
 all:
-	$(MAKEU) PACKAGE=""
+	$(MAKE) lorentz-contracts

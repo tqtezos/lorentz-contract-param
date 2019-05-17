@@ -45,7 +45,9 @@ A workaround is to set `TERM=dumb`.
 We have a [Makefile](/Makefile) which provides shortcuts for the most
 common developers' activities, like building with flags suitable for
 development, testing, applying `stylish-haskell` and `hlint`, building
-Haddock documentation.
+Haddock documentation. Mentioned `Makefile` builds morley itself,
+each extra package, like [`lorentz-contracts`](/lorentz-contracts/Makefile),
+has its own `Makefile`.
 
 If you want to run test suite with additional options, set `TEST_ARGUMENTS` variable.
 Example: `TEST_ARGUMENTS="--pattern Parser" make test`.
