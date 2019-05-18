@@ -138,16 +138,6 @@ checkStackType (BoundVars vars boundStkRest) s hst = go vars 0 s hst
           void $ first (TyVarMismatch v t s n . AnnError) (converge tann xann)
           go m (n + 1) ts xs
 
-eqHST :: (Typeable as, Typeable bs) => HST as -> HST bs -> Either TCTypeError (as :~: bs)
-eqHST (hst :: HST xs) (hst' :: HST ys) = do
-  Refl <- (eqType @xs @ys)
-  void $ convergeHST hst hst' `onLeft` AnnError
-  return Refl
-
-lengthHST :: HST xs -> Natural
-lengthHST (_ ::& xs) = 1 + lengthHST xs
-lengthHST SNil = 0
-
 -- | Create stack reference accessing element with a given index.
 --
 -- Fails when index is too large for the given stack.

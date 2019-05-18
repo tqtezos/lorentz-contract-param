@@ -1,5 +1,6 @@
 module Michelson.TypeCheck.Types
     ( HST (..)
+    , (-:&)
     , SomeHST (..)
     , SomeInstrOut (..)
     , SomeInstr (..)
@@ -17,7 +18,7 @@ import qualified Text.Show
 import qualified Data.Map.Lazy as Map
 
 import Michelson.EqParam (eqParam1)
-import Michelson.Untyped (Var, Type)
+import Michelson.Untyped (Var, Type, noAnn)
 import Michelson.Typed
   (HasNoBigMap, HasNoOp, Notes(..), Sing(..), BigMapConstraint, T(..), fromSingT)
 import qualified Michelson.Typed as T
@@ -73,6 +74,16 @@ instance Eq (HST ts) where
   SNil == SNil = True
   (_, n1, a1) ::& h1 == (_, n2, a2) ::& h2 =
     n1 == n2 && a1 == a2 && h1 == h2
+
+-- | Append a type to 'HST', assuming that notes and annotations
+-- for this type are unknown.
+(-:&)
+  :: (Typeable xs, Typeable x, SingI x)
+  => Sing x
+  -> HST xs
+  -> HST (x ': xs)
+s -:& hst = (s, NStar, noAnn) ::& hst
+infixr 7 -:&
 
 -- | No-argument type wrapper for @HST@ data type.
 data SomeHST where

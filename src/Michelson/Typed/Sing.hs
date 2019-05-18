@@ -17,7 +17,7 @@ module Michelson.Typed.Sing
   ) where
 
 import Data.Kind (Type)
-import Data.Singletons (Sing(..), SingI(..))
+import Data.Singletons (Sing(..), SingI(..), SingKind(..), SomeSing(..))
 
 import Michelson.Typed.T (CT(..), T(..))
 
@@ -99,6 +99,11 @@ toSingCT CKeyHash = SomeSingCT SCKeyHash
 toSingCT CTimestamp = SomeSingCT SCTimestamp
 toSingCT CAddress = SomeSingCT SCAddress
 
+instance SingKind CT where
+  type Demote CT = CT
+  fromSing  = fromSingCT
+  toSing t = case toSingCT t of SomeSingCT s -> SomeSing s
+
 instance SingI  'CInt where
   sing = SCInt
 instance SingI  'CNat where
@@ -121,7 +126,6 @@ instance SingI  'CAddress where
 ---------------------------------------------
 -- Singleton-related helpers for T
 --------------------------------------------
-
 
 -- | Version of 'SomeSing' with 'Typeable' constraint,
 -- specialized for use with 'T' kind.
@@ -191,6 +195,11 @@ toSingT (TBigMap l r) =
   withSomeSingCT l $ \lSing ->
   withSomeSingT r $ \rSing ->
     SomeSingT $ STBigMap lSing rSing
+
+instance SingKind T where
+  type Demote T = T
+  fromSing  = fromSingT
+  toSing t = case toSingT t of SomeSingT s -> SomeSing s
 
 instance (SingI t, Typeable t) => SingI ( 'Tc (t :: CT)) where
   sing = STc sing

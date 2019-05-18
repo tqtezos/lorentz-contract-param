@@ -7,8 +7,8 @@ import Control.Monad.Except (liftEither, throwError)
 import Data.Default (def)
 import qualified Data.Map as M
 import qualified Data.Set as S
-import Data.Singletons (SingI)
-import Data.Typeable ((:~:)(..), typeRep)
+import Data.Singletons (SingI, demote)
+import Data.Typeable ((:~:)(..))
 import Fmt (pretty)
 import Prelude hiding (EQ, GT, LT)
 
@@ -48,7 +48,7 @@ typeCheckCValue U.ValueFalse CBool = pure $ CvBool False :--: SCBool
 typeCheckCValue _ _ = Nothing
 
 typeCheckCVals
-  :: forall t op . Typeable t
+  :: forall t op . (Typeable t, SingI t)
   => [U.Value' op]
   -> CT
   -> Either (U.Value' op, TCTypeError) [CValue t]
@@ -56,9 +56,9 @@ typeCheckCVals mvs t = traverse check mvs
   where
     check mv = do
       v :--: (_ :: Sing t') <-
-        maybe (Left (mv, UnknownType (typeRep (Proxy @(CValue t))))) pure $
+        maybe (Left (mv, UnknownType (demote @('T.Tc t)))) pure $
         typeCheckCValue mv t
-      Refl <- eqType @t @t' `onLeft` (,) mv
+      Refl <- eqType @('T.Tc t) @('T.Tc t') `onLeft` (,) mv
       pure v
 
 
@@ -183,7 +183,7 @@ typeCheckValImpl tcDo v (t@(STLambda (it :: Sing it) (ot :: Sing ot)), ann) = do
   let lamN ons = mkNotes $ NTLambda def ins ons
   case instr of
     lam ::: (lo :: HST lo) -> do
-      case eqType @'[ ot ] @lo of
+      case eqHST1 @ot lo of
         Right Refl -> do
           let (_, ons, _) ::& SNil = lo
           let ns = mkNotes $ NTLambda vn ins ons
@@ -202,7 +202,7 @@ typeCheckValImpl _ v (t, _) = tcFailedOnValue v (fromSingT t) "unknown value" No
 -- It return list of pairs (key, value) with keys in ascending order
 -- so it is safe to call @fromDistinctAscList@ on returned list
 typeCheckMapVal
-  :: (SingI kt, Typeable kt, Typeable vt)
+  :: (SingI kt, Typeable kt, SingI vt, Typeable vt)
   => TcInstrHandler
   -> [U.Elt U.ExpandedOp]
   -> U.Value
@@ -221,7 +221,7 @@ typeCheckMapVal tcDo mels sq vn kt vt = do
   pure $ zip ksS vals
 
 typeCheckValsImpl
-  :: forall t . (Typeable t)
+  :: forall t . (Typeable t, SingI t)
   => TcInstrHandler
   -> [U.Value]
   -> (Sing t, Notes t)

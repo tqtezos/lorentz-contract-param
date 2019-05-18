@@ -2,7 +2,9 @@
 
 module Michelson.Typed.Value
   ( Value' (..)
+  , ContractInp1
   , ContractInp
+  , ContractOut1
   , ContractOut
   , CreateAccount (..)
   , CreateContract (..)
@@ -119,8 +121,11 @@ instance Buildable (CreateContract instr cp st) where
 deriving instance Show (CreateContract instr cp st)
 deriving instance Eq (CreateContract instr cp st)
 
-type ContractInp param st = '[ 'TPair param st ]
-type ContractOut st = '[ 'TPair ('TList 'TOperation) st ]
+type ContractInp1 param st = 'TPair param st
+type ContractInp param st = '[ ContractInp1 param st ]
+
+type ContractOut1 st = 'TPair ('TList 'TOperation) st
+type ContractOut st = '[ ContractOut1 st ]
 
 -- | Representation of Michelson value.
 --

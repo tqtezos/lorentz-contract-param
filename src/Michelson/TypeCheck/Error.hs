@@ -6,8 +6,7 @@ module Michelson.TypeCheck.Error
   ) where
 
 
-import Data.Data (TypeRep)
-import Fmt (Buildable(..), pretty, (+|), (+||), (|+), (||+))
+import Fmt (Buildable(..), listF, pretty, (+|), (+||), (|+), (||+))
 import qualified Text.Show (show)
 
 import Michelson.ErrorPos (InstrCallStack)
@@ -15,6 +14,7 @@ import Michelson.TypeCheck.Types (SomeHST(..))
 import qualified Michelson.Typed as T
 import Michelson.Typed.Annotation (AnnConvergeError(..))
 import Michelson.Typed.Extract (TypeConvergeError(..), toUType)
+import Michelson.Typed.Print (buildStack)
 import Michelson.Untyped (StackFn, Type, Var)
 import qualified Michelson.Untyped as U
 
@@ -27,24 +27,28 @@ data TCTypeError
   -- ^ Annotation unify error
   | ExtractionTypeMismatch TypeConvergeError
   -- ^ Notes extraction error
-  | TypeEqError TypeRep TypeRep
+  | TypeEqError T.T T.T
   -- ^ Type equality error
-  | UnsupportedTypes [TypeRep]
+  | StackEqError [T.T] [T.T]
+  -- ^ Stacks equality error
+  | UnsupportedTypes [T.T]
   -- ^ Error that happens when some instruction doesn't
   -- have support for some types
-  | UnknownType TypeRep
+  | UnknownType T.T
   -- ^ Error that happens when we meet unknown type
   deriving (Show, Eq)
 
 instance Buildable TCTypeError where
-  build (AnnError e)= build e
+  build (AnnError e) = build e
   build (ExtractionTypeMismatch e) = build e
   build (TypeEqError type1 type2) =
-    "Types not equal: " +|| type1 ||+ " /= " +|| type2 ||+ ""
+    "Types not equal: " +| type1 |+ " /= " +| type2 |+ ""
+  build (StackEqError st1 st2) =
+    "Stacks not equal: " +| buildStack st1 |+ " /= " +| buildStack st2 |+ ""
   build (UnsupportedTypes types) =
-    "Unsupported types: " +| (intercalate ", " $ map show types) |+ ""
+    "Unsupported types: " +| listF types |+ ""
   build (UnknownType t) =
-    "Unknown type" +|| t ||+ ""
+    "Unknown type `" +| t |+ "`"
 
 -- | Type check error
 data TCError
