@@ -2,7 +2,8 @@
 
 setup () {
   morley_script="./scripts/morley.sh"
-  custom_executable="--morley_executable tmp/morley"
+  bin_dir="tmp"
+  custom_executable="--morley_executable $bin_dir/morley"
   contract="contracts/add1.tz"
   db="bats_db.json"
   morley="$morley_script $custom_executable"
@@ -76,4 +77,8 @@ setup () {
 
 @test "invoking morley to parse an invalid contract with non-ascii characters in error message" {
   $morley parse --contract contracts/unparsable/non-ascii-error.mtz 2>&1 | grep 'unknown type'
+}
+
+@test "lorentz registry finds some contracts" {
+  $bin_dir/lorentz-contracts -- print -n walker
 }

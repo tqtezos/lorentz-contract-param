@@ -1,5 +1,6 @@
 module Util.IO
   ( readFileUtf8
+  , writeFileUtf8
   , withEncoding
   , hSetTranslit
   ) where
@@ -11,6 +12,10 @@ import System.IO (TextEncoding, hGetEncoding, hSetBinaryMode, hSetEncoding, mkTe
 readFileUtf8 :: FilePath -> IO Text
 readFileUtf8 name =
   openFile name ReadMode >>= \h -> hSetEncoding h utf8 >> hGetContents h
+
+writeFileUtf8 :: Print text => FilePath -> text -> IO ()
+writeFileUtf8 name txt =
+  withFile name WriteMode $ \h -> hSetEncoding h utf8 >> hPutStr h txt
 
 withEncoding :: Handle -> TextEncoding -> IO () -> IO ()
 withEncoding handle encoding action = do

@@ -1,5 +1,5 @@
 module Lorentz.Contracts.Walker
-  ( walkerContract
+  ( contract_walker
   , Parameter (..)
   , Storage (..)
   , Position (..)
@@ -48,8 +48,8 @@ data Storage = Storage
   } deriving stock Generic
     deriving anyclass (Default, IsoValue)
 
-walkerContract :: Contract Parameter Storage
-walkerContract =
+contract_walker :: Contract Parameter Storage
+contract_walker =
   unpair # caseT @Parameter
     ( #cGoLeft /-> do
         modify_ #pos $ modify_ #x $ do

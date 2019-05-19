@@ -44,6 +44,7 @@ Later Lorentz contract can be dumped as a plain textual Michelson contract using
 
 You can find Lorentz instructions in [`Lorentz`](/src/Lorentz.hs) modules.
 Examples reside in [`Lorentz.Contracts.*`](/lorentz-contracts/src/Lorentz/Contracts/) modules.
+For more information, refer this package [README](/lorentz-contracts/README.md).
 
 ## V: Testing EDSL
 

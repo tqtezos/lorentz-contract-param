@@ -7,14 +7,34 @@ synopsis:            Set of Michelson contracts implemented in Lorentz eDSL.
 description:
   Various contracts including simple examples, DS Token and other.
 category:            Language
+extra-source-files:
+  - README.md
 
 library:
   <<: *lorentz-lib-common
 
+  build-tools:
+    - morley:contract-discover
+
   dependencies:
+    - containers
     - data-default
     - morley
     - morley-prelude
+    - text
+
+executables:
+  lorentz-contracts:
+    <<: *exec-common
+
+    dependencies:
+      - containers
+      - fmt
+      - lorentz-contracts
+      - morley
+      - morley-prelude
+      - optparse-applicative
+      - text
 
 tests:
   lorentz-contracts-test:
