@@ -26,3 +26,5 @@ clean:
 
 all:
 	$(MAKEU) PACKAGE=""
+test-all:
+	$(MAKEU) test PACKAGE=""
