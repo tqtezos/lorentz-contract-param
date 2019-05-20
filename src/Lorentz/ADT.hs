@@ -1,10 +1,10 @@
 module Lorentz.ADT
   ( HasField
   , HasFieldOfType
-  , access_
-  , get_
-  , set_
-  , modify_
+  , toField
+  , getField
+  , setField
+  , modifyField
   , construct
   , constructT
   , fieldCtor
@@ -33,8 +33,8 @@ import Michelson.Typed.Haskell.Value
 import Util.TypeTuple
 
 type HasField dt fname =
-  ( InstrGetC dt fname
-  , InstrSetC dt fname
+  ( InstrGetFieldC dt fname
+  , InstrSetFieldC dt fname
   )
 
 type HasFieldOfType dt fname fieldTy =
@@ -42,40 +42,41 @@ type HasFieldOfType dt fname fieldTy =
   , GetFieldType dt fname ~ fieldTy
   )
 
--- | Extract a field of a datatype.
+-- | Extract a field of a datatype replacing the value of this
+-- datatype with the extracted field.
 --
 -- For this and the following functions you have to specify field name
 -- which is either record name or name attached with @(:!)@ operator.
-access_
+toField
   :: forall dt name st.
-     InstrGetC dt name
+     InstrGetFieldC dt name
   => Label name -> dt & st :-> GetFieldType dt name & st
-access_ = I . instrGet @dt
+toField = I . instrGetField @dt
 
 -- | Extract a field of a datatype, leaving the original datatype on stack.
-get_
+getField
   :: forall dt name st.
-     InstrGetC dt name
+     InstrGetFieldC dt name
   => Label name -> dt & st :-> GetFieldType dt name & dt ': st
-get_ l = dup # access_ @dt l
+getField l = dup # toField @dt l
 
 -- | Set a field of a datatype.
-set_
+setField
   :: forall dt name st.
-     InstrSetC dt name
+     InstrSetFieldC dt name
   => Label name -> (GetFieldType dt name ': dt ': st) :-> (dt ': st)
-set_ = I . instrSet @dt
+setField = I . instrSetField @dt
 
 -- | Apply given modifier to a datatype field.
-modify_
+modifyField
   :: forall dt name st.
-     ( InstrGetC dt name
-     , InstrSetC dt name
+     ( InstrGetFieldC dt name
+     , InstrSetFieldC dt name
      )
   => Label name
   -> (forall st0. (GetFieldType dt name ': st0) :-> (GetFieldType dt name ': st0))
   -> dt & st :-> dt & st
-modify_ l i = get_ @dt l # i # set_ @dt l
+modifyField l i = getField @dt l # i # setField @dt l
 
 -- | Make up a datatype. You provide a pack of individual fields constructors.
 --
