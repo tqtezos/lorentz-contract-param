@@ -443,7 +443,9 @@ view_ code =
 -- | @void@ type synonym as described in A1.
 data Void_ (a :: Kind.Type) (b :: Kind.Type) = Void_
   { voidParam :: a
-  , voidProxy :: Lambda b b
+    -- ^ Entry point argument.
+  , voidResProxy :: Lambda b b
+    -- ^ Type of result reported via 'failWith'.
   } deriving stock Generic
     deriving anyclass IsoValue
 
@@ -453,7 +455,7 @@ mkVoid a = Void_ a nop
 void_
   :: forall a b s s' anything.
       (KnownValue b)
-  => a & s :-> b & s' -> Void_ a b & s :-> b & anything
+  => a & s :-> b & s' -> Void_ a b & s :-> anything
 void_ code =
   coerce_ @_ @(_, Lambda b b) #
   unpair # swap # dip code # swap # exec # failWith
