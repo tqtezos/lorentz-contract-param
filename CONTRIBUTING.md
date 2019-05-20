@@ -45,7 +45,9 @@ A workaround is to set `TERM=dumb`.
 We have a [Makefile](/Makefile) which provides shortcuts for the most
 common developers' activities, like building with flags suitable for
 development, testing, applying `stylish-haskell` and `hlint`, building
-Haddock documentation.
+Haddock documentation. Mentioned `Makefile` builds morley itself,
+each extra package, like [`lorentz-contracts`](/lorentz-contracts/Makefile),
+has its own `Makefile`.
 
 If you want to run test suite with additional options, set `TEST_ARGUMENTS` variable.
 Example: `TEST_ARGUMENTS="--pattern Parser" make test`.
@@ -55,3 +57,18 @@ It will automatically set `TERM=dumb` which is a workaround for the issue mentio
 ## Branching policy
 
 Our branching policy is described [here](/docs/branching.md).
+
+## Build recomendations
+
+### Emacs intero
+
+As soon as this repository uses different default extensions in different packages,
+Intero may report non-existing errors.
+This issue [is known](https://github.com/chrisdone/intero/issues/554) and probably
+won't be resolved soon.
+
+However, with proper care, this problem can be avoided. Just follow the rules:
+* When working with `morley` package, select only `morley:*` packages in `intero-targets`.
+* When developing on Lorentz within `lorentz-contracts` package, make sure that
+you first built morley core with `make morley`, only after that open the Lorentz modules.
+Then set `lorentz-contracts:*` packages as intero targets.

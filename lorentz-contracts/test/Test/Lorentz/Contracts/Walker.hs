@@ -1,7 +1,7 @@
 -- | Module, containing spec to walker contract.
 
-module Test.Interpreter.Walker
-  ( walkerSpec
+module Test.Lorentz.Contracts.Walker
+  ( spec_Walker
   ) where
 
 import Data.Default (def)
@@ -14,11 +14,11 @@ import Michelson.Test.Dummy
 import qualified Michelson.Typed as T
 import Util.Named ((.!))
 
-import Test.Lorentz.Contracts.Walker
+import Lorentz.Contracts.Walker
 
 -- | Spec to test walker contract.
-walkerSpec :: Spec
-walkerSpec = do
+spec_Walker :: Spec
+spec_Walker = do
   it "Go " $
     walkerProp def [GoRight]
       (\s -> pos s == Position 1 0)

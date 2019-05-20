@@ -7,9 +7,6 @@ description:
   A custom prelude used in Morley. It re-exports the Universum prelude
   and makes some tiny changes.
 category:            Prelude
-extra-source-files:
-  - ../CONTRIBUTING.md
-  - ../CHANGES.md
 
 library:
   <<: *lib-common

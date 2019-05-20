@@ -1,19 +1,19 @@
 -- | Module, containing spec to test auction.tz contract.
 --
 -- This spec is an example of using testing capabilities of morley.
-module Test.Interpreter.Auction
-  ( auctionSpec
+module Test.Lorentz.Contracts.Auction
+  ( spec_Auction
   ) where
 
 import Test.Hspec (Spec, it, parallel, shouldSatisfy)
 import Test.Hspec.QuickCheck (prop)
-import Test.Lorentz.Contracts.Auction (auction)
 import Test.QuickCheck (Property, arbitrary, choose, counterexample, (.&&.), (===))
 import Test.QuickCheck.Gen (unGen)
 import Test.QuickCheck.Property (expectFailure, forAll, withMaxSuccess)
 import Test.QuickCheck.Random (mkQCGen)
 
 import Lorentz (compileLorentz)
+import Lorentz.Contracts.Auction (auction)
 import Michelson.Interpret (ContractEnv(..))
 import Michelson.Test (ContractPropValidator, contractProp, midTimestamp, specWithTypedContract)
 import Michelson.Test.Dummy
@@ -31,14 +31,14 @@ type Param = KeyHash
 --
 -- This spec serves as an example on how to test contract with both unit tests
 -- and QuickCheck.
-auctionSpec :: Spec
-auctionSpec = parallel $ do
-  specWithTypedContract "contracts/auction.tz" auctionSpec'
+spec_Auction :: Spec
+spec_Auction = parallel $ do
+  specWithTypedContract "../contracts/auction.tz" auctionSpec'
   auctionSpec' (compileLorentz auction)
   -- Test slightly modified version of auction.tz, it must fail.
   -- This block is given purely for demonstration of that tests are smart
   -- enough to filter common mistakes.
-  specWithTypedContract "contracts/auction-buggy.tz" $ \contract -> do
+  specWithTypedContract "../contracts/auction-buggy.tz" $ \contract -> do
     prop "Random check (dense end of auction)" $
       expectFailure $ qcProp contract denseTime arbitrary
 

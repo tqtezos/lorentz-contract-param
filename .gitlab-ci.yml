@@ -58,7 +58,10 @@ build-and-test:
         --test --no-run-tests
         --bench --no-run-benchmarks
         --haddock --no-haddock-deps
-    - stack test morley --test-arguments="--xml=report/test_report.xml"
+    - stack test morley
+        --test-arguments="--xml=report/morley_test_report.xml"
+    - stack test lorentz-contracts
+        --test-arguments="--xml=../report/lorentz_contracts_test_report.xml"
     # Run weeder after our code is built
     - weeder .
     # Test EDSL examples
@@ -69,7 +72,7 @@ build-and-test:
     # https://gitlab.com/gitlab-org/gitlab-ce/issues/52997
     - sed -i -r
         's:<testcase name="([^<>]*?)" time="([0-9.]*?)" classname="([^<>]*?)">:<testcase name="\3.\1" time="\2" classname="\3">:g'
-        report/test_report.xml
+        report/*.xml
 
   artifacts:
     paths:

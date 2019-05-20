@@ -43,7 +43,7 @@ Haskell's type checker and automatic type inference facilitate contracts impleme
 Later Lorentz contract can be dumped as a plain textual Michelson contract using functions from [`Michelson.Printer`](/src/Michelson/Printer.hs).
 
 You can find Lorentz instructions in [`Lorentz`](/src/Lorentz.hs) modules.
-Examples reside in [`Test.Lorentz.Contracts.*`](/test/Test/Lorentz/Contracts/) modules.
+Examples reside in [`Lorentz.Contracts.*`](/lorentz-contracts/src/Lorentz/Contracts/) modules.
 
 ## V: Testing EDSL
 
