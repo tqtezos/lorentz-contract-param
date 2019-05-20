@@ -41,7 +41,9 @@ import Michelson.TypeCheck.Helpers (ensureDistinctAsc, eqType)
 import Michelson.TypeCheck.Instr (typeCheckList)
 import Michelson.Typed (Sing(..))
 import qualified Michelson.Typed as T
-import Michelson.Typed.Scope (HasNoOp, OpPresence(..), checkOpPresence, opAbsense)
+import Michelson.Typed.Scope
+  (HasNoBigMap, HasNoOp, BigMapPresence(..), OpPresence(..), checkBigMapPresence, checkOpPresence,
+  bigMapAbsense, opAbsense)
 import Michelson.Untyped
 import Tezos.Address (Address(..))
 import Tezos.Core (mkMutez, timestampFromSeconds)
@@ -156,7 +158,7 @@ We console ourselves that lambdas are rarely packed.
 -- | Deserialize bytes into the given value.
 -- Suitable for @UNPACK@ operation only.
 unpackValue
-  :: (SingI t, HasNoOp t)
+  :: (SingI t, HasNoOp t, HasNoBigMap t)
   => UnpackEnv -> LByteString -> Either UnpackError (T.Value t)
 unpackValue env bs =
   case Get.runGetOrFail (unpackDecoder env) bs of
@@ -165,18 +167,20 @@ unpackValue env bs =
 
 -- | Like 'unpackValue', for strict byte array.
 unpackValue'
-  :: (SingI t, HasNoOp t)
+  :: (SingI t, HasNoOp t, HasNoBigMap t)
   => UnpackEnv -> ByteString -> Either UnpackError (T.Value t)
 unpackValue' env = unpackValue env . LBS.fromStrict
 
 -- | Overall value decoder we use in @UNPACK@.
-unpackDecoder :: (SingI t, HasNoOp t) => UnpackEnv -> Get (T.Value t)
+unpackDecoder
+  :: (SingI t, HasNoOp t, HasNoBigMap t)
+  => UnpackEnv -> Get (T.Value t)
 unpackDecoder env =
   expectTag "Packed data start" 0x05 *> decodeValue env <* ensureEnd
 
 decodeValue
   :: forall t.
-     (SingI t, HasNoOp t)
+     (SingI t, HasNoOp t, HasNoBigMap t)
   => UnpackEnv -> Get (T.Value t)
 decodeValue env = Get.label "Value" $
   case sing @t of
@@ -214,14 +218,14 @@ decodeValue env = Get.label "Value" $
     STContract _ ->
       T.VContract <$> decodeAddress
     STPair lt _ ->
-      case checkOpPresence lt of
-        OpAbsent -> do
+      case (checkOpPresence lt, checkBigMapPresence lt) of
+        (OpAbsent, BigMapAbsent) -> do
           expectDescTag "Pair" 2
           expectTag "Pair" 0x07
           T.VPair ... (,) <$> decodeValue env <*> decodeValue env
     STOr lt _ ->
-      case checkOpPresence lt of
-        OpAbsent -> do
+      case (checkOpPresence lt, checkBigMapPresence lt) of
+        (OpAbsent, BigMapAbsent) -> do
           expectDescTag "Or" 1
           Get.getWord8 >>= \case
             0x05 -> T.VOr . Left <$> decodeValue env
@@ -232,8 +236,6 @@ decodeValue env = Get.label "Value" $
       T.VLam <$> decodeTypeCheckLam env uinstr
     STMap _ _ -> do
       T.VMap <$> decodeMap env
-    STBigMap _ _ -> do
-      T.VBigMap <$> decodeMap env
 
 decodeCValue :: forall ct. SingI ct => Get (T.CValue ct)
 decodeCValue = case sing @ct of
@@ -319,7 +321,7 @@ decodeBytes :: Get ByteString
 decodeBytes = decodeAsBytesRaw getByteStringCopy
 
 decodeMap
-  :: (SingI k, SingI v, HasNoOp v)
+  :: (SingI k, SingI v, HasNoOp v, HasNoBigMap v)
   => UnpackEnv -> Get $ Map (T.CValue k) (T.Value v)
 decodeMap env = Get.label "Map" $
   decodeAsList $ do
@@ -417,9 +419,10 @@ decodeInstr env = Get.label "Instruction" $ do
       an :: VarAnn <- decodeAnn
       typ <- decodeType
       T.withSomeSingT (T.fromUType typ) $ \(st :: Sing t) ->
-        case opAbsense st of
-          Nothing -> fail "Operation type in PUSH"
-          Just Dict -> do
+        case (opAbsense st, bigMapAbsense st) of
+          (Nothing, _) -> fail "Operation type in PUSH"
+          (_, Nothing) -> fail "BigMap type in PUSH"
+          (Just Dict, Just Dict) -> do
             tval <- decodeValue @t env
             return $ PUSH an typ (T.untypeValue tval)
     (0x03, 0x46) -> SOME <$> decodeAnn <*> decodeAnn <*> decodeAnn

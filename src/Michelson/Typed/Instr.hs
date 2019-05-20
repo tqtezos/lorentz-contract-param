@@ -54,7 +54,9 @@ data Instr (inp :: [T]) (out :: [T]) where
   DROP :: Instr (a ': s) s
   DUP  :: Instr (a ': s) (a ': a ': s)
   SWAP :: Instr (a ': b ': s) (b ': a ': s)
-  PUSH :: forall t s . (SingI t, HasNoOp t) => Value' Instr t -> Instr s (t ': s)
+  PUSH
+    :: forall t s . (SingI t, HasNoOp t, HasNoBigMap t)
+    => Value' Instr t -> Instr s (t ': s)
   SOME :: Instr (a ': s) ('TOption a ': s)
   NONE :: forall a s . SingI a => Instr s ('TOption a ': s)
   UNIT :: Instr s ('TUnit ': s)
@@ -106,8 +108,8 @@ data Instr (inp :: [T]) (out :: [T]) where
   FAILWITH :: (Typeable a, SingI a) => Instr (a ': s) t
   CAST :: forall a s . SingI a => Instr (a ': s) (a ': s)
   RENAME :: Instr (a ': s) (a ': s)
-  PACK :: (SingI a, HasNoOp a) => Instr (a ': s) ('Tc 'CBytes ': s)
-  UNPACK :: (SingI a, HasNoOp a) => Instr ('Tc 'CBytes ': s) ('TOption a ': s)
+  PACK :: (SingI a, HasNoOp a, HasNoBigMap a) => Instr (a ': s) ('Tc 'CBytes ': s)
+  UNPACK :: (SingI a, HasNoOp a, HasNoBigMap a) => Instr ('Tc 'CBytes ': s) ('TOption a ': s)
   CONCAT :: ConcatOp c => Instr (c ': c ': s) (c ': s)
   CONCAT' :: ConcatOp c => Instr ('TList c ': s) (c ': s)
   SLICE
@@ -179,7 +181,7 @@ data Instr (inp :: [T]) (out :: [T]) where
     :: (SingI p, Typeable p) => Notes p -> Instr ('Tc 'CAddress ': s) ('TOption ('TContract p) ': s)
   -- Store Notes to be able to verify CONTRACT in typechecker
   TRANSFER_TOKENS
-    :: (Typeable p, SingI p, HasNoOp p) =>
+    :: (Typeable p, SingI p, HasNoOp p, HasNoBigMap p) =>
        Instr (p ': 'Tc 'CMutez ': 'TContract p ': s)
                    ('TOperation ': s)
   SET_DELEGATE
@@ -191,7 +193,7 @@ data Instr (inp :: [T]) (out :: [T]) where
          ': 'Tc 'CMutez ': s) ('TOperation ': 'Tc 'CAddress ': s)
 
   CREATE_CONTRACT
-    :: (Each [Typeable, SingI, HasNoOp] [p, g])
+    :: (Each [Typeable, SingI, HasNoOp] [p, g], HasNoBigMap p, BigMapConstraint g)
     => Instr '[ 'TPair p g ] '[ 'TPair ('TList 'TOperation) g ]
     -> Instr ('Tc 'CKeyHash ':
               'TOption ('Tc 'CKeyHash) ':

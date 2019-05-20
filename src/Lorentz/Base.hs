@@ -18,6 +18,7 @@ module Lorentz.Base
 
 import qualified Data.Kind as Kind
 
+import Lorentz.Constraints
 import Lorentz.Value
 import Michelson.Typed (Instr(..), T(..), ToT, ToTs, Value'(..))
 
@@ -34,7 +35,8 @@ compileLorentz = unI
 -- contract code.
 compileLorentzContract
   :: forall cp st inp out.
-     (inp ~ '[(cp, st)], out ~ '[([Operation], st)])
+     (inp ~ '[(cp, st)], out ~ '[([Operation], st)]
+     , NoBigMap cp, CanHaveBigMap st)
   => (inp :-> out) -> Instr (ToTs inp) (ToTs out)
 compileLorentzContract = compileLorentz
 

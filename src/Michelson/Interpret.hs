@@ -42,7 +42,7 @@ import Michelson.TypeCheck
   ( SomeContract(..), SomeValue(..), TCError, TcOriginatedContracts,
   TCTypeError(..), compareTypes, eqType, runTypeCheck, typeCheckContract, typeCheckValue)
 import Michelson.Typed
-  (CValue(..), Contract, CreateAccount(..), CreateContract(..), HasNoOp, Instr(..),
+  (CValue(..), Contract, CreateAccount(..), CreateContract(..), HasNoBigMap, HasNoOp, Instr(..),
   OpPresence(..), Operation'(..), Operation, SetDelegate(..), Sing(..), T(..), TransferTokens(..), Value'(..),
   extractNotes, fromUType, withSomeSingT)
 import qualified Michelson.Typed as T
@@ -469,7 +469,7 @@ runArithOp op l r = case evalOp op l r of
 
 -- | Unpacks given raw data into a typed value.
 runUnpack
-  :: forall t. (SingI t, HasNoOp t)
+  :: forall t. (SingI t, HasNoOp t, HasNoBigMap t)
   => TcOriginatedContracts
   -> ByteString
   -> Either UnpackError (T.Value t)

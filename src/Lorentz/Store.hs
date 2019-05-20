@@ -167,7 +167,7 @@ type GetStoreValue store name = MSValue (GetStore name store)
 
 packKey
   :: forall (idx :: CtorIdx) t s.
-     (KnownNat idx, Typeable t, SingI t, HasNoOp t)
+     (KnownNat idx, Typeable t, SingI t, HasNoOp t, HasNoBigMap t)
   => Instr (t : s) (ToT ByteString : s)
 packKey =
   PUSH (toVal . natVal $ Proxy @idx) `Seq`
@@ -175,7 +175,7 @@ packKey =
   PACK
 
 type StoreOpC store name =
-  ( Each [Typeable, SingI, HasNoOp] '[ToT (MSKey (GetStore name store))]
+  ( Each [Typeable, SingI, HasNoOp, HasNoBigMap] '[ToT (MSKey (GetStore name store))]
   , KnownNat (MSCtorIdx (GetStore name store))
   )
 
@@ -274,7 +274,7 @@ _sample1 = storeDelete @MyStoreTemplate #cIntsStore
 
 packHsKey
   :: forall ctorIdx key.
-     ( IsoValue key, KnownValue key, HasNoOp (ToT key)
+     ( IsoValue key, KnownValue key, HasNoOp (ToT key), HasNoBigMap (ToT key)
      , KnownNat ctorIdx
      )
   => key -> ByteString
@@ -289,7 +289,7 @@ storePiece
      ( key ~ GetStoreKey store name
      , value ~ GetStoreValue store name
      , ctorIdx ~ MSCtorIdx (GetStore name store)
-     , IsoValue key, KnownValue key, HasNoOp (ToT key)
+     , IsoValue key, KnownValue key, HasNoOp (ToT key), HasNoBigMap (ToT key)
      , KnownNat ctorIdx
      , InstrWrapC store name, Generic store
      , ExtractCtorField (GetCtorField store name) ~ (key |-> value)
@@ -313,7 +313,7 @@ storeLookup
      ( key ~ GetStoreKey store name
      , value ~ GetStoreValue store name
      , ctorIdx ~ MSCtorIdx (GetStore name store)
-     , IsoValue key, KnownValue key, HasNoOp (ToT key)
+     , IsoValue key, KnownValue key, HasNoOp (ToT key), HasNoBigMap (ToT key)
      , KnownNat ctorIdx
      , InstrUnwrapC store name, Generic store
      , CtorOnlyField name store ~ (key |-> value)

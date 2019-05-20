@@ -49,9 +49,9 @@ import Michelson.TypeCheck.Value
 
 import Michelson.Typed
   (Abs, And, CT(..), Contract, ContractOut, Eq', Ge, Gt, Instr(..), IterOp(..), Le, Lsl, Lsr, Lt,
-  MapOp(..), Neg, Neq, Not, Notes(..), Notes'(..), Or, Sing(..), T(..), Value'(..), Xor, converge,
-  convergeAnns, extractNotes, fromUType, mkNotes, notesCase, opAbsense, orAnn, withSomeSingCT,
-  withSomeSingT)
+  MapOp(..), Neg, Neq, Not, Notes(..), Notes'(..), Or, Sing(..), T(..), Value'(..), Xor, bigMapAbsense,
+  converge, convergeAnns, extractNotes, fromUType, bigMapConstrained, mkNotes, notesCase, opAbsense, orAnn,
+  withSomeSingCT, withSomeSingT)
 
 import qualified Michelson.Untyped as U
 import Michelson.Untyped.Annotation (VarAnn)
@@ -77,11 +77,17 @@ typeCheckContractImpl (U.Contract mParam mStorage pCode) = do
         liftEither $ extractNotes mParam paramS `onLeft`
         (TCContractError "failed to extract annotations for parameter:" . Just . ExtractionTypeMismatch)
       Dict <-
-        liftEither . maybeToRight (hasOpError "parameter") $
+        note (hasTypeError "parameter" (Proxy @'TOperation)) $
         opAbsense paramS
       Dict <-
-        liftEither . maybeToRight (hasOpError "storage") $
+        note (hasTypeError "storage" (Proxy @'TOperation)) $
         opAbsense storageS
+      Dict <-
+        note (hasTypeError "parameter" (Proxy @param)) $
+        bigMapAbsense paramS
+      Dict <-
+        note (hasTypeError "storage" (Proxy @st)) $
+        bigMapConstrained storageS
       let inpNote = mkNotes (NTPair def def def paramNote storageNote)
       let inp = (STPair paramS storageS, inpNote, def) ::& SNil
       inp' :/ instrOut <- typeCheckNE code inp
@@ -101,9 +107,9 @@ typeCheckContractImpl (U.Contract mParam mStorage pCode) = do
                       ::& SNil
           pure $ SomeContract instr inp' out
   where
-    hasOpError name =
+    hasTypeError name proxy =
       TCContractError ("contract " <> name <> " type error") $
-      Just $ UnsupportedTypes [typeRep (Proxy @'TOperation)]
+      Just $ UnsupportedTypes [typeRep proxy]
 
 -- | Like 'typeCheck', but for non-empty lists.
 typeCheckNE
@@ -175,10 +181,18 @@ typeCheckInstr instr@(U.PUSH vn mt mval) i =
   withSomeSingT (fromUType mt) $ \t' -> do
     nt' <- onTypeCheckInstrTypeErr instr i "wrong push type:" (extractNotes mt t')
     val :::: (t :: Sing t, nt) <- typeCheckValue mval (t', nt')
-    proof <- maybe (typeCheckInstrErr instr (SomeHST i) "Operations in constant are not allowed")
-             pure (opAbsense t)
-    case proof of
-      Dict -> pure $ i :/ PUSH val ::: ((t, nt, vn) ::& i)
+    proofOp <-
+      maybe (onTypeCheckInstrErr instr (SomeHST i)
+             "Operations in constant are not allowed"
+             $ Left $ UnsupportedTypes [typeRep (Proxy @t)])
+      pure (opAbsense t)
+    proofBigMap <-
+      maybe (onTypeCheckInstrErr instr (SomeHST i)
+             "BigMaps in constant are not allowed"
+             $ Left $ UnsupportedTypes [typeRep (Proxy @t)])
+      pure (bigMapAbsense t)
+    case (proofOp, proofBigMap) of
+      (Dict, Dict) -> pure $ i :/ PUSH val ::: ((t, nt, vn) ::& i)
 
 typeCheckInstr (U.SOME tn vn fn) i@((at, an, _) ::& rs) = do
   let n = mkNotes (NTOption tn fn an)
@@ -422,18 +436,30 @@ typeCheckInstr instr@(U.UNPACK vn mt) i@((STc SCBytes, _, _) ::& rs) =
   withSomeSingT (fromUType mt) $ \t -> do
     tns <- onTypeCheckInstrTypeErr instr i "wrong unpack type" (extractNotes mt t)
     let ns = mkNotes $ NTOption def def tns
-    case opAbsense t of
-      Just Dict ->
-        pure $ i :/ UNPACK ::: ((STOption t, ns, vn) ::& rs)
-      Nothing ->
-        typeCheckInstrErr instr (SomeHST i) "Operations cannot appear in serialized data"
+    proofOp <-
+      maybe (typeCheckInstrErr instr (SomeHST i)
+             "Operation cannot appear in serialized data")
+      pure (opAbsense t)
+    proofBigMap <-
+      maybe (typeCheckInstrErr instr (SomeHST i)
+             "BigMap cannot appear in serialized data")
+      pure (bigMapAbsense t)
+    case (proofOp, proofBigMap) of
+      (Dict, Dict) -> pure $ i :/ UNPACK ::: ((STOption t, ns, vn) ::& rs)
 
-typeCheckInstr instr@(U.PACK vn) i@((a, _, _) ::& rs) = do
-  case opAbsense a of
-    Just Dict ->
-      pure $ i :/ PACK ::: ((STc SCBytes, NStar, vn) ::& rs)
-    Nothing ->
-      typeCheckInstrErr instr (SomeHST i) "Operations in serialized data are not allowed"
+typeCheckInstr instr@(U.PACK vn) i@(((a :: Sing a), _, _) ::& rs) = do
+  proofOp <-
+    maybe (onTypeCheckInstrErr instr (SomeHST i)
+           "Operations cannot appear in serialized data"
+           $ Left $ UnsupportedTypes [typeRep (Proxy @a)])
+    pure (opAbsense a)
+  proofBigMap <-
+    maybe (onTypeCheckInstrErr instr (SomeHST i)
+           "BigMap cannot appear in serialized data"
+           $ Left $ UnsupportedTypes [typeRep (Proxy @a)])
+    pure (bigMapAbsense a)
+  case (proofOp, proofBigMap) of
+    (Dict, Dict) -> pure $ i :/ PACK ::: ((STc SCBytes, NStar, vn) ::& rs)
 
 typeCheckInstr (U.CONCAT vn) i@((STc SCBytes, _, _) ::&
                                     (STc SCBytes, _, _) ::& _) = concatImpl i vn
@@ -529,15 +555,22 @@ typeCheckInstr instr@(U.CONTRACT vn mt)
 
 typeCheckInstr instr@(U.TRANSFER_TOKENS vn) i@(((_ :: Sing p'), _, _)
   ::& (STc SCMutez, _, _) ::& (STContract (p :: Sing p), _, _) ::& rs) = do
-  case (eqType @p @p', opAbsense p) of
-    (Right Refl, Just Dict) ->
+  proofOp <-
+    maybe (onTypeCheckInstrErr instr (SomeHST i)
+            "contract param type cannot contain operation"
+            $ Left $ UnsupportedTypes [typeRep (Proxy @p)])
+    pure (opAbsense p)
+  proofBigMap <-
+    maybe (onTypeCheckInstrErr instr (SomeHST i)
+            "contract param type cannot contain big_map"
+            $ Left $ UnsupportedTypes [typeRep (Proxy @p)])
+    pure (bigMapAbsense p)
+  case (eqType @p @p', proofOp, proofBigMap) of
+    (Right Refl, Dict, Dict) ->
       pure $ i :/ TRANSFER_TOKENS ::: ((STOperation, NStar, vn) ::& rs)
-    (Left m, _) ->
+    (Left m, _, _) ->
       onTypeCheckInstrErr instr (SomeHST i)
         "mismatch of contract param type:" (Left m)
-    (_, Nothing) ->
-      onTypeCheckInstrErr instr (SomeHST i)
-        "contract param type cannot contain operation:" $ Left $ UnsupportedTypes [typeRep (Proxy @p)]
 
 typeCheckInstr (U.SET_DELEGATE vn)
            i@((STOption (STc SCKeyHash), _, _) ::& rs) = do

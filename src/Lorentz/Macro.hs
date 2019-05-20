@@ -368,7 +368,7 @@ type family View (a :: Kind.Type) (r :: Kind.Type) :: Kind.Type where
   View a r = (a, (ContractAddr (a, Maybe r)))
 
 view_ ::
-     (KnownValue a, KnownValue r, NoOperation (a, r))
+     (KnownValue a, KnownValue r, NoOperation (a, r), NoBigMap (a, r))
   => (forall s0. (a, storage) & s0 :-> r : s0)
   -> View a r & storage & s :-> (List Operation, storage) & s
 view_ code =

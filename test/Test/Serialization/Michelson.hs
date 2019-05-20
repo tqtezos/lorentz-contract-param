@@ -63,7 +63,7 @@ stripOptional0x h = T.stripPrefix "0x" h ?: h
 data TestMethod = TestMethod
   { _tmName :: String
   , _tmApply
-      :: forall t. (Typeable t, SingI t, HasNoOp t)
+      :: forall t. (Typeable t, SingI t, HasNoOp t, HasNoBigMap t)
       => Value t -> Text -> Expectation
   }
 
@@ -82,7 +82,7 @@ testMethods =
   ]
 
 packSpecManual
-    :: (Show x, Typeable t, SingI t, HasNoOp t, HasCallStack)
+    :: (Show x, Typeable t, SingI t, HasNoOp t, HasNoBigMap t, HasCallStack)
     => String -> (x -> Value t) -> [(x, Text)] -> Spec
 packSpecManual name toVal' suites =
   forM_ @[_] testMethods $ \(TestMethod mname method) ->
@@ -92,7 +92,8 @@ packSpecManual name toVal' suites =
 
 packSpec
   :: forall x (t :: T).
-     (Typeable t, IsoValue x, Show x, ToT x ~ t, SingI t, HasNoOp t, HasCallStack)
+     (Typeable t, IsoValue x, Show x, ToT x ~ t, SingI t, HasNoOp t, HasNoBigMap t
+     , HasCallStack)
   => [(x, Text)]
   -> Spec
 packSpec = packSpecManual typeName toVal
@@ -136,7 +137,7 @@ parsePackSpec name suites =
 
 unpackNegSpec
   :: forall (t :: T).
-      (SingI t, HasNoOp t)
+      (SingI t, HasNoOp t, HasNoBigMap t)
   => String -> Text -> Spec
 unpackNegSpec name encodedHex =
   it name $
@@ -636,8 +637,6 @@ unpackNegTest = do
       "0x050200000006000300020001"  -- { 3; 2; 1 }
     unpackNegSpec @('TMap 'CInt $ 'Tc 'CInt) "Unordered map elements"
       "0x05020000000c070400020006070400010007"  -- { Elt 2 6; Elt 1 7 }
-    unpackNegSpec @('TBigMap 'CInt $ 'Tc 'CInt) "Unordered big map elements"
-      "0x05020000000c070400020006070400010007"
 
   describe "Wron length specified" $ do
     unpackNegSpec @('TList $ 'Tc 'CInt) "Too few list length"
