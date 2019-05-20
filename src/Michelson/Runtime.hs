@@ -31,9 +31,9 @@ module Michelson.Runtime
        , irUpdates
        ) where
 
+import Data.Text.IO (getContents)
 import Control.Lens (at, makeLenses, (%=))
 import Control.Monad.Except (Except, runExcept, throwError)
-import Data.Text.IO (getContents)
 import Fmt (Buildable(build), blockListF, fmt, fmtLn, nameF, pretty, (+|), (|+))
 import Named ((:!), (:?), arg, argDef, defaults, (!))
 import Text.Megaparsec (parse)
@@ -54,6 +54,7 @@ import qualified Michelson.Untyped as U
 import Tezos.Address (Address(..))
 import Tezos.Core (Mutez, Timestamp(..), getCurrentTime, unsafeAddMutez, unsafeSubMutez)
 import Tezos.Crypto (parseKeyHash)
+import Util.IO (readFileUtf8)
 
 ----------------------------------------------------------------------------
 -- Auxiliary types
@@ -179,7 +180,7 @@ readAndParseContract mFilename = do
   either throwM pure $ parseContract mFilename code
   where
     readCode :: Maybe FilePath -> IO Text
-    readCode = maybe getContents readFile
+    readCode = maybe getContents readFileUtf8
 
 -- | Read a contract using 'readAndParseContract', expand and
 -- flatten. The contract is not type checked.

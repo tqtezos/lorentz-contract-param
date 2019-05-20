@@ -26,6 +26,7 @@ import Michelson.ErrorPos (srcPos)
 import Michelson.Macro as Mo
 import Michelson.Parser as P
 import Michelson.Untyped as Mo
+import Util.IO
 
 import Test.Util.Contracts (getIllTypedContracts, getWellTypedContracts)
 
@@ -36,7 +37,7 @@ unit_Parse_contracts = do
   where
     checkFile :: FilePath -> Expectation
     checkFile file = do
-      code <- readFile file
+      code <- readFileUtf8 file
       parse P.program file code `shouldSatisfy` isRight
 
 unit_Value :: Expectation

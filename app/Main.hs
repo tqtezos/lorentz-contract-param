@@ -2,6 +2,7 @@ module Main
   ( main
   ) where
 
+import qualified Control.Exception as E
 import Data.Version (showVersion)
 import Fmt (pretty)
 import Named ((!))
@@ -12,7 +13,10 @@ import Options.Applicative
 import qualified Options.Applicative as Opt
 import Options.Applicative.Help.Pretty (Doc, linebreak)
 import Paths_morley (version)
+import System.Exit (ExitCode)
+import System.IO (utf8)
 import Text.Pretty.Simple (pPrint)
+import qualified Text.Show
 
 import Michelson.Macro (expandContract, expandValue)
 import qualified Michelson.Parser as P
@@ -27,6 +31,11 @@ import Tezos.Address (Address, parseAddress)
 import Tezos.Core
   (Mutez, Timestamp(..), mkMutez, parseTimestamp, timestampFromSeconds, unMutez, unsafeMkMutez)
 import Tezos.Crypto
+import Util.IO (hSetTranslit, withEncoding)
+
+----------------------------------------------------------------------------
+-- Command line options
+----------------------------------------------------------------------------
 
 data CmdLnArgs
   = Parse (Maybe FilePath) Bool
@@ -291,10 +300,54 @@ maybeAddDefault printer = maybe mempty addDefault
   where
     addDefault v = value v <> showDefaultWith printer
 
+----------------------------------------------------------------------------
+-- Better printing of exceptions
+----------------------------------------------------------------------------
+
+newtype DisplayExceptionInShow = DisplayExceptionInShow SomeException
+
+instance Show DisplayExceptionInShow where
+  show (DisplayExceptionInShow se) = displayException se
+
+instance Exception DisplayExceptionInShow
+
+-- | Customise default uncaught exception handling. The problem with
+-- the default handler is that it uses `show` to display uncaught
+-- exceptions, but `displayException` may provide more reasonable
+-- output. We do not modify uncaught exception handler, but simply
+-- wrap uncaught exceptions (only synchronous ones) into
+-- 'DisplayExceptionInShow'.
+--
+-- Some exceptions (currently we are aware only of 'ExitCode') are
+-- handled specially by default exception handler, so we don't wrap
+-- them.
+displayUncaughtException :: IO () -> IO ()
+displayUncaughtException = mapIOExceptions wrapUnlessExitCode
+  where
+    -- We can't use `mapException` here, because it only works with
+    -- exceptions inside pure values, not with `IO` exceptions.
+    -- Note: it doesn't catch async exceptions.
+    mapIOExceptions :: (SomeException -> SomeException) -> IO a -> IO a
+    mapIOExceptions f action = action `catchAny` (E.throwIO . f)
+
+    -- We don't wrap `ExitCode` because it seems to be handled specially.
+    -- Application exit code depends on the value stored in `ExitCode`.
+    wrapUnlessExitCode :: SomeException -> SomeException
+    wrapUnlessExitCode e =
+      case fromException @ExitCode e of
+        Just _ -> e
+        Nothing -> toException $ DisplayExceptionInShow e
+
+----------------------------------------------------------------------------
+-- Actual main
+----------------------------------------------------------------------------
+
 main :: IO ()
-main = do
+main = displayUncaughtException $ withEncoding stdin utf8 $ do
+  hSetTranslit stdout
+  hSetTranslit stderr
   cmdLnArgs <- execParser programInfo
-  run cmdLnArgs `catchAny` (die . displayException)
+  run cmdLnArgs
   where
     programInfo = info (helper <*> versionOption <*> argParser) $
       mconcat
