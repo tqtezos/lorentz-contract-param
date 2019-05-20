@@ -158,7 +158,16 @@ deriving newtype instance IsoValue a => IsoValue (NamedF Identity a name)
 deriving newtype instance IsoValue a => IsoValue (NamedF Maybe a name)
 
 instance (IsoValue a, IsoValue b, IsoValue c) => IsoValue (a, b, c)
-instance (IsoValue a, IsoValue b, IsoValue c, IsoValue d) => IsoValue (a, b, c, d)
+instance (IsoValue a, IsoValue b, IsoValue c, IsoValue d)
+       => IsoValue (a, b, c, d)
+instance (IsoValue a, IsoValue b, IsoValue c, IsoValue d, IsoValue e)
+       => IsoValue (a, b, c, d, e)
+instance (IsoValue a, IsoValue b, IsoValue c, IsoValue d, IsoValue e,
+          IsoValue f)
+       => IsoValue (a, b, c, d, e, f)
+instance (IsoValue a, IsoValue b, IsoValue c, IsoValue d, IsoValue e,
+          IsoValue f, IsoValue g)
+       => IsoValue (a, b, c, d, e, f, g)
 
 -- Types used specifically for conversion
 ----------------------------------------------------------------------------
