@@ -21,11 +21,11 @@ spec_Walker :: Spec
 spec_Walker = do
   it "Go " $
     walkerProp def [GoRight]
-      (\s -> pos s == Position 1 0)
+      (\s -> pos (fields s) == Position 1 0)
 
   it "Go left" $
     walkerProp def [GoLeft]
-      (\s -> pos s == Position (-1) 0)
+      (\s -> pos (fields s) == Position (-1) 0)
 
   it "Walk a lot (ADT test)" $
     let commands = mconcat
@@ -37,7 +37,7 @@ spec_Walker = do
           , one $ Boost (#coef1 .! 3, #coef2 .! 999)
           ]
     in walkerProp def commands
-      (\s -> pos s == Position 2 (-2) && power s == 8)
+      (\s -> pos (fields s) == Position 2 (-2) && power (fields s) == 8)
 
   it "Reset" $
     let commands = mconcat
@@ -47,11 +47,11 @@ spec_Walker = do
           , replicate 1 GoRight
           ]
     in walkerProp def commands
-      (\s -> pos s == Position 1 0 && iterId s == 2)
+      (\s -> pos (fields s) == Position 1 0 && iterId (fields s) == 2)
 
   it "Too large boost (`if then else` test)" $
     walkerProp def [Boost (#coef1 .! 999, #coef2 .! 999)]
-      (\s -> power s == 100)
+      (\s -> power (fields s) == 100)
 
   it "Power ups work (`Store` access test)" $
     walkerProp
@@ -60,7 +60,7 @@ spec_Walker = do
            ]
          }
       [GoRight, GoUp]
-      (\s -> power s == 7)
+      (\s -> power (fields s) == 7)
 
   it "Visited cells tracking works (`Store` insert test)" $
     walkerProp
