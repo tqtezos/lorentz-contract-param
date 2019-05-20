@@ -274,7 +274,7 @@ _sample1 = storeDelete @MyStoreTemplate #cIntsStore
 
 packHsKey
   :: forall ctorIdx key.
-     ( IsoValue key, KnownValue key, HasNoOp (ToT key)
+     ( IsoValue key, KnownValue key, HasNoOp (ToT key), HasNoBigMap (ToT key)
      , KnownNat ctorIdx
      )
   => key -> ByteString
@@ -289,7 +289,7 @@ storePiece
      ( key ~ GetStoreKey store name
      , value ~ GetStoreValue store name
      , ctorIdx ~ MSCtorIdx (GetStore name store)
-     , IsoValue key, KnownValue key, HasNoOp (ToT key)
+     , IsoValue key, KnownValue key, HasNoOp (ToT key), HasNoBigMap (ToT key)
      , KnownNat ctorIdx
      , InstrWrapC store name, Generic store
      , ExtractCtorField (GetCtorField store name) ~ (key |-> value)
@@ -313,7 +313,7 @@ storeLookup
      ( key ~ GetStoreKey store name
      , value ~ GetStoreValue store name
      , ctorIdx ~ MSCtorIdx (GetStore name store)
-     , IsoValue key, KnownValue key, HasNoOp (ToT key)
+     , IsoValue key, KnownValue key, HasNoOp (ToT key), HasNoBigMap (ToT key)
      , KnownNat ctorIdx
      , InstrUnwrapC store name, Generic store
      , CtorOnlyField name store ~ (key |-> value)

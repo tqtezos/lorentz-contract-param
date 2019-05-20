@@ -22,14 +22,14 @@ import Tezos.Core (Mutez(..), timestampToSeconds)
 import Tezos.Crypto (KeyHash(..), PublicKey(unPublicKey), Signature(..))
 
 -- | Serialize a value given to @PACK@ instruction.
-packValue :: (SingI t, HasNoOp t) => Value t -> LByteString
+packValue :: (SingI t, HasNoOp t, HasNoBigMap t) => Value t -> LByteString
 packValue x = "\x05" <> encodeValue x
 
 -- | Same as 'packValue', for strict bytestring.
-packValue' :: (SingI t, HasNoOp t) => Value t -> ByteString
+packValue' :: (SingI t, HasNoOp t, HasNoBigMap t) => Value t -> ByteString
 packValue' = LBS.toStrict . packValue
 
-encodeValue :: forall t. (SingI t, HasNoOp t) => Value t -> LByteString
+encodeValue :: forall t. (SingI t, HasNoOp t, HasNoBigMap t) => Value t -> LByteString
 encodeValue val = case (val, sing @t) of
   (VC cval, _) -> encodeCValue cval
   (VKey s, _) ->
@@ -45,17 +45,16 @@ encodeValue val = case (val, sing @t) of
   (VSet xs, _) -> encodeList encodeCValue (toList xs)
   (VContract addr, _) -> encodeAddress addr
   (VPair (v1, v2), STPair l _) ->
-    case checkOpPresence l of
-      OpAbsent -> "\x07\x07" <> encodeValue v1 <> encodeValue v2
+    case (checkOpPresence l, checkBigMapPresence l) of
+      (OpAbsent, BigMapAbsent) -> "\x07\x07" <> encodeValue v1 <> encodeValue v2
   (VOr (Left v), STOr l _) ->
-    case checkOpPresence l of
-      OpAbsent -> "\x05\x05" <> encodeValue v
+    case (checkOpPresence l, checkBigMapPresence l) of
+      (OpAbsent, BigMapAbsent) -> "\x05\x05" <> encodeValue v
   (VOr (Right v), STOr l _) ->
-    case checkOpPresence l of
-      OpAbsent -> "\x05\x08" <> encodeValue v
+    case (checkOpPresence l, checkBigMapPresence l) of
+      (OpAbsent, BigMapAbsent) -> "\x05\x08" <> encodeValue v
   (VLam lam, _) -> encodeInstrs lam
   (VMap m, STMap _ _) -> encodeMap m
-  (VBigMap m, STBigMap _ _) -> encodeMap m
 
 encodeCValue :: CValue t -> LByteString
 encodeCValue = \case
@@ -91,7 +90,7 @@ encodeBytes (LBS.fromStrict -> prefix) (LBS.fromStrict -> suffix) bs =
   "\x0a" <> encodeAsList (prefix <> bs <> suffix)
 
 -- | Encode some map.
-encodeMap :: (SingI v, HasNoOp v) => Map (CValue k) (Value v) -> LByteString
+encodeMap :: (SingI v, HasNoOp v, HasNoBigMap v) => Map (CValue k) (Value v) -> LByteString
 encodeMap m =
   encodeList (\(k, v) -> "\x07\x04" <> encodeCValue k <> encodeValue v) (Map.toList m)
 
