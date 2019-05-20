@@ -1,8 +1,0 @@
-# Options for development
-STACK_DEV_OPTIONS = --fast --ghc-options -Wwarn --file-watch
-# Options to build more stuff (tests and benchmarks)
-STACK_BUILD_MORE_OPTIONS = --test --bench --no-run-tests --no-run-benchmarks
-# Options for tests
-STACK_DEV_TEST_OPTIONS = --fast
-# Addtional (specified by user) options passed to test executable
-TEST_ARGUMENTS ?= ""
