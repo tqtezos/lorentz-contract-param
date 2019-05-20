@@ -8,7 +8,7 @@ import Data.Default (def)
 import Fmt ((+|), (|+))
 import Test.Hspec (Expectation, Spec, expectationFailure, it)
 
-import Lorentz (compileLorentz, storeLookup, storePiece)
+import Lorentz (StorageSkeleton(..), compileLorentz, storeLookup, storePiece)
 import Michelson.Test (ContractPropValidator, contractRepeatedProp)
 import Michelson.Test.Dummy
 import qualified Michelson.Typed as T
@@ -21,11 +21,11 @@ spec_Walker :: Spec
 spec_Walker = do
   it "Go " $
     walkerProp def [GoRight]
-      (\s -> pos (fields s) == Position 1 0)
+      (\s -> pos (sFields s) == Position 1 0)
 
   it "Go left" $
     walkerProp def [GoLeft]
-      (\s -> pos (fields s) == Position (-1) 0)
+      (\s -> pos (sFields s) == Position (-1) 0)
 
   it "Walk a lot (ADT test)" $
     let commands = mconcat
@@ -37,7 +37,7 @@ spec_Walker = do
           , one $ Boost (#coef1 .! 3, #coef2 .! 999)
           ]
     in walkerProp def commands
-      (\s -> pos (fields s) == Position 2 (-2) && power (fields s) == 8)
+      (\s -> pos (sFields s) == Position 2 (-2) && power (sFields s) == 8)
 
   it "Reset" $
     let commands = mconcat
@@ -47,30 +47,30 @@ spec_Walker = do
           , replicate 1 GoRight
           ]
     in walkerProp def commands
-      (\s -> pos (fields s) == Position 1 0 && iterId (fields s) == 2)
+      (\s -> pos (sFields s) == Position 1 0 && iterId (sFields s) == 2)
 
   it "Too large boost (`if then else` test)" $
     walkerProp def [Boost (#coef1 .! 999, #coef2 .! 999)]
-      (\s -> power (fields s) == 100)
+      (\s -> power (sFields s) == 100)
 
   it "Power ups work (`Store` access test)" $
     walkerProp
-      def{ world = mconcat
+      def{ sMap = mconcat
            [ storePiece #cPowerUps (Position 1 1) (BoostPowerUp 7)
            ]
          }
       [GoRight, GoUp]
-      (\s -> power (fields s) == 7)
+      (\s -> power (sFields s) == 7)
 
   it "Visited cells tracking works (`Store` insert test)" $
     walkerProp
       def
       [GoRight, GoUp]
       $ \s -> and
-         [ isJust    $ storeLookup #cVisited (Position 1 1) (world s)
-         , isNothing $ storeLookup #cVisited (Position 0 0) (world s)
-         , isJust    $ storeLookup #cVisited (Position 1 0) (world s)
-         , isNothing $ storeLookup #cVisited (Position 0 1) (world s)
+         [ isJust    $ storeLookup #cVisited (Position 1 1) (sMap s)
+         , isNothing $ storeLookup #cVisited (Position 0 0) (sMap s)
+         , isJust    $ storeLookup #cVisited (Position 1 0) (sMap s)
+         , isNothing $ storeLookup #cVisited (Position 0 1) (sMap s)
          ]
 
 walkerProp :: Storage -> [Parameter] -> (Storage -> Bool) -> Expectation
