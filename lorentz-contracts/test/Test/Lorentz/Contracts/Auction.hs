@@ -13,7 +13,7 @@ import Test.QuickCheck.Property (expectFailure, forAll, withMaxSuccess)
 import Test.QuickCheck.Random (mkQCGen)
 
 import Lorentz (compileLorentz)
-import Lorentz.Contracts.Auction (auction)
+import Lorentz.Contracts.Auction (contract_auction)
 import Michelson.Interpret (ContractEnv(..))
 import Michelson.Test (ContractPropValidator, contractProp, midTimestamp, specWithTypedContract)
 import Michelson.Test.Dummy
@@ -34,7 +34,7 @@ type Param = KeyHash
 spec_Auction :: Spec
 spec_Auction = parallel $ do
   specWithTypedContract "../contracts/auction.tz" auctionSpec'
-  auctionSpec' (compileLorentz auction)
+  auctionSpec' (compileLorentz contract_auction)
   -- Test slightly modified version of auction.tz, it must fail.
   -- This block is given purely for demonstration of that tests are smart
   -- enough to filter common mistakes.

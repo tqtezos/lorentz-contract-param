@@ -8,6 +8,7 @@ module Lorentz.Base
 
   , compileLorentz
   , compileLorentzContract
+  , printLorentzContract
 
   , Contract
   , Lambda
@@ -17,9 +18,11 @@ module Lorentz.Base
   ) where
 
 import qualified Data.Kind as Kind
+import Data.Singletons (SingI)
 
 import Lorentz.Constraints
 import Lorentz.Value
+import Michelson.Printer (printTypedContract)
 import Michelson.Typed (Instr(..), T(..), ToT, ToTs, Value'(..))
 
 -- | Alias for instruction which hides inner types representation via 'T'.
@@ -31,22 +34,29 @@ infixr 1 :->
 compileLorentz :: (inp :-> out) -> Instr (ToTs inp) (ToTs out)
 compileLorentz = unI
 
+type Contract cp st = '[(cp, st)] :-> '[([Operation], st)]
+
 -- | Version of 'compileLorentz' specialized to instruction corresponding to
 -- contract code.
 compileLorentzContract
-  :: forall cp st inp out.
-     (inp ~ '[(cp, st)], out ~ '[([Operation], st)]
-     , NoBigMap cp, CanHaveBigMap st)
-  => (inp :-> out) -> Instr (ToTs inp) (ToTs out)
+  :: forall cp st.
+     (NoOperation cp, NoOperation st, NoBigMap cp, CanHaveBigMap st)
+  => Contract cp st -> Instr '[ToT (cp, st)] '[ToT ([Operation], st)]
 compileLorentzContract = compileLorentz
+
+printLorentzContract
+  :: forall cp st.
+      ( SingI (ToT cp), SingI (ToT st)
+      , NoOperation cp, NoOperation st, NoBigMap cp, CanHaveBigMap st
+      )
+  => Contract cp st -> LText
+printLorentzContract = printTypedContract . compileLorentzContract
 
 type (&) (a :: Kind.Type) (b :: [Kind.Type]) = a ': b
 infixr 2 &
 
 (#) :: (a :-> b) -> (b :-> c) -> a :-> c
 I l # I r = I (l `Seq` r)
-
-type Contract cp st = '[(cp, st)] :-> '[([Operation], st)]
 
 type Lambda i o = '[i] :-> '[o]
 

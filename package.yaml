@@ -69,6 +69,20 @@ executables:
       - optparse-applicative
       - pretty-simple
 
+  contract-discover:
+    main:        Main.hs
+    source-dirs: contract-discover
+
+    dependencies:
+      - data-default
+      - directory
+      - filepath
+      - fmt
+      - haskell-src-exts
+      - morley-prelude
+      - morley
+      - text
+
 tests:
   morley-test:
     <<: *test-common

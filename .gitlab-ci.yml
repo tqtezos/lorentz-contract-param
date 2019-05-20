@@ -17,6 +17,12 @@ variables:
   STACK_GLOBAL_CONFIG: "$CI_PROJECT_DIR/.stack-root/config.yaml"
   # Resolver that we use to build code outside our repository
   STACK_RESOLVER: "lts-13.3"
+  STACK_BUILD_OPTIONS:
+    --ghc-options -Werror --ghc-options -optl-static --ghc-options -fPIC
+    --fast --local-bin-path tmp
+    --test --no-run-tests
+    --bench --no-run-benchmarks
+    --haddock --no-haddock-deps
   CROSSREF_VERIFIER_COMMIT: "b3615befce62a483699e1705fd6715c7135820e6"
   CROSSREF_VERIFIER_DIR: ".crossref-verifier"
 
@@ -52,12 +58,8 @@ build-and-test:
         install weeder
     - cp /usr/lib/gcc/x86_64-linux-gnu/6/crtbeginT.o /usr/lib/gcc/x86_64-linux-gnu/6/crtbeginT.o.orig
     - cp /usr/lib/gcc/x86_64-linux-gnu/6/crtbeginS.o /usr/lib/gcc/x86_64-linux-gnu/6/crtbeginT.o
-    - stack install morley
-        --ghc-options '-Werror -optl-static -fPIC'
-        --fast --local-bin-path tmp
-        --test --no-run-tests
-        --bench --no-run-benchmarks
-        --haddock --no-haddock-deps
+    - stack install morley $STACK_BUILD_OPTIONS
+    - stack install lorentz-contracts $STACK_BUILD_OPTIONS
     - stack test morley
         --test-arguments="--xml=report/morley_test_report.xml"
     - stack test lorentz-contracts
@@ -77,6 +79,7 @@ build-and-test:
   artifacts:
     paths:
       - tmp/morley
+      - tmp/lorentz-contracts
     reports:
       junit:
         - report/*.xml
