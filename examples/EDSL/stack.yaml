@@ -1,1 +1,12 @@
 resolver: snapshot.yaml
+# morley-0.2.0.0 wants transformers-compat-0.6.2, but using it leads to
+# a very weird error:
+# Error: While constructing the build plan, the following exceptions were encountered:
+
+# In the dependencies for transformers-compat-0.6.5:
+#     transformers-0.5.6.2 from stack configuration does not match >=0.3 && ==0.2.*
+# needed due to edsl-demo-0.1.0 -> transformers-compat-0.6.5
+#
+# I (@gromak) couldn't find a better solution.
+
+allow-newer: true
