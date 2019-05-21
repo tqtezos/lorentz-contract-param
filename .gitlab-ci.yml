@@ -1,4 +1,4 @@
-image: haskell:8.6.3
+image: haskell:8.6.5
 
 cache:
   key: "all"  # Share cache to speed-up initial MR build
@@ -16,7 +16,7 @@ variables:
   STACK_ROOT: "$CI_PROJECT_DIR/.stack-root"
   STACK_GLOBAL_CONFIG: "$CI_PROJECT_DIR/.stack-root/config.yaml"
   # Resolver that we use to build code outside our repository
-  STACK_RESOLVER: "lts-13.3"
+  STACK_RESOLVER: "lts-13.22"
   STACK_BUILD_OPTIONS:
     --ghc-options -Werror --ghc-options -optl-static --ghc-options -fPIC
     --fast --local-bin-path tmp

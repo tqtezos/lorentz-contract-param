@@ -49,7 +49,7 @@ library:
     - time
     - timerep
     # ↓ We don't use it, but otherwise Hackage fails
-    - transformers-compat == 0.6.2
+    - transformers-compat == 0.6.5
     - vector
     - vinyl
     - wl-pprint-text
