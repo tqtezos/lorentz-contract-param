@@ -14,10 +14,8 @@ import Michelson.Typed (CValue(..), fromCVal, toCVal)
 
 unit_toCVal :: Expectation
 unit_toCVal = do
-  toCVal @Int 10 `shouldBe` CvInt 10
   toCVal @Integer 10 `shouldBe` CvInt 10
   toCVal @Integer (-10) `shouldBe` CvInt (-10)
-  toCVal @Word64 10 `shouldBe` CvNat 10
   toCVal @Natural 10 `shouldBe` CvNat 10
   toCVal @Text "abc" `shouldBe` CvString "abc"
   toCVal True `shouldBe` CvBool True

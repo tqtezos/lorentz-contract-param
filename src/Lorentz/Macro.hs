@@ -1,3 +1,6 @@
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE DeriveAnyClass #-}
+
 -- | Common Michelson macros defined using Lorentz syntax.
 module Lorentz.Macro
   ( -- * Compare
@@ -60,12 +63,19 @@ module Lorentz.Macro
   , unpair
   , setCar
   , setCdr
+  , setInsert
+  , mapInsert
+  , setInsertNew
+  , mapInsertNew
+  , deleteMap
+  , setDelete
 
   -- * Additional Morley macros
-  , View
-  , Void_
+  , View (..)
+  , Void_ (..)
   , view_
   , void_
+  , mkVoid
   ) where
 
 import Prelude hiding (compare, some, swap)
@@ -81,6 +91,7 @@ import Lorentz.Constraints
 import Lorentz.Arith
 import Lorentz.Value
 import Michelson.Typed.Arith
+import Michelson.Typed.Haskell.Value
 import Util.Peano
 
 ----------------------------------------------------------------------------
@@ -359,27 +370,92 @@ ifSome
   :: (a & s :-> s') -> (s :-> s') -> (Maybe a & s :-> s')
 ifSome s n = ifNone n s
 
+-- | Various convenient instructions on maps.
+class MapInstrs map where
+  -- | Specialized version of 'update'.
+  mapUpdate :: IsComparable k => k : Maybe v : map k v : s :-> map k v : s
+
+  -- | Insert given element into map.
+  mapInsert :: IsComparable k => k : v : map k v : s :-> map k v : s
+  mapInsert = dip some # mapUpdate
+
+  -- | Insert given element into map, ensuring that it does not overwrite
+  -- any existing entry.
+  --
+  -- As first argument accepts container name (for error message).
+  mapInsertNew
+    :: (IsComparable k, KnownValue k)
+    => Text -> k : v : map k v : s :-> map k v : s
+
+  -- | Delete element from the map.
+  deleteMap
+    :: forall k v s. (IsComparable k, KnownValue k, KnownValue v)
+    => k : map k v : s :-> map k v : s
+  deleteMap = dip (none @v) # mapUpdate
+
+instance MapInstrs Map where
+  mapUpdate = update
+  mapInsertNew desc = failingWhenPresent desc # mapInsert
+instance MapInstrs BigMap where
+  mapUpdate = update
+  mapInsertNew desc = failingWhenPresent desc # mapInsert
+
+-- | Insert given element into set.
+--
+-- This is a separate function from 'updateMap' because stacks they operate with
+-- differ in length.
+setInsert :: IsComparable e => e & Set e & s :-> Set e & s
+setInsert = dip (push True) # update
+
+-- | Insert given element into set, ensuring that it does not overwrite
+-- any existing entry.
+--
+-- As first argument accepts container name.
+setInsertNew
+  :: (IsComparable e, KnownValue e)
+  => Text -> e & Set e & s :-> Set e & s
+setInsertNew desc = dip (push True) # failingWhenPresent desc # update
+
+-- | Delete given element from the set.
+setDelete :: IsComparable e => e & Set e & s :-> Set e & s
+setDelete = dip (push False) # update
+
 ----------------------------------------------------------------------------
 -- Additional Morley macros
 ----------------------------------------------------------------------------
 
 -- | @view@ type synonym as described in A1.
-type family View (a :: Kind.Type) (r :: Kind.Type) :: Kind.Type where
-  View a r = (a, (ContractAddr (a, Maybe r)))
+data View (a :: Kind.Type) (r :: Kind.Type) = View
+  { viewParam :: a
+  , viewCallbackTo :: ContractAddr (a, Maybe r)
+  } deriving stock Generic
+    deriving anyclass IsoValue
 
 view_ ::
      (KnownValue a, KnownValue r, NoOperation (a, r), NoBigMap (a, r))
   => (forall s0. (a, storage) & s0 :-> r : s0)
   -> View a r & storage & s :-> (List Operation, storage) & s
 view_ code =
+  coerce_ #
   unpair # dip (duupX @2) # dup # dip (pair # code # some) # pair # dip amount #
   transferTokens # nil # swap # cons # pair
 
 -- | @void@ type synonym as described in A1.
-type family Void_ (a :: Kind.Type) (b :: Kind.Type) :: Kind.Type where
-  Void_ a b = (a, Lambda b b)
+data Void_ (a :: Kind.Type) (b :: Kind.Type) = Void_
+  { voidParam :: a
+    -- ^ Entry point argument.
+  , voidResProxy :: Lambda b b
+    -- ^ Type of result reported via 'failWith'.
+  } deriving stock Generic
+    deriving anyclass IsoValue
 
-void_ :: (KnownValue b) =>
-  a & s :-> b & s' ->
-  Void_ a b & s :-> b & anything
-void_ code = unpair # swap # dip code # swap # exec # failWith
+mkVoid :: a -> Void_ a b
+mkVoid a = Void_ a nop
+
+void_
+  :: forall a b s s' anything.
+      (KnownValue b)
+  => a & s :-> b & s' -> Void_ a b & s :-> anything
+void_ code =
+  coerce_ @_ @(_, Lambda b b) #
+  unpair # swap # dip code # swap # exec # failWith

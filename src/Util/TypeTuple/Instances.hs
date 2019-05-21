@@ -4,4 +4,4 @@ module Util.TypeTuple.Instances () where
 
 import Util.TypeTuple.TH
 
-concatMapM deriveRecFromTuple [0..10]
+concatMapM deriveRecFromTuple [0..15]

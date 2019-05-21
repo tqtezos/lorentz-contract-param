@@ -2,8 +2,10 @@
 module Lorentz.Prelude
   ( ($)
   , (<>)
+  , type ($)
   , Eq
   , Ord
+  , Bounded (..)
   , Generic
   , fromString
   , undefined

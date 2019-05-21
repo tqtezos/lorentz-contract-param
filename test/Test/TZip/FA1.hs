@@ -5,14 +5,12 @@ module Test.TZip.FA1
   ) where
 
 import qualified Data.Map as M
-import Test.Hspec
-  (Expectation, Spec, expectationFailure, describe, it, shouldBe, shouldSatisfy)
+import Test.Hspec (Expectation, Spec, describe, expectationFailure, it, shouldBe, shouldSatisfy)
 
-import Lorentz (Address, View)
+import Lorentz (Address, View(..))
 import Michelson.Interpret (ceAmount)
 import Michelson.Runtime.GState (genesisAddress)
-import Michelson.Test
-  (contractProp, dummyContractEnv, specWithTypedContract)
+import Michelson.Test (contractProp, dummyContractEnv, specWithTypedContract)
 import Michelson.Test.Unit
 import qualified Michelson.Typed as T
 import Tezos.Address
@@ -83,12 +81,12 @@ getBalance contract = do
   testCase
     "just gets balance for recorded address"
     gettingExistingBalance
-    $ GetBalance (bar, T.ContractAddr feather)
+    $ GetBalance (View bar (T.ContractAddr feather))
 
   testCase
     "just gets balance for missing address"
     gettingNonExistingBalance
-    $ GetBalance (foo, T.ContractAddr feather)
+    $ GetBalance (View foo (T.ContractAddr feather))
   where
     testCase = makeTestCase contract
 
@@ -136,7 +134,7 @@ getTotalSupply
   -> Spec
 getTotalSupply contract = do
   testCase "getting" gettingTotalSupply
-    $ GetTotalSupply ((), T.ContractAddr feather)
+    $ GetTotalSupply (View () (T.ContractAddr feather))
   where
     testCase = makeTestCase contract
 

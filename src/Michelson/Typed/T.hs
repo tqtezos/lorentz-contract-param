@@ -5,10 +5,9 @@
 module Michelson.Typed.T
   ( CT (..)
   , T (..)
-  , ToCT
   ) where
 
-import Michelson.Untyped.Type (CT(..), ToCT)
+import Michelson.Untyped.Type (CT(..))
 
 -- | Michelson language type with annotations stripped off.
 data T =

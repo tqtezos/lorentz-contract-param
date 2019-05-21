@@ -8,10 +8,8 @@ import qualified Data.Kind as Kind
 
 import Lorentz.Value
 import Michelson.Typed.Arith
+import Michelson.Typed.Haskell.Value
 import Michelson.Typed.T
-
--- | A useful property which holds for all 'CT' types.
-type IsComparable c = ToT c ~ 'Tc (ToCT c)
 
 -- | Lifted 'AithOp'.
 class ( ArithOp aop (ToCT n) (ToCT m)

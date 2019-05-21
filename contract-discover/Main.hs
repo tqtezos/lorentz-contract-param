@@ -210,7 +210,9 @@ hsExtensions =
     , DerivingStrategies
     , EmptyCase
     , GADTs
+    , GeneralizedNewtypeDeriving
     , LambdaCase
+    , MultiParamTypeClasses
     , MultiWayIf
     , OverloadedLabels
     , PatternSynonyms

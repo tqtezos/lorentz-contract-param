@@ -4,13 +4,12 @@
 module Lorentz.Value
   ( Value
   , IsoValue (..)
+  , IsoCValue (..)
   , CValue (..)
-  , toCVal
-  , fromCVal
   , Integer
   , Natural
   , Text
-  , Bool
+  , Bool (..)
   , ByteString
   , Address
   , Mutez
@@ -20,15 +19,17 @@ module Lorentz.Value
   , Signature
   , Set
   , Map
+  , M.BigMap
   , M.Operation
+  , Maybe (..)
   , List
   , M.ContractAddr (..)
   , unsafeMkMutez
   ) where
 
-import Michelson.Typed (IsoValue(..), Value)
+import Michelson.Typed (IsoCValue(..), IsoValue(..), Value)
 import qualified Michelson.Typed as M
-import Michelson.Typed.CValue (CValue(..), fromCVal, toCVal)
+import Michelson.Typed.CValue (CValue(..))
 import Tezos.Address (Address)
 import Tezos.Core (Mutez, Timestamp, unsafeMkMutez)
 import Tezos.Crypto (KeyHash, PublicKey, Signature)

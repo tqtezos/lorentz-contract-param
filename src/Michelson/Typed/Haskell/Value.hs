@@ -2,11 +2,13 @@
 
 -- | Conversions between haskell types/values and Michelson ones.
 module Michelson.Typed.Haskell.Value
-  ( IsoValue (..)
+  ( IsoCValue (..)
+  , IsoValue (..)
   , GIsoValue (GValueType)
   , ToTs
   , ToT'
   , ToTs'
+  , IsComparable
 
   , ContractAddr (..)
   , BigMap (..)
@@ -27,6 +29,63 @@ import Michelson.Typed.Value
 import Tezos.Address (Address)
 import Tezos.Core (Mutez, Timestamp)
 import Tezos.Crypto (KeyHash, PublicKey, Signature)
+
+-- | Isomorphism between Michelson primitive values and plain Haskell types.
+class IsoCValue a where
+  -- | Type function that converts a regular Haskell type into a comparable type
+  -- (which has kind @CT@).
+  type ToCT a :: CT
+
+  -- | Converts a single Haskell value into @CVal@ representation.
+  toCVal :: a -> CValue (ToCT a)
+
+  -- | Converts a @CVal@ value into a single Haskell value.
+  fromCVal :: CValue (ToCT a) -> a
+
+instance IsoCValue Integer where
+  type ToCT Integer = 'CInt
+  toCVal = CvInt
+  fromCVal (CvInt i) = i
+
+instance IsoCValue Natural where
+  type ToCT Natural = 'CNat
+  toCVal = CvNat
+  fromCVal (CvNat i) = i
+
+instance IsoCValue Text where
+  type ToCT Text = 'CString
+  toCVal = CvString
+  fromCVal (CvString s) = s
+
+instance IsoCValue Bool where
+  type ToCT Bool = 'CBool
+  toCVal = CvBool
+  fromCVal (CvBool b) = b
+
+instance IsoCValue ByteString where
+  type ToCT ByteString = 'CBytes
+  toCVal = CvBytes
+  fromCVal (CvBytes b) = b
+
+instance IsoCValue Mutez where
+  type ToCT Mutez = 'CMutez
+  toCVal = CvMutez
+  fromCVal (CvMutez m) = m
+
+instance IsoCValue Address where
+  type ToCT Address = 'CAddress
+  toCVal = CvAddress
+  fromCVal (CvAddress a) = a
+
+instance IsoCValue KeyHash where
+  type ToCT KeyHash = 'CKeyHash
+  toCVal = CvKeyHash
+  fromCVal (CvKeyHash k) = k
+
+instance IsoCValue Timestamp where
+  type ToCT Timestamp = 'CTimestamp
+  toCVal = CvTimestamp
+  fromCVal (CvTimestamp t) = t
 
 -- | Isomorphism between Michelson values and plain Haskell types.
 --
@@ -65,6 +124,9 @@ type family ToT' (t :: k) :: T where
 type family ToTs' (t :: [k]) :: [T] where
   ToTs' (t :: [T]) = t
   ToTs' (a :: [Kind.Type]) = ToTs a
+
+-- | A useful property which holds for all 'CT' types.
+type IsComparable c = ToT c ~ 'Tc (ToCT c)
 
 instance IsoValue Integer where
   type ToT Integer = 'Tc (ToCT Integer)
@@ -137,12 +199,12 @@ instance (IsoValue l, IsoValue r) => IsoValue (Either l r)
 
 instance (IsoValue a, IsoValue b) => IsoValue (a, b)
 
-instance (Ord c, ToCVal c, FromCVal c) => IsoValue (Set c) where
+instance (Ord c, IsoCValue c) => IsoValue (Set c) where
   type ToT (Set c) = 'TSet (ToCT c)
   toVal = VSet . Set.map toCVal
   fromVal (VSet x) = Set.map fromCVal x
 
-instance (Ord k, ToCVal k, FromCVal k, IsoValue v) => IsoValue (Map k v) where
+instance (Ord k, IsoCValue k, IsoValue v) => IsoValue (Map k v) where
   type ToT (Map k v) = 'TMap (ToCT k) (ToT v)
   toVal = VMap . Map.mapKeys toCVal . Map.map toVal
   fromVal (VMap x) = Map.map fromVal $ Map.mapKeys fromCVal x
@@ -186,7 +248,7 @@ newtype BigMap k v = BigMap { unBigMap :: Map k v }
   deriving stock (Eq, Show)
   deriving newtype (Default, Semigroup, Monoid)
 
-instance (Ord k, ToCVal k, FromCVal k, IsoValue v) => IsoValue (BigMap k v) where
+instance (Ord k, IsoCValue k, IsoValue v) => IsoValue (BigMap k v) where
   type ToT (BigMap k v) = 'TBigMap (ToCT k) (ToT v)
   toVal = VBigMap . Map.mapKeys toCVal . Map.map toVal . unBigMap
   fromVal (VBigMap x) = BigMap $ Map.map fromVal $ Map.mapKeys fromCVal x

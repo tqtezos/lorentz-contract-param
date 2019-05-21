@@ -3,7 +3,10 @@
 
 -- | Impementation of @Store@ - object incapsulating multiple 'BigMap's.
 --
--- We represent it as @big_map bytes (a | b | ...)@.
+-- This module also provides template for the contract storage -
+-- 'StorageSkeleton'.
+--
+-- We represent 'Store' as @big_map bytes (a | b | ...)@.
 --
 -- Key of this map is formed as @(index, orig_key)@, where @index@ is
 -- zero-based index of emulated map, @orig_key@ is key of this emulated map.
@@ -21,25 +24,34 @@ insignificant against the background of some other instructions.
 
 -}
 module Lorentz.Store
-  ( -- * Store type definition
+  ( -- * Store and related type definitions
     Store (..)
   , type (|->)
 
-    -- * Type-lookup-by-name
+    -- ** Type-lookup-by-name
   , GetStoreKey
   , GetStoreValue
 
-    -- * Instructions
+    -- ** Instructions
   , storeMem
   , storeGet
   , storeInsert
+  , storeInsertNew
   , storeDelete
 
-    -- * Instruction constraints
+    -- ** Instruction constraints
   , StoreMemC
   , StoreGetC
   , StoreInsertC
   , StoreDeleteC
+
+    -- * Storage skeleton
+  , StorageSkeleton (..)
+  , storageMem
+  , storageGet
+  , storageInsert
+  , storageInsertNew
+  , storageDelete
 
     -- * Store management from Haskell
   , storePiece
@@ -55,11 +67,14 @@ import Data.Type.Equality (type (==))
 import Data.Vinyl.Derived (Label)
 import GHC.Generics ((:+:))
 import qualified GHC.Generics as G
-import GHC.TypeLits (AppendSymbol, ErrorMessage(..), Symbol, TypeError)
+import GHC.TypeLits (AppendSymbol, ErrorMessage(..), KnownSymbol, Symbol, TypeError, symbolVal)
 import GHC.TypeNats (type (+))
 
+import Lorentz.ADT
 import Lorentz.Base
 import Lorentz.Constraints
+import Lorentz.Instr
+import Lorentz.Macro
 import Michelson.Interpret.Pack
 import Michelson.Typed.Haskell.Instr.Sum
 import Michelson.Typed.Haskell.Value
@@ -67,6 +82,10 @@ import Michelson.Typed.Instr
 import Michelson.Typed.Scope
 
 {-# ANN module ("HLint: ignore Use 'natVal' from Universum" :: Text) #-}
+
+----------------------------------------------------------------------------
+-- Store
+----------------------------------------------------------------------------
 
 -- | Gathers multple 'BigMap's under one object.
 --
@@ -190,7 +209,9 @@ storeMem
      (StoreMemC store name)
   => Label name
   -> GetStoreKey store name : Store store : s :-> Bool : s
-storeMem _ = I $ packKey @(MSCtorIdx (GetStore name store)) `Seq` MEM
+storeMem _ = I $
+  packKey @(MSCtorIdx (GetStore name store)) `Seq`
+  MEM
 
 type StoreMemC store name = StoreOpC store name
 
@@ -234,6 +255,24 @@ type StoreInsertC store name =
       (GetStoreKey store name |-> GetStoreValue store name)
   )
 
+-- | Insert a key-value pair, but fail if it will overwrite some existing entry.
+storeInsertNew
+  :: forall store name s.
+     (StoreInsertC store name, KnownSymbol name)
+  => Label name
+  -> GetStoreKey store name
+      : GetStoreValue store name
+      : Store store
+      : s
+  :-> Store store : s
+storeInsertNew label =
+  duupX @3 # duupX @2 # storeMem label #
+  if_ (push errMsg # pair # failWith @(Text, GetStoreKey store name))
+      (storeInsert label)
+  where
+    errMsg = "Store already has value associated with this key for "
+          <> show (symbolVal (Proxy @name))
+
 storeDelete
   :: forall store name s.
      ( StoreOpC store name
@@ -267,6 +306,97 @@ type MyStore = Store MyStoreTemplate
 
 _sample1 :: Integer : MyStore : s :-> MyStore : s
 _sample1 = storeDelete @MyStoreTemplate #cIntsStore
+
+----------------------------------------------------------------------------
+-- Storage skeleton
+----------------------------------------------------------------------------
+
+-- | Contract storage with @big_map@.
+--
+-- Due to Michelson constraints it is the only possible layout containing
+-- @big_map@.
+data StorageSkeleton storeTemplate other = StorageSkeleton
+  { sMap :: Store storeTemplate
+  , sFields :: other
+  } deriving stock (Eq, Show, Generic)
+    deriving anyclass (Default, IsoValue)
+
+storageUnpack :: StorageSkeleton store fields : s :-> (Store store, fields) : s
+storageUnpack = coerce_
+
+storagePack :: (Store store, fields) : s :-> StorageSkeleton store fields : s
+storagePack = coerce_
+
+storageMem
+  :: forall store name fields s.
+     (StoreMemC store name)
+  => Label name
+  -> GetStoreKey store name : StorageSkeleton store fields : s :-> Bool : s
+storageMem label = dip (storageUnpack # car) # storeMem label
+
+storageGet
+  :: forall store name fields s.
+     StoreGetC store name
+  => Label name
+  -> GetStoreKey store name : StorageSkeleton store fields : s
+       :-> Maybe (GetStoreValue store name) : s
+storageGet label = dip (storageUnpack # car) # storeGet label
+
+storageInsert
+  :: forall store name fields s.
+     StoreInsertC store name
+  => Label name
+  -> GetStoreKey store name
+      : GetStoreValue store name
+      : StorageSkeleton store fields
+      : s
+  :-> StorageSkeleton store fields : s
+storageInsert label =
+  dip (dip (storageUnpack # dup # car # dip cdr)) #
+  storeInsert label #
+  pair # storagePack
+
+-- | Insert a key-value pair, but fail if it will overwrite some existing entry.
+storageInsertNew
+  :: forall store name fields s.
+     (StoreInsertC store name, KnownSymbol name)
+  => Label name
+  -> GetStoreKey store name
+      : GetStoreValue store name
+      : StorageSkeleton store fields
+      : s
+  :-> StorageSkeleton store fields : s
+storageInsertNew label =
+  dip (dip (storageUnpack # dup # car # dip cdr)) #
+  storeInsertNew label #
+  pair # storagePack
+
+storageDelete
+  :: forall store name fields s.
+     ( StoreOpC store name
+     , InstrWrapC store name
+     , SingI (ToT store)
+     )
+  => Label name
+  -> GetStoreKey store name : StorageSkeleton store fields : s
+     :-> StorageSkeleton store fields : s
+storageDelete label =
+  dip (storageUnpack # dup # car # dip cdr) #
+  storeDelete label #
+  pair # storagePack
+
+-- Examples
+----------------------------------------------------------------------------
+
+type MyStorage = StorageSkeleton MyStoreTemplate (Text, ByteString)
+
+-- You can access both Store...
+_storageSample1 :: Integer : MyStorage : s :-> MyStorage : s
+_storageSample1 = storageDelete @MyStoreTemplate #cIntsStore
+
+-- and other fields of the storage created with 'StorageSkeleton'.
+_storageSample2 :: MyStorage : s :-> Text : s
+_storageSample2 = access_ #sFields # car
 
 ----------------------------------------------------------------------------
 -- Store construction from Haskell
@@ -332,7 +462,7 @@ storeLookup label key (Store (BigMap m)) =
 -- Examples
 ----------------------------------------------------------------------------
 
-_storeSample :: MyStore
+_storeSample :: Store MyStoreTemplate
 _storeSample = mconcat
   [ storePiece #cIntsStore 1 ()
   , storePiece #cTextsStore "a" "b"

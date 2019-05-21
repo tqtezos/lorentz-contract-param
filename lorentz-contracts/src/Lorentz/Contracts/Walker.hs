@@ -1,7 +1,7 @@
 module Lorentz.Contracts.Walker
   ( contract_walker
   , Parameter (..)
-  , Storage (..)
+  , Storage
   , StorageFields (..)
   , Position (..)
   , PowerUp (..)
@@ -50,38 +50,34 @@ data StorageFields = StorageFields
   } deriving stock Generic
     deriving anyclass (Default, IsoValue)
 
-data Storage = Storage
-  { world :: Store StoreTemplate
-  , fields :: StorageFields
-  } deriving stock Generic
-    deriving anyclass (Default, IsoValue)
+type Storage = StorageSkeleton StoreTemplate StorageFields
 
 contract_walker :: Contract Parameter Storage
 contract_walker =
   unpair # caseT @Parameter
     ( #cGoLeft /-> do
-        modify_ #fields $ modify_ #pos $ modify_ #x $ do
+        modify_ #sFields $ modify_ #pos $ modify_ #x $ do
           push @Integer 1
           rsub
         applyCurrentPowerUps
         markCellVisited
 
     , #cGoRight /-> do
-        modify_ #fields $ modify_ #pos $ modify_ #x $ do
+        modify_ #sFields $ modify_ #pos $ modify_ #x $ do
           push @Integer 1
           add
         applyCurrentPowerUps
         markCellVisited
 
     , #cGoUp /-> do
-        modify_ #fields $ modify_ #pos $ modify_ #y $ do
+        modify_ #sFields $ modify_ #pos $ modify_ #y $ do
           push @Integer 1
           add
         applyCurrentPowerUps
         markCellVisited
 
     , #cGoDown /-> do
-        modify_ #fields $ modify_ #pos $ modify_ #y $ do
+        modify_ #sFields $ modify_ #pos $ modify_ #y $ do
           push @Integer 1
           rsub
         applyCurrentPowerUps
@@ -99,7 +95,7 @@ contract_walker =
           :& RNil
         dip drop
         construct $
-             fieldCtor (do dip (dup @Storage); swap; access_ #world)
+             fieldCtor (do dip (dup @Storage); swap; access_ #sMap)
           :& fieldCtor dup
           :& RNil
         dip $ drop >> drop
@@ -118,10 +114,10 @@ limitPower = do
 
 doBoost :: Integer : Storage : s :-> Storage : s
 doBoost = do
-  dip (do get_ #fields; get_ #power)
+  dip (do get_ #sFields; get_ #power)
   add
   limitPower
-  set_ #power; set_ #fields
+  set_ #power; set_ #sFields
 
 applyPowerUp :: PowerUp : Storage : s :-> Storage : s
 applyPowerUp = caseT
@@ -130,17 +126,15 @@ applyPowerUp = caseT
 
 applyCurrentPowerUps :: Storage : s :-> Storage : s
 applyCurrentPowerUps = do
-  get_ #fields; access_ #pos
-  dip $ get_ #world
-  storeGet #cPowerUps
+  get_ #sFields; access_ #pos
+  dip dup
+  storageGet #cPowerUps
   if IsSome
     then applyPowerUp
     else nop
 
 markCellVisited :: Storage : s :-> Storage : s
 markCellVisited = do
-  get_ #fields; access_ #pos
-  dip $ get_ #world
+  get_ #sFields; access_ #pos
   dip unit
-  storeInsert #cVisited
-  set_ #world
+  storageInsert #cVisited
