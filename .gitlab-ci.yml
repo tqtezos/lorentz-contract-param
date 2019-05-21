@@ -27,7 +27,7 @@ variables:
   CROSSREF_VERIFIER_DIR: ".crossref-verifier"
 
 before_script:
-  - 'touch "$STACK_GLOBAL_CONFIG"'
+  - 'mkdir -p "${STACK_GLOBAL_CONFIG%/*}" && touch "$STACK_GLOBAL_CONFIG"'
   - 'echo "system-ghc: true" >> "$STACK_GLOBAL_CONFIG"'
   - 'echo "install-ghc: false" >> "$STACK_GLOBAL_CONFIG"'
 

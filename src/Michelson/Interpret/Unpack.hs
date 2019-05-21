@@ -4,6 +4,8 @@ This is nearly symmetric to adjacent Pack.hs module.
 
 When implementing this the following sources were used:
 
+* https://pastebin.com/8gfXaRvp
+
 * https://gitlab.com/tezos/tezos/blob/master/src/proto_alpha/lib_protocol/script_ir_translator.ml#L2501
 
 * https://github.com/tezbridge/tezbridge-crypto/blob/master/src/PsddFKi3/codec.js#L513
@@ -42,8 +44,8 @@ import Michelson.TypeCheck.Instr (typeCheckList)
 import Michelson.Typed (Sing(..))
 import qualified Michelson.Typed as T
 import Michelson.Typed.Scope
-  (HasNoBigMap, HasNoOp, BigMapPresence(..), OpPresence(..), checkBigMapPresence, checkOpPresence,
-  bigMapAbsense, opAbsense)
+  (BigMapPresence(..), HasNoBigMap, HasNoOp, OpPresence(..), bigMapAbsense, checkBigMapPresence,
+  checkOpPresence, opAbsense)
 import Michelson.Untyped
 import Tezos.Address (Address(..))
 import Tezos.Core (mkMutez, timestampFromSeconds)
