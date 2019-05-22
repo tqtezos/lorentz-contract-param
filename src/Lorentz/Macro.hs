@@ -199,6 +199,9 @@ ifGe l r = ge # if_ l r
 -- Fail
 ----------------------------------------------------------------------------
 
+-- | Analog of the FAIL macro in Michelson. Its usage is discouraged
+-- because it doesn't carry any information about failure.
+{-# WARNING fail_ "'fail_' remains in code" #-}
 fail_ :: a :-> c
 fail_ = unit # failWith
 
