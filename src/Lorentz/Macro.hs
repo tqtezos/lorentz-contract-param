@@ -1,5 +1,4 @@
-{-# LANGUAGE DerivingStrategies #-}
-{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveAnyClass, DerivingStrategies #-}
 
 -- | Common Michelson macros defined using Lorentz syntax.
 module Lorentz.Macro
@@ -28,6 +27,12 @@ module Lorentz.Macro
   , fail_
 
   -- * Assertion macros
+  -- |
+  -- They differ from the same macros in Michelson, because those
+  -- macros use FAIL macro which is not informative (fails with unit).
+  -- If you __really__ want Michelson versions (maybe to produce exact
+  -- copy of an existing contract), you can pass empty string, then
+  -- FAILWITH will be called with unit, not empty string.
   , assert
   , assertEq0
   , assertNeq0
@@ -80,15 +85,15 @@ module Lorentz.Macro
 
 import Prelude hiding (compare, some, swap)
 
-import Data.Vinyl.TypeLevel (Nat(..))
 import qualified Data.Kind as Kind
+import Data.Vinyl.TypeLevel (Nat(..))
 import GHC.TypeNats (type (-))
 import qualified GHC.TypeNats as GHC (Nat)
 
-import Lorentz.Instr
+import Lorentz.Arith
 import Lorentz.Base
 import Lorentz.Constraints
-import Lorentz.Arith
+import Lorentz.Instr
 import Lorentz.Value
 import Michelson.Typed.Arith
 import Michelson.Typed.Haskell.Value
@@ -194,6 +199,9 @@ ifGe l r = ge # if_ l r
 -- Fail
 ----------------------------------------------------------------------------
 
+-- | Analog of the FAIL macro in Michelson. Its usage is discouraged
+-- because it doesn't carry any information about failure.
+{-# WARNING fail_ "'fail_' remains in code" #-}
 fail_ :: a :-> c
 fail_ = unit # failWith
 
@@ -201,56 +209,62 @@ fail_ = unit # failWith
 -- Assertions
 ----------------------------------------------------------------------------
 
-assert :: Bool & s :-> s
-assert = if_ nop fail_
+-- Helper function, see Haddock comment in the export list.
+assertionFailed :: Text -> whatever :-> anything
+assertionFailed reason
+  | null reason = fail_
+  | otherwise = failText reason
 
-assertEq0 :: IfCmp0Constraints a Eq' => a & s :-> s
-assertEq0 = ifEq0 nop fail_
+assert :: Text -> Bool & s :-> s
+assert reason = if_ nop (assertionFailed reason)
 
-assertNeq0 :: IfCmp0Constraints a Neq => a & s :-> s
-assertNeq0 = ifNeq0 nop fail_
+assertEq0 :: IfCmp0Constraints a Eq' => Text -> a & s :-> s
+assertEq0 reason = ifEq0 nop (assertionFailed reason)
 
-assertLt0 :: IfCmp0Constraints a Lt => a & s :-> s
-assertLt0 = ifLt0 nop fail_
+assertNeq0 :: IfCmp0Constraints a Neq => Text -> a & s :-> s
+assertNeq0 reason = ifNeq0 nop (assertionFailed reason)
 
-assertGt0 :: IfCmp0Constraints a Gt => a & s :-> s
-assertGt0 = ifGt0 nop fail_
+assertLt0 :: IfCmp0Constraints a Lt => Text -> a & s :-> s
+assertLt0 reason = ifLt0 nop (assertionFailed reason)
 
-assertLe0 :: IfCmp0Constraints a Le => a & s :-> s
-assertLe0 = ifLe0 nop fail_
+assertGt0 :: IfCmp0Constraints a Gt => Text -> a & s :-> s
+assertGt0 reason = ifGt0 nop (assertionFailed reason)
 
-assertGe0 :: IfCmp0Constraints a Ge => a & s :-> s
-assertGe0 = ifGe0 nop fail_
+assertLe0 :: IfCmp0Constraints a Le => Text -> a & s :-> s
+assertLe0 reason = ifLe0 nop (assertionFailed reason)
 
-assertEq :: IfCmpXConstraints a b Eq' => a & b & s :-> s
-assertEq = ifEq nop fail_
+assertGe0 :: IfCmp0Constraints a Ge => Text -> a & s :-> s
+assertGe0 reason = ifGe0 nop (assertionFailed reason)
 
-assertNeq :: IfCmpXConstraints a b Neq => a & b & s :-> s
-assertNeq = ifNeq nop fail_
+assertEq :: IfCmpXConstraints a b Eq' => Text -> a & b & s :-> s
+assertEq reason = ifEq nop (assertionFailed reason)
 
-assertLt :: IfCmpXConstraints a b Lt => a & b & s :-> s
-assertLt = ifLt nop fail_
+assertNeq :: IfCmpXConstraints a b Neq => Text -> a & b & s :-> s
+assertNeq reason = ifNeq nop (assertionFailed reason)
 
-assertGt :: IfCmpXConstraints a b Gt => a & b & s :-> s
-assertGt = ifGt nop fail_
+assertLt :: IfCmpXConstraints a b Lt => Text -> a & b & s :-> s
+assertLt reason = ifLt nop (assertionFailed reason)
 
-assertLe :: IfCmpXConstraints a b Le => a & b & s :-> s
-assertLe = ifLe nop fail_
+assertGt :: IfCmpXConstraints a b Gt => Text -> a & b & s :-> s
+assertGt reason = ifGt nop (assertionFailed reason)
 
-assertGe :: IfCmpXConstraints a b Ge => a & b & s :-> s
-assertGe = ifGe nop fail_
+assertLe :: IfCmpXConstraints a b Le => Text -> a & b & s :-> s
+assertLe reason = ifLe nop (assertionFailed reason)
 
-assertNone :: Maybe a & s :-> s
-assertNone = ifNone nop fail_
+assertGe :: IfCmpXConstraints a b Ge => Text -> a & b & s :-> s
+assertGe reason = ifGe nop (assertionFailed reason)
 
-assertSome :: Maybe a & s :-> a & s
-assertSome = ifNone fail_ nop
+assertNone :: Text -> Maybe a & s :-> s
+assertNone reason = ifNone nop (assertionFailed reason)
 
-assertLeft :: Either a b & s :-> a & s
-assertLeft = ifLeft nop fail_
+assertSome :: Text -> Maybe a & s :-> a & s
+assertSome reason = ifNone (assertionFailed reason) nop
 
-assertRight :: Either a b & s :-> b & s
-assertRight = ifLeft fail_ nop
+assertLeft :: Text -> Either a b & s :-> a & s
+assertLeft reason = ifLeft nop (assertionFailed reason)
+
+assertRight :: Text -> Either a b & s :-> b & s
+assertRight reason = ifLeft (assertionFailed reason) nop
 
 ----------------------------------------------------------------------------
 -- Syntactic Conveniences

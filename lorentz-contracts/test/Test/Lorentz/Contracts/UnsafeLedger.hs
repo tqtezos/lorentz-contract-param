@@ -1,13 +1,12 @@
-{-# LANGUAGE DeriveAnyClass #-}
-
-module Test.TZip.FA1
-  ( spec_FA1_contract
+module Test.Lorentz.Contracts.UnsafeLedger
+  ( spec_UnsafeLedger
   ) where
 
 import qualified Data.Map as M
 import Test.Hspec (Expectation, Spec, describe, expectationFailure, it, shouldBe, shouldSatisfy)
 
-import Lorentz (Address, View(..))
+import Lorentz (Address, View(..), compileLorentzContract)
+import Lorentz.Contracts.UnsafeLedger
 import Michelson.Interpret (ceAmount)
 import Michelson.Runtime.GState (genesisAddress)
 import Michelson.Test (contractProp, dummyContractEnv, specWithTypedContract)
@@ -16,33 +15,25 @@ import qualified Michelson.Typed as T
 import Tezos.Address
 import Tezos.Core (Mutez)
 
--- | Runs all tests for FA1.
-spec_FA1_contract :: Spec
-spec_FA1_contract = do
-  specWithTypedContract "contracts/FA1/FA1.mtz" $ \fa1 -> do
-    describe "Transfer" $ do
-      transfer fa1
+-- | All tests for UnsafeLedger (FA1).
+spec_UnsafeLedger :: Spec
+spec_UnsafeLedger = do
+  let
+    spec fa1 = do
+      describe "Transfer" $ do
+        transfer fa1
 
-    describe "GetTotalSupply" $ do
-      getTotalSupply fa1
+      describe "GetTotalSupply" $ do
+        getTotalSupply fa1
 
-    describe "GetBalance" $ do
-      getBalance fa1
+      describe "GetBalance" $ do
+        getBalance fa1
+  specWithTypedContract "../contracts/FA1/FA1.mtz" spec
+  describe "Test Lorentz version" $
+    spec (compileLorentzContract contract_UnsafeLedger)
 
-data FA1Parameter'
-  = Transfer       (Address, Natural)
-  | GetTotalSupply (View () Natural)
-  | GetBalance     (View Address (Maybe Natural))
-  deriving stock Generic
-  deriving anyclass T.IsoValue
-
-type FA1Storage' =
-  ( T.BigMap Address Natural
-  , Natural
-  )
-
-type FA1Parameter = T.ToT FA1Parameter'
-type FA1Storage   = T.ToT FA1Storage'
+type TStorage = T.ToT Storage
+type TContract = T.Contract (T.ToT Parameter) TStorage
 
 source, foo, bar, feather :: Address
 source  = genesisAddress
@@ -53,21 +44,21 @@ feather = mkContractAddressRaw "feather"
 transferredAmount :: Mutez
 transferredAmount = ceAmount dummyContractEnv
 
-storage :: FA1Storage'
-storage =
-  ( T.BigMap $ M.fromList
+storage :: Storage
+storage = Storage
+  { ledger = T.BigMap $ M.fromList
     [ (bar,    300)
     , (source, 200)
     ]
-  , 500
-  )
+  , totalSupply = 500
+  }
 
 -- | A contract specification factory.
 makeTestCase
-  :: T.Contract FA1Parameter FA1Storage
+  :: TContract
   -> String
-  -> ContractPropValidator FA1Storage Expectation
-  -> FA1Parameter'
+  -> ContractPropValidator TStorage Expectation
+  -> Parameter
   -> Spec
 makeTestCase contract name validator param =
   it name $ do
@@ -75,7 +66,7 @@ makeTestCase contract name validator param =
 
 -- | Testing various properties of `GetBalance`.
 getBalance
-  :: T.Contract FA1Parameter FA1Storage
+  :: TContract
   -> Spec
 getBalance contract = do
   testCase
@@ -92,7 +83,7 @@ getBalance contract = do
 
 -- | Testing properties of `GetBalance` when dest address is present.
 gettingExistingBalance
-  :: ContractPropValidator FA1Storage Expectation
+  :: ContractPropValidator TStorage Expectation
 gettingExistingBalance (Left _, _) = do
   expectationFailure "shouldn't end with an error"
 gettingExistingBalance (Right (ops, store), _) = do
@@ -111,7 +102,7 @@ gettingExistingBalance (Right (ops, store), _) = do
 
 -- | Testing properties of `GetBalance` when dest address is NOT present.
 gettingNonExistingBalance
-  :: ContractPropValidator FA1Storage Expectation
+  :: ContractPropValidator TStorage Expectation
 gettingNonExistingBalance (Left _, _) = do
   expectationFailure "shouldn't end with an error"
 gettingNonExistingBalance (Right (ops, store), _) = do
@@ -129,9 +120,7 @@ gettingNonExistingBalance (Right (ops, store), _) = do
     ]
 
 -- | Testing properties of `GetTotalSupply`.
-getTotalSupply
-  :: T.Contract FA1Parameter FA1Storage
-  -> Spec
+getTotalSupply :: TContract -> Spec
 getTotalSupply contract = do
   testCase "getting" gettingTotalSupply
     $ GetTotalSupply (View () (T.ContractAddr feather))
@@ -141,7 +130,7 @@ getTotalSupply contract = do
 -- | Checking that `GetTotalSupply` doesn't change the storage
 --   and returns total supply to the provided address.
 gettingTotalSupply
-  :: ContractPropValidator FA1Storage Expectation
+  :: ContractPropValidator TStorage Expectation
 gettingTotalSupply (Left _, _) = do
   expectationFailure "shouldn't end with an error"
 gettingTotalSupply (Right (ops, store), _) = do
@@ -156,28 +145,26 @@ gettingTotalSupply (Right (ops, store), _) = do
     ]
 
 -- | Testing properties of `Transfer`.
-transfer
-  :: T.Contract FA1Parameter FA1Storage
-  -> Spec
+transfer :: TContract -> Spec
 transfer contract = do
-  testCase "paying"          success        $ Transfer (foo,    10)
-  testCase "paying 0"        payNothing     $ Transfer (foo,    0)
-  testCase "paying to self"  nothingChanges $ Transfer (source, 10)
-  testCase "paying more than you have" overdraft $ Transfer (foo, 500)
+  testCase "paying"          success        $ Transfer (#to foo,    #val 10)
+  testCase "paying 0"        payNothing     $ Transfer (#to foo,    #val 0)
+  testCase "paying to self"  nothingChanges $ Transfer (#to source, #val 10)
+  testCase "paying more than you have" overdraft $ Transfer (#to foo, #val 500)
   testCase "paying to self more than you have" selfOverdraft
-    $ Transfer (source, 500)
+    $ Transfer (#to source, #val 500)
   where
     testCase = makeTestCase contract
 
 -- | Checking that paying more that you have fails.
 overdraft
-  :: ContractPropValidator FA1Storage Expectation
+  :: ContractPropValidator TStorage Expectation
 overdraft (result, _) = do
   shouldSatisfy result isLeft
 
 -- | Checking that no changes to storage were made.
 nothingChanges
-  :: ContractPropValidator FA1Storage Expectation
+  :: ContractPropValidator TStorage Expectation
 nothingChanges (Left _, _) = do
   expectationFailure "shouldn't end with an error"
 nothingChanges (Right (ops, store), _) = do
@@ -186,13 +173,13 @@ nothingChanges (Right (ops, store), _) = do
 
 -- | Checking that you can't pay to youself more than you have.
 selfOverdraft
-  :: ContractPropValidator FA1Storage Expectation
+  :: ContractPropValidator TStorage Expectation
 selfOverdraft (result, _) = do
   shouldSatisfy result isLeft
 
 -- | Checking that test payment was successful.
 success
-  :: ContractPropValidator FA1Storage Expectation
+  :: ContractPropValidator TStorage Expectation
 success (Left _, _) = do
   expectationFailure "shouldn't end with an error"
 success (Right (ops, store), _) = do
@@ -208,7 +195,7 @@ success (Right (ops, store), _) = do
 
 -- | Checking that paying of 0 creates a record of 0.
 payNothing
-  :: ContractPropValidator FA1Storage Expectation
+  :: ContractPropValidator TStorage Expectation
 payNothing (Left _, _) = do
   expectationFailure "shouldn't end with an error"
 payNothing (Right (ops, store), _) = do

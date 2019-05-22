@@ -24,14 +24,19 @@ contract_auction = do
   callingConvention
 
 checkIfAuctionHasEnded :: '[ Input ] :-> '[ Input, Timestamp ]
-checkIfAuctionHasEnded = do dup; cdar; dup; now; gt; if_ fail_ nop; swap
+checkIfAuctionHasEnded = do
+  dup; cdar; dup; now
+  assertLe "Auction has ended"
+  swap
 
 setupReplacementStorage :: '[ Input, Timestamp] :-> '[ Bid, Storage ]
 setupReplacementStorage =
   do dup; car; dip cddr; amount; pair; swap; dip (swap # pair)
 
 checkNewBidIsGreater :: '[ Bid, Storage ] :-> '[ Bid, Storage ]
-checkNewBidIsGreater = do dup; car; amount; le; if_ fail_ nop
+checkNewBidIsGreater = do
+  dup; car; amount
+  assertGt "New big must be greater than the greatest one"
 
 getRefund :: '[ Bid, Storage ] :-> '[ Mutez, Bid, Storage ]
 getRefund = do dup; car
