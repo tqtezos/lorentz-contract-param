@@ -35,7 +35,7 @@ contract_UnsafeLedger = do
 debitSource :: '[TransferParams, Storage]
             :-> '[TransferParams, Storage]
 debitSource = do
-  dip (do get_ #ledger; source; get; assertSome)
+  dip (do get_ #ledger; source; get; assertSome "Source address is not in ledger")
   swap
   dip (get_ #val);
   subGt0
@@ -59,7 +59,7 @@ creditTo = do
 subGt0 :: Natural ': Natural ': s :-> Maybe Natural ': s
 subGt0 = do
   sub;
-  dup; assertGe0
+  dup; assertGe0 "Transferred value is greater than balance"
   dup; eq0
   if Holds
   then drop >> none
