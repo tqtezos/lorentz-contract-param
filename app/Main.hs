@@ -5,7 +5,7 @@ module Main
 import qualified Control.Exception as E
 import Data.Version (showVersion)
 import Fmt (pretty)
-import Named ((!))
+import Named ((:?), argF, (!))
 import Options.Applicative
   (auto, command, eitherReader, execParser, footerDoc, fullDesc, header, help, helper, info,
   infoOption, long, maybeReader, metavar, option, progDesc, readerError, short, showDefault,
@@ -31,7 +31,8 @@ import Tezos.Address (Address, parseAddress)
 import Tezos.Core
   (Mutez, Timestamp(..), mkMutez, parseTimestamp, timestampFromSeconds, unMutez, unsafeMkMutez)
 import Tezos.Crypto
-import Util.IO (hSetTranslit, withEncoding)
+import Util.IO (hSetTranslit, withEncoding, writeFileUtf8)
+import Util.Named
 
 ----------------------------------------------------------------------------
 -- Command line options
@@ -39,7 +40,7 @@ import Util.IO (hSetTranslit, withEncoding)
 
 data CmdLnArgs
   = Parse (Maybe FilePath) Bool
-  | Print (Maybe FilePath)
+  | Print ("input" :? FilePath) ("output" :? FilePath)
   | TypeCheck !TypeCheckOptions
   | Run !RunOptions
   | Originate !OriginateOptions
@@ -111,9 +112,9 @@ argParser = subparser $
 
     printSubCmd =
       mkCommandParser "print"
-      (Print <$> printOptions)
+      (Print <$> (#input <.?> contractFileOption) <*> (#output <.?> outputOption))
       ("Parse a Morley contract and print corresponding Michelson " <>
-       "contract that can be parsed the OCaml reference client")
+       "contract that can be parsed by the OCaml reference client")
 
     runSubCmd =
       mkCommandParser "run"
@@ -162,9 +163,6 @@ argParser = subparser $
 
     defaultBalance :: Mutez
     defaultBalance = unsafeMkMutez 4000000
-
-    printOptions :: Opt.Parser (Maybe FilePath)
-    printOptions = contractFileOption
 
     runOptions :: Opt.Parser RunOptions
     runOptions =
@@ -279,6 +277,13 @@ addressOption defAddress name hInfo =
       either (Left . mappend "Failed to parse address: " . pretty) Right $
       parseAddress $ toText addr
 
+outputOption :: Opt.Parser (Maybe FilePath)
+outputOption = optional . strOption $
+  short 'o' <>
+  long "output" <>
+  metavar "FILEPATH" <>
+  help "Write output to the given file. If not specified, stdout is used."
+
 txData :: Opt.Parser TxData
 txData =
   mkTxData
@@ -367,9 +372,10 @@ main = displayUncaughtException $ withEncoding stdin utf8 $ do
         if hasExpandMacros
           then pPrint $ expandContract contract
           else pPrint contract
-      Print mFilename -> do
-        contract <- prepareContract mFilename
-        putStrLn $ printUntypedContract contract
+      Print (argF #input -> mInputFile) (argF #output -> mOutputFile) -> do
+        contract <- prepareContract mInputFile
+        let write = maybe putStrLn writeFileUtf8 mOutputFile
+        write $ printUntypedContract contract
       TypeCheck TypeCheckOptions{..} -> do
         morleyContract <- prepareContract tcoContractFile
         either throwM (const pass) =<< typeCheckWithDb tcoDBPath morleyContract

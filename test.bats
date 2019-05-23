@@ -82,3 +82,8 @@ setup () {
 @test "lorentz registry finds some contracts" {
   $bin_dir/lorentz-contracts -- print -n walker
 }
+
+@test "invoking ./morley.sh print -o" {
+  $morley print --contract contracts/first.tz -o output.mtz
+  rm output.mtz
+}
