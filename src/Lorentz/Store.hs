@@ -396,7 +396,7 @@ _storageSample1 = storageDelete @MyStoreTemplate #cIntsStore
 
 -- and other fields of the storage created with 'StorageSkeleton'.
 _storageSample2 :: MyStorage : s :-> Text : s
-_storageSample2 = access_ #sFields # car
+_storageSample2 = toField #sFields # car
 
 ----------------------------------------------------------------------------
 -- Store construction from Haskell

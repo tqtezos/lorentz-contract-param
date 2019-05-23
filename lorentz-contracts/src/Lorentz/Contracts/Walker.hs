@@ -56,35 +56,35 @@ contract_walker :: Contract Parameter Storage
 contract_walker =
   unpair # caseT @Parameter
     ( #cGoLeft /-> do
-        modify_ #sFields $ modify_ #pos $ modify_ #x $ do
+        modifyField #sFields $ modifyField #pos $ modifyField #x $ do
           push @Integer 1
           rsub
         applyCurrentPowerUps
         markCellVisited
 
     , #cGoRight /-> do
-        modify_ #sFields $ modify_ #pos $ modify_ #x $ do
+        modifyField #sFields $ modifyField #pos $ modifyField #x $ do
           push @Integer 1
           add
         applyCurrentPowerUps
         markCellVisited
 
     , #cGoUp /-> do
-        modify_ #sFields $ modify_ #pos $ modify_ #y $ do
+        modifyField #sFields $ modifyField #pos $ modifyField #y $ do
           push @Integer 1
           add
         applyCurrentPowerUps
         markCellVisited
 
     , #cGoDown /-> do
-        modify_ #sFields $ modify_ #pos $ modify_ #y $ do
+        modifyField #sFields $ modifyField #pos $ modifyField #y $ do
           push @Integer 1
           rsub
         applyCurrentPowerUps
         markCellVisited
 
     , #cBoost /-> do
-        access_ #coef1
+        toField #coef1
         doBoost
 
     , #cReset /-> do
@@ -95,7 +95,7 @@ contract_walker =
           :& RNil
         dip drop
         construct $
-             fieldCtor (do dip (dup @Storage); swap; access_ #sMap)
+             fieldCtor (do dip (dup @Storage); swap; toField #sMap)
           :& fieldCtor dup
           :& RNil
         dip $ drop >> drop
@@ -114,10 +114,10 @@ limitPower = do
 
 doBoost :: Integer : Storage : s :-> Storage : s
 doBoost = do
-  dip (do get_ #sFields; get_ #power)
+  dip (do getField #sFields; getField #power)
   add
   limitPower
-  set_ #power; set_ #sFields
+  setField #power; setField #sFields
 
 applyPowerUp :: PowerUp : Storage : s :-> Storage : s
 applyPowerUp = caseT
@@ -126,7 +126,7 @@ applyPowerUp = caseT
 
 applyCurrentPowerUps :: Storage : s :-> Storage : s
 applyCurrentPowerUps = do
-  get_ #sFields; access_ #pos
+  getField #sFields; toField #pos
   dip dup
   storageGet #cPowerUps
   if IsSome
@@ -135,6 +135,6 @@ applyCurrentPowerUps = do
 
 markCellVisited :: Storage : s :-> Storage : s
 markCellVisited = do
-  get_ #sFields; access_ #pos
+  getField #sFields; toField #pos
   dip unit
   storageInsert #cVisited

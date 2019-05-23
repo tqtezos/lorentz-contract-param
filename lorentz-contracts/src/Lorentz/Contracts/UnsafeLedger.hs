@@ -28,33 +28,33 @@ contract_UnsafeLedger = do
   unpair
   caseT @Parameter
     ( #cTransfer /-> do debitSource; creditTo; nil; pair;
-    , #cGetTotalSupply /-> view_ (do cdr; access_ #totalSupply)
-    , #cGetBalance /-> view_ (do unpair; dip ( access_ #ledger ); get)
+    , #cGetTotalSupply /-> view_ (do cdr; toField #totalSupply)
+    , #cGetBalance /-> view_ (do unpair; dip ( toField #ledger ); get)
     )
 
 debitSource :: '[TransferParams, Storage]
             :-> '[TransferParams, Storage]
 debitSource = do
-  dip (do get_ #ledger; source; get; assertSome "Source address is not in ledger")
+  dip (do getField #ledger; source; get; assertSome "Source address is not in ledger")
   swap
-  dip (get_ #val);
+  dip (getField #val);
   subGt0
   swap;
-  dip (do dip (get_ #ledger); source; update; set_ #ledger)
+  dip (do dip (getField #ledger); source; update; setField #ledger)
 
 creditTo :: '[TransferParams, Storage] :-> '[Storage]
 creditTo = do
-  get_ #to
+  getField #to
   swap
-  dip (do dip (get_ #ledger); get)
+  dip (do dip (getField #ledger); get)
   swap
-  if IsSome then dip (get_ #val) >> add @Natural else get_ #val
+  if IsSome then dip (getField #val) >> add @Natural else getField #val
   some
-  dip (access_ #to)
+  dip (toField #to)
   swap;
-  dipX @2 (get_ #ledger)
+  dipX @2 (getField #ledger)
   update;
-  set_ #ledger
+  setField #ledger
 
 subGt0 :: Natural ': Natural ': s :-> Maybe Natural ': s
 subGt0 = do

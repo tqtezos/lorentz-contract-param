@@ -3,13 +3,14 @@
 
 -- | Instructions working on product types derived from Haskell ones.
 module Michelson.Typed.Haskell.Instr.Product
-  ( InstrGetC
-  , InstrSetC
+  ( InstrGetFieldC
+  , InstrSetFieldC
   , InstrConstructC
-  , instrGet
-  , instrSet
+  , instrGetField
+  , instrSetField
   , instrConstruct
 
+  , GetFieldType
   , ConstructorFieldTypes
   , FieldConstructor (..)
   ) where
@@ -94,27 +95,32 @@ type family LNMergeFound
   LNMergeFound name ('Just _) ('Just _) = TypeError
     ('Text "Ambigous reference to datatype field: " ':<>: 'ShowType name)
 
+-- | Get type of field by datatype it is contained in and field name.
+type GetFieldType dt name = LnrFieldType (GetNamed name dt)
+
 ----------------------------------------------------------------------------
 -- Value accessing instruction
 ----------------------------------------------------------------------------
 
 -- | Make an instruction which accesses given field of the given datatype.
-instrGet
-  :: forall dt name fieldTy st path.
-     InstrGetC dt name fieldTy path
-  => Label name -> Instr (ToT dt ': st) (ToT fieldTy ': st)
-instrGet _ = gInstrGet @name @(G.Rep dt) @path @fieldTy
+instrGetField
+  :: forall dt name st.
+     InstrGetFieldC dt name
+  => Label name -> Instr (ToT dt ': st) (ToT (GetFieldType dt name) ': st)
+instrGetField _ =
+  gInstrGetField @name @(G.Rep dt) @(LnrBranch (GetNamed name dt))
+    @(GetFieldType dt name)
 
--- | Constraint for 'instrGet'.
-type InstrGetC dt name fieldTy path =
+-- | Constraint for 'instrGetField'.
+type InstrGetFieldC dt name =
   ( IsoValue dt, Generic dt
   , GInstrGet name (G.Rep dt)
       (LnrBranch (GetNamed name dt))
       (LnrFieldType (GetNamed name dt))
-  , 'LNR fieldTy path ~ GetNamed name dt, GValueType (G.Rep dt) ~ ToT dt
+  , GValueType (G.Rep dt) ~ ToT dt
   )
 
-{- Note about bulkiness of `instrGet` type signature:
+{- Note about bulkiness of `instrGetField` type signature:
 
 Read this only if you are going to modify the signature qualitatively.
 
@@ -133,22 +139,22 @@ class GIsoValue x =>
     (x :: Kind.Type -> Kind.Type)
     (path :: Path)
     (fieldTy :: Kind.Type) where
-  gInstrGet
+  gInstrGetField
     :: GIsoValue x
     => Instr (GValueType x ': s) (ToT fieldTy ': s)
 
 instance GInstrGet name x path f => GInstrGet name (G.M1 t i x) path f where
-  gInstrGet = gInstrGet @name @x @path @f
+  gInstrGetField = gInstrGetField @name @x @path @f
 
 instance (IsoValue f, ToT f ~ ToT f') =>
          GInstrGet name (G.Rec0 f) '[] f' where
-  gInstrGet = Nop
+  gInstrGetField = Nop
 
 instance (GInstrGet name x path f, GIsoValue y) => GInstrGet name (x :*: y) ('L ': path) f where
-  gInstrGet = CAR `Seq` gInstrGet @name @x @path @f
+  gInstrGetField = CAR `Seq` gInstrGetField @name @x @path @f
 
 instance (GInstrGet name y path f, GIsoValue x) => GInstrGet name (x :*: y) ('R ': path) f where
-  gInstrGet = CDR `Seq` gInstrGet @name @y @path @f
+  gInstrGetField = CDR `Seq` gInstrGetField @name @y @path @f
 
 -- Examples
 ----------------------------------------------------------------------------
@@ -156,10 +162,10 @@ instance (GInstrGet name y path f, GIsoValue x) => GInstrGet name (x :*: y) ('R 
 type MyType1 = ("int" :! Integer, "text" :! Text, "text2" :? Text)
 
 _getIntInstr1 :: Instr (ToT MyType1 ': s) (ToT Integer ': s)
-_getIntInstr1 = instrGet @MyType1 #int
+_getIntInstr1 = instrGetField @MyType1 #int
 
 _getTextInstr1 :: Instr (ToT MyType1 ': s) (ToT (Maybe Text) ': s)
-_getTextInstr1 = instrGet @MyType1 #text2
+_getTextInstr1 = instrGetField @MyType1 #text2
 
 data MyType2 = MyType2
   { getInt :: Integer
@@ -170,65 +176,68 @@ data MyType2 = MyType2
     deriving anyclass (IsoValue)
 
 _getIntInstr2 :: Instr (ToT MyType2 ': s) (ToT () ': s)
-_getIntInstr2 = instrGet @MyType2 #getUnit
+_getIntInstr2 = instrGetField @MyType2 #getUnit
 
 _getIntInstr2' :: Instr (ToT MyType2 ': s) (ToT Integer ': s)
-_getIntInstr2' = instrGet @MyType2 #getMyType1 `Seq` instrGet @MyType1 #int
+_getIntInstr2' =
+  instrGetField @MyType2 #getMyType1 `Seq` instrGetField @MyType1 #int
 
 ----------------------------------------------------------------------------
 -- Value modification instruction
 ----------------------------------------------------------------------------
 
 -- | For given complex type @dt@ and its field @fieldTy@ update the field value.
-instrSet
-  :: forall dt name fieldTy st path.
-     InstrSetC dt name fieldTy path
-  => Label name -> Instr (ToT fieldTy ': ToT dt ': st) (ToT dt ': st)
-instrSet _ = gInstrSet @name @(G.Rep dt) @path @fieldTy
+instrSetField
+  :: forall dt name st.
+     InstrSetFieldC dt name
+  => Label name -> Instr (ToT (GetFieldType dt name) ': ToT dt ': st) (ToT dt ': st)
+instrSetField _ =
+  gInstrSetField @name @(G.Rep dt) @(LnrBranch (GetNamed name dt))
+    @(GetFieldType dt name)
 
--- | Constraint for 'instrSet'.
-type InstrSetC dt name fieldTy path =
+-- | Constraint for 'instrSetField'.
+type InstrSetFieldC dt name =
   ( IsoValue dt, Generic dt
-  , GInstrSet name (G.Rep dt)
+  , GInstrSetField name (G.Rep dt)
       (LnrBranch (GetNamed name dt))
       (LnrFieldType (GetNamed name dt))
-  , 'LNR fieldTy path ~ GetNamed name dt, GValueType (G.Rep dt) ~ ToT dt
+  , GValueType (G.Rep dt) ~ ToT dt
   )
 
--- | Generic traversal for 'instrSet'.
+-- | Generic traversal for 'instrSetField'.
 class GIsoValue x =>
-  GInstrSet
+  GInstrSetField
     (name :: Symbol)
     (x :: Kind.Type -> Kind.Type)
     (path :: Path)
     (fieldTy :: Kind.Type) where
-  gInstrSet
+  gInstrSetField
     :: Instr (ToT fieldTy ': GValueType x ': s) (GValueType x ': s)
 
-instance GInstrSet name x path f => GInstrSet name (G.M1 t i x) path f where
-  gInstrSet = gInstrSet @name @x @path @f
+instance GInstrSetField name x path f => GInstrSetField name (G.M1 t i x) path f where
+  gInstrSetField = gInstrSetField @name @x @path @f
 
 instance (IsoValue f, ToT f ~ ToT f') =>
-         GInstrSet name (G.Rec0 f) '[] f' where
-  gInstrSet = DIP DROP
+         GInstrSetField name (G.Rec0 f) '[] f' where
+  gInstrSetField = DIP DROP
 
-instance (GInstrSet name x path f, GIsoValue y) => GInstrSet name (x :*: y) ('L ': path) f where
-  gInstrSet =
+instance (GInstrSetField name x path f, GIsoValue y) => GInstrSetField name (x :*: y) ('L ': path) f where
+  gInstrSetField =
     DIP (DUP `Seq` DIP CDR `Seq` CAR) `Seq`
-    gInstrSet @name @x @path @f `Seq`
+    gInstrSetField @name @x @path @f `Seq`
     PAIR
 
-instance (GInstrSet name y path f, GIsoValue x) => GInstrSet name (x :*: y) ('R ': path) f where
-  gInstrSet =
+instance (GInstrSetField name y path f, GIsoValue x) => GInstrSetField name (x :*: y) ('R ': path) f where
+  gInstrSetField =
     DIP (DUP `Seq` DIP CAR `Seq` CDR) `Seq`
-    gInstrSet @name @y @path @f `Seq`
+    gInstrSetField @name @y @path @f `Seq`
     SWAP `Seq` PAIR
 
 -- Examples
 ----------------------------------------------------------------------------
 
 _setIntInstr1 :: Instr (ToT Integer ': ToT MyType2 ': s) (ToT MyType2 ': s)
-_setIntInstr1 = instrSet @MyType2 #getInt
+_setIntInstr1 = instrSetField @MyType2 #getInt
 
 ----------------------------------------------------------------------------
 -- Value construction instruction
