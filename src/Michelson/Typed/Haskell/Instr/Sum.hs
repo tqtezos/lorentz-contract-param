@@ -25,13 +25,13 @@ module Michelson.Typed.Haskell.Instr.Sum
   , GetCtorField
   , CtorHasOnlyField
   , CtorOnlyField
+  , MyCompoundType
   ) where
 
+import Data.Constraint (Dict(..))
 import qualified Data.Kind as Kind
-import Data.Singletons (SingI (..))
-import Unsafe.Coerce (unsafeCoerce)
+import Data.Singletons (SingI(..))
 import Data.Type.Bool (If, type (||))
-import Data.Constraint (Dict (..))
 import Data.Type.Equality (type (==))
 import Data.Vinyl.Core (Rec(..))
 import Data.Vinyl.Derived (Label)
@@ -40,12 +40,17 @@ import GHC.Generics ((:*:)(..), (:+:)(..))
 import qualified GHC.Generics as G
 import GHC.TypeLits (AppendSymbol, ErrorMessage(..), Symbol, TypeError)
 import Named ((:!))
+import Type.Reflection ((:~:)(Refl))
+import Unsafe.Coerce (unsafeCoerce)
 
 import Michelson.Typed.Haskell.Instr.Helpers
 import Michelson.Typed.Haskell.Value
 import Michelson.Typed.Instr
 import Michelson.Typed.T
 import Michelson.Typed.Value
+import Tezos.Address (Address)
+import Tezos.Core (Mutez, Timestamp)
+import Tezos.Crypto (KeyHash, PublicKey, Signature)
 import Util.TypeTuple
 
 -- Constructors lookup (helper)
@@ -100,7 +105,10 @@ type family LnrFieldType (lnr :: LookupNamedResult) where
 type family LnrBranch (lnr :: LookupNamedResult) :: Path where
   LnrBranch ('LNR _ p) = p
 
--- | Find constructor of some sum type by its name.
+-- | Transitively find constructor of some sum type by its name.
+--
+-- Transitivity means that if sum type consists of other sum types,
+-- they will be searched recursively.
 type GetNamed name a = LNRequireFound name a (GLookupNamed name (G.Rep a))
 
 -- | Force result of 'GLookupNamed' to be 'Just'
@@ -112,18 +120,88 @@ type family LNRequireFound
   LNRequireFound _ _ ('Just lnr) = lnr
   LNRequireFound name a 'Nothing = TypeError
     ('Text "Datatype " ':<>: 'ShowType a ':<>:
-     'Text " has no constructor " ':<>: 'ShowType name)
+     'Text " has no (sub)constructor " ':<>: 'ShowType name)
 
 type family GLookupNamed (name :: Symbol) (x :: Kind.Type -> Kind.Type)
           :: Maybe LookupNamedResult where
   GLookupNamed name (G.D1 _ x) = GLookupNamed name x
   GLookupNamed name (G.C1 ('G.MetaCons ctorName _ _) x) =
-    If (name == ctorName || name == ("c" `AppendSymbol` ctorName))
+    -- This case corresponds to going straight into a data type (as
+    -- opposed to going left or right when we encounter a sum type),
+    -- so we need to prepend 'S' here if we successfully find a
+    -- constructor.
+    PrependS
+    -- If we encounter a constructor with requested name, we consider
+    -- search successful.
+    (If (name == ctorName || name == ("c" `AppendSymbol` ctorName))
        ('Just $ 'LNR (GExtractFields x) '[])
-       'Nothing
+        -- If we do not, we check whether we can go deeper (see
+        -- description below).
+        (If (GCanGoDeeper x)
+        -- And here we essentially just recursively call this search.
+        (GLookupNamedDeeper name x)
+        -- Or return 'Nothing' if we can not go deeper.
+         'Nothing
+      )
+    )
   GLookupNamed name (x :+: y) =
     LNMergeFound name (GLookupNamed name x) (GLookupNamed name y)
   GLookupNamed _ G.V1 = 'Nothing
+
+-- Prepend 'S' to the path inside 'LookupNamedResult' (if 'Just' is passed).
+-- Should be done in the case when we go straight into a data type.
+type family PrependS (x :: Maybe LookupNamedResult) :: Maybe LookupNamedResult where
+  PrependS 'Nothing = 'Nothing
+  PrependS ('Just ('LNR cf path)) = 'Just ('LNR cf ('S ': path))
+
+-- Helper type family to check whether we should search for a
+-- constructor inside given data type which is supposed to be part of
+-- another constructor. Basically we can go deeper only if we
+-- encounter another ADT with a constructor storing at least something
+-- and which is not a primitive type. We do not go deeper when we
+-- encounter a product type here, because it means that there are multiple
+-- fields inside one constructor (it is not supported).
+type family GCanGoDeeper (x :: Kind.Type -> Kind.Type) :: Bool where
+  GCanGoDeeper (_ :+: _) = 'True
+  GCanGoDeeper (G.D1 _ x) = GCanGoDeeper x
+  GCanGoDeeper (G.S1 _ (G.Rec0 x)) = CanGoDeeper x
+  GCanGoDeeper (G.C1 _ _) = 'True
+  GCanGoDeeper G.V1 = 'False
+  GCanGoDeeper G.U1 = 'False
+  GCanGoDeeper (_ :*: _) = 'False
+  GCanGoDeeper x = TypeError
+    ('Text "GCanGoDeeper encountered unexpected pattern: " ':<>: 'ShowType x)
+
+-- Some types don't have Generic instances (e. g. primitives like Integer), so
+-- we need another type family to handle them.
+type family CanGoDeeper (x :: Kind.Type) :: Bool where
+  CanGoDeeper Integer = 'False
+  CanGoDeeper Natural = 'False
+  CanGoDeeper Text = 'False
+  CanGoDeeper Bool = 'False
+  CanGoDeeper ByteString = 'False
+  CanGoDeeper Mutez = 'False
+  CanGoDeeper Address = 'False
+  CanGoDeeper KeyHash = 'False
+  CanGoDeeper Timestamp = 'False
+  CanGoDeeper PublicKey = 'False
+  CanGoDeeper Signature = 'False
+  CanGoDeeper (ContractAddr _) = 'False
+  CanGoDeeper (BigMap _ _) = 'False
+  CanGoDeeper (Map _ _) = 'False
+  CanGoDeeper (Set _) = 'False
+  CanGoDeeper ([_]) = 'False
+  CanGoDeeper x = GCanGoDeeper (G.Rep x)
+
+type family GLookupNamedDeeper (name :: Symbol) (x :: Kind.Type -> Kind.Type)
+          :: Maybe LookupNamedResult where
+  GLookupNamedDeeper name (G.S1 _ (G.Rec0 y))  = GLookupNamed name (G.Rep y)
+  GLookupNamedDeeper name _ = TypeError
+    ('Text "Attempt to go deeper failed while looking for sum type constructor"
+     ':<>: 'ShowType name
+     ':$$:
+     'Text "Make sure that all constructors have exactly one field inside."
+    )
 
 type family LNMergeFound
   (name :: Symbol)
@@ -134,7 +212,7 @@ type family LNMergeFound
   LNMergeFound _ ('Just ('LNR a p)) 'Nothing = 'Just $ 'LNR a ('L ': p)
   LNMergeFound _ 'Nothing ('Just ('LNR a p)) = 'Just $ 'LNR a ('R ': p)
   LNMergeFound name ('Just _) ('Just _) = TypeError
-    ('Text "Ambigous reference to datatype constructor: " ':<>: 'ShowType name)
+    ('Text "Ambiguous reference to datatype constructor: " ':<>: 'ShowType name)
 
 type family GExtractFields (x :: Kind.Type -> Kind.Type)
           :: CtorField where
@@ -239,16 +317,30 @@ instance (GInstrWrap y path e, GIsoValue x, SingI (GValueType x)) =>
   gHsWrap = G.R1 . gHsWrap @y @path @e
 
 instance (IsoValue e) =>
-         GInstrWrap (G.C1 c (G.S1 i (G.Rec0 e))) '[] ('OneField e) where
+         GInstrWrap (G.C1 c (G.S1 i (G.Rec0 e))) '[ 'S] ('OneField e) where
   gInstrWrap = Nop
   gHsWrap = G.M1 . G.M1 . G.K1
 
-instance GInstrWrap (G.C1 c G.U1) '[] 'NoFields where
+-- This is the case when a sum type is part of another sum type.
+-- Here 'sub' is intermediate sum type.
+instance ( path ~ (x ': xs)
+         , GInstrWrap (G.Rep sub) path e
+         , Generic sub
+         , GIsoValue (G.Rep sub), IsoValue sub, GValueType (G.Rep sub) ~ ToT sub
+         ) =>
+         GInstrWrap (G.C1 c (G.S1 i (G.Rec0 sub))) ('S ': x ': xs) e where
+  gInstrWrap = gInstrWrap @(G.Rep sub) @path @e
+  gHsWrap = G.M1 . G.M1 . G.K1 . G.to . gHsWrap @(G.Rep sub) @path @e
+
+instance GInstrWrap (G.C1 c G.U1) '[ 'S] 'NoFields where
   gInstrWrap = PUSH VUnit
   gHsWrap () = G.M1 G.U1
 
 -- Examples
 ----------------------------------------------------------------------------
+
+-- TODO [TM-186] Consider moving this stuff to test-suite using
+-- doctest. Or at least add tests for correctness.
 
 data MyType
   = MyCtor Integer
@@ -256,6 +348,14 @@ data MyType
   | UselessThing ("field1" :! Text, "field2" :! ())
   deriving stock Generic
   deriving anyclass IsoValue
+
+_MyTypeMyCtor ::
+  GetNamed "cMyCtor" MyType :~: 'LNR ('OneField Integer) '[ 'L, 'S]
+_MyTypeMyCtor = Refl
+
+_MyTypeComplexThing ::
+  GetNamed "cComplexThing" MyType :~: 'LNR ('OneField ()) '[ 'R, 'L, 'S]
+_MyTypeComplexThing = Refl
 
 _wrapMyType1 :: Instr (ToT Integer ': s) (ToT MyType ': s)
 _wrapMyType1 = instrWrap @MyType #cMyCtor
@@ -270,6 +370,57 @@ _wrapMyType2 = instrWrap @MyType #cComplexThing
 
 _wrapMyType3 :: Instr (ToT (Text, ()) ': s) (ToT MyType ': s)
 _wrapMyType3 = instrWrap @MyType #cUselessThing
+
+data MyType' = WrapBool Bool
+  deriving stock Generic
+  deriving anyclass IsoValue
+
+_MyType'WrapBool ::
+  GetNamed "cWrapBool" MyType' :~: 'LNR ('OneField Bool) '[ 'S]
+_MyType'WrapBool = Refl
+
+_wrapMyType' :: Instr (ToT Bool ': s) (ToT MyType' ': s)
+_wrapMyType' = instrWrap @MyType' #cWrapBool
+
+data MyCompoundType
+  = CompoundPart1 MyType
+  | CompoundPart2 Integer
+  | CompoundPart3 Address
+  | CompoundPart4 MyType'
+  deriving stock Generic
+  deriving anyclass IsoValue
+
+_MyCompoundTypeCompoundPart1 ::
+  GetNamed "cCompoundPart1" MyCompoundType :~: 'LNR ('OneField MyType) '[ 'L, 'L, 'S]
+_MyCompoundTypeCompoundPart1 = Refl
+
+_MyCompoundTypeMyCtor ::
+  GetNamed "cMyCtor" MyCompoundType :~: 'LNR ('OneField Integer) '[ 'L, 'L, 'S, 'L, 'S]
+_MyCompoundTypeMyCtor = Refl
+
+_MyCompoundTypeCompoundPart2 ::
+  GetNamed "cCompoundPart2" MyCompoundType :~: 'LNR ('OneField Integer) '[ 'L, 'R, 'S]
+_MyCompoundTypeCompoundPart2 = Refl
+
+_MyCompoundTypeCompoundPart4 ::
+  GetNamed "cCompoundPart4" MyCompoundType :~: 'LNR ('OneField MyType') '[ 'R, 'R, 'S]
+_MyCompoundTypeCompoundPart4 = Refl
+
+_MyCompoundTypeWrapBool ::
+  GetNamed "cWrapBool" MyCompoundType :~: 'LNR ('OneField Bool) '[ 'R, 'R, 'S, 'S]
+_MyCompoundTypeWrapBool = Refl
+
+_wrapMyCompoundType1 :: Instr (ToT Integer ': s) (ToT MyCompoundType ': s)
+_wrapMyCompoundType1 = instrWrap @MyCompoundType #cMyCtor
+
+_wrapMyCompoundType2 :: Instr (ToT Integer ': s) (ToT MyCompoundType ': s)
+_wrapMyCompoundType2 = instrWrap @MyCompoundType #cCompoundPart2
+
+_wrapMyCompoundType3 :: Instr (ToT Bool ': s) (ToT MyCompoundType ': s)
+_wrapMyCompoundType3 = instrWrap @MyCompoundType #cWrapBool
+
+_wrapMyCompoundType4 :: Instr (ToT MyType' ': s) (ToT MyCompoundType ': s)
+_wrapMyCompoundType4 = instrWrap @MyCompoundType #cCompoundPart4
 
 data MyEnum = Case1 | Case2 | CaseN Integer | CaseDef
   deriving stock Generic
@@ -479,9 +630,20 @@ instance (GInstrUnwrap y path e, GIsoValue x, SingI (GValueType x)) =>
     G.L1 _ -> Nothing
 
 instance (IsoValue e) =>
-         GInstrUnwrap (G.C1 c (G.S1 i (G.Rec0 e))) '[] e where
+         GInstrUnwrap (G.C1 c (G.S1 i (G.Rec0 e))) '[ 'S] e where
   gInstrUnwrapUnsafe = Nop
   gHsUnwrap = Just . G.unK1 . G.unM1 . G.unM1
+
+-- This is the case when a sum type is part of another sum type.
+-- Here 'sub' is intermediate sum type.
+instance ( path ~ (x ': xs)
+         , GInstrUnwrap (G.Rep sub) path e
+         , Generic sub
+         , GIsoValue (G.Rep sub), IsoValue sub, GValueType (G.Rep sub) ~ ToT sub
+         ) =>
+         GInstrUnwrap (G.C1 c (G.S1 i (G.Rec0 sub))) ('S ': x ': xs) e where
+  gInstrUnwrapUnsafe = gInstrUnwrapUnsafe @(G.Rep sub) @path @e
+  gHsUnwrap = gHsUnwrap @(G.Rep sub) @path @e . G.from . G.unK1 . G.unM1 . G.unM1
 
 -- | Failure indicating that we expected value created with one constructor,
 -- but got value with different one.
@@ -495,3 +657,15 @@ failWithWrongCtor =
 
 _unwrapMyType :: Instr (ToT MyType ': s) (ToT Integer ': s)
 _unwrapMyType = instrUnwrapUnsafe @MyType #cMyCtor
+
+_unwrapMyCompoundType :: Instr (ToT MyCompoundType ': s) (ToT Integer ': s)
+_unwrapMyCompoundType = instrUnwrapUnsafe @MyCompoundType #cMyCtor
+
+_unwrapMyCompoundType2 :: Instr (ToT MyCompoundType ': s) (ToT Address ': s)
+_unwrapMyCompoundType2 = instrUnwrapUnsafe @MyCompoundType #cCompoundPart3
+
+_unwrapMyCompoundType3 :: Instr (ToT MyCompoundType ': s) (ToT Bool ': s)
+_unwrapMyCompoundType3 = instrUnwrapUnsafe @MyCompoundType #cWrapBool
+
+_unwrapMyCompoundType4 :: Instr (ToT MyCompoundType ': s) (ToT MyType' ': s)
+_unwrapMyCompoundType4 = instrUnwrapUnsafe @MyCompoundType #cCompoundPart4
