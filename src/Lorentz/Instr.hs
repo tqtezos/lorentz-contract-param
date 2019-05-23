@@ -36,6 +36,7 @@ module Lorentz.Instr
   , failWith
   , failText
   , failTagged
+  , failUsing
   , failUnexpected
   , cast
   , pack
@@ -90,8 +91,7 @@ import Lorentz.Constraints
 import Lorentz.Polymorphic
 import Lorentz.Value
 import Michelson.Typed
-  (Instr(..), Notes(NStar), ToT, Value'(..), checkBigMapConstraint, forbiddenBigMap,
-  forbiddenOp)
+  (Instr(..), Notes(NStar), ToT, Value'(..), checkBigMapConstraint, forbiddenBigMap, forbiddenOp)
 import Michelson.Typed.Arith
 
 nop :: s :-> s
@@ -391,28 +391,26 @@ address = I ADDRESS
 -- Checks whether given key present in the storage and fails if it is.
 -- This instruction leaves stack intact.
 failingWhenPresent
-  :: forall c k s v st.
-     ( UpdOpHs c, MemOpHs c, k ~ UpdOpKeyHs c, k ~ MemOpKeyHs c
-     , KnownValue k
+  :: forall c k s v st e.
+     ( MemOpHs c, k ~ MemOpKeyHs c
+     , KnownValue e
      , st ~ (k & v & c & s)
      )
-  => Text
+  => (forall s0. k : s0 :-> e : s0)
   -> st :-> st
-failingWhenPresent desc =
+failingWhenPresent mkErr =
   dip (dip dup # swap) # swap # dip dup # swap # mem #
-  if_ (failTagged @k errMsg) nop
-  where
-    errMsg = "Entry already exists in the container (" <> desc <> ")"
+  if_ (mkErr # failWith) nop
 
 -- | Like 'update', but throw an error on attempt to overwrite existing entry.
 updateNew
-  :: forall c k s.
+  :: forall c k s e.
      ( UpdOpHs c, MemOpHs c, k ~ UpdOpKeyHs c, k ~ MemOpKeyHs c
-     , KnownValue k
+     , KnownValue e
      )
-  => Text
+  => (forall s0. k : s0 :-> e : s0)
   -> k & UpdOpParamsHs c & c & s :-> c & s
-updateNew desc = failingWhenPresent desc # update
+updateNew mkErr = failingWhenPresent mkErr # update
 
 -- | Fail with a given message.
 failText :: Text -> s :-> t
@@ -422,10 +420,16 @@ failText msg = push msg # failWith
 failTagged :: (KnownValue a) => Text -> a & s :-> t
 failTagged tag = push tag # pair # failWith
 
+-- | Fail with the given Haskell value.
+failUsing
+  :: (IsoValue a, KnownValue a, NoOperation a, NoBigMap a)
+  => a -> s :-> t
+failUsing err = push err # failWith
+
 -- | Fail, providing a reference to the place in the code where
 -- this function is called.
 --
--- For internal errors only.
+-- Like 'error' in Haskell code, this instruction is for internal errors only.
 failUnexpected :: HasCallStack => s :-> t
 failUnexpected =
   failText $ "Unexpected failure\n" +| prettyCallStack callStack |+ ""

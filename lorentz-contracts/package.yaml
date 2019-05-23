@@ -19,6 +19,8 @@ library:
   dependencies:
     - containers
     - data-default
+    - fmt
+    - hex-text
     - morley
     - morley-prelude
     - text

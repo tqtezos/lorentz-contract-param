@@ -40,7 +40,7 @@ renderOps oneLine = renderOpsList oneLine . toList
 
 spacecat :: NonEmpty Doc -> Doc
 spacecat = foldr (<+>) mempty
-  
+
 renderOpsList :: (RenderDoc op) => Bool -> [op] -> Doc
 renderOpsList oneLine ops =
   braces $ cat' $ punctuate semi (renderDoc <$> filter isRenderable ops)
