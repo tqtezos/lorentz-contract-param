@@ -12,6 +12,7 @@ module Michelson.Test.Integrational
   , SuccessValidator
   , IntegrationalScenarioM
   , IntegrationalScenario
+  , ValidationError (..)
   , integrationalTestExpectation
   , integrationalTestProperty
   , originate
@@ -32,7 +33,7 @@ module Michelson.Test.Integrational
   , expectMichelsonFailed
   ) where
 
-import Control.Lens (assign, at, makeLenses, (.=), (<>=), (%=))
+import Control.Lens (assign, at, makeLenses, (%=), (.=), (<>=))
 import Control.Monad.Except (Except, runExcept, throwError)
 import qualified Data.List as List
 import Data.Map as Map (empty, insert, lookup)
@@ -47,6 +48,7 @@ import Michelson.Runtime.GState
 import Michelson.Runtime.TxData
 import Michelson.Test.Dummy
 import Michelson.Test.Util (failedProp, succeededProp)
+import Michelson.TypeCheck (TCError)
 import Michelson.Untyped (Contract, OriginationOperation(..), Value, mkContractAddress)
 import Tezos.Address (Address)
 import Tezos.Core (Mutez, Timestamp)
@@ -106,6 +108,7 @@ type IntegrationalInterpreterError = InterpreterError' AddressName
 
 data ValidationError
   = UnexpectedInterpreterError IntegrationalInterpreterError
+  | UnexpectedTypeCheckError TCError
   | ExpectingInterpreterToFail
   | IncorrectUpdates ValidationError [GStateUpdate]
   | IncorrectStorageUpdate AddressName Text
@@ -117,6 +120,8 @@ data ValidationError
 instance Buildable ValidationError where
   build (UnexpectedInterpreterError iErr) =
     "Unexpected interpreter error. Reason: " +| iErr |+ ""
+  build (UnexpectedTypeCheckError tcErr) =
+    "Unexpected type check error. Reason: " +| tcErr |+ ""
   build ExpectingInterpreterToFail =
     "Interpreter unexpectedly didn't fail"
   build (IncorrectUpdates vErr updates) =
