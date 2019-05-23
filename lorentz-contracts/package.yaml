@@ -17,6 +17,7 @@ library:
     - morley:contract-discover
 
   dependencies:
+    - bytestring
     - containers
     - data-default
     - fmt
@@ -43,6 +44,7 @@ tests:
     <<: *test-common
 
     dependencies:
+      - bytestring
       - containers
       - data-default
       - fmt
