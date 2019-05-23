@@ -36,8 +36,8 @@ import Control.Monad.Except (MonadError, liftEither, throwError)
 import Data.Constraint (Dict(..))
 import Data.Default (def)
 import Data.Generics (everything, mkQ)
-import Data.Singletons (SingI(sing))
-import Data.Typeable ((:~:)(..), typeRep)
+import Data.Singletons (SingI(sing), demote)
+import Data.Typeable ((:~:)(..))
 
 import Michelson.ErrorPos
 import Michelson.TypeCheck.Error
@@ -48,10 +48,10 @@ import Michelson.TypeCheck.Types
 import Michelson.TypeCheck.Value
 
 import Michelson.Typed
-  (Abs, And, CT(..), Contract, ContractOut, Eq', Ge, Gt, Instr(..), IterOp(..), Le, Lsl, Lsr, Lt,
-  MapOp(..), Neg, Neq, Not, Notes(..), Notes'(..), Or, Sing(..), T(..), Value'(..), Xor, bigMapAbsense,
-  converge, convergeAnns, extractNotes, fromUType, bigMapConstrained, mkNotes, notesCase, opAbsense, orAnn,
-  withSomeSingCT, withSomeSingT)
+  (Abs, And, CT(..), Contract, ContractOut1, Eq', Ge, Gt, Instr(..), IterOp(..), Le, Lsl, Lsr, Lt,
+  MapOp(..), Neg, Neq, Not, Notes(..), Notes'(..), Or, Sing(..), T(..), Value'(..), Xor,
+  bigMapAbsense, bigMapConstrained, converge, convergeAnns, extractNotes, fromUType, mkNotes,
+  notesCase, opAbsense, orAnn, withSomeSingCT, withSomeSingT)
 
 import qualified Michelson.Untyped as U
 import Michelson.Untyped.Annotation (VarAnn)
@@ -92,8 +92,8 @@ typeCheckContractImpl (U.Contract mParam mStorage pCode) = do
       let inp = (STPair paramS storageS, inpNote, def) ::& SNil
       inp' :/ instrOut <- typeCheckNE code inp
       case instrOut of
-        instr ::: (out :: HST out) -> liftEither $ do
-          case eqType @out @(ContractOut st) of
+        instr ::: out -> liftEither $ do
+          case eqHST1 @(ContractOut1 st) out of
             Right Refl -> do
               let (_, outN, _) ::& SNil = out
               _ <- converge outN (N $ NTPair def def def NStar storageNote)
@@ -107,9 +107,9 @@ typeCheckContractImpl (U.Contract mParam mStorage pCode) = do
                       ::& SNil
           pure $ SomeContract instr inp' out
   where
-    hasTypeError name proxy =
+    hasTypeError name (_ :: Proxy t) =
       TCContractError ("contract " <> name <> " type error") $
-      Just $ UnsupportedTypes [typeRep proxy]
+      Just $ UnsupportedTypes [demote @t]
 
 -- | Like 'typeCheck', but for non-empty lists.
 typeCheckNE
@@ -184,12 +184,12 @@ typeCheckInstr instr@(U.PUSH vn mt mval) i =
     proofOp <-
       maybe (onTypeCheckInstrErr instr (SomeHST i)
              "Operations in constant are not allowed"
-             $ Left $ UnsupportedTypes [typeRep (Proxy @t)])
+             $ Left $ UnsupportedTypes [demote @t])
       pure (opAbsense t)
     proofBigMap <-
       maybe (onTypeCheckInstrErr instr (SomeHST i)
              "BigMaps in constant are not allowed"
-             $ Left $ UnsupportedTypes [typeRep (Proxy @t)])
+             $ Left $ UnsupportedTypes [demote @t])
       pure (bigMapAbsense t)
     case (proofOp, proofBigMap) of
       (Dict, Dict) -> pure $ i :/ PUSH val ::: ((t, nt, vn) ::& i)
@@ -355,7 +355,7 @@ typeCheckInstr instr@(U.LOOP is)
   _ :/ tp <- lift $ typeCheckList is rs
   case tp of
     subI ::: (o :: HST o) -> do
-      case eqType @o @('Tc 'CBool ': rs) of
+      case eqHST o (sing @('Tc 'CBool) -:& rs) of
         Right Refl -> do
           let _ ::& rs' = o
           pure $ i :/ LOOP subI ::: rs'
@@ -371,8 +371,8 @@ typeCheckInstr instr@(U.LOOP_LEFT is)
       ait = (at, an, avn) ::& rs
   _ :/ tp <- lift $ typeCheckList is ait
   case tp of
-    subI ::: (o :: HST o) -> do
-      case (eqType @o @('TOr a b ': rs), o) of
+    subI ::: o -> do
+      case (eqHST o (sing @('TOr a b) -:& rs), o) of
         (Right Refl, ((STOr _ bt', ons', ovn') ::& rs')) -> do
             let (_, bn', _, bvn') = deriveNsOr ons' ovn'
             br <- onTypeCheckInstrAnnErr instr i "wrong LOOP_LEFT input type:" $
@@ -451,12 +451,12 @@ typeCheckInstr instr@(U.PACK vn) i@(((a :: Sing a), _, _) ::& rs) = do
   proofOp <-
     maybe (onTypeCheckInstrErr instr (SomeHST i)
            "Operations cannot appear in serialized data"
-           $ Left $ UnsupportedTypes [typeRep (Proxy @a)])
+           $ Left $ UnsupportedTypes [demote @a])
     pure (opAbsense a)
   proofBigMap <-
     maybe (onTypeCheckInstrErr instr (SomeHST i)
            "BigMap cannot appear in serialized data"
-           $ Left $ UnsupportedTypes [typeRep (Proxy @a)])
+           $ Left $ UnsupportedTypes [demote @a])
     pure (bigMapAbsense a)
   case (proofOp, proofBigMap) of
     (Dict, Dict) -> pure $ i :/ PACK ::: ((STc SCBytes, NStar, vn) ::& rs)
@@ -558,12 +558,12 @@ typeCheckInstr instr@(U.TRANSFER_TOKENS vn) i@(((_ :: Sing p'), _, _)
   proofOp <-
     maybe (onTypeCheckInstrErr instr (SomeHST i)
             "contract param type cannot contain operation"
-            $ Left $ UnsupportedTypes [typeRep (Proxy @p)])
+            $ Left $ UnsupportedTypes [demote @p])
     pure (opAbsense p)
   proofBigMap <-
     maybe (onTypeCheckInstrErr instr (SomeHST i)
             "contract param type cannot contain big_map"
-            $ Left $ UnsupportedTypes [typeRep (Proxy @p)])
+            $ Left $ UnsupportedTypes [demote @p])
     pure (bigMapAbsense p)
   case (eqType @p @p', proofOp, proofBigMap) of
     (Right Refl, Dict, Dict) ->
@@ -669,15 +669,15 @@ genericIf cons mCons mbt mbf bti bfi i@(_ ::& _) = do
   _ :/ pinstr <- lift $ typeCheckList mbt bti
   _ :/ qinstr <- lift $ typeCheckList mbf bfi
   fmap (i :/) $ case (pinstr, qinstr) of
-    (p ::: (po :: HST po), q ::: (qo :: HST qo)) -> do
+    (p ::: po, q ::: qo) -> do
       let instr = mCons mbt mbf
-      Refl <- checkEqT @qo @po instr i
+      Refl <- checkEqHST qo po instr i
                     "branches have different output stack types:"
       o <- onTypeCheckInstrAnnErr instr i "branches have different output stack types:" (convergeHST po qo)
       pure $ cons p q ::: o
-    (AnyOutInstr p, q ::: (qo :: HST qo)) -> do
+    (AnyOutInstr p, q ::: qo) -> do
       pure $ cons p q ::: qo
-    (p ::: (po :: HST po), AnyOutInstr q) -> do
+    (p ::: po, AnyOutInstr q) -> do
       pure $ cons p q ::: po
     (AnyOutInstr p, AnyOutInstr q) ->
       pure $ AnyOutInstr (cons p q)
@@ -701,8 +701,8 @@ mapImpl vn instr mp i@(_ ::& rs) mkRes = do
   case subp of
     sub ::: subo ->
       case subo of
-        (b, bn, _bvn) ::& (rs' :: HST rs') -> do
-          Refl <- checkEqT @rs @rs' instr i $
+        (b, bn, _bvn) ::& rs' -> do
+          Refl <- checkEqHST rs rs' instr i $
                       "map expression has changed not only top of the stack"
           pure $ i :/ MAP sub ::: mkRes b bn rs'
         _ -> typeCheckInstrErr instr (SomeHST i) "map expression has wrong output stack type (empty stack)"
@@ -724,8 +724,8 @@ iterImpl en instr mp i@((_, _, lvn) ::& rs) = do
   let evn = deriveVN "elt" lvn
   _ :/ subp <- lift $ typeCheckNE mp ((sing, en, evn) ::& rs)
   case subp of
-    subI ::: (o :: HST o) -> do
-      Refl <- checkEqT @o @rs instr i
+    subI ::: o -> do
+      Refl <- checkEqHST o rs instr i
                 "iteration expression has wrong output stack type"
       pure $ i :/ ITER subI ::: o
     AnyOutInstr _ ->
@@ -750,8 +750,8 @@ lamImpl instr is vn it ins ot ons i = do
   let lamNotes onsr = mkNotes $ NTLambda def ins onsr
   let lamSt onsr = (STLambda it ot, lamNotes onsr, vn) ::& i
   fmap (i :/) $ case lamI of
-    lam ::: (lo :: HST lo) -> do
-      case eqType @'[ ot ] @lo of
+    lam ::: lo -> do
+      case eqHST1 @ot lo of
         Right Refl -> do
             let (_, ons', _) ::& SNil = lo
             onsr <- onTypeCheckInstrAnnErr instr i "wrong output type of lambda's expression:" (converge ons ons')

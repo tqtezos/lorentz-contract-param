@@ -12,15 +12,16 @@ module Michelson.Test.Import
   ) where
 
 import Control.Exception (IOException)
-import Data.Typeable ((:~:)(..), TypeRep, eqT, typeRep)
-import Fmt (Buildable(build), pretty, (+|), (|+), (||+))
+import Data.Singletons (SingI, demote)
+import Data.Typeable ((:~:)(..), eqT)
+import Fmt (Buildable(build), pretty, (+|), (|+))
 import Test.Hspec (Spec, describe, expectationFailure, it, runIO)
 
 import qualified Lorentz as L
 import Michelson.Parser.Error (ParserException(..))
 import Michelson.Runtime (parseExpandContract, prepareContract)
 import Michelson.TypeCheck (SomeContract(..), TCError, typeCheckContract)
-import Michelson.Typed (Contract, ToT)
+import Michelson.Typed (Contract, ToT, toUType)
 import qualified Michelson.Untyped as U
 import Util.IO
 
@@ -31,20 +32,20 @@ import Util.IO
 -- will be generated (so tests will run unexceptionally, but a failing
 -- result will notify about problem).
 specWithContract
-  :: (Typeable cp, Typeable st, HasCallStack)
+  :: (Each [Typeable, SingI] [cp, st], HasCallStack)
   => FilePath -> ((U.Contract, Contract cp st) -> Spec) -> Spec
 specWithContract = specWithContractImpl importContract
 
 -- | Like 'specWithContract', but for Lorentz types.
 specWithContractL
-  :: (Typeable (ToT cp), Typeable (ToT st), HasCallStack)
+  :: (Each [Typeable, SingI] [ToT cp, ToT st], HasCallStack)
   => FilePath -> ((U.Contract, L.Contract cp st) -> Spec) -> Spec
 specWithContractL file mkSpec = specWithContract file (mkSpec . second L.I)
 
 -- | A version of 'specWithContract' which passes only the typed
 -- representation of the contract.
 specWithTypedContract
-  :: (Typeable cp, Typeable st, HasCallStack)
+  :: (Each [Typeable, SingI] [cp, st], HasCallStack)
   => FilePath -> (Contract cp st -> Spec) -> Spec
 specWithTypedContract = specWithContractImpl (fmap snd . importContract)
 
@@ -65,7 +66,7 @@ specWithContractImpl doImport file execSpec =
 
 readContract
   :: forall cp st .
-    (Typeable cp, Typeable st)
+    Each [Typeable, SingI] [cp, st]
   => FilePath
   -> Text
   -> Either ImportContractError (U.Contract, Contract cp st)
@@ -76,8 +77,8 @@ readContract filePath txt = do
   case (eqT @cp @cp', eqT @st @st') of
     (Just Refl, Just Refl) -> pure (contract, instr)
     (Nothing, _) -> Left $
-      ICEUnexpectedParamType (U.para contract) (typeRep (Proxy @cp))
-    _ -> Left (ICEUnexpectedStorageType (U.stor contract) (typeRep (Proxy @st)))
+      ICEUnexpectedParamType (U.para contract) (toUType $ demote @cp)
+    _ -> Left (ICEUnexpectedStorageType (U.stor contract) (toUType $ demote @st))
 
 -- | Import contract from a given file path.
 --
@@ -88,7 +89,7 @@ readContract filePath txt = do
 -- This function may throw 'IOException' and 'ImportContractError'.
 importContract
   :: forall cp st .
-    (Typeable cp, Typeable st)
+     Each [Typeable, SingI] [cp, st]
   => FilePath -> IO (U.Contract, Contract cp st)
 importContract file = either throwM pure =<< readContract file <$> readFileUtf8 file
 
@@ -97,8 +98,8 @@ importUntypedContract = prepareContract . Just
 
 -- | Error type for 'importContract' function.
 data ImportContractError
-  = ICEUnexpectedParamType !U.Type !TypeRep
-  | ICEUnexpectedStorageType !U.Type !TypeRep
+  = ICEUnexpectedParamType !U.Type !U.Type
+  | ICEUnexpectedStorageType !U.Type !U.Type
   | ICEParse !ParserException
   | ICETypeCheck !TCError
   deriving (Show, Eq)
@@ -108,10 +109,10 @@ instance Buildable ImportContractError where
     \case
       ICEUnexpectedParamType actual expected ->
         "Unexpected parameter type: " +| actual |+
-        ", expected: " +| expected ||+ ""
+        ", expected: " +| expected |+ ""
       ICEUnexpectedStorageType actual expected ->
         "Unexpected storage type: " +| actual |+
-        ", expected: " +| expected ||+ ""
+        ", expected: " +| expected |+ ""
       ICEParse e -> "Failed to parse the contract: " +| e |+ ""
       ICETypeCheck e -> "The contract is ill-typed: " +| e |+ ""
 

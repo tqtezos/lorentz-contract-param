@@ -7,11 +7,13 @@ module Test.Typecheck
   , test_srcPosition
   , unit_Unreachable_code
   , test_StackRef
+  , test_TCTypeError_display
   ) where
 
 import Data.Default (def)
 import qualified Data.Map as M
 import Data.Singletons (sing)
+import Fmt (build)
 import Test.Hspec (expectationFailure)
 import Test.Hspec.Expectations (Expectation)
 import Test.HUnit (Assertion, assertFailure, (@?=))
@@ -144,3 +146,26 @@ test_StackRef =
   where
     printStRef i = Un.EXT . Un.UPRINT $ Un.PrintComment [Right (Un.StackRef i)]
     stackEl = (sing @'T.TUnit, T.NStar, noAnn)
+
+test_TCTypeError_display :: [TestTree]
+test_TCTypeError_display =
+  -- One may say that it's madness to write tests on 'Buildable' instances,
+  -- but IMO (martoon) it's worth resulting duplication because tests allow
+  -- avoiding silly errors like lost spaces and ensuring general sanity
+  -- of used way to display content.
+  [ testCase "TypeEqError" $
+      build (TypeEqError T.TUnit T.TKey)
+      @?= "Types not equal: unit /= key"
+
+  , testCase "StackEqError" $
+      build (StackEqError [T.TUnit, T.Tc T.CBytes] [])
+      @?= "Stacks not equal: [unit, bytes] /= []"
+
+  , testCase "UnsupportedTypes" $
+      build (UnsupportedTypes [T.TUnit])
+      @?= "Unsupported types: [unit]"
+
+  , testCase "Unknown type" $
+      build (UnknownType T.TUnit)
+      @?= "Unknown type `unit`"
+  ]

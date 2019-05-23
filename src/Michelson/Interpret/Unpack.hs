@@ -39,7 +39,7 @@ import Text.Hex (encodeHex)
 import Michelson.TypeCheck
   (HST(..), SomeHST(..), SomeInstr(..), SomeInstrOut(..), TCError(..), TcOriginatedContracts,
   TypeCheckEnv(..))
-import Michelson.TypeCheck.Helpers (ensureDistinctAsc, eqType)
+import Michelson.TypeCheck.Helpers (ensureDistinctAsc, eqHST1)
 import Michelson.TypeCheck.Instr (typeCheckList)
 import Michelson.Typed (Sing(..))
 import qualified Michelson.Typed as T
@@ -374,7 +374,7 @@ decodeAnn = pure noAnn
 -- | Type check instruction occured from a lambda.
 decodeTypeCheckLam
   :: forall inp out m.
-     (Typeable inp, SingI inp, Typeable out, MonadFail m)
+     (Typeable inp, SingI inp, SingI out, Typeable out, MonadFail m)
   => UnpackEnv
   -> [ExpandedOp]
   -> m (T.Instr '[inp] '[out])
@@ -383,8 +383,8 @@ decodeTypeCheckLam UnpackEnv{..} uinstr =
     let inp = (sing @inp, T.NStar, noAnn) ::& SNil
     _ :/ instr' <- typeCheckList uinstr inp
     case instr' of
-      instr ::: (_ :: HST out') ->
-        case eqType @out' @'[out] of
+      instr ::: out' ->
+        case eqHST1 @out out' of
           Right Refl ->
             pure instr
           Left err ->
