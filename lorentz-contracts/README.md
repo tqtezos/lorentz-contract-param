@@ -8,7 +8,7 @@ They include:
 [walker contract](src/Lorentz/Contracts/Walker.hs).
 * Examples of applied contracts, for instance
 [auction contract](src/Lorentz/Contracts/Auction.hs)
-* Securitize DS Token [^1] implementation - _work in progress_.
+* Securitize DS Token [^1] [implementation](src/Lorentz/Contracts/DSProtocol.hs).
 
 [^1]: https://www.securitize.io/
 

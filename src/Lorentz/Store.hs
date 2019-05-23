@@ -44,9 +44,12 @@ module Lorentz.Store
   , StoreGetC
   , StoreInsertC
   , StoreDeleteC
+  , HasStore
 
     -- * Storage skeleton
   , StorageSkeleton (..)
+  , storageUnpack
+  , storagePack
   , storageMem
   , storageGet
   , storageInsert
@@ -321,6 +324,19 @@ type StoreDeleteC store name =
   , SingI (ToT store)
   )
 
+-- | This constraint can be used if a function needs to work with
+-- /big/ store, but needs to know only about some part(s) of it.
+--
+-- It can use all Store operations for a particular name, key and
+-- value without knowing whole template.
+type HasStore name key value store =
+   ( StoreGetC store name
+   , StoreInsertC store name
+   , StoreDeleteC store name
+   , GetStoreKey store name ~ key
+   , GetStoreValue store name ~ value
+   )
+
 -- Examples
 ----------------------------------------------------------------------------
 
@@ -399,9 +415,11 @@ data StorageSkeleton storeTemplate other = StorageSkeleton
   } deriving stock (Eq, Show, Generic)
     deriving anyclass (Default, IsoValue)
 
+-- | Unpack 'StorageSkeleton' into a pair.
 storageUnpack :: StorageSkeleton store fields : s :-> (Store store, fields) : s
 storageUnpack = coerce_
 
+-- | Pack a pair into 'StorageSkeleton'.
 storagePack :: (Store store, fields) : s :-> StorageSkeleton store fields : s
 storagePack = coerce_
 

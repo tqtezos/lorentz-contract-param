@@ -10,6 +10,7 @@ module Lorentz.Base
   , compileLorentzContract
   , printLorentzContract
 
+  , ContractOut
   , Contract
   , Lambda
 
@@ -33,7 +34,8 @@ infixr 1 :->
 compileLorentz :: (inp :-> out) -> Instr (ToTs inp) (ToTs out)
 compileLorentz = unI
 
-type Contract cp st = '[(cp, st)] :-> '[([Operation], st)]
+type ContractOut st = '[([Operation], st)]
+type Contract cp st = '[(cp, st)] :-> ContractOut st
 
 -- | Version of 'compileLorentz' specialized to instruction corresponding to
 -- contract code.
