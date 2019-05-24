@@ -26,6 +26,7 @@ import Michelson.Typed (Instr(..), T(..), ToT, ToTs, Value'(..))
 -- | Alias for instruction which hides inner types representation via 'T'.
 newtype (inp :: [Kind.Type]) :-> (out :: [Kind.Type]) =
   I { unI :: Instr (ToTs inp) (ToTs out) }
+  deriving (Show, Eq)
 infixr 1 :->
 
 -- | For use outside of Lorentz.
