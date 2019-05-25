@@ -25,6 +25,8 @@ module Lorentz.Test.Integrational
   , I.composeValidatorsList
   , I.expectAnySuccess
   , lExpectStorageUpdate
+  , lExpectBalance
+  , lExpectStorageConst
   , lExpectMichelsonFailed
   , lExpectFailWith
   ) where
@@ -142,6 +144,17 @@ lExpectStorageUpdate (T.ContractAddr addr) predicate =
       usingReaderT def $
       typeVerifyValue uval
     initSt = error "Typechecker state unavailable"
+
+-- | Like 'expectBalance', for Lorentz values.
+lExpectBalance :: T.ContractAddr cp -> Mutez -> SuccessValidator
+lExpectBalance (T.ContractAddr addr) money = I.expectBalance addr money
+
+-- | Similar to 'expectStorageConst', for Lorentz values.
+lExpectStorageConst
+  :: (T.IsoValue st, Each '[SingI, T.HasNoOp] '[T.ToT st])
+  => T.ContractAddr cp -> st -> SuccessValidator
+lExpectStorageConst (T.ContractAddr addr) expected =
+  I.expectStorageConst addr (T.untypeValue $ T.toVal expected)
 
 -- | Expect that interpretation of contract with given address ended
 -- with [FAILED].

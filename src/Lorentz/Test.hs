@@ -33,6 +33,8 @@ module Lorentz.Test
   , composeValidatorsList
   , expectAnySuccess
   , lExpectStorageUpdate
+  , lExpectBalance
+  , lExpectStorageConst
   , lExpectMichelsonFailed
   , lExpectFailWith
 

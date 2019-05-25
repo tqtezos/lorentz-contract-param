@@ -17,6 +17,7 @@ import Test.QuickCheck.Instances.Natural ()
 
 import Lorentz (View, Void_)
 import qualified Lorentz as L
+import Lorentz.Test
 import Michelson.Interpret (MichelsonFailed(..))
 import Michelson.Interpret.Pack (packValue')
 import Michelson.Test
@@ -25,6 +26,7 @@ import qualified Michelson.Untyped as U
 import Tezos.Address
 import Tezos.Core
 import Tezos.Crypto
+import Util.Named
 
 data Outcome = Outcome
   { _oCounter :: !Natural
@@ -150,7 +152,7 @@ specImpl ::
   -> (U.Contract, L.Contract CallerParameter CallerAddStorage)
   -> (U.Contract, L.Contract CallerParameter CallerAppendStorage)
   -> Spec
-specImpl (counter, _) (feather, _) (callerAdd, _) (callerAppend, _) =
+specImpl (_, counter) (_, feather) (_, callerAdd) (_, callerAppend) =
   prop "A mix of random actions is handled as expected" $
     forAll genFixture $ \fixture ->
       integrationalTestProperty (scenario fixture)
@@ -159,48 +161,40 @@ specImpl (counter, _) (feather, _) (callerAdd, _) (callerAppend, _) =
     scenario fixture@Fixture {..} = do
       let
         initBalance = unsafeMkMutez 100
-        -- TODO: probably should be moved into a more general place
-        -- TODO: deal with this - use 'originateLorentz'
-        toUntypedValue ::
-          forall t x . (T.ToT x ~ t, T.IsoValue x, SingI t, T.HasNoOp t) => x -> U.Value
-        toUntypedValue = T.untypeValue . T.toVal
 
-      counterAddress <-
-        originate counter "counter" (toUntypedValue @(T.ToT CounterStorage) fInitialCounter) initBalance
+      counterContractAddress@(T.ContractAddr counterAddress) <-
+        lOriginate counter "counter" fInitialCounter initBalance
 
       let
+        defaultFeatherValue :: FeatherStorage
         defaultFeatherValue =
-          toUntypedValue @(T.ToT FeatherStorage) (counterAddress, Nothing @Address)
+          (counterAddress, Nothing @Address)
 
-      featherAddress <-
-        originate feather "feather" defaultFeatherValue initBalance
-      cAddAddress <-
-        originate callerAdd "caller-add"
-        (toUntypedValue @(T.ToT CallerAddStorage) (fInitialSum, featherAddress)) initBalance
-      cAppendAddress <-
-        originate callerAppend "caller-append"
-        (toUntypedValue @(T.ToT CallerAppendStorage) (fInitialList, featherAddress)) initBalance
+      featherContractAddress@(T.ContractAddr featherAddress) <-
+        lOriginate feather "feather" defaultFeatherValue initBalance
+      cAddContractAddress <-
+        lOriginate callerAdd "caller-add"
+        (fInitialSum, featherAddress) initBalance
+      cAppendContractAddress <-
+        lOriginate callerAppend "caller-append"
+        (fInitialList, featherAddress) initBalance
 
       let
         transfer' ::
-          forall t . (SingI t, T.HasNoOp t)
-          => Address -> T.Value t -> IntegrationalScenarioM ()
+          forall t . (T.IsoValue t, SingI (T.ToT t), T.HasNoOp (T.ToT t))
+          => T.ContractAddr t -> t -> IntegrationalScenarioM ()
         transfer' addr param =
-          let txData = TxData
-                { tdSenderAddress = genesisAddress
-                , tdParameter = T.untypeValue param
-                , tdAmount = unsafeMkMutez 0
-                }
-           in transfer txData addr
+          lTransfer (#from .! genesisAddress) (#to .! addr)
+                    (unsafeMkMutez 0) param
 
         transferToCounter :: CounterParameter -> IntegrationalScenarioM ()
-        transferToCounter = transfer' counterAddress . T.toVal
+        transferToCounter = transfer' counterContractAddress
 
         transferToAdd :: CallerParameter -> IntegrationalScenarioM ()
-        transferToAdd = transfer' cAddAddress . T.toVal
+        transferToAdd = transfer' cAddContractAddress
 
         transferToAppend :: CallerParameter -> IntegrationalScenarioM ()
-        transferToAppend = transfer' cAppendAddress . T.toVal
+        transferToAppend = transfer' cAppendContractAddress
 
         performAction :: Action -> IntegrationalScenarioM ()
         performAction = \case
@@ -227,20 +221,17 @@ specImpl (counter, _) (feather, _) (callerAdd, _) (callerAppend, _) =
           Right (Outcome {..}) -> Right $ composeValidatorsList
             [ -- Feather must always be called twice and the second
               -- call must set its storage to its initial value.
-              expectStorageConst featherAddress defaultFeatherValue
+              lExpectStorageConst featherContractAddress defaultFeatherValue
             , -- Counter, caller-add and caller-append have values
               -- according to 'Outcome'.
-              expectStorageConst counterAddress
-              (toUntypedValue @(T.ToT CounterStorage) _oCounter)
-            , expectStorageConst cAddAddress
-              (toUntypedValue @(T.ToT CallerAddStorage) (_oSum, featherAddress))
-            , expectStorageConst cAppendAddress
-              (toUntypedValue @(T.ToT CallerAppendStorage) (_oList, featherAddress))
+              lExpectStorageConst counterContractAddress _oCounter
+            , lExpectStorageConst cAddContractAddress (_oSum, featherAddress)
+            , lExpectStorageConst cAppendContractAddress (_oList, featherAddress)
             , -- Balances must not change
               expectBalance counterAddress initBalance
             , expectBalance featherAddress initBalance
-            , expectBalance cAddAddress initBalance
-            , expectBalance cAppendAddress initBalance
+            , lExpectBalance cAddContractAddress initBalance
+            , lExpectBalance cAppendContractAddress initBalance
             ]
 
       validate validator
