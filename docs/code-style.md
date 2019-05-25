@@ -278,11 +278,14 @@ You *may* use [`weeder`][weeder] to detect unused exports.
 
 Imports *should* be grouped in the following order:
 
-0.  Implicit import of custom prelude (for example
-    [`universum`](https://github.com/serokell/universum)) if you are using one.
+0.  Explicit import of custom prelude
+    (for example [`morley-prelude`](/prelude) or [`Lorentz`](/src/Lorentz.hs))
+    if you are using one.
     You *may* also use
     [`base-noprelude`](https://hackage.haskell.org/package/base-noprelude) in
     order to avoid importing your custom prelude at all.
+    If you have multiple custom preludes (e.g. `morley-prelude` and `Lorentz`),
+    they all *should* belong to this group.
 1.  Everything from hackage packages or from your packages outside current
     project. "Project" is loosely defined as everything that is in your current
     repository.
@@ -566,4 +569,3 @@ unused dependencies and exported modules.
 [hlint-universum-config]: /.hlint-universum.yaml
 [editorconfig]: /.editorconfig
 [weeder]: https://hackage.haskell.org/package/weeder
-
