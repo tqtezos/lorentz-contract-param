@@ -8,6 +8,7 @@ module Michelson.Typed.Convert
 
 import qualified Data.Map as Map
 import Data.Singletons (SingI(sing))
+import Fmt (pretty)
 
 import Michelson.EqParam (eqParam1, eqParam2)
 import Michelson.Typed.CValue
@@ -100,7 +101,7 @@ untypeCValue cVal = case cVal of
   CvBool True -> U.ValueTrue
   CvBool False -> U.ValueFalse
   CvKeyHash h -> U.ValueString $ formatKeyHash h
-  CvTimestamp t -> U.ValueString $ show t
+  CvTimestamp t -> U.ValueString $ pretty t
   CvAddress a -> U.ValueString $ formatAddress a
 
 instrToOps :: Instr inp out -> [U.ExpandedOp]

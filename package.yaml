@@ -40,6 +40,8 @@ library:
     - named
     - parser-combinators >= 1.0.0
     - QuickCheck
+    - quickcheck-arbitrary-adt
+    - quickcheck-instances
     - singletons
     - syb
     - tasty

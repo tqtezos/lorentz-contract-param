@@ -25,7 +25,10 @@ module Lorentz.Value
   , List
   , M.ContractAddr (..)
   , unsafeMkMutez
+  , Default (..)
   ) where
+
+import Data.Default (Default(..))
 
 import Michelson.Typed (IsoCValue(..), IsoValue(..), Value)
 import qualified Michelson.Typed as M

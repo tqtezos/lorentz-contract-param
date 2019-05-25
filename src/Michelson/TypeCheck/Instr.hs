@@ -27,6 +27,7 @@
 module Michelson.TypeCheck.Instr
     ( typeCheckContract
     , typeCheckValue
+    , typeVerifyValue
     , typeCheckList
     ) where
 
@@ -37,7 +38,7 @@ import Data.Constraint (Dict(..))
 import Data.Default (def)
 import Data.Generics (everything, mkQ)
 import Data.Singletons (SingI(sing), demote)
-import Data.Typeable ((:~:)(..))
+import Data.Typeable ((:~:)(..), gcast)
 
 import Michelson.ErrorPos
 import Michelson.TypeCheck.Error
@@ -49,7 +50,7 @@ import Michelson.TypeCheck.Value
 
 import Michelson.Typed
   (Abs, And, CT(..), Contract, ContractOut1, Eq', Ge, Gt, Instr(..), IterOp(..), Le, Lsl, Lsr, Lt,
-  MapOp(..), Neg, Neq, Not, Notes(..), Notes'(..), Or, Sing(..), T(..), Value'(..), Xor,
+  MapOp(..), Neg, Neq, Not, Notes(..), Notes'(..), Or, Sing(..), T(..), Value, Value'(..), Xor,
   bigMapAbsense, bigMapConstrained, converge, convergeAnns, extractNotes, fromUType, mkNotes,
   notesCase, opAbsense, orAnn, withSomeSingCT, withSomeSingT)
 
@@ -151,6 +152,15 @@ typeCheckValue
   -> (Sing t, Notes t)
   -> TypeCheckInstr SomeValue
 typeCheckValue = typeCheckValImpl typeCheckInstr
+
+-- | Like 'typeCheckValue', but returns value of a desired type.
+typeVerifyValue
+  :: forall t.
+      (Typeable t, SingI t)
+  => U.Value -> TypeCheckInstr (Value t)
+typeVerifyValue uval =
+  typeCheckValue uval (sing @t, NStar) <&> \case
+    val :::: _ -> gcast val ?: error "Typechecker produced value of wrong type"
 
 -- | Function @typeCheckInstr@ converts a single Michelson instruction
 -- given in representation from @Michelson.Type@ module to representation

@@ -1,14 +1,19 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module Test.Arbitrary () where
+module Util.Test.Arbitrary
+  ( runGen
+  ) where
 
 import Prelude hiding (EQ, GT, LT)
 
 import Test.QuickCheck (Arbitrary(..), Gen, choose, elements, oneof, suchThatMap, vector)
 import Test.QuickCheck.Arbitrary.ADT (ToADTArbitrary(..))
+import Test.QuickCheck.Gen (unGen)
 import Test.QuickCheck.Instances.ByteString ()
+import Test.QuickCheck.Instances.Natural ()
 import Test.QuickCheck.Instances.Semigroup ()
 import Test.QuickCheck.Instances.Text ()
+import Test.QuickCheck.Random (mkQCGen)
 
 import Michelson.ErrorPos (InstrCallStack(..), LetName(..), Pos(..), SrcPos(..))
 import Michelson.Test ()
@@ -222,3 +227,7 @@ instance Arbitrary CT where
 instance ToADTArbitrary Comparable
 instance Arbitrary Comparable where
   arbitrary = Comparable <$> arbitrary <*> arbitrary
+
+-- | Run given generator deterministically.
+runGen :: Int -> Gen a -> a
+runGen seed gen = unGen gen (mkQCGen seed) 10

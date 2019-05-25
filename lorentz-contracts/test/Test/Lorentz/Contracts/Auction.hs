@@ -8,9 +8,7 @@ module Test.Lorentz.Contracts.Auction
 import Test.Hspec (Spec, it, parallel, shouldSatisfy)
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck (Property, arbitrary, choose, counterexample, (.&&.), (===))
-import Test.QuickCheck.Gen (unGen)
 import Test.QuickCheck.Property (expectFailure, forAll, withMaxSuccess)
-import Test.QuickCheck.Random (mkQCGen)
 
 import Lorentz (compileLorentz)
 import Lorentz.Contracts.Auction (contract_auction)
@@ -23,6 +21,7 @@ import qualified Michelson.Typed as T
 import Tezos.Address (Address(..))
 import Tezos.Core (Mutez, Timestamp, timestampPlusSeconds, unMutez, unsafeMkMutez, unsafeSubMutez)
 import Tezos.Crypto (KeyHash)
+import Util.Test.Arbitrary (runGen)
 
 type Storage = (Timestamp, (Mutez, KeyHash))
 type Param = KeyHash
@@ -83,10 +82,10 @@ spec_Auction = parallel $ do
     midAmount = unMutez (maxBound `unsafeSubMutez` minBound) `div` 2
 
 keyHash1 :: KeyHash
-keyHash1 = unGen arbitrary (mkQCGen 300406) 0
+keyHash1 = runGen 300406 arbitrary
 
 keyHash2 :: KeyHash
-keyHash2 = unGen arbitrary (mkQCGen 142917) 0
+keyHash2 = runGen 142917 arbitrary
 
 -- | This validator checks the result of auction.tz execution.
 --

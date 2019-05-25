@@ -6,30 +6,35 @@ module Test.Typecheck
   , test_OriginatedContracts
   , test_srcPosition
   , unit_Unreachable_code
+  , test_Roundtrip
   , test_StackRef
   , test_TCTypeError_display
   ) where
 
 import Data.Default (def)
+import qualified Data.Kind as Kind
 import qualified Data.Map as M
-import Data.Singletons (sing)
-import Fmt (build)
+import Data.Singletons (SingI(..))
+import Data.Typeable (typeRep)
+import Fmt (build, pretty)
 import Test.Hspec (expectationFailure)
 import Test.Hspec.Expectations (Expectation)
 import Test.HUnit (Assertion, assertFailure, (@?=))
-import Test.QuickCheck (total, within)
-import Test.Tasty (TestTree)
+import Test.QuickCheck (Arbitrary, property, total, within)
+import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase)
 import Test.Tasty.QuickCheck (testProperty)
 
 import Michelson.ErrorPos (InstrCallStack(..), LetName(..), Pos(..), SrcPos(..), srcPos)
 import Michelson.Runtime (prepareContract)
+import Michelson.Test.Gen ()
 import Michelson.Test.Import (ImportContractError(..), readContract)
 import Michelson.TypeCheck
 import qualified Michelson.Typed as T
 import Michelson.Untyped (CT(..), T(..), Type(..), noAnn)
 import qualified Michelson.Untyped as Un
 import Tezos.Address (Address, unsafeParseAddress)
+import Tezos.Core (Timestamp)
 import Util.IO (readFileUtf8)
 
 import Test.Util.Contracts (getIllTypedContracts, getWellTypedContracts)
@@ -118,6 +123,30 @@ unit_Unreachable_code = do
   let ics = InstrCallStack [] (srcPos 3 13)
   econtract <- readContract @'T.TUnit @'T.TUnit file <$> readFileUtf8 file
   econtract @?= Left (ICETypeCheck $ TCUnreachableCode ics (one $ Un.WithSrcEx ics $ Un.SeqEx []))
+
+test_Roundtrip :: [TestTree]
+test_Roundtrip =
+  [ testGroup "Value"
+    [ roundtripValue @Integer
+    , roundtripValue @Timestamp
+    ]
+  ]
+  where
+  roundtripValue
+    :: forall (a :: Kind.Type).
+        ( Each [Typeable, SingI, T.HasNoOp] '[T.ToT a]
+        , Typeable a, Arbitrary (T.Value $ T.ToT a)
+        )
+    => TestTree
+  roundtripValue =
+    testProperty (show $ typeRep (Proxy @a)) $
+      property $ \(val :: T.Value (T.ToT a)) ->
+        let uval = T.untypeValue val
+            runTC = runTypeCheckTest . usingReaderT (def @InstrCallStack)
+        in case runTC $ typeVerifyValue uval of
+            Right got -> got @?= val
+            Left err -> expectationFailure $
+                        "Type check unexpectedly failed: " <> pretty err
 
 test_StackRef :: [TestTree]
 test_StackRef =

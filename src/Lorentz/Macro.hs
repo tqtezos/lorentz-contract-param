@@ -398,8 +398,9 @@ class MapInstrs map where
   --
   -- As first argument accepts container name (for error message).
   mapInsertNew
-    :: (IsComparable k, KnownValue k)
-    => Text -> k : v : map k v : s :-> map k v : s
+    :: (IsComparable k, KnownValue e)
+    => (forall s0. k : s0 :-> e : s0)
+    -> k : v : map k v : s :-> map k v : s
 
   -- | Delete element from the map.
   deleteMap
@@ -409,10 +410,10 @@ class MapInstrs map where
 
 instance MapInstrs Map where
   mapUpdate = update
-  mapInsertNew desc = failingWhenPresent desc # mapInsert
+  mapInsertNew mkErr = failingWhenPresent mkErr # mapInsert
 instance MapInstrs BigMap where
   mapUpdate = update
-  mapInsertNew desc = failingWhenPresent desc # mapInsert
+  mapInsertNew mkErr = failingWhenPresent mkErr # mapInsert
 
 -- | Insert given element into set.
 --
@@ -426,8 +427,9 @@ setInsert = dip (push True) # update
 --
 -- As first argument accepts container name.
 setInsertNew
-  :: (IsComparable e, KnownValue e)
-  => Text -> e & Set e & s :-> Set e & s
+  :: (IsComparable e, KnownValue err)
+  => (forall s0. e : s0 :-> err : s0)
+  -> e & Set e & s :-> Set e & s
 setInsertNew desc = dip (push True) # failingWhenPresent desc # update
 
 -- | Delete given element from the set.
@@ -463,7 +465,7 @@ data Void_ (a :: Kind.Type) (b :: Kind.Type) = Void_
   } deriving stock Generic
     deriving anyclass IsoValue
 
-mkVoid :: a -> Void_ a b
+mkVoid :: forall b a. a -> Void_ a b
 mkVoid a = Void_ a nop
 
 void_

@@ -67,7 +67,7 @@ import Data.Type.Equality (type (==))
 import Data.Vinyl.Derived (Label)
 import GHC.Generics ((:+:))
 import qualified GHC.Generics as G
-import GHC.TypeLits (AppendSymbol, ErrorMessage(..), KnownSymbol, Symbol, TypeError, symbolVal)
+import GHC.TypeLits (AppendSymbol, ErrorMessage(..), KnownSymbol, Symbol, TypeError)
 import GHC.TypeNats (type (+))
 
 import Lorentz.ADT
@@ -257,21 +257,19 @@ type StoreInsertC store name =
 
 -- | Insert a key-value pair, but fail if it will overwrite some existing entry.
 storeInsertNew
-  :: forall store name s.
-     (StoreInsertC store name, KnownSymbol name)
+  :: forall store name err s.
+     (StoreInsertC store name, KnownSymbol name, KnownValue err)
   => Label name
+  -> (forall s0. GetStoreKey store name : s0 :-> err : s0)
   -> GetStoreKey store name
       : GetStoreValue store name
       : Store store
       : s
   :-> Store store : s
-storeInsertNew label =
+storeInsertNew label mkErr =
   duupX @3 # duupX @2 # storeMem label #
-  if_ (push errMsg # pair # failWith @(Text, GetStoreKey store name))
+  if_ (mkErr # failWith)
       (storeInsert label)
-  where
-    errMsg = "Store already has value associated with this key for "
-          <> show (symbolVal (Proxy @name))
 
 storeDelete
   :: forall store name s.
@@ -358,17 +356,18 @@ storageInsert label =
 
 -- | Insert a key-value pair, but fail if it will overwrite some existing entry.
 storageInsertNew
-  :: forall store name fields s.
-     (StoreInsertC store name, KnownSymbol name)
+  :: forall store name fields err s.
+     (StoreInsertC store name, KnownSymbol name, KnownValue err)
   => Label name
+  -> (forall s0. GetStoreKey store name : s0 :-> err : s0)
   -> GetStoreKey store name
       : GetStoreValue store name
       : StorageSkeleton store fields
       : s
   :-> StorageSkeleton store fields : s
-storageInsertNew label =
+storageInsertNew label mkErr =
   dip (dip (storageUnpack # dup # car # dip cdr)) #
-  storeInsertNew label #
+  storeInsertNew label mkErr #
   pair # storagePack
 
 storageDelete

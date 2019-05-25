@@ -9,8 +9,8 @@ import Test.Tasty (TestTree)
 import Michelson.Untyped
   (Contract, Elt, ExpandedOp, FieldAnn, InstrAbstract, TypeAnn, Value, VarAnn)
 import Tezos.Core (Mutez, Timestamp)
+import Util.Test.Arbitrary ()
 
-import Test.Arbitrary ()
 import Test.QuickCheck.Arbitrary.ADT (ToADTArbitrary(..))
 import Test.Util.QuickCheck (roundtripADTTest, roundtripTest)
 
