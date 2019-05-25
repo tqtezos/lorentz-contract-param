@@ -32,7 +32,7 @@ type Param = KeyHash
 -- and QuickCheck.
 spec_Auction :: Spec
 spec_Auction = parallel $ do
-  specWithTypedContract "../contracts/auction.tz" auctionSpec'
+  specWithTypedContract "../contracts/tezos_examples/auction.tz" auctionSpec'
   auctionSpec' (compileLorentz contract_auction)
   -- Test slightly modified version of auction.tz, it must fail.
   -- This block is given purely for demonstration of that tests are smart

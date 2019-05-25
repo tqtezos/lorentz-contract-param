@@ -27,7 +27,7 @@ type ContractResult x
 conditionalsSpec :: Spec
 conditionalsSpec = parallel $ do
 
-  specWithTypedContract "contracts/conditionals.tz" $ \contract -> do
+  specWithTypedContract "contracts/tezos_examples/conditionals.tz" $ \contract -> do
     let
       contractProp' inputParam =
         contractProp contract (validate inputParam) dummyContractEnv inputParam
