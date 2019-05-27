@@ -20,6 +20,7 @@ module Michelson.Test.Integrational
   , validate
   , setMaxSteps
   , setNow
+  , withSource
 
   -- * Validators
   , composeValidators
@@ -33,7 +34,7 @@ module Michelson.Test.Integrational
   , expectMichelsonFailed
   ) where
 
-import Control.Lens (assign, at, makeLenses, (%=), (.=), (<>=))
+import Control.Lens (assign, at, makeLenses, (%=), (.=), (<>=), (?=))
 import Control.Monad.Except (Except, runExcept, throwError)
 import qualified Data.List as List
 import Data.Map as Map (empty, insert, lookup)
@@ -65,6 +66,9 @@ data InternalState = InternalState
   -- ^ Operations to be interpreted when 'TOValidate' is encountered.
   , _isContractsNames :: !(Map Address Text)
   -- ^ Map from contracts addresses to humanreadable names.
+  , _isSource :: !(Maybe Address)
+  -- ^ If set, all following transfers will be executed on behalf
+  -- of the given contract.
   }
 
 makeLenses ''InternalState
@@ -169,8 +173,9 @@ originate contract contractName value balance = do
 
 -- | Transfer tokens to given address.
 transfer :: TxData -> Address -> IntegrationalScenarioM ()
-transfer txData destination =
-  putOperation (TransferOp destination txData)
+transfer txData destination = do
+  mSource <- use isSource
+  putOperation (TransferOp destination txData mSource)
 
 -- | Execute all operations that were added to the scenarion since
 -- last 'validate' call. If validator fails, the execution will be aborted.
@@ -181,8 +186,8 @@ validate validator = Validated <$ do
   gState <- use isGState
   ops <- use isOperations
   iState <- get
-  mUpdatedGState <-
-    lift $ validateResult validator (interpreterPure now maxSteps gState ops) iState
+  let interpret = interpreterPure now maxSteps gState ops
+  mUpdatedGState <- lift $ validateResult validator interpret iState
   isOperations .= mempty
   whenJust mUpdatedGState $ \newGState -> isGState .= newGState
 
@@ -195,6 +200,12 @@ setNow = assign isNow
 -- 'validate' function) use given gas limit.
 setMaxSteps :: RemainingSteps -> IntegrationalScenarioM ()
 setMaxSteps = assign isMaxSteps
+
+-- | Pretend that given address initiates all the transfers within the
+-- code block (i.e. @SOURCE@ instruction will return this address).
+withSource :: Address -> IntegrationalScenarioM a -> IntegrationalScenarioM a
+withSource addr scenario =
+  (isSource ?= addr) *> scenario <* (isSource .= Nothing)
 
 putOperation :: InterpreterOp -> IntegrationalScenarioM ()
 putOperation op = isOperations <>= one op
@@ -313,6 +324,7 @@ initIS = InternalState
   , _isGState = initGState
   , _isOperations = mempty
   , _isContractsNames = Map.empty
+  , _isSource = Nothing
   }
 
 integrationalTest ::
