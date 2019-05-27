@@ -13,7 +13,7 @@ import Data.Default (Default(..))
 import Fmt (Builder, build, fmt, indentF, listF', unlinesF, (+|), (+||), (|+), (||+))
 import qualified System.Directory as Dir
 import System.Environment (getArgs)
-import System.FilePath.Posix (takeDirectory, (</>))
+import System.FilePath.Posix (isAbsolute, takeDirectory, (</>))
 import Text.Megaparsec (errorBundlePretty, runParser)
 
 import Lorentz.Discover
@@ -26,11 +26,19 @@ main = do
   case args of
     src : _ : dst : opts -> do
       Config{..} <- parseOpts def (map toText opts)
-      contracts <- findContracts cDebug (takeDirectory src)
+
+      let scanRoot
+            | isAbsolute cScanRoot = cScanRoot
+            | otherwise = takeDirectory src </> cScanRoot
+      validRoot <- Dir.doesDirectoryExist scanRoot
+      unless validRoot $
+        die $ "Specified scan root is not an existing directory: " <> scanRoot
+      contracts <- findContracts cDebug scanRoot
 
       verifyContractDecls contracts
       let output = fmt @Text $ unlinesF
-            [ "module " +| cModuleName |+ " (contracts) where"
+            [ pragmasSection
+            , "module " +| cModuleName |+ " (contracts) where"
             , ""
             , importsSection contracts
             , ""
@@ -48,12 +56,14 @@ newtype IsDebug = IsDebug Bool
 data Config = Config
   { cModuleName :: Text
   , cDebug :: IsDebug
+  , cScanRoot :: FilePath
   }
 
 instance Default Config where
   def = Config
     { cModuleName = "Main"
     , cDebug = IsDebug False
+    , cScanRoot = "."
     }
 
 parseOpts :: Config -> [Text] -> IO Config
@@ -65,6 +75,10 @@ parseOpts cfg = \case
     case opts of
       [] -> die "Usage: `--generated-module <module name>`"
       modName : os -> parseOpts cfg{ cModuleName = modName } os
+  "--root" : opts ->
+    case opts of
+      [] -> die "Usage: `--root <directory>`"
+      root : os -> parseOpts cfg{ cScanRoot = toString root } os
   opt : _ ->
     die $ "Unknown option: " <> show opt
 
@@ -109,6 +123,12 @@ verifyContractDecls contracts = do
     [] -> pass
     dup : _ -> die $ "Found multiple contracts with the same name: " <> show dup
 
+pragmasSection :: Builder
+pragmasSection =
+  mconcat . map (<> "\n") $
+  [ "{-# LANGUAGE ImplicitPrelude #-}"
+  ]
+
 importsSection :: [ExportedContractInfo] -> Builder
 importsSection =
   mconcat . map (<> "\n") .
@@ -117,7 +137,6 @@ importsSection =
   mkImport m = "import qualified " +| m |+ ""
   extraImports =
     [ "import Data.Text (Text)"
-    , "import Data.String (fromString)"
     , "import qualified Data.Map as Map"
 
     , "import qualified Michelson.Untyped as U"

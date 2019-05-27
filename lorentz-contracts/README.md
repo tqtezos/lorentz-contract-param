@@ -44,4 +44,4 @@ This way, `Fungible token` contract will be available in the registry.
 Automatic discovery is implemented via `contract-discovery` executable.
 Being called via the GHC preprocessor from within a Haskell module,
 it scans all modules within the same directory and forms a contract map which can
-be later imported. See [`Lorentz.Contracts`](src/Lorentz/Contracts.hs) for example.
+be later imported. See [`app/LorentzContracts.hs`](app/LorentzContracts.hs) for example.
