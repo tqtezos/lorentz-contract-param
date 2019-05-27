@@ -13,7 +13,7 @@ import Data.Default (Default(..))
 import Fmt (Builder, build, fmt, indentF, listF', unlinesF, (+|), (+||), (|+), (||+))
 import qualified System.Directory as Dir
 import System.Environment (getArgs)
-import System.FilePath.Posix (takeDirectory, takeExtension, (</>))
+import System.FilePath.Posix (takeDirectory, (</>))
 import Text.Megaparsec (errorBundlePretty, runParser)
 
 import Lorentz.Discover
@@ -81,9 +81,9 @@ findContracts isDebug path = do
       dirs <- Dir.listDirectory path
       concatMapM (findContracts isDebug) (map (path </>) dirs)
     else do
-      if takeExtension path /= ".hs"
-        then return []
-        else parseHaskellModule isDebug path
+      if isHaskellModule path
+        then parseHaskellModule isDebug path
+        else pure []
 
 parseHaskellModule :: IsDebug -> FilePath -> IO [ExportedContractInfo]
 parseHaskellModule isDebug path = do

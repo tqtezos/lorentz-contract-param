@@ -7,12 +7,14 @@ module Lorentz.Discover
   , ExportedContractInfo (..)
   , ExportedContractDecl (..)
 
+  , isHaskellModule
   , haskellExportsParser
   ) where
 
 import Data.Char (isAlphaNum)
 import Data.Singletons (SingI)
 import qualified Data.Text as T
+import System.FilePath.Posix (takeExtension, takeFileName)
 import Text.Megaparsec (Parsec)
 import qualified Text.Megaparsec as P
 import qualified Text.Megaparsec.Char as P
@@ -52,6 +54,14 @@ data ExportedContractDecl = ExportedContractDecl
   , ecdVar :: Text
     -- ^ Name of a contract as is appears in Haskell code.
   } deriving (Show, Eq)
+
+isHaskellModule :: FilePath -> Bool
+isHaskellModule path =
+  let file = takeFileName path
+  in and
+     [ takeExtension file == ".hs"
+     , all (\c -> isAlphaNum c || c == '_' || c == '.') file
+     ]
 
 haskellExportsParser :: Parsec Void Text [ExportedContractInfo]
 haskellExportsParser = do

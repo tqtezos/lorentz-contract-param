@@ -4,6 +4,7 @@
 
 module Test.Lorentz.Discovery
   ( test_Export_list_parse
+  , test_Haskell_modules_detection
   ) where
 
 import Test.HUnit (assertFailure, (@?=))
@@ -98,3 +99,16 @@ test_Export_list_parse =
       case runParser haskellExportsParser "" code of
         Left err -> assertFailure $ errorBundlePretty err
         Right x -> x @?= exports
+
+
+test_Haskell_modules_detection :: [TestTree]
+test_Haskell_modules_detection =
+  [ testCase "Simple module is picked" $
+      isHaskellModule "Module.hs" @?= True
+  , testCase "Not .hs module is ignored" $
+      isHaskellModule "Module" @?= False
+  , testCase "Modules with non letters are picked" $
+      isHaskellModule "Module_12.hs" @?= True
+  , testCase "Emacs' temporal files should be ignored" $
+      isHaskellModule ".#Module.hs" @?= False
+  ]

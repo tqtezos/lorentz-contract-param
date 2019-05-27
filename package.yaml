@@ -27,6 +27,7 @@ library:
     - containers
     - cryptonite
     - data-default
+    - filepath
     - fmt
     - formatting
     - ghc-prim
