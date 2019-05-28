@@ -3,6 +3,8 @@
 module Test.Util.Contracts
        ( getIllTypedContracts
        , getWellTypedContracts
+       , getWellTypedMichelsonContracts
+       , getWellTypedMorleyContracts
        ) where
 
 import Data.List (isSuffixOf)
@@ -10,16 +12,27 @@ import System.Directory (listDirectory)
 import System.FilePath ((</>))
 
 getIllTypedContracts :: IO [FilePath]
-getIllTypedContracts = getContracts "contracts/ill-typed"
+getIllTypedContracts =
+  concatMapM (flip getContractsWithExtension "contracts/ill-typed")
+  [".tz", ".mtz"]
 
 getWellTypedContracts :: IO [FilePath]
-getWellTypedContracts = concatMapM getContracts ["contracts", "contracts/A1"]
+getWellTypedContracts = getWellTypedMichelsonContracts <> getWellTypedMorleyContracts
 
-getContracts :: FilePath -> IO [FilePath]
-getContracts dir = mapMaybe convertPath <$> listDirectory dir
+getWellTypedMichelsonContracts :: IO [FilePath]
+getWellTypedMichelsonContracts = concatMapM (getContractsWithExtension ".tz") wellTypedContractDirs
+
+getWellTypedMorleyContracts :: IO [FilePath]
+getWellTypedMorleyContracts = concatMapM (getContractsWithExtension ".mtz") wellTypedContractDirs
+
+getContractsWithExtension :: String -> FilePath -> IO [FilePath]
+getContractsWithExtension ext dir = mapMaybe convertPath <$> listDirectory dir
   where
     convertPath :: FilePath -> Maybe FilePath
     convertPath fileName
-      | (".tz" `isSuffixOf` fileName) || (".mtz" `isSuffixOf` fileName) =
+      | (ext `isSuffixOf` fileName) =
         Just (dir </> fileName)
       | otherwise = Nothing
+
+wellTypedContractDirs :: [FilePath]
+wellTypedContractDirs = ["contracts", "contracts/A1", "contracts/tezos_examples"]

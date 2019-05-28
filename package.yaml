@@ -117,6 +117,7 @@ tests:
       - quickcheck-arbitrary-adt
       - quickcheck-instances
       - singletons
+      - syb
       - tasty
       - tasty-hspec
       - tasty-quickcheck
