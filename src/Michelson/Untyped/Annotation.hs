@@ -8,6 +8,7 @@ module Michelson.Untyped.Annotation
   , TypeAnn
   , FieldAnn
   , VarAnn
+  , RenderAnn (..)
   , noAnn
   , ann
   , unifyAnn
@@ -59,10 +60,33 @@ instance RenderDoc FieldAnn where
 instance RenderDoc VarAnn where
   renderDoc = renderAnnotation "@"
 
+
+-- | Typeclass for printing annotations, @renderAnn@
+-- prints empty prefix in case of @noAnn@.
+--
+-- Such functionality is required in case when instruction
+-- has two annotations of the same type, former is empty
+-- and the latter is not. So that `PAIR noAnn noAnn noAnn %kek`
+-- is printed as `PAIR % %kek`
+class RenderAnn t where
+  renderAnn :: t -> Doc
+
+instance RenderAnn TypeAnn where
+  renderAnn = renderWithEmptyAnnotation ":"
+
+instance RenderAnn FieldAnn where
+  renderAnn = renderWithEmptyAnnotation "%"
+
+instance RenderAnn VarAnn where
+  renderAnn = renderWithEmptyAnnotation "@"
+
 renderAnnotation :: Doc -> Annotation tag -> Doc
 renderAnnotation prefix a@(Annotation text)
   | a == noAnn = ""
   | otherwise = prefix <> (textStrict text)
+
+renderWithEmptyAnnotation :: Doc -> Annotation tag -> Doc
+renderWithEmptyAnnotation prefix (Annotation text) = prefix <> (textStrict text)
 
 instance Buildable TypeAnn where
   build = buildRenderDoc

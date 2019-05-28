@@ -27,7 +27,8 @@ import Text.PrettyPrint.Leijen.Text (braces, nest, (<$$>), (<+>))
 
 import Michelson.ErrorPos (InstrCallStack)
 import Michelson.Printer.Util (RenderDoc(..), buildRenderDoc, renderOpsList, spaces)
-import Michelson.Untyped.Annotation (FieldAnn, TypeAnn, VarAnn)
+import Michelson.Untyped.Annotation
+  (FieldAnn, TypeAnn, VarAnn, RenderAnn(..))
 import Michelson.Untyped.Contract (Contract'(..))
 import Michelson.Untyped.Ext (ExtInstrAbstract)
 import Michelson.Untyped.Type (Comparable, Type)
@@ -200,11 +201,11 @@ instance (RenderDoc op) => RenderDoc (InstrAbstract op) where
     NONE ta va fa t       -> "NONE" <+> renderDoc ta <+> renderDoc va <+> renderDoc fa <+> renderDoc t
     UNIT ta va            -> "UNIT" <+> renderDoc ta <+> renderDoc va
     IF_NONE x y           -> "IF_NONE" <+> nest 9 (renderOps x) <$$> spaces 8 <> nest 9 (renderOps y)
-    PAIR ta va fa1 fa2    -> "PAIR" <+> renderDoc ta <+> renderDoc va <+> renderDoc fa1 <+> renderDoc fa2
+    PAIR ta va fa1 fa2    -> "PAIR" <+> renderDoc ta <+> renderDoc va <+> renderAnn fa1 <+> renderAnn fa2
     CAR va fa             -> "CAR" <+> renderDoc va <+> renderDoc fa
     CDR va fa             -> "CDR" <+> renderDoc va <+> renderDoc fa
-    LEFT ta va fa1 fa2 t  -> "LEFT" <+> renderDoc ta <+> renderDoc va <+> renderDoc fa1 <+> renderDoc fa2 <+> renderDoc t
-    RIGHT ta va fa1 fa2 t -> "RIGHT" <+> renderDoc ta <+> renderDoc va <+> renderDoc fa1 <+> renderDoc fa2 <+> renderDoc t
+    LEFT ta va fa1 fa2 t  -> "LEFT" <+> renderDoc ta <+> renderDoc va <+> renderAnn fa1 <+> renderAnn fa2 <+> renderDoc t
+    RIGHT ta va fa1 fa2 t -> "RIGHT" <+> renderDoc ta <+> renderDoc va <+> renderAnn fa1 <+> renderAnn fa2 <+> renderDoc t
     IF_LEFT x y           -> "IF_LEFT" <+> nest 9 (renderOps x) <$$> spaces 8 <> nest 9 (renderOps y)
     NIL ta va t           -> "NIL" <+> renderDoc ta <+> renderDoc va <+> renderDoc t
     CONS va               -> "CONS" <+> renderDoc va
@@ -255,9 +256,9 @@ instance (RenderDoc op) => RenderDoc (InstrAbstract op) where
     CONTRACT va t         -> "CONTRACT" <+> renderDoc va <+> renderDoc t
     TRANSFER_TOKENS va    -> "TRANSFER_TOKENS" <+> renderDoc va
     SET_DELEGATE va       -> "SET_DELEGATE" <+> renderDoc va
-    CREATE_ACCOUNT va1 va2  -> "CREATE_ACCOUNT" <+> renderDoc va1 <+> renderDoc va2
+    CREATE_ACCOUNT va1 va2  -> "CREATE_ACCOUNT" <+> renderAnn va1 <+> renderAnn va2
     CREATE_CONTRACT va1 va2 contract ->
-      "CREATE_CONTRACT" <+> renderDoc va1 <+> renderDoc va2 <$$> braces (renderDoc contract)
+      "CREATE_CONTRACT" <+> renderAnn va1 <+> renderAnn va2 <$$> braces (renderDoc contract)
     IMPLICIT_ACCOUNT va   -> "IMPLICIT_ACCOUNT" <+> renderDoc va
     NOW va                -> "NOW" <+> renderDoc va
     AMOUNT va             -> "AMOUNT" <+> renderDoc va
