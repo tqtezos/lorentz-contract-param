@@ -27,6 +27,7 @@ library:
     - containers
     - cryptonite
     - data-default
+    - filepath
     - fmt
     - formatting
     - ghc-prim
@@ -80,7 +81,7 @@ executables:
       - directory
       - filepath
       - fmt
-      - haskell-src-exts
+      - megaparsec
       - morley-prelude
       - morley
       - text
@@ -105,6 +106,7 @@ tests:
       - hex-text
       - hspec
       - hspec-expectations
+      - qm-interpolated-string
       - HUnit
       - lens
       - megaparsec >= 7.0.0

@@ -7,13 +7,14 @@ import qualified Data.Text.Lazy.IO as TL
 import Fmt (blockListF, fmt, nameF, (+|), (|+))
 import qualified Options.Applicative as Opt
 
-import qualified Lorentz.Contracts
-import LorentzContractsOptions
 import Michelson.Printer
 import qualified Michelson.Untyped as U
 
+import qualified LorentzContracts
+import LorentzContractsOptions
+
 contracts :: Map Text U.Contract
-contracts = Lorentz.Contracts.contracts
+contracts = LorentzContracts.contracts
 
 main :: IO ()
 main = do
