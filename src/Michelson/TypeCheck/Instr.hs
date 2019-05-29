@@ -504,6 +504,8 @@ typeCheckInstr (U.ABS vn) i@((STc SCInt, _, _) ::& _) = unaryArithImpl @Abs ABS 
 
 typeCheckInstr U.NEG (i@((STc SCInt, _, _) ::& _)) = unaryArithImpl @Neg NEG i def
 
+typeCheckInstr U.NEG (i@((STc SCNat, _, _) ::& _)) = unaryArithImpl @Neg NEG i def
+
 typeCheckInstr (U.LSL vn) i@((STc SCNat, _, _) ::&
                          (STc SCNat, _, _) ::& _) = arithImpl @Lsl LSL i vn
 
