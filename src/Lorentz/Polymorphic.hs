@@ -20,6 +20,10 @@ import qualified Data.Kind as Kind
 import Michelson.Typed
 import Tezos.Core (Mutez)
 
+----------------------------------------------------------------------------
+-- Mirrored from Michelson
+----------------------------------------------------------------------------
+
 -- | Lifted 'MemOpKey'.
 class ( MemOp (ToT c)
       , ToT (MemOpKeyHs c) ~ 'Tc (MemOpKey (ToT c))

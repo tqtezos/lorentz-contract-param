@@ -19,7 +19,7 @@ module Lorentz.Value
   , Signature
   , Set
   , Map
-  , M.BigMap
+  , M.BigMap (..)
   , M.Operation
   , Maybe (..)
   , List

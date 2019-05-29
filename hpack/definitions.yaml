@@ -20,6 +20,7 @@ _definitions:
         - ConstraintKinds
         - DataKinds
         - DefaultSignatures
+        - DeriveDataTypeable
         - DeriveFoldable
         - DeriveFunctor
         - DeriveGeneric

@@ -94,6 +94,7 @@ import qualified GHC.TypeNats as GHC (Nat)
 import Lorentz.Arith
 import Lorentz.Base
 import Lorentz.Constraints
+import Lorentz.Coercions
 import Lorentz.Instr
 import Lorentz.Value
 import Michelson.Typed.Arith

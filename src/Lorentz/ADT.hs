@@ -1,8 +1,13 @@
 module Lorentz.ADT
   ( HasField
   , HasFieldOfType
+  , HasFieldsOfType
+  , NamedField (..)
+  , (:=)
   , toField
+  , toFieldNamed
   , getField
+  , getFieldNamed
   , setField
   , modifyField
   , construct
@@ -17,30 +22,45 @@ module Lorentz.ADT
   , Rec (..)
   , (:!)
   , (:?)
+  , arg
   ) where
 
 import Data.Constraint (Dict(..))
 import qualified Data.Kind as Kind
 import Data.Vinyl.Core (RMap(..), Rec(..))
 import Data.Vinyl.Derived (Label)
-import GHC.TypeLits (AppendSymbol)
-import Named ((:!), (:?))
+import GHC.TypeLits (AppendSymbol, Symbol)
+import Named ((:!), (:?), arg)
 
 import Lorentz.Base
+import Lorentz.Coercions
 import Lorentz.Instr
 import Michelson.Typed.Haskell.Instr
 import Michelson.Typed.Haskell.Value
 import Util.TypeTuple
 
+-- | Allows field access and modification.
 type HasField dt fname =
   ( InstrGetFieldC dt fname
   , InstrSetFieldC dt fname
   )
 
+-- | Like 'HasField', but allows constrainting field type.
 type HasFieldOfType dt fname fieldTy =
   ( HasField dt fname
   , GetFieldType dt fname ~ fieldTy
   )
+
+-- | A pair of field name and type.
+data NamedField = NamedField Symbol Kind.Type
+type n := ty = 'NamedField n ty
+
+-- | Shortcut for multiple 'HasFieldOfType' constraints.
+type family HasFieldsOfType (dt :: Kind.Type) (fs :: [NamedField])
+             :: Constraint where
+  HasFieldsOfType _ '[] = ()
+  HasFieldsOfType dt ((n := ty) ': fs) =
+    (HasFieldOfType dt n ty, HasFieldsOfType dt fs)
 
 -- | Extract a field of a datatype replacing the value of this
 -- datatype with the extracted field.
@@ -53,12 +73,26 @@ toField
   => Label name -> dt & st :-> GetFieldType dt name & st
 toField = I . instrGetField @dt
 
+-- | Like 'toField', but leaves field named.
+toFieldNamed
+  :: forall dt name st.
+     InstrGetFieldC dt name
+  => Label name -> dt & st :-> (name :! GetFieldType dt name) & st
+toFieldNamed l = toField l # coerce_
+
 -- | Extract a field of a datatype, leaving the original datatype on stack.
 getField
   :: forall dt name st.
      InstrGetFieldC dt name
   => Label name -> dt & st :-> GetFieldType dt name & dt ': st
 getField l = dup # toField @dt l
+
+-- | Like 'getField', but leaves field named.
+getFieldNamed
+  :: forall dt name st.
+     InstrGetFieldC dt name
+  => Label name -> dt & st :-> (name :! GetFieldType dt name) & dt ': st
+getFieldNamed l = getField l # coerce_
 
 -- | Set a field of a datatype.
 setField

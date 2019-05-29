@@ -22,6 +22,7 @@ module Lorentz.Rebinded
 
 import Prelude hiding ((>>), (>>=))
 
+import Lorentz.Arith
 import Lorentz.Base
 import Lorentz.Instr
 import Lorentz.Macro
@@ -42,6 +43,11 @@ data Condition st arg argl argr where
   IsCons :: Condition s ([a] ': s) (a ': [a] ': s) s
   IsNil :: Condition s ([a] ': s) s (a ': [a] ': s)
 
+  IsZero :: (UnaryArithOpHs Eq' a, UnaryArithResHs Eq' a ~ Bool)
+         => Condition s (a ': s) s s
+  IsNotZero :: (UnaryArithOpHs Eq' a, UnaryArithResHs Eq' a ~ Bool)
+         => Condition s (a ': s) s s
+
   IsEq :: IfCmpXConstraints a b Eq' => Condition s (a ': b ': s) s s
   IsNeq :: IfCmpXConstraints a b Neq => Condition s (a ': b ': s) s s
   IsLt :: IfCmpXConstraints a b Lt => Condition s (a ': b ': s) s s
@@ -61,6 +67,9 @@ ifThenElse = \case
   IsRight -> flip ifLeft
   IsCons -> ifCons
   IsNil -> flip ifCons
+
+  IsZero -> \l r -> eq0 # if_ l r
+  IsNotZero -> \l r -> eq0 # if_ r l
 
   IsEq -> ifEq
   IsNeq -> ifNeq

@@ -13,8 +13,6 @@ module Lorentz.Base
   , Contract
   , Lambda
 
-  , Coercible_
-  , coerce_
   ) where
 
 import qualified Data.Kind as Kind
@@ -64,10 +62,3 @@ instance IsoValue (Lambda inp out) where
   type ToT (Lambda inp out) = 'TLambda (ToT inp) (ToT out)
   toVal = VLam . unI
   fromVal (VLam l) = I l
-
--- | Whether two types have the same Michelson representation.
-type Coercible_ a b = ToT a ~ ToT b
-
--- | Convert between values of types that have the same representation.
-coerce_ :: Coercible_ a b => a & s :-> b & s
-coerce_ = I Nop
