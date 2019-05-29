@@ -75,6 +75,8 @@ instance UnaryArithOpHs Abs Integer where
 
 instance UnaryArithOpHs Neg Integer where
   type UnaryArithResHs Neg Integer = Integer
+instance UnaryArithOpHs Neg Natural where
+  type UnaryArithResHs Neg Natural = Integer
 
 instance ArithOpHs Or Natural Natural where
   type ArithResHs Or Natural Natural = Natural

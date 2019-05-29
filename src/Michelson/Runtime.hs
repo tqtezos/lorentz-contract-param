@@ -31,9 +31,9 @@ module Michelson.Runtime
        , irUpdates
        ) where
 
-import Data.Text.IO (getContents)
 import Control.Lens (at, makeLenses, (%=))
 import Control.Monad.Except (Except, runExcept, throwError)
+import Data.Text.IO (getContents)
 import Fmt (Buildable(build), blockListF, fmt, fmtLn, nameF, pretty, (+|), (|+))
 import Named ((:!), (:?), arg, argDef, defaults, (!))
 import Text.Megaparsec (parse)
@@ -72,8 +72,11 @@ data InterpreterOp
   -- ^ Originate a contract.
   | TransferOp Address
                TxData
+               (Maybe Address)
   -- ^ Send a transaction to given address which is assumed to be the
   -- address of an originated contract.
+  -- You can provide desired @SOURCE@ address optionally; this field is used
+  -- for testing purposes.
   deriving (Show)
 
 -- | Result of a single execution of interpreter.
@@ -235,7 +238,7 @@ runContract maybeNow maxSteps initBalance dbPath storageValue contract txData
     addr = mkContractAddress origination
     operations =
       [ OriginateOp origination
-      , TransferOp addr txData
+      , TransferOp addr txData Nothing
       ]
 
 -- | Send a transaction to given address with given parameters.
@@ -247,7 +250,7 @@ transfer ::
   -> TxData
   -> "verbose" :! Bool -> "dryRun" :? Bool -> IO ()
 transfer maybeNow maxSteps dbPath destination txData =
-  interpreter maybeNow maxSteps dbPath [TransferOp destination txData]
+  interpreter maybeNow maxSteps dbPath [TransferOp destination txData Nothing]
 
 ----------------------------------------------------------------------------
 -- Interpreter
@@ -384,8 +387,8 @@ interpretOneOp _ remainingSteps _ gs (OriginateOp origination) = do
       , csContract = ooContract origination
       }
     address = mkContractAddress origination
-interpretOneOp now remainingSteps mSourceAddr gs (TransferOp addr txData) = do
-    let sourceAddr = fromMaybe (tdSenderAddress txData) mSourceAddr
+interpretOneOp now remainingSteps mSourceAddr gs (TransferOp addr txData mTestSourceAddr) = do
+    let sourceAddr = fromMaybe (tdSenderAddress txData) (mTestSourceAddr <|> mSourceAddr)
     let senderAddr = tdSenderAddress txData
     decreaseSenderBalance <- case addresses ^. at senderAddr of
       Nothing -> Left (IEUnknownSender senderAddr)
@@ -492,7 +495,7 @@ convertOp interpretedAddr =
               , tdAmount = ttAmount tt
               }
           T.VContract destAddress = ttContract tt
-       in Just (TransferOp destAddress txData)
+       in Just (TransferOp destAddress txData Nothing)
     OpSetDelegate {} -> Nothing
     OpCreateAccount {} -> Nothing
     OpCreateContract cc ->

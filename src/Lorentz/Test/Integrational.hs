@@ -10,6 +10,7 @@ module Lorentz.Test.Integrational
   , SuccessValidator
   , IntegrationalScenarioM
   , I.IntegrationalScenario
+  , I.ValidationError (..)
   , I.integrationalTestExpectation
   , I.integrationalTestProperty
   , lOriginate
@@ -19,6 +20,7 @@ module Lorentz.Test.Integrational
   , I.validate
   , I.setMaxSteps
   , I.setNow
+  , I.withSource
 
   -- * Validators
   , I.composeValidators
@@ -29,11 +31,15 @@ module Lorentz.Test.Integrational
   , lExpectStorageConst
   , lExpectMichelsonFailed
   , lExpectFailWith
+  , lExpectUserError
+  , lExpectConsumerStorage
+  , lExpectViewConsumerStorage
   ) where
 
 import Data.Default (Default(..))
 import Data.Singletons (SingI(..))
 import Data.Typeable (gcast)
+import Fmt (Buildable, listF, (+|), (|+))
 import Named ((:!), arg)
 
 import qualified Lorentz as L
@@ -176,3 +182,41 @@ lExpectFailWith predicate =
           Just errT -> predicate $ T.fromVal @e errT
           Nothing -> False
     _ -> False
+
+-- | Expect contract to fail with given 'LorentzUserError' error.
+lExpectUserError
+  :: forall e.
+      (Typeable (T.ToT e), T.IsoValue e)
+  => (e -> Bool) -> InterpreterError -> Bool
+lExpectUserError predicate = lExpectFailWith (predicate . L.unLorentzUserError)
+
+-- | Version of 'lExpectStorageUpdate' specialized to "consumer" contract
+-- (see 'Lorentz.Contracts.Consumer.contractConsumer').
+lExpectConsumerStorage
+  :: (st ~ [cp], T.IsoValue st, Each [Typeable, SingI, T.HasNoOp] '[T.ToT st])
+  => T.ContractAddr cp -> (st -> Either I.ValidationError ()) -> SuccessValidator
+lExpectConsumerStorage = lExpectStorageUpdate
+
+-- | Assuming that "consumer" contract receives a value from 'View', expect
+-- this view return value to be the given one.
+--
+-- Despite consumer stores parameters it was called with in reversed order,
+-- this function cares about it, so you should provide a list of expected values
+-- in the same order in which the corresponding events were happenning.
+lExpectViewConsumerStorage
+  :: ( st ~ [cp], cp ~ (arg, Maybe res)
+     , Eq res, Buildable res
+     , T.IsoValue st, Each [Typeable, SingI, T.HasNoOp] '[T.ToT st]
+     )
+  => T.ContractAddr cp -> [res] -> SuccessValidator
+lExpectViewConsumerStorage addr expected =
+  lExpectConsumerStorage addr (extractJusts >=> matchExpected . reverse)
+  where
+    extractJusts = mapM $ \case
+      (_, Just got) -> pure got
+      (_, Nothing) -> mkError "Consumer got empty value unexpectedly"
+    mkError = Left . I.CustomError
+    matchExpected got
+      | got == expected = pass
+      | otherwise = mkError $ "Expected " +| listF expected |+
+                              ", but got " +| listF got |+ ""

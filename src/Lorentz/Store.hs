@@ -72,6 +72,7 @@ import GHC.TypeNats (type (+))
 
 import Lorentz.ADT
 import Lorentz.Base
+import Lorentz.Coercions
 import Lorentz.Constraints
 import Lorentz.Instr
 import Lorentz.Macro

@@ -175,6 +175,9 @@ instance UnaryArithOp Abs 'CInt where
 instance UnaryArithOp Neg 'CInt where
   type UnaryArithRes Neg 'CInt = 'CInt
   evalUnaryArithOp _ (CvInt i) = CvInt (-i)
+instance UnaryArithOp Neg 'CNat where
+  type UnaryArithRes Neg 'CNat = 'CInt
+  evalUnaryArithOp _ (CvNat i) = CvInt (- fromIntegral i)
 
 instance ArithOp Or 'CNat 'CNat where
   type ArithRes Or 'CNat 'CNat = 'CNat

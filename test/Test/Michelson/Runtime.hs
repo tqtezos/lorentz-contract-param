@@ -11,8 +11,8 @@ import Test.HUnit (Assertion, assertFailure, (@?=))
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase)
 
+import Michelson.ErrorPos (InstrCallStack(..), Pos(..), SrcPos(..))
 import Michelson.Interpret (ContractEnv(..), InterpretUntypedResult(..), interpretUntyped)
-import Michelson.ErrorPos (InstrCallStack(..), SrcPos (..), Pos (..))
 import Michelson.Runtime
 import Michelson.Runtime.GState (GState(..), initGState)
 import Michelson.Test.Dummy (dummyContractEnv, dummyMaxSteps, dummyNow, dummyOrigination)
@@ -66,7 +66,7 @@ updatesStorageValue ca = either (assertFailure . pretty) handleResult $ do
       }
     interpreterOps =
       [ OriginateOp origination
-      , TransferOp addr txData
+      , TransferOp addr txData Nothing
       ]
   (addr,) <$> interpreterPure dummyNow dummyMaxSteps initGState interpreterOps
   where

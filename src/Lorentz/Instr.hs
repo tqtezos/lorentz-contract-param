@@ -78,11 +78,13 @@ module Lorentz.Instr
   , source
   , sender
   , address
+  , LorentzFunctor (..)
   ) where
 
 import Prelude hiding
   (EQ, GT, LT, abs, and, compare, concat, drop, get, map, not, or, some, swap, xor)
 
+import qualified Data.Kind as Kind
 import Fmt ((+|), (|+))
 
 import Lorentz.Arith
@@ -430,6 +432,13 @@ failUsing err = push err # failWith
 -- this function is called.
 --
 -- Like 'error' in Haskell code, this instruction is for internal errors only.
-failUnexpected :: HasCallStack => s :-> t
-failUnexpected =
-  failText $ "Unexpected failure\n" +| prettyCallStack callStack |+ ""
+failUnexpected :: HasCallStack => Text -> s :-> t
+failUnexpected msg =
+  failText $ "Unexpected failure: " +| msg |+ "\n"
+          +| prettyCallStack callStack |+ ""
+
+class LorentzFunctor (c :: Kind.Type -> Kind.Type) where
+  lmap :: KnownValue b => (a : s :-> b : s) -> (c a : s :-> c b : s)
+
+instance LorentzFunctor Maybe where
+  lmap f = ifNone none (f # some)
