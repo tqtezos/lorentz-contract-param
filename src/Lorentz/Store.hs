@@ -44,9 +44,12 @@ module Lorentz.Store
   , StoreGetC
   , StoreInsertC
   , StoreDeleteC
+  , HasStore
 
     -- * Storage skeleton
   , StorageSkeleton (..)
+  , storageUnpack
+  , storagePack
   , storageMem
   , storageGet
   , storageInsert
@@ -69,6 +72,7 @@ import GHC.Generics ((:+:))
 import qualified GHC.Generics as G
 import GHC.TypeLits (AppendSymbol, ErrorMessage(..), KnownSymbol, Symbol, TypeError)
 import GHC.TypeNats (type (+))
+import Type.Reflection ((:~:)(Refl))
 
 import Lorentz.ADT
 import Lorentz.Base
@@ -93,8 +97,10 @@ import Michelson.Typed.Scope
 -- Type argument of this datatype stands for a "map template" -
 -- a datatype with multiple constructors, each containing an object of
 -- type '|->' and corresponding to single virtual 'BigMap'.
+-- It's also possible to parameterize it with a larger type which is
+-- a sum of types satisfying the above property.
 --
--- Inside it keeps only one 'BigMap' thusnot violating Michelson limitations.
+-- Inside it keeps only one 'BigMap' thus not violating Michelson limitations.
 --
 -- See examples below.
 newtype Store a = Store { unStore :: BigMap ByteString a }
@@ -153,27 +159,56 @@ type family MSRequireFound
     :: MapSignature where
   MSRequireFound _ _ ('MapFound ms) = ms
   MSRequireFound name a ('MapAbsent _) = TypeError
-    ('Text "Datatype " ':<>: 'ShowType a ':<>:
+    ('Text "Failed to find store template: datatype " ':<>: 'ShowType a ':<>:
      'Text " has no constructor " ':<>: 'ShowType name)
 
 type family GLookupStore (name :: Symbol) (x :: Kind.Type -> Kind.Type)
               :: MapLookupRes where
   GLookupStore name (G.D1 _ x) = GLookupStore name x
-  GLookupStore name (x :+: y) = LSMergeFound (GLookupStore name x)
-                                             (GLookupStore name y)
+  GLookupStore name (x :+: y) = LSMergeFound name (GLookupStore name x)
+                                                  (GLookupStore name y)
+  -- When we encounter a constructor there are two cases we are interested in:
+  -- 1. This constructor has one field with type `|->`. Then we check its name
+  -- and return 'MapFound' if it matches and 'MapAbsent' otherwise (storing
+  -- information that we've found one constructor).
+  -- 2. This constructor has one field with a different type. Then we expect
+  -- this field to store '|->' somewhere deeper and try to find it there.
   GLookupStore name (G.C1 ('G.MetaCons ctorName _ _) x) =
-    If (name == ctorName || name == ("c" `AppendSymbol` ctorName))
-       ('MapFound $ GExtractMapSignature ctorName x)
-       ('MapAbsent 1)
+    If (IsLeafCtor x)
+      (If (name == ctorName || name == ("c" `AppendSymbol` ctorName))
+         ('MapFound $ GExtractMapSignature ctorName x)
+         ('MapAbsent 1)
+      )
+      (GLookupStoreDeeper name x)
   GLookupStore _ G.V1 = 'MapAbsent 0
 
-type family LSMergeFound (f1 :: MapLookupRes) (f2 :: MapLookupRes)
+-- Helper type family to check whether ADT constructor has one field
+-- with type `|->`.
+type family IsLeafCtor (x :: Kind.Type -> Kind.Type) :: Bool where
+  IsLeafCtor (G.S1 _ (G.Rec0 (_ |-> _))) = 'True
+  IsLeafCtor _ = 'False
+
+-- Helper type family to go deeper during type-level store lookup.
+type family GLookupStoreDeeper (name :: Symbol) (x :: Kind.Type -> Kind.Type)
               :: MapLookupRes where
-  LSMergeFound ('MapAbsent n1) ('MapAbsent n2) = 'MapAbsent (n1 + n2)
-  LSMergeFound ('MapFound ms) ('MapAbsent _) = 'MapFound ms
-  LSMergeFound ('MapAbsent n) ('MapFound ('MapSignature k v i)) =
+  GLookupStoreDeeper name (G.S1 _ (G.Rec0 y))  = GLookupStore name (G.Rep y)
+  GLookupStoreDeeper name _ = TypeError
+    ('Text "Attempt to go deeper failed while looking for" ':<>: 'ShowType name
+    ':$$:
+    'Text "Make sure that all constructors have exactly one field inside.")
+
+type family LSMergeFound (name :: Symbol)
+  (f1 :: MapLookupRes) (f2 :: MapLookupRes)
+  :: MapLookupRes where
+  LSMergeFound _ ('MapAbsent n1) ('MapAbsent n2) = 'MapAbsent (n1 + n2)
+  LSMergeFound _ ('MapFound ms) ('MapAbsent _) = 'MapFound ms
+  LSMergeFound _ ('MapAbsent n) ('MapFound ('MapSignature k v i)) =
     'MapFound ('MapSignature k v (n + i))
-  -- the last case is not possible, constructor names are unique
+  -- It's possible that there are two constructors with the same name,
+  -- because main template pattern may be a sum of smaller template
+  -- patterns with same constructor names.
+  LSMergeFound ctor ('MapFound _) ('MapFound _) = TypeError
+    ('Text "Found more than one constructor matching " ':<>: 'ShowType ctor)
 
 type family GExtractMapSignature (ctor :: Symbol) (x :: Kind.Type -> Kind.Type)
              :: MapSignature where
@@ -274,9 +309,7 @@ storeInsertNew label mkErr =
 
 storeDelete
   :: forall store name s.
-     ( StoreOpC store name
-     , InstrWrapC store name
-     , SingI (ToT store)
+     ( StoreDeleteC store name
      )
   => Label name
   -> GetStoreKey store name : Store store : s
@@ -288,9 +321,21 @@ storeDelete _ = I $
 
 type StoreDeleteC store name =
   ( StoreOpC store name
-  , InstrWrapC store name
   , SingI (ToT store)
   )
+
+-- | This constraint can be used if a function needs to work with
+-- /big/ store, but needs to know only about some part(s) of it.
+--
+-- It can use all Store operations for a particular name, key and
+-- value without knowing whole template.
+type HasStore name key value store =
+   ( StoreGetC store name
+   , StoreInsertC store name
+   , StoreDeleteC store name
+   , GetStoreKey store name ~ key
+   , GetStoreValue store name ~ value
+   )
 
 -- Examples
 ----------------------------------------------------------------------------
@@ -306,6 +351,56 @@ type MyStore = Store MyStoreTemplate
 _sample1 :: Integer : MyStore : s :-> MyStore : s
 _sample1 = storeDelete @MyStoreTemplate #cIntsStore
 
+_sample2 :: Text : ByteString : MyStore : s :-> MyStore : s
+_sample2 = storeInsert @MyStoreTemplate #cTextsStore
+
+data MyStoreTemplate2
+  = BoolsStore (Bool |-> Bool)
+  | IntsStore2 (Integer |-> Integer)
+  | IntsStore3 (Integer |-> Bool)
+  deriving stock Generic
+  deriving anyclass IsoValue
+
+-- You must derive 'Generic' instance for all custom types, even
+-- newtypes.
+newtype MyNatural = MyNatural Natural
+  deriving stock Generic
+  deriving newtype (IsoCValue, IsoValue)
+
+data MyStoreTemplate3 = MyStoreTemplate3 (Natural |-> MyNatural)
+  deriving stock Generic
+  deriving anyclass IsoValue
+
+data MyStoreTemplateBig
+  = BigTemplatePart1 MyStoreTemplate
+  | BigTemplatePart2 MyStoreTemplate2
+  | BigTemplatePart3 MyStoreTemplate3
+  deriving stock Generic
+  deriving anyclass IsoValue
+
+_MyStoreTemplateBigTextsStore ::
+  GetStore "cTextsStore" MyStoreTemplateBig :~: 'MapSignature Text ByteString 1
+_MyStoreTemplateBigTextsStore = Refl
+
+_MyStoreTemplateBigBoolsStore ::
+  GetStore "cBoolsStore" MyStoreTemplateBig :~: 'MapSignature Bool Bool 2
+_MyStoreTemplateBigBoolsStore = Refl
+
+_MyStoreTemplateBigMyStoreTemplate3 ::
+  GetStore "cMyStoreTemplate3" MyStoreTemplateBig :~: 'MapSignature Natural MyNatural 5
+_MyStoreTemplateBigMyStoreTemplate3 = Refl
+
+type MyStoreBig = Store MyStoreTemplateBig
+
+_sample3 :: Integer : MyStoreBig : s :-> MyStoreBig : s
+_sample3 = storeDelete @MyStoreTemplateBig #cIntsStore2
+
+_sample4 :: Text : MyStoreBig : s :-> Bool : s
+_sample4 = storeMem @MyStoreTemplateBig #cTextsStore
+
+_sample5 :: Natural : MyNatural : MyStoreBig : s :-> MyStoreBig : s
+_sample5 = storeInsert @MyStoreTemplateBig #cMyStoreTemplate3
+
 ----------------------------------------------------------------------------
 -- Storage skeleton
 ----------------------------------------------------------------------------
@@ -320,9 +415,11 @@ data StorageSkeleton storeTemplate other = StorageSkeleton
   } deriving stock (Eq, Show, Generic)
     deriving anyclass (Default, IsoValue)
 
+-- | Unpack 'StorageSkeleton' into a pair.
 storageUnpack :: StorageSkeleton store fields : s :-> (Store store, fields) : s
 storageUnpack = coerce_
 
+-- | Pack a pair into 'StorageSkeleton'.
 storagePack :: (Store store, fields) : s :-> StorageSkeleton store fields : s
 storagePack = coerce_
 
@@ -373,9 +470,7 @@ storageInsertNew label mkErr =
 
 storageDelete
   :: forall store name fields s.
-     ( StoreOpC store name
-     , InstrWrapC store name
-     , SingI (ToT store)
+     ( StoreDeleteC store name
      )
   => Label name
   -> GetStoreKey store name : StorageSkeleton store fields : s
@@ -470,3 +565,13 @@ _storeSample = mconcat
 
 _lookupSample :: Maybe ByteString
 _lookupSample = storeLookup #cTextsStore "a" _storeSample
+
+_storeSampleBig :: Store MyStoreTemplateBig
+_storeSampleBig = mconcat
+  [ storePiece #cIntsStore 1 ()
+  , storePiece #cBoolsStore True True
+  , storePiece #cIntsStore3 2 False
+  ]
+
+_lookupSampleBig :: Maybe Bool
+_lookupSampleBig = storeLookup #cIntsStore3 2 _storeSampleBig

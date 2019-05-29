@@ -10,6 +10,7 @@ module Lorentz.Base
   , compileLorentzContract
   , printLorentzContract
 
+  , ContractOut
   , Contract
   , Lambda
 
@@ -26,13 +27,15 @@ import Michelson.Typed (Instr(..), T(..), ToT, ToTs, Value'(..))
 -- | Alias for instruction which hides inner types representation via 'T'.
 newtype (inp :: [Kind.Type]) :-> (out :: [Kind.Type]) =
   I { unI :: Instr (ToTs inp) (ToTs out) }
+  deriving (Show, Eq)
 infixr 1 :->
 
 -- | For use outside of Lorentz.
 compileLorentz :: (inp :-> out) -> Instr (ToTs inp) (ToTs out)
 compileLorentz = unI
 
-type Contract cp st = '[(cp, st)] :-> '[([Operation], st)]
+type ContractOut st = '[([Operation], st)]
+type Contract cp st = '[(cp, st)] :-> ContractOut st
 
 -- | Version of 'compileLorentz' specialized to instruction corresponding to
 -- contract code.

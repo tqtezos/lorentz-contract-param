@@ -25,6 +25,7 @@ library:
     - morley
     - morley-prelude
     - text
+    - vinyl
 
 executables:
   lorentz-contracts:

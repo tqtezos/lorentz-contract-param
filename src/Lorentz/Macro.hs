@@ -54,8 +54,10 @@ module Lorentz.Macro
 
   -- * Syntactic Conveniences
   , dipX
+  , dropX
   , cloneX
   , duupX
+  , elevateX
   , caar
   , cadr
   , cdar
@@ -84,11 +86,11 @@ module Lorentz.Macro
   , mkVoid
   ) where
 
-import Prelude hiding (compare, some, swap)
+import Prelude hiding (compare, drop, some, swap)
 
 import qualified Data.Kind as Kind
 import Data.Vinyl.TypeLevel (Nat(..))
-import GHC.TypeNats (type (-))
+import GHC.TypeNats (type (+), type (-))
 import qualified GHC.TypeNats as GHC (Nat)
 
 import Lorentz.Arith
@@ -302,6 +304,18 @@ dipX
   => (s :-> s') -> inp :-> out
 dipX = dipXImpl @(ToPeano n) @(Above (ToPeano n) inp)
 
+-- | Custom Lorentz macro that drops element with given index
+-- (starting from 0) from the stack.
+dropX
+  :: forall (n :: GHC.Nat) a inp out s s'.
+  ( DipX (ToPeano n) (Above (ToPeano n) inp) s s'
+  , ((Above (ToPeano n) inp) ++ s) ~ inp
+  , ((Above (ToPeano n) inp) ++ s') ~ out
+  , s ~ (a ': s')
+  )
+  => inp :-> out
+dropX = dipX @n @inp @out @s @s' drop
+
 class CloneX (n :: Peano) a s where
   type CloneXT n a s :: [Kind.Type]
   cloneXImpl :: a & s :-> CloneXT n a s
@@ -338,7 +352,8 @@ instance ( DuupX ('S n) (l ++ '[r0]) r a s
   duupXImpl = duupXImpl @('S n) @(l ++ '[r0]) @r @a @s #
               dipXImpl @n @l @(r0 & a & r ++ (a & s)) @(a & r0 & r ++ (a & s)) swap
 
--- | @DUU+P@ macro. For example, `duupX @3` is `DUUUP`.
+-- | @DUU+P@ macro. For example, `duupX @3` is `DUUUP`, it puts
+-- the 3-rd (starting from 1) element to the top of the stack.
 duupX
   :: forall (n :: GHC.Nat) inp out s a.
   ( DuupX 'Z '[] (Above (ToPeano (n - 1)) inp) a s
@@ -346,6 +361,26 @@ duupX
   , (a & (Above (ToPeano (n - 1)) inp) ++ (a & s)) ~ out
   ) => inp :-> out
 duupX = duupXImpl @'Z @'[] @(Above (ToPeano (n - 1)) inp) @a @s
+
+-- | Move item with given index (starting from 0) to the top of the stack.
+--
+-- TODO: probably it can be implemented more efficiently, so if we
+-- ever want to optimize gas consumption we can rewrite it.
+-- It only makes sense if it's applied to a relatively large index.
+elevateX
+  :: forall (n :: GHC.Nat) inp out s a.
+  ( DuupX 'Z '[] (Above (ToPeano n) inp) a s
+  , DipX (ToPeano (n + 1)) (Above (ToPeano (n + 1)) (a : inp)) (a : s) s
+  , ((Above (ToPeano n) inp) ++ (a ': s)) ~ inp
+  , (a ': (Above (ToPeano n) inp) ++ s) ~ out
+
+  -- These 3 constraints must hold if the above holds, but GHC can't deduce it.
+  -- Btw, last constraint must always hold.
+  , (Above (ToPeano (n + 1)) (a ': inp) ++ (a ': s)) ~ (a ': inp)
+  , (Above (ToPeano (n + 1)) (a : inp) ++ s) ~ (a : (Above (ToPeano n) inp ++ s))
+  , ((1 + n) - 1) ~ n
+  ) => inp :-> out
+elevateX = duupX @(1 + n) @inp @_ @s @a # dropX @(n + 1) @a @(a ': inp) @out @(a ': s) @s
 
 papair :: a & b & c & s :-> ((a, b), c) & s
 papair = pair # pair
