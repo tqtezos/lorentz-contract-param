@@ -18,6 +18,7 @@ module Lorentz.Test
   , SuccessValidator
   , IntegrationalScenario
   , IntegrationalScenarioM
+  , ValidationError (..)
   , integrationalTestExpectation
   , integrationalTestProperty
   , lOriginate
@@ -27,6 +28,7 @@ module Lorentz.Test
   , validate
   , setMaxSteps
   , setNow
+  , withSource
 
   -- ** Validators
   , composeValidators
@@ -37,6 +39,9 @@ module Lorentz.Test
   , lExpectStorageConst
   , lExpectMichelsonFailed
   , lExpectFailWith
+  , lExpectUserError
+  , lExpectConsumerStorage
+  , lExpectViewConsumerStorage
 
   -- ** Various
   , TxData (..)

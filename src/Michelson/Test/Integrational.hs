@@ -132,7 +132,7 @@ instance Buildable ValidationError where
     "Updates are incorrect: " +| vErr |+ " . Updates are:"
     +| blockListF updates |+ ""
   build (IncorrectStorageUpdate addr msg) =
-    "Storage of " +| addr |+ "is updated incorrectly: " +| msg |+ ""
+    "Storage of " +| addr |+ " is updated incorrectly: " +| msg |+ ""
   build (InvalidStorage addr (ExpectedStorage expected) msg) =
     "Expected " +| addr |+ " to have storage " +| expected |+ ", but " +| msg |+ ""
   build (InvalidBalance addr (ExpectedBalance expected) msg) =
