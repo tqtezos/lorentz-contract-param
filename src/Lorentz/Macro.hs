@@ -50,6 +50,7 @@ module Lorentz.Macro
   , assertSome
   , assertLeft
   , assertRight
+  , assertUsing
 
   -- * Syntactic Conveniences
   , dipX
@@ -265,6 +266,11 @@ assertLeft reason = ifLeft nop (assertionFailed reason)
 
 assertRight :: Text -> Either a b & s :-> b & s
 assertRight reason = ifLeft (assertionFailed reason) nop
+
+assertUsing
+  :: (IsoValue a, KnownValue a, NoOperation a, NoBigMap a)
+  => a -> Bool & s :-> s
+assertUsing err = if_ nop $ failUsing err
 
 ----------------------------------------------------------------------------
 -- Syntactic Conveniences
