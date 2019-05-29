@@ -174,6 +174,25 @@ spec_Interpreter = do
       in contractProp contract (validateStorageIs expected) dummyContractEnv
          ("\11\12\13" :: ByteString) ([] :: [ByteString])
 
+  specWithTypedContract "contracts/split_string_simple.tz" $ \contract -> do
+    it "applies SLICE instruction" $ do
+      let
+        oneTest :: Natural -> Natural -> Text -> Maybe Text -> Expectation
+        oneTest o l str expected =
+          contractProp contract (validateStorageIs expected) dummyContractEnv
+          (o, l) (Just str)
+
+      -- These values have been tested using alphanet.sh
+      oneTest 0 0 "aaa" (Just "")
+      oneTest 2 0 "aaa" (Just "")
+      oneTest 3 0 "aaa" Nothing
+      oneTest 0 5 "aaa" Nothing
+      oneTest 1 2 "abc" (Just "bc")
+      oneTest 1 1 "abc" (Just "b")
+      oneTest 2 1 "abc" (Just "c")
+      oneTest 2 2 "abc" Nothing
+      -- TODO TM-176: add strings with complex characters
+
 
 data Union1
   = Case1 Integer

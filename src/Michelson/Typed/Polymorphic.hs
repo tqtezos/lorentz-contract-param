@@ -157,7 +157,8 @@ sliceImpl ::
   -> str
   -> Maybe str
 sliceImpl dropF takeF offset l s
-  | offset + l > fromIntegral (length s) = Nothing
+  | offset >= fromIntegral (length s) || offset + l > fromIntegral (length s) =
+    Nothing
   | otherwise
   -- Drop offset and then take requested number of items.
    = Just . takeF (fromIntegral l) . dropF (fromIntegral offset) $ s
