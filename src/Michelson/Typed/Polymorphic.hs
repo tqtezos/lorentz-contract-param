@@ -144,25 +144,24 @@ instance ConcatOp ('Tc 'CBytes) where
 class SliceOp (c :: T) where
   evalSlice :: Natural -> Natural -> Value' cp c -> Maybe (Value' cp c)
 instance SliceOp ('Tc 'CString) where
-  evalSlice o l (VC (CvString s)) =
-    if o > fromIntegral (length s) || o + l > fromIntegral (length s)
-    then Nothing
-    else (Just . VC . CvString . toText) $ sliceText o l s
-    where
-      sliceText :: Natural -> Natural -> Text -> Text
-      sliceText o' l' s' =
-        T.drop ((fromIntegral . toInteger) o') $
-          T.take ((fromIntegral . toInteger) l') s'
+  evalSlice o l (VC (CvString s)) = VC . CvString <$> sliceImpl T.drop T.take o l s
 instance SliceOp ('Tc 'CBytes) where
-  evalSlice o l (VC (CvBytes b)) =
-    if o > fromIntegral (length b) || o + l > fromIntegral (length b)
-    then Nothing
-    else (Just . VC . CvBytes) $ sliceBytes o l b
-    where
-      sliceBytes :: Natural -> Natural -> ByteString -> ByteString
-      sliceBytes o' l' b' =
-        B.drop ((fromIntegral . toInteger) o') $
-          B.take ((fromIntegral . toInteger) l') b'
+  evalSlice o l (VC (CvBytes b)) = VC . CvBytes <$> sliceImpl B.drop B.take o l b
+
+sliceImpl ::
+  Container str
+  => (Int -> str -> str)
+  -> (Int -> str -> str)
+  -> Natural
+  -> Natural
+  -> str
+  -> Maybe str
+sliceImpl dropF takeF offset l s
+  | offset >= fromIntegral (length s) || offset + l > fromIntegral (length s) =
+    Nothing
+  | otherwise
+  -- Drop offset and then take requested number of items.
+   = Just . takeF (fromIntegral l) . dropF (fromIntegral offset) $ s
 
 class EDivOp (n :: CT) (m :: CT) where
   type EDivOpRes n m :: CT
