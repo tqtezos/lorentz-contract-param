@@ -168,6 +168,12 @@ spec_Interpreter = do
       in contractProp contract (validateStorageIs expected) dummyContractEnv
          () ("" :: Text)
 
+  specWithTypedContract "contracts/split_bytes.tz" $ \contract -> do
+    it "splits given byte sequence into parts" $
+      let expected = ["\11", "\12", "\13"] :: [ByteString]
+      in contractProp contract (validateStorageIs expected) dummyContractEnv
+         ("\11\12\13" :: ByteString) ([] :: [ByteString])
+
 
 data Union1
   = Case1 Integer
