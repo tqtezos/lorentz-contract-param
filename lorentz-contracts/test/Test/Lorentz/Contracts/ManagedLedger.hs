@@ -35,7 +35,7 @@ manager2 = mkContractAddressRaw "manager2"
 originateEmptyManagedLedger :: IntegrationalScenarioM (ContractAddr Parameter)
 originateEmptyManagedLedger =
   lOriginate contract_Managed_ledger "Managed ledger"
-    (mkStorage manager) (unsafeMkMutez 1000)
+    (mkStorage manager) (toMutez 1000)
 
 -- | Originate the contract we are currently testing with given amount of money
 -- on some accounts.
@@ -50,7 +50,7 @@ originateManagedLedger initMoney =
         , (wallet2, (#balance .! initMoney, #approvals .! mempty))
         ]
     }
-    (unsafeMkMutez 1000)
+    (toMutez 1000)
 
 spec_ManagedLedger :: Spec
 spec_ManagedLedger = do

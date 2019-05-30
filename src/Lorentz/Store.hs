@@ -59,6 +59,9 @@ module Lorentz.Store
     -- * Store management from Haskell
   , storePiece
   , storeLookup
+
+    -- ** Function constraints
+  , StorePieceC
   ) where
 
 import Data.Default (Default)
@@ -510,24 +513,26 @@ packHsKey key =
 --
 -- Further you can use 'Monoid' instance of @Store@ to make up large stores.
 storePiece
-  :: forall name store key value ctorIdx.
-     ( key ~ GetStoreKey store name
-     , value ~ GetStoreValue store name
-     , ctorIdx ~ MSCtorIdx (GetStore name store)
-     , IsoValue key, KnownValue key, HasNoOp (ToT key), HasNoBigMap (ToT key)
-     , KnownNat ctorIdx
-     , InstrWrapC store name, Generic store
-     , ExtractCtorField (GetCtorField store name) ~ (key |-> value)
-     )
+  :: forall name store key value.
+     StorePieceC store name key value
   => Label name
   -> key
   -> value
   -> Store store
 storePiece label key val =
   Store . BigMap $ one
-    ( packHsKey @ctorIdx key
+    ( packHsKey @(MSCtorIdx (GetStore name store)) key
     , hsWrap @store label (BigMapImage val)
     )
+
+type StorePieceC store name key value =
+  ( key ~ GetStoreKey store name
+  , value ~ GetStoreValue store name
+  , IsoValue key, KnownValue key, HasNoOp (ToT key), HasNoBigMap (ToT key)
+  , KnownNat (MSCtorIdx (GetStore name store))
+  , InstrWrapC store name, Generic store
+  , ExtractCtorField (GetCtorField store name) ~ (key |-> value)
+  )
 
 -- | Get a value from store by key.
 --
