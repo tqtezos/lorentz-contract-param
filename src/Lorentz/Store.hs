@@ -45,6 +45,7 @@ module Lorentz.Store
   , StoreInsertC
   , StoreDeleteC
   , HasStore
+  , HasStoreForAllIn
 
     -- * Storage skeleton
   , StorageSkeleton (..)
@@ -64,6 +65,7 @@ module Lorentz.Store
   , StorePieceC
   ) where
 
+import Data.Constraint (Dict(..))
 import Data.Default (Default)
 import qualified Data.Kind as Kind
 import qualified Data.Map as Map
@@ -165,6 +167,11 @@ type family MSRequireFound
     ('Text "Failed to find store template: datatype " ':<>: 'ShowType a ':<>:
      'Text " has no constructor " ':<>: 'ShowType name)
 
+-- | Prepend a constructor name with a lower-case character so that you
+-- could make a label with @OverloadedLabels@ extension matching
+-- resulting thing.
+type CtorNameToLabel name = "c" `AppendSymbol` name
+
 type family GLookupStore (name :: Symbol) (x :: Kind.Type -> Kind.Type)
               :: MapLookupRes where
   GLookupStore name (G.D1 _ x) = GLookupStore name x
@@ -178,7 +185,7 @@ type family GLookupStore (name :: Symbol) (x :: Kind.Type -> Kind.Type)
   -- this field to store '|->' somewhere deeper and try to find it there.
   GLookupStore name (G.C1 ('G.MetaCons ctorName _ _) x) =
     If (IsLeafCtor x)
-      (If (name == ctorName || name == ("c" `AppendSymbol` ctorName))
+      (If (name == ctorName || name == CtorNameToLabel ctorName)
          ('MapFound $ GExtractMapSignature ctorName x)
          ('MapAbsent 1)
       )
@@ -338,7 +345,27 @@ type HasStore name key value store =
    , StoreDeleteC store name
    , GetStoreKey store name ~ key
    , GetStoreValue store name ~ value
+   , StorePieceC store name key value
    )
+
+-- | Write down all sensisble constraints which given @store@ satisfies
+-- and apply them to @constrained@.
+--
+-- This store should have '|->' datatype in its immediate fields,
+-- no deep inspection is performed.
+type HasStoreForAllIn store constrained =
+  GForAllHasStore constrained (G.Rep store)
+
+type family GForAllHasStore (store :: Kind.Type) (x :: Kind.Type -> Kind.Type)
+            :: Constraint where
+  GForAllHasStore store (G.D1 _ x) = GForAllHasStore store x
+  GForAllHasStore store (x :+: y) = ( GForAllHasStore store x
+                                    , GForAllHasStore store y )
+  GForAllHasStore store (G.C1 ('G.MetaCons ctorName _ _)
+                          (G.S1 _ (G.Rec0 (key |-> value)))) =
+    HasStore (CtorNameToLabel ctorName) key value store
+  GForAllHasStore _ (G.C1 _ _) = ()
+  GForAllHasStore _ G.V1 = ()
 
 -- Examples
 ----------------------------------------------------------------------------
@@ -393,6 +420,13 @@ _MyStoreTemplateBigMyStoreTemplate3 ::
   GetStore "cMyStoreTemplate3" MyStoreTemplateBig :~: 'MapSignature Natural MyNatural 5
 _MyStoreTemplateBigMyStoreTemplate3 = Refl
 
+_MyStoreBigHasAllStores
+  :: HasStoreForAllIn MyStoreTemplate store
+  => Dict ( HasStore "cIntsStore" Integer () store
+          , HasStore "cBytesStore" ByteString ByteString store
+          )
+_MyStoreBigHasAllStores = Dict
+
 type MyStoreBig = Store MyStoreTemplateBig
 
 _sample3 :: Integer : MyStoreBig : s :-> MyStoreBig : s
@@ -403,6 +437,18 @@ _sample4 = storeMem @MyStoreTemplateBig #cBytesStore
 
 _sample5 :: Natural : MyNatural : MyStoreBig : s :-> MyStoreBig : s
 _sample5 = storeInsert @MyStoreTemplateBig #cMyStoreTemplate3
+
+-- Example of 'HasStoreForAllIn' use.
+-- This function will work with any @store@ which has 'MyStoreTemplate3' inside.
+_sample6
+  :: forall store s.
+      HasStoreForAllIn MyStoreTemplate3 store
+  => Natural : MyNatural : Store store : s :-> Store store : s
+_sample6 = storeInsert @store #cMyStoreTemplate3
+
+-- For instance, 'sample6' works for 'MyStoreBig'.
+_sample6' :: Natural : MyNatural : MyStoreBig : s :-> MyStoreBig : s
+_sample6' = _sample6
 
 ----------------------------------------------------------------------------
 -- Storage skeleton
