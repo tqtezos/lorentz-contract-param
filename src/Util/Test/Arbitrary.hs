@@ -6,7 +6,7 @@ module Util.Test.Arbitrary
 
 import Prelude hiding (EQ, GT, LT)
 
-import Test.QuickCheck (Arbitrary(..), Gen, choose, elements, oneof, suchThatMap, vector)
+import Test.QuickCheck (Arbitrary(..), Gen, choose, elements, frequency, oneof, suchThatMap, vector)
 import Test.QuickCheck.Arbitrary.ADT (ToADTArbitrary(..))
 import Test.QuickCheck.Gen (unGen)
 import Test.QuickCheck.Instances.ByteString ()
@@ -200,6 +200,11 @@ instance ToADTArbitrary Type
 instance Arbitrary Type where
   arbitrary = Type <$> arbitrary <*> arbitrary
 
+-- | @getRareT k@ generates 'T' producing anything big once per @1 / (k + 1)@
+-- invocation.
+genRareType :: Word -> Gen Type
+genRareType k = Type <$> genRareT k <*> arbitrary
+
 instance ToADTArbitrary T
 instance Arbitrary T where
   arbitrary =
@@ -213,12 +218,19 @@ instance Arbitrary T where
       , TSet <$> arbitrary
       , pure TOperation
       , TContract <$> arbitrary
-      , TPair <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      , TOr <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      , TLambda <$> arbitrary <*> arbitrary
+      , TPair <$> arbitrary <*> arbitrary <*> genRareType 5 <*> genRareType 5
+      , TOr <$> arbitrary <*> arbitrary <*> genRareType 5 <*> genRareType 5
+      , TLambda <$> genRareType 5 <*> genRareType 5
       , TMap <$> arbitrary <*> arbitrary
       , TBigMap <$> arbitrary <*> arbitrary
       ]
+
+-- | @getRareT k@ generates 'Type' producing anything big once per @1 / (k + 1)@
+-- invocation.
+--
+-- Useful to avoid exponensial growth.
+genRareT :: Word -> Gen T
+genRareT k = frequency [(1, arbitrary), (fromIntegral k, pure TUnit)]
 
 instance ToADTArbitrary CT
 instance Arbitrary CT where
