@@ -184,11 +184,20 @@ unit_ParserException :: Expectation
 unit_ParserException = do
   handleCustomError "0x000" P.value OddNumberBytesException
   handleCustomError "Right 0x000" P.value OddNumberBytesException
-  handleCustomError "\"abacaba \\t \n\n\r a\"" P.value UnexpectedLineBreak
   handleCustomError "kek" P.type_ UnknownTypeException
+  handleCustomError "\"aaa\\r\"" P.stringLiteral
+    (StringLiteralException (InvalidEscapeSequence 'r'))
+  handleCustomError "\"aaa\\b\"" P.stringLiteral
+    (StringLiteralException (InvalidEscapeSequence 'b'))
+  handleCustomError "\"aaa\\t\"" P.stringLiteral
+    (StringLiteralException (InvalidEscapeSequence 't'))
+  handleCustomError "\"aaa\n\"" P.stringLiteral
+    (StringLiteralException (InvalidChar '\n'))
+  handleCustomError "\"aaa\r\"" P.stringLiteral
+    (StringLiteralException (InvalidChar '\r'))
   where
     handleCustomError
-      :: Text -> Parser a -> CustomParserException -> Expectation
+      :: HasCallStack => Text -> Parser a -> CustomParserException -> Expectation
     handleCustomError text parser customException =
       case P.parseNoEnv parser "" text of
         Right _ -> expectationFailure "expecting parser to fail"

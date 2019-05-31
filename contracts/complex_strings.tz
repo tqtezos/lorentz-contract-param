@@ -1,0 +1,11 @@
+# ./alphanet.sh client run script container:kek.tz on storage '""' and input '"aa\t"'
+
+# Testing string literals with escape chars.
+parameter string;
+storage string;
+code { CAR;
+       PUSH string "\"aa\" \\\n";
+       SWAP; CONCAT;
+       NIL operation;
+       PAIR
+       };
