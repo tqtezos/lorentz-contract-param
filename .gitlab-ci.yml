@@ -52,6 +52,7 @@ build-and-test:
       - scripts/morley.sh
       - src/**/*
       - test/**/*
+      - lorentz-contracts/**/*
   script:
     - mkdir -p ./weeder/bin
     - stack --resolver $STACK_RESOLVER
