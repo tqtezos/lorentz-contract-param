@@ -84,7 +84,7 @@ smallList1 = smallList `suchThatMap` nonEmpty
 
 instance (Arbitrary op, ToADTArbitrary op) => ToADTArbitrary (Contract' op)
 instance (Arbitrary op) => Arbitrary (Contract' op) where
-  arbitrary = Contract <$> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary = Contract <$> arbitrary <*> arbitrary <*> smallList
 
 instance (Arbitrary op, ToADTArbitrary op, Arbitrary (ExtInstrAbstract op)) => ToADTArbitrary (InstrAbstract op)
 instance (Arbitrary op, Arbitrary (ExtInstrAbstract op)) => Arbitrary (InstrAbstract op) where
