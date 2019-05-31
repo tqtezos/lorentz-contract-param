@@ -6,7 +6,8 @@ module Util.Test.Arbitrary
 
 import Prelude hiding (EQ, GT, LT)
 
-import Test.QuickCheck (Arbitrary(..), Gen, choose, elements, frequency, oneof, suchThatMap, vector)
+import Test.QuickCheck
+  (Arbitrary(..), Gen, choose, elements, frequency, oneof, resize, suchThatMap, vector)
 import Test.QuickCheck.Arbitrary.ADT (ToADTArbitrary(..))
 import Test.QuickCheck.Gen (unGen)
 import Test.QuickCheck.Instances.ByteString ()
@@ -49,11 +50,13 @@ instance Arbitrary SrcPos where
 
 instance ToADTArbitrary LetName
 instance Arbitrary LetName where
-  arbitrary = LetName <$> arbitrary
+  arbitrary = LetName <$> resize 3 arbitrary
 
 instance ToADTArbitrary InstrCallStack
 instance Arbitrary InstrCallStack where
-  arbitrary = liftA2 InstrCallStack (vector 2) arbitrary
+  arbitrary = liftA2 InstrCallStack genName arbitrary
+    where
+    genName = frequency [(80, pure []), (18, vector 1), (2, vector 2)]
 
 instance ToADTArbitrary ExpandedOp
 instance Arbitrary ExpandedOp where
@@ -61,17 +64,18 @@ instance Arbitrary ExpandedOp where
 
 instance ToADTArbitrary Mutez
 
+-- TODO: why not to merge these three?
 instance ToADTArbitrary TypeAnn
 instance Arbitrary TypeAnn where
-  arbitrary = Annotation <$> arbitrary
+  arbitrary = Annotation <$> resize 5 arbitrary
 
 instance ToADTArbitrary FieldAnn
 instance Arbitrary FieldAnn where
-  arbitrary = Annotation <$> arbitrary
+  arbitrary = Annotation <$> resize 5 arbitrary
 
 instance ToADTArbitrary VarAnn
 instance Arbitrary VarAnn where
-  arbitrary = Annotation <$> arbitrary
+  arbitrary = Annotation <$> resize 5 arbitrary
 
 smallSize :: Gen Int
 smallSize = choose (0, 3)
