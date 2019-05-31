@@ -67,7 +67,7 @@ updatesStorageValue ca = either (assertFailure . pretty) handleResult $ do
       }
     interpreterOps =
       [ OriginateOp origination
-      , TransferOp addr txData Nothing
+      , TransferOp addr txData
       ]
   (addr,) <$> interpreterPure dummyNow dummyMaxSteps initGState interpreterOps
   where

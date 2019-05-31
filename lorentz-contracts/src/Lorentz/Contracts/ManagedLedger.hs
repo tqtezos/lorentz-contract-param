@@ -145,7 +145,7 @@ userFail = userFailWith @Error @name @s
 
 authorizeManager :: Storage : s :-> Storage : s
 authorizeManager = do
-  getField #fields; toField #manager; source; eq
+  getField #fields; toField #manager; sender; eq
   if_ nop (userFail #cInitiatorIsNotManager)
 
 addTotalSupply :: Integer : Storage : s :-> Storage : s
@@ -253,7 +253,7 @@ approveParamsToAllowanceParams :: ApproveParams : s :-> AllowanceParams : s
 approveParamsToAllowanceParams = do
   -- a hack for performance
   -- can be replaced with 'constructT' call if stops working
-  source; toNamed #from; pair; coerce_
+  sender; toNamed #from; pair; coerce_
 
 allowance
   :: (param `HasFieldsOfType` ["from" := Address, "to" := Address])
@@ -287,12 +287,12 @@ consumeAllowance
 consumeAllowance = do
   dup; dip @param $ do
     dip (dup @Storage)
-    toFieldNamed #from; source; toNamed #to; pair
+    toFieldNamed #from; sender; toNamed #to; pair
     allowance
   stackType @(param : Natural : Storage : s)
   constructT @AllowanceParams
     ( fieldCtor $ getFieldNamed #from
-    , fieldCtor $ source >> toNamed #to
+    , fieldCtor $ sender >> toNamed #to
     , fieldCtor $ do
         getField #deltaVal; duupX @3
         sub; isNat;
@@ -311,10 +311,10 @@ consumeAllowance = do
 needAllowance :: ("from" :! Address) : Storage : s :-> Bool : s
 needAllowance = do
   fromNamed #from
-  source
+  sender
   if IsEq
   then drop >> push False
-  else do toField #fields; toField #manager; source; neq
+  else do toField #fields; toField #manager; sender; neq
 
 ensureNotPaused :: Storage : s :-> Storage : s
 ensureNotPaused = do

@@ -72,11 +72,8 @@ data InterpreterOp
   -- ^ Originate a contract.
   | TransferOp Address
                TxData
-               (Maybe Address)
   -- ^ Send a transaction to given address which is assumed to be the
   -- address of an originated contract.
-  -- You can provide desired @SOURCE@ address optionally; this field is used
-  -- for testing purposes.
   deriving (Show)
 
 -- | Result of a single execution of interpreter.
@@ -238,7 +235,7 @@ runContract maybeNow maxSteps initBalance dbPath storageValue contract txData
     addr = mkContractAddress origination
     operations =
       [ OriginateOp origination
-      , TransferOp addr txData Nothing
+      , TransferOp addr txData
       ]
 
 -- | Send a transaction to given address with given parameters.
@@ -250,7 +247,7 @@ transfer ::
   -> TxData
   -> "verbose" :! Bool -> "dryRun" :? Bool -> IO ()
 transfer maybeNow maxSteps dbPath destination txData =
-  interpreter maybeNow maxSteps dbPath [TransferOp destination txData Nothing]
+  interpreter maybeNow maxSteps dbPath [TransferOp destination txData]
 
 ----------------------------------------------------------------------------
 -- Interpreter
@@ -387,8 +384,8 @@ interpretOneOp _ remainingSteps _ gs (OriginateOp origination) = do
       , csContract = ooContract origination
       }
     address = mkContractAddress origination
-interpretOneOp now remainingSteps mSourceAddr gs (TransferOp addr txData mTestSourceAddr) = do
-    let sourceAddr = fromMaybe (tdSenderAddress txData) (mTestSourceAddr <|> mSourceAddr)
+interpretOneOp now remainingSteps mSourceAddr gs (TransferOp addr txData) = do
+    let sourceAddr = fromMaybe (tdSenderAddress txData) mSourceAddr
     let senderAddr = tdSenderAddress txData
     decreaseSenderBalance <- case addresses ^. at senderAddr of
       Nothing -> Left (IEUnknownSender senderAddr)
@@ -495,7 +492,7 @@ convertOp interpretedAddr =
               , tdAmount = ttAmount tt
               }
           T.VContract destAddress = ttContract tt
-       in Just (TransferOp destAddress txData Nothing)
+       in Just (TransferOp destAddress txData)
     OpSetDelegate {} -> Nothing
     OpCreateAccount {} -> Nothing
     OpCreateContract cc ->
