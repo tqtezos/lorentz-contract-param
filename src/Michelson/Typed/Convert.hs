@@ -11,6 +11,7 @@ import Data.Singletons (SingI(sing))
 import Fmt (pretty)
 
 import Michelson.EqParam (eqParam1, eqParam2)
+import Michelson.Text
 import Michelson.Typed.CValue
 import Michelson.Typed.Extract (mkUType, toUType)
 import Michelson.Typed.Instr as Instr
@@ -19,9 +20,9 @@ import Michelson.Typed.Sing (Sing(..), fromSingCT, fromSingT)
 import Michelson.Typed.T (CT(..), T(..))
 import Michelson.Typed.Value
 import qualified Michelson.Untyped as U
-import Tezos.Address (formatAddress)
+import Tezos.Address (mformatAddress)
 import Tezos.Core (unMutez)
-import Tezos.Crypto (formatKeyHash, formatPublicKey, formatSignature)
+import Tezos.Crypto (mformatKeyHash, mformatPublicKey, mformatSignature)
 import Util.Peano
 
 convertContract
@@ -47,11 +48,11 @@ untypeValue val = case (val, sing @t) of
   (VC cVal, _) ->
     untypeCValue cVal
   (VKey b, _) ->
-    U.ValueString $ formatPublicKey b
+    U.ValueString $ mformatPublicKey b
   (VUnit, _) ->
     U.ValueUnit
   (VSignature b, _) ->
-    U.ValueString $ formatSignature b
+    U.ValueString $ mformatSignature b
   (VOption (Just x), STOption _) ->
     U.ValueSome (untypeValue x)
   (VOption Nothing, STOption _) ->
@@ -61,7 +62,7 @@ untypeValue val = case (val, sing @t) of
   (VSet s, _) ->
     vList U.ValueSeq $ map untypeCValue $ toList s
   (VContract b, _) ->
-    U.ValueString $ formatAddress b
+    U.ValueString $ mformatAddress b
 
   (VPair (l, r), STPair lt _) ->
     case checkOpPresence lt of
@@ -100,9 +101,9 @@ untypeCValue cVal = case cVal of
   CvMutez m -> U.ValueInt $ toInteger $ unMutez m
   CvBool True -> U.ValueTrue
   CvBool False -> U.ValueFalse
-  CvKeyHash h -> U.ValueString $ formatKeyHash h
-  CvTimestamp t -> U.ValueString $ pretty t
-  CvAddress a -> U.ValueString $ formatAddress a
+  CvKeyHash h -> U.ValueString $ mformatKeyHash h
+  CvTimestamp t -> U.ValueString $ mkMTextUnsafe $ pretty t
+  CvAddress a -> U.ValueString $ mformatAddress a
 
 instrToOps :: Instr inp out -> [U.ExpandedOp]
 instrToOps instr = case instr of

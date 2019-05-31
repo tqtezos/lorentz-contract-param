@@ -16,6 +16,7 @@ import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Map as Map
 import Data.Singletons (SingI(..))
 
+import Michelson.Text
 import Michelson.Typed
 import Tezos.Address (Address(..))
 import Tezos.Core (Mutez(..), timestampToSeconds)
@@ -81,8 +82,8 @@ encodeList :: (a -> LByteString) -> [a] -> LByteString
 encodeList encodeElem l = "\x02" <> encodeAsList (LBS.concat $ map encodeElem l)
 
 -- | Encode a text.
-encodeString :: Text -> LByteString
-encodeString text = "\x01" <> encodeAsList (encodeUtf8 text)
+encodeString :: MText -> LByteString
+encodeString text = "\x01" <> encodeAsList (encodeUtf8 $ unMText text)
 
 -- | Encode some raw data.
 encodeBytes :: ByteString -> ByteString -> LByteString -> LByteString

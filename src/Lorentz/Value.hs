@@ -8,7 +8,7 @@ module Lorentz.Value
   , CValue (..)
   , Integer
   , Natural
-  , Text
+  , MText
   , Bool (..)
   , ByteString
   , Address
@@ -25,11 +25,13 @@ module Lorentz.Value
   , List
   , M.ContractAddr (..)
   , unsafeMkMutez
+  , mt
   , Default (..)
   ) where
 
 import Data.Default (Default(..))
 
+import Michelson.Text
 import Michelson.Typed (IsoCValue(..), IsoValue(..), Value)
 import qualified Michelson.Typed as M
 import Michelson.Typed.CValue (CValue(..))

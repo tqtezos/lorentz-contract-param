@@ -11,14 +11,17 @@ module Tezos.Crypto
   -- * Formatting
   , CryptoParseError (..)
   , formatPublicKey
+  , mformatPublicKey
   , parsePublicKey
   , mkPublicKey
   , formatSecretKey
   , parseSecretKey
   , formatSignature
+  , mformatSignature
   , parseSignature
   , mkSignature
   , formatKeyHash
+  , mformatKeyHash
   , parseKeyHash
 
   -- * Signing
@@ -55,6 +58,8 @@ import Data.Coerce (coerce)
 import Fmt (fmt, hexF, pretty)
 import qualified Formatting.Buildable as Buildable
 import Test.QuickCheck (Arbitrary(..), vector)
+
+import Michelson.Text
 
 ----------------------------------------------------------------------------
 -- Types, instances, conversions
@@ -146,6 +151,9 @@ instance Buildable.Buildable CryptoParseError where
 formatPublicKey :: PublicKey -> Text
 formatPublicKey = formatImpl publicKeyTag . unPublicKey
 
+mformatPublicKey :: PublicKey -> MText
+mformatPublicKey = mkMTextUnsafe . formatPublicKey
+
 instance Buildable.Buildable PublicKey where
   build = Buildable.build . formatPublicKey
 
@@ -170,6 +178,9 @@ parseSecretKey = parseImpl secretKeyTag Ed25519.secretKey
 formatSignature :: Signature -> Text
 formatSignature = formatImpl signatureTag . unSignature
 
+mformatSignature :: Signature -> MText
+mformatSignature = mkMTextUnsafe . formatSignature
+
 instance Buildable.Buildable Signature where
   build = Buildable.build . formatSignature
 
@@ -184,6 +195,9 @@ mkSignature ba =
 
 formatKeyHash :: KeyHash -> Text
 formatKeyHash = formatImpl keyHashTag . unKeyHash
+
+mformatKeyHash :: KeyHash -> MText
+mformatKeyHash = mkMTextUnsafe . formatKeyHash
 
 instance Buildable.Buildable KeyHash where
   build = Buildable.build . formatKeyHash

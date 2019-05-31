@@ -10,6 +10,7 @@ module Michelson.Parser
   , CustomParserException (..)
   , ParseErrorBundle
   , ParserException (..)
+  , StringLiteralParserException (..)
 
   -- * Additional helpers
   , parseNoEnv
@@ -174,4 +175,3 @@ primOrMac :: Parser ParsedOp
 primOrMac = (macWithPos (ifCmpMac parsedOp) <|> ifOrIfX)
   <|> (macWithPos (mapCadrMac parsedOp) <|> primWithPos (mapOp parsedOp))
   <|> (try (primWithPos pairOp) <|> macWithPos pairMac)
-

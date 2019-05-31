@@ -17,10 +17,11 @@ import Lorentz.Base
 import Lorentz.Coercions
 import Lorentz.Instr
 import Lorentz.Value
+import Michelson.Text
 import Michelson.Typed.Haskell
 
 -- | A unique error identifier.
-newtype ErrorTag = ErrorTag Text
+newtype ErrorTag = ErrorTag MText
   deriving newtype (Show, Eq, Ord, IsString, IsoValue)
 
 -- | An error indicating a normal failure caused by such user input.
@@ -46,6 +47,6 @@ userFailWith
       (Typeable (ToT err), SingI (ToT err))
   => UserFailInstr err name s s'
 userFailWith label =
-  wrap_ @err @_ @s label # push (toText $ symbolVal (Proxy @name)) # pair #
+  wrap_ @err @_ @s label # push (mkMTextUnsafe . toText $ symbolVal (Proxy @name)) # pair #
   coerce_ @_ @(LorentzUserError err) #
   failWith

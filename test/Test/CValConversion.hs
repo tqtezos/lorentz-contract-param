@@ -11,19 +11,20 @@ import Test.Tasty (TestTree)
 import Test.Tasty.QuickCheck (testProperty, (===))
 
 import Michelson.Typed (CValue(..), fromCVal, toCVal)
+import Michelson.Text
 
 unit_toCVal :: Expectation
 unit_toCVal = do
   toCVal @Integer 10 `shouldBe` CvInt 10
   toCVal @Integer (-10) `shouldBe` CvInt (-10)
   toCVal @Natural 10 `shouldBe` CvNat 10
-  toCVal @Text "abc" `shouldBe` CvString "abc"
+  toCVal [mt|abc|] `shouldBe` CvString [mt|abc|]
   toCVal True `shouldBe` CvBool True
 
 unit_fromCVal :: Expectation
 unit_fromCVal = do
   fromCVal (CvInt 10) `shouldBe` (10 :: Integer)
-  fromCVal (CvString "abc") `shouldBe` ("abc" :: Text)
+  fromCVal (CvString [mt|abc|]) `shouldBe` [mt|abc|]
   fromCVal (CvBool True) `shouldBe` True
 
 test_Roundtrip :: [TestTree]

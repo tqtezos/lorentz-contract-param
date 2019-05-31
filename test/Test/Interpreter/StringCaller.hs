@@ -14,6 +14,7 @@ import Michelson.Runtime.GState
 import Michelson.Test (specWithContract)
 import Michelson.Test.Integrational
 import Michelson.Typed
+import Michelson.Text
 import qualified Michelson.Typed as T
 import qualified Michelson.Untyped as U
 import Tezos.Address
@@ -45,9 +46,9 @@ specImpl (uStringCaller, _stringCaller) (uFailOrStore, _failOrStoreAndTransfer) 
     prop (prefix <> "an arbitrary value" <> suffix) $
       \str -> integrationalTestProperty (scenario str)
   where
-    constStr = "caller"
+    constStr = [mt|caller|]
 
-integrationalScenario :: U.Contract -> U.Contract -> Text -> IntegrationalScenario
+integrationalScenario :: U.Contract -> U.Contract -> MText -> IntegrationalScenario
 integrationalScenario stringCaller failOrStoreAndTransfer str = do
   let
     initFailOrStoreBalance = unsafeMkMutez 900
@@ -55,10 +56,10 @@ integrationalScenario stringCaller failOrStoreAndTransfer str = do
 
   -- Originate both contracts
   failOrStoreAndTransferAddress <-
-    originate failOrStoreAndTransfer "failOrStoreAndTransfer" (U.ValueString "hello") initFailOrStoreBalance
+    originate failOrStoreAndTransfer "failOrStoreAndTransfer" (U.ValueString [mt|hello|]) initFailOrStoreBalance
   stringCallerAddress <-
     originate stringCaller "stringCaller"
-    (U.ValueString $ formatAddress failOrStoreAndTransferAddress)
+    (U.ValueString $ mformatAddress failOrStoreAndTransferAddress)
     initStringCallerBalance
 
   -- NOW = 500, so stringCaller shouldn't fail
@@ -67,7 +68,7 @@ integrationalScenario stringCaller failOrStoreAndTransfer str = do
   -- Transfer 100 tokens to stringCaller, it should transfer 300 tokens
   -- to failOrStoreAndTransfer
   let
-    newValue = U.ValueString str
+    newValue = untypeValue $ toVal str
     txData = TxData
       { tdSenderAddress = genesisAddress
       , tdParameter = newValue

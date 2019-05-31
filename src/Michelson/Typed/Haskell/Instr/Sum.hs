@@ -47,6 +47,7 @@ import Michelson.Typed.Haskell.Instr.Helpers
 import Michelson.Typed.Haskell.Value
 import Michelson.Typed.Instr
 import Michelson.Typed.T
+import Michelson.Text (mt)
 import Michelson.Typed.Value
 import Tezos.Address (Address)
 import Tezos.Core (Mutez, Timestamp)
@@ -345,7 +346,7 @@ instance GInstrWrap (G.C1 c G.U1) '[ 'S] 'NoFields where
 data MyType
   = MyCtor Integer
   | ComplexThing ()
-  | UselessThing ("field1" :! Text, "field2" :! ())
+  | UselessThing ("field1" :! ByteString, "field2" :! ())
   deriving stock Generic
   deriving anyclass IsoValue
 
@@ -368,7 +369,7 @@ _wrapMyType1' = instrWrap @MyType @"MyCtor" fromLabel
 _wrapMyType2 :: Instr (ToT () ': s) (ToT MyType ': s)
 _wrapMyType2 = instrWrap @MyType #cComplexThing
 
-_wrapMyType3 :: Instr (ToT (Text, ()) ': s) (ToT MyType ': s)
+_wrapMyType3 :: Instr (ToT (ByteString, ()) ': s) (ToT MyType ': s)
 _wrapMyType3 = instrWrap @MyType #cUselessThing
 
 data MyType' = WrapBool Bool
@@ -649,7 +650,7 @@ instance ( path ~ (x ': xs)
 -- but got value with different one.
 failWithWrongCtor :: Instr i o
 failWithWrongCtor =
-  PUSH (toVal @Text "unwrapUnsafe: unexpected constructor") `Seq`
+  PUSH (toVal [mt|unwrapUnsafe: unexpected constructor|]) `Seq`
   FAILWITH
 
 -- Examples

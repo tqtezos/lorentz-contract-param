@@ -4,6 +4,7 @@
 
 module Michelson.Parser.Error
   ( CustomParserException (..)
+  , StringLiteralParserException (..)
   , ParseErrorBundle
   , ParserException (..)
   ) where
@@ -15,17 +16,28 @@ import qualified Text.Show (show)
 
 data CustomParserException
   = UnknownTypeException
+  | StringLiteralException StringLiteralParserException
   | OddNumberBytesException
-  | UnexpectedLineBreak
   | ProhibitedLetType Text
   deriving stock (Eq, Data, Ord, Show)
 
 instance ShowErrorComponent CustomParserException where
   showErrorComponent UnknownTypeException = "unknown type"
+  showErrorComponent (StringLiteralException e) = showErrorComponent e
   showErrorComponent OddNumberBytesException = "odd number bytes"
-  showErrorComponent UnexpectedLineBreak = "unexpected linebreak"
   showErrorComponent (ProhibitedLetType t) =
     "prohibited name for type alias in let macros: " <> toString t
+
+data StringLiteralParserException
+  = InvalidEscapeSequence Char
+  | InvalidChar Char
+  deriving stock (Eq, Data, Ord, Show)
+
+instance ShowErrorComponent StringLiteralParserException where
+  showErrorComponent (InvalidEscapeSequence c) =
+    "invalid escape sequence '\\" <> [c] <> "'"
+  showErrorComponent (InvalidChar c) =
+    "invalid character '" <> [c] <> "'"
 
 data ParserException =
   ParserException (ParseErrorBundle Text CustomParserException)

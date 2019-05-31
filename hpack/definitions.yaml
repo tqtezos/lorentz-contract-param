@@ -39,6 +39,7 @@ _definitions:
         - OverloadedStrings
         - PatternSynonyms
         - PolyKinds
+        - QuasiQuotes
         - RankNTypes
         - RecordWildCards
         - RecursiveDo

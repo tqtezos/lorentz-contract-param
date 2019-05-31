@@ -151,7 +151,7 @@ authorizeManager = do
 addTotalSupply :: Integer : Storage : s :-> Storage : s
 addTotalSupply = do
   dip $ getField #fields >> getField #totalSupply
-  add; isNat; ifSome nop (failUnexpected "Negative total supply")
+  add; isNat; ifSome nop (failUnexpected [mt|Negative total supply|])
   setField #totalSupply; setField #fields
 
 debitFrom

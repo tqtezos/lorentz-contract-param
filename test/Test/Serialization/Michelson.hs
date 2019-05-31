@@ -19,6 +19,7 @@ import qualified Michelson.Parser as Parser
 import Michelson.Test.Util
 import Michelson.TypeCheck (HST(..), SomeInstr(..), SomeInstrOut(..), typeCheckList)
 import Michelson.Typed
+import Michelson.Text
 import Michelson.Untyped (noAnn)
 import Test.Util.Parser
 import Tezos.Address (Address(..), unsafeParseAddress)
@@ -203,10 +204,12 @@ natTest =
 stringTest :: Spec
 stringTest =
   packSpec
-    @Text
-    [ "Hello World!" ~: "05010000000c48656c6c6f20576f726c6421"
-    , "HODL: Hold On for Dear Life"
+    @MText
+    [ [mt|Hello World!|] ~: "05010000000c48656c6c6f20576f726c6421"
+    , [mt|HODL: Hold On for Dear Life|]
         ~: "05010000001b484f444c3a20486f6c64204f6e20666f722044656172204c696665"
+    , [mt|\n|]
+        ~: "0501000000010a"
     ]
 
 bytesTest :: Spec
@@ -319,8 +322,8 @@ optionTest = do
     , Nothing ~: "050306"
     ]
   packSpec
-    @(Maybe Text)
-    [ Just "Goodnight World!"
+    @(Maybe MText)
+    [ Just [mt|Goodnight World!|]
         ~: "0505090100000010476f6f646e6967687420576f726c6421"
     ]
 
@@ -361,38 +364,38 @@ contractTest = do
 pairTest :: Spec
 pairTest = do
   packSpec
-    @(Text, Integer)
-    [ ("Good Night!", 5) ~: "050707010000000b476f6f64204e69676874210005"
+    @(MText, Integer)
+    [ ([mt|Good Night!|], 5) ~: "050707010000000b476f6f64204e69676874210005"
     ]
   packSpec
-    @(Integer, (Integer, Text))
-    [ (120, (5, "What is that?"))
+    @(Integer, (Integer, MText))
+    [ (120, (5, [mt|What is that?|]))
         ~: "05070700b80107070005010000000d5768617420697320746861743f"
     ]
 
 orTest :: Spec
 orTest =
   packSpec
-    @(Either Text Bool)
-    [ Left "Error" ~: "05050501000000054572726f72"
+    @(Either MText Bool)
+    [ Left [mt|Error|] ~: "05050501000000054572726f72"
     , Right True ~: "050508030a"
     ]
 
 mapTest :: Spec
 mapTest = do
   packSpec
-    @(Map Integer Text)
+    @(Map Integer MText)
     [ [] ~: "050200000000"
-    , [(0, "Hello"), (1, "Goodbye"), (2, "Goodnight")]
+    , [(0, [mt|Hello|]), (1, [mt|Goodbye|]), (2, [mt|Goodnight|])]
         ~: "05020000003007040000010000000548656c6c6f07040001010000000\
             \7476f6f64627965070400020100000009476f6f646e69676874"
     ]
 
   packSpec
-    @(Map Text (Integer, Bool))
-    [ [ ("Tudor", (123, True))
-      , ("Lancaster", (22323, False))
-      , ("Stuart", (-832988, True))
+    @(Map MText (Integer, Bool))
+    [ [ ([mt|Tudor|], (123, True))
+      , ([mt|Lancaster|], (22323, False))
+      , ([mt|Stuart|], (-832988, True))
       ] ~: "050200000040070401000000094c616e636173746572070700b3dc0203\
            \0307040100000006537475617274070700dcd765030a07040100000005\
            \5475646f72070700bb01030a"

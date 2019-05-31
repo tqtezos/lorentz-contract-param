@@ -8,6 +8,7 @@ module Lorentz.Prelude
   , Semigroup (..)
   , Monoid (..)
   , Generic
+  , Text
   , fromString
   , undefined
   ) where

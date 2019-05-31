@@ -17,6 +17,7 @@ module Lorentz.Polymorphic
 
 import qualified Data.Kind as Kind
 
+import Michelson.Text
 import Michelson.Typed
 import Tezos.Core (Mutez)
 
@@ -82,7 +83,7 @@ instance IsComparable e => IterOpHs (Set e) where
 -- error messages we make a full type class with concrete instances.
 class SizeOp (ToT c) => SizeOpHs c
 
-instance SizeOpHs Text
+instance SizeOpHs MText
 instance SizeOpHs ByteString
 instance SizeOpHs (Set a)
 instance SizeOpHs [a]
@@ -127,13 +128,13 @@ instance IsComparable k => GetOpHs (BigMap k v) where
 -- | Lifted 'ConcatOp'.
 class ConcatOp (ToT c) => ConcatOpHs c
 
-instance ConcatOpHs Text
+instance ConcatOpHs MText
 instance ConcatOpHs ByteString
 
 -- | Lifted 'SliceOp'.
 class SliceOp (ToT c) => SliceOpHs c
 
-instance SliceOpHs Text
+instance SliceOpHs MText
 instance SliceOpHs ByteString
 
 -- | Lifted 'EDivOp'.

@@ -60,8 +60,7 @@ unit_Value = do
 unit_string_literal :: Expectation
 unit_string_literal = do
   P.parseNoEnv P.stringLiteral "" "\"\"" `shouldSatisfy` isRight
-  P.parseNoEnv P.stringLiteral "" "\" \\t \\b \\n\\r  \"" `shouldSatisfy` isRight
-  P.parseNoEnv P.stringLiteral "" "\"abacaba \\t \n\n\r\"" `shouldSatisfy` isRight
+  P.parseNoEnv P.stringLiteral "" "\" \\n  \"" `shouldSatisfy` isRight
   P.parseNoEnv P.stringLiteral "" "\"abacaba \\t \n\n\r a\"" `shouldSatisfy` isLeft
   P.parseNoEnv P.stringLiteral "" "\"abacaba \\t \\n\\n\\r" `shouldSatisfy` isLeft
 

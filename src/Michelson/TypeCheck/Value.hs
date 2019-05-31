@@ -7,11 +7,12 @@ import Control.Monad.Except (liftEither, throwError)
 import Data.Default (def)
 import qualified Data.Map as M
 import qualified Data.Set as S
-import Data.Singletons (SingI, demote)
+import Data.Singletons (SingI)
 import Data.Typeable ((:~:)(..))
 import Fmt (pretty)
 import Prelude hiding (EQ, GT, LT)
 
+import Michelson.Text
 import Michelson.TypeCheck.Error (TCError(..), TCTypeError(..))
 import Michelson.TypeCheck.Helpers
 import Michelson.TypeCheck.TypeCheck (TcInstrHandler, TypeCheckEnv(..), TypeCheckInstr)
@@ -25,7 +26,8 @@ import Tezos.Address (Address(..), parseAddress)
 import Tezos.Core (mkMutez, parseTimestamp, timestampFromSeconds)
 import Tezos.Crypto (parseKeyHash, parsePublicKey, parseSignature)
 
-typeCheckCValue :: U.Value' op -> CT -> Maybe SomeCValue
+typeCheckCValue
+  :: U.Value' op -> CT -> Either (U.Value' op, TCTypeError) SomeCValue
 typeCheckCValue (U.ValueInt i) CInt = pure $ CvInt i :--: SCInt
 typeCheckCValue (U.ValueInt i) CNat
   | i >= 0 = pure $ CvNat (fromInteger i) :--: SCNat
@@ -33,11 +35,11 @@ typeCheckCValue (U.ValueInt (mkMutez . fromInteger -> Just mtz)) CMutez =
   pure $ CvMutez mtz :--: SCMutez
 typeCheckCValue (U.ValueString s) CString =
   pure $ CvString s :--: SCString
-typeCheckCValue (U.ValueString (parseAddress -> Right s)) CAddress =
+typeCheckCValue (U.ValueString (parseAddress . unMText -> Right s)) CAddress =
   pure $ CvAddress s :--: SCAddress
-typeCheckCValue (U.ValueString (parseKeyHash -> Right s)) CKeyHash =
+typeCheckCValue (U.ValueString (parseKeyHash . unMText -> Right s)) CKeyHash =
   pure $ CvKeyHash s :--: SCKeyHash
-typeCheckCValue (U.ValueString (parseTimestamp -> Just t)) CTimestamp =
+typeCheckCValue (U.ValueString (parseTimestamp . unMText -> Just t)) CTimestamp =
   pure $ CvTimestamp t :--: SCTimestamp
 typeCheckCValue (U.ValueInt i) CTimestamp =
   pure $ CvTimestamp (timestampFromSeconds i) :--: SCTimestamp
@@ -45,7 +47,8 @@ typeCheckCValue (U.ValueBytes (U.InternalByteString s)) CBytes =
   pure $ CvBytes s :--: SCBytes
 typeCheckCValue U.ValueTrue CBool = pure $ CvBool True :--: SCBool
 typeCheckCValue U.ValueFalse CBool = pure $ CvBool False :--: SCBool
-typeCheckCValue _ _ = Nothing
+typeCheckCValue v t =
+  Left $ (v, UnknownType (T.Tc t))
 
 typeCheckCVals
   :: forall t op . (Typeable t, SingI t)
@@ -55,12 +58,9 @@ typeCheckCVals
 typeCheckCVals mvs t = traverse check mvs
   where
     check mv = do
-      v :--: (_ :: Sing t') <-
-        maybe (Left (mv, UnknownType (demote @('T.Tc t)))) pure $
-        typeCheckCValue mv t
+      v :--: (_ :: Sing t') <- typeCheckCValue mv t
       Refl <- eqType @('T.Tc t) @('T.Tc t') `onLeft` (,) mv
       pure v
-
 
 tcFailedOnValue :: U.Value -> T.T -> Text -> Maybe TCTypeError -> TypeCheckInstr a
 tcFailedOnValue v t msg err = do
@@ -86,19 +86,21 @@ typeCheckValImpl
   -> TypeCheckInstr SomeValue
 typeCheckValImpl _ mv (t@(STc ct), ann) = do
   let nt = notesCase U.noAnn (\(NTc x) -> x) ann
-  maybe (tcFailedOnValue mv (fromSingT $ t) "" Nothing)
-        (\(v :--: cst) -> pure $ VC v :::: (STc cst, mkNotes $ NTc nt))
-        (typeCheckCValue mv (fromSingCT ct))
-typeCheckValImpl _ (U.ValueString (parsePublicKey -> Right s)) t@(STKey, _) =
+  case typeCheckCValue mv (fromSingCT ct) of
+    Left (uval, err) -> tcFailedOnValue uval (fromSingT $ t) "" (Just err)
+    Right (v :--: cst) -> pure $ VC v :::: (STc cst, mkNotes $ NTc nt)
+typeCheckValImpl _ (U.ValueString (parsePublicKey . unMText -> Right s)) t@(STKey, _) =
   pure $ T.VKey s :::: t
 
-typeCheckValImpl _ (U.ValueString (parseSignature -> Right s)) t@(STSignature, _) =
+typeCheckValImpl _ (U.ValueString (parseSignature . unMText -> Right s)) t@(STSignature, _) =
   pure $ VSignature s :::: t
 
-typeCheckValImpl _ (U.ValueString (parseAddress -> Right s@(KeyAddress _))) t@(STContract STUnit, _) =
+typeCheckValImpl _ (U.ValueString (parseAddress . unMText -> Right s@(KeyAddress _)))
+                   t@(STContract STUnit, _) =
     pure $ T.VContract s :::: t
 
-typeCheckValImpl _ cv@(U.ValueString (parseAddress -> Right s)) t@(STContract pc, cn) = do
+typeCheckValImpl _ cv@(U.ValueString (parseAddress . unMText -> Right s))
+                   t@(STContract pc, cn) = do
   instrPos <- ask
   let tcFail = \msg -> TCFailedOnValue cv (fromSingT $ fst t) msg instrPos Nothing
   let pn = notesCase NStar (\(NTContract _ x) -> x) cn

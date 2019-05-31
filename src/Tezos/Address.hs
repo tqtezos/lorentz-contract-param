@@ -7,6 +7,7 @@ module Tezos.Address
 
   -- * Formatting
   , formatAddress
+  , mformatAddress
   , parseAddress
   , unsafeParseAddress
   ) where
@@ -20,6 +21,7 @@ import Fmt (fmt, hexF, pretty)
 import qualified Formatting.Buildable as Buildable
 import Test.QuickCheck (Arbitrary(..), oneof, vector)
 
+import Michelson.Text
 import Tezos.Crypto
 
 -- | Data type corresponding to address structure in Tezos.
@@ -60,6 +62,9 @@ formatAddress =
   \case
     KeyAddress h -> formatKeyHash h
     ContractAddress bs -> encodeBase58Check (contractAddressPrefix <> bs)
+
+mformatAddress :: Address -> MText
+mformatAddress = mkMTextUnsafe . formatAddress
 
 instance Buildable.Buildable Address where
   build = Buildable.build . formatAddress

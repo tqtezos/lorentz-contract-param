@@ -342,7 +342,7 @@ type HasStore name key value store =
 
 data MyStoreTemplate
   = IntsStore (Integer |-> ())
-  | TextsStore (Text |-> ByteString)
+  | BytesStore (ByteString |-> ByteString)
   deriving stock Generic
   deriving anyclass IsoValue
 
@@ -351,8 +351,8 @@ type MyStore = Store MyStoreTemplate
 _sample1 :: Integer : MyStore : s :-> MyStore : s
 _sample1 = storeDelete @MyStoreTemplate #cIntsStore
 
-_sample2 :: Text : ByteString : MyStore : s :-> MyStore : s
-_sample2 = storeInsert @MyStoreTemplate #cTextsStore
+_sample2 :: ByteString : ByteString : MyStore : s :-> MyStore : s
+_sample2 = storeInsert @MyStoreTemplate #cBytesStore
 
 data MyStoreTemplate2
   = BoolsStore (Bool |-> Bool)
@@ -379,7 +379,7 @@ data MyStoreTemplateBig
   deriving anyclass IsoValue
 
 _MyStoreTemplateBigTextsStore ::
-  GetStore "cTextsStore" MyStoreTemplateBig :~: 'MapSignature Text ByteString 1
+  GetStore "cBytesStore" MyStoreTemplateBig :~: 'MapSignature ByteString ByteString 1
 _MyStoreTemplateBigTextsStore = Refl
 
 _MyStoreTemplateBigBoolsStore ::
@@ -395,8 +395,8 @@ type MyStoreBig = Store MyStoreTemplateBig
 _sample3 :: Integer : MyStoreBig : s :-> MyStoreBig : s
 _sample3 = storeDelete @MyStoreTemplateBig #cIntsStore2
 
-_sample4 :: Text : MyStoreBig : s :-> Bool : s
-_sample4 = storeMem @MyStoreTemplateBig #cTextsStore
+_sample4 :: ByteString : MyStoreBig : s :-> Bool : s
+_sample4 = storeMem @MyStoreTemplateBig #cBytesStore
 
 _sample5 :: Natural : MyNatural : MyStoreBig : s :-> MyStoreBig : s
 _sample5 = storeInsert @MyStoreTemplateBig #cMyStoreTemplate3
@@ -483,14 +483,14 @@ storageDelete label =
 -- Examples
 ----------------------------------------------------------------------------
 
-type MyStorage = StorageSkeleton MyStoreTemplate (Text, ByteString)
+type MyStorage = StorageSkeleton MyStoreTemplate (Integer, ByteString)
 
 -- You can access both Store...
 _storageSample1 :: Integer : MyStorage : s :-> MyStorage : s
 _storageSample1 = storageDelete @MyStoreTemplate #cIntsStore
 
 -- and other fields of the storage created with 'StorageSkeleton'.
-_storageSample2 :: MyStorage : s :-> Text : s
+_storageSample2 :: MyStorage : s :-> Integer : s
 _storageSample2 = toField #sFields # car
 
 ----------------------------------------------------------------------------
@@ -560,11 +560,11 @@ storeLookup label key (Store (BigMap m)) =
 _storeSample :: Store MyStoreTemplate
 _storeSample = mconcat
   [ storePiece #cIntsStore 1 ()
-  , storePiece #cTextsStore "a" "b"
+  , storePiece #cBytesStore "a" "b"
   ]
 
 _lookupSample :: Maybe ByteString
-_lookupSample = storeLookup #cTextsStore "a" _storeSample
+_lookupSample = storeLookup #cBytesStore "a" _storeSample
 
 _storeSampleBig :: Store MyStoreTemplateBig
 _storeSampleBig = mconcat
