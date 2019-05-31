@@ -214,60 +214,60 @@ fail_ = unit # failWith
 ----------------------------------------------------------------------------
 
 -- Helper function, see Haddock comment in the export list.
-assertionFailed :: Text -> whatever :-> anything
+assertionFailed :: MText -> whatever :-> anything
 assertionFailed reason
   | null reason = fail_
   | otherwise = failText reason
 
-assert :: Text -> Bool & s :-> s
+assert :: MText -> Bool & s :-> s
 assert reason = if_ nop (assertionFailed reason)
 
-assertEq0 :: IfCmp0Constraints a Eq' => Text -> a & s :-> s
+assertEq0 :: IfCmp0Constraints a Eq' => MText -> a & s :-> s
 assertEq0 reason = ifEq0 nop (assertionFailed reason)
 
-assertNeq0 :: IfCmp0Constraints a Neq => Text -> a & s :-> s
+assertNeq0 :: IfCmp0Constraints a Neq => MText -> a & s :-> s
 assertNeq0 reason = ifNeq0 nop (assertionFailed reason)
 
-assertLt0 :: IfCmp0Constraints a Lt => Text -> a & s :-> s
+assertLt0 :: IfCmp0Constraints a Lt => MText -> a & s :-> s
 assertLt0 reason = ifLt0 nop (assertionFailed reason)
 
-assertGt0 :: IfCmp0Constraints a Gt => Text -> a & s :-> s
+assertGt0 :: IfCmp0Constraints a Gt => MText -> a & s :-> s
 assertGt0 reason = ifGt0 nop (assertionFailed reason)
 
-assertLe0 :: IfCmp0Constraints a Le => Text -> a & s :-> s
+assertLe0 :: IfCmp0Constraints a Le => MText -> a & s :-> s
 assertLe0 reason = ifLe0 nop (assertionFailed reason)
 
-assertGe0 :: IfCmp0Constraints a Ge => Text -> a & s :-> s
+assertGe0 :: IfCmp0Constraints a Ge => MText -> a & s :-> s
 assertGe0 reason = ifGe0 nop (assertionFailed reason)
 
-assertEq :: IfCmpXConstraints a b Eq' => Text -> a & b & s :-> s
+assertEq :: IfCmpXConstraints a b Eq' => MText -> a & b & s :-> s
 assertEq reason = ifEq nop (assertionFailed reason)
 
-assertNeq :: IfCmpXConstraints a b Neq => Text -> a & b & s :-> s
+assertNeq :: IfCmpXConstraints a b Neq => MText -> a & b & s :-> s
 assertNeq reason = ifNeq nop (assertionFailed reason)
 
-assertLt :: IfCmpXConstraints a b Lt => Text -> a & b & s :-> s
+assertLt :: IfCmpXConstraints a b Lt => MText -> a & b & s :-> s
 assertLt reason = ifLt nop (assertionFailed reason)
 
-assertGt :: IfCmpXConstraints a b Gt => Text -> a & b & s :-> s
+assertGt :: IfCmpXConstraints a b Gt => MText -> a & b & s :-> s
 assertGt reason = ifGt nop (assertionFailed reason)
 
-assertLe :: IfCmpXConstraints a b Le => Text -> a & b & s :-> s
+assertLe :: IfCmpXConstraints a b Le => MText -> a & b & s :-> s
 assertLe reason = ifLe nop (assertionFailed reason)
 
-assertGe :: IfCmpXConstraints a b Ge => Text -> a & b & s :-> s
+assertGe :: IfCmpXConstraints a b Ge => MText -> a & b & s :-> s
 assertGe reason = ifGe nop (assertionFailed reason)
 
-assertNone :: Text -> Maybe a & s :-> s
+assertNone :: MText -> Maybe a & s :-> s
 assertNone reason = ifNone nop (assertionFailed reason)
 
-assertSome :: Text -> Maybe a & s :-> a & s
+assertSome :: MText -> Maybe a & s :-> a & s
 assertSome reason = ifNone (assertionFailed reason) nop
 
-assertLeft :: Text -> Either a b & s :-> a & s
+assertLeft :: MText -> Either a b & s :-> a & s
 assertLeft reason = ifLeft nop (assertionFailed reason)
 
-assertRight :: Text -> Either a b & s :-> b & s
+assertRight :: MText -> Either a b & s :-> b & s
 assertRight reason = ifLeft (assertionFailed reason) nop
 
 assertUsing

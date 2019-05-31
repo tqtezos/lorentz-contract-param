@@ -36,6 +36,7 @@ import Data.Typeable ((:~:)(..))
 import Fmt (Buildable, build, fmt, hexF, (+|), (+||), (|+), (||+))
 import Text.Hex (encodeHex)
 
+import Michelson.Text
 import Michelson.TypeCheck
   (HST(..), SomeHST(..), SomeInstr(..), SomeInstrOut(..), TCError(..), TcOriginatedContracts,
   TypeCheckEnv(..))
@@ -301,13 +302,16 @@ decodeAsList getElems = do
   expectTag "List" 0x02
   decodeAsListRaw getElems
 
-decodeString :: Get Text
+decodeString :: Get MText
 decodeString = do
   l <- decodeLength ? "String length"
   ss <- replicateM l Get.getWord8 ? "String content"
-  decodeUtf8' (BS.pack ss)
+  ss' <- decodeUtf8' (BS.pack ss)
     & either (fail . show) pure
     ? "String UTF-8 decoding"
+  mkMText ss'
+    & either (fail . show) pure
+    ? "Michelson string validity analysis"
 
 decodeAsBytesRaw :: (Int -> Get a) -> Get a
 decodeAsBytesRaw decode = do

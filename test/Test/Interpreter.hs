@@ -18,6 +18,7 @@ import Michelson.Test (ContractPropValidator, contractProp, specWithTypedContrac
 import Michelson.Test.Dummy (dummyContractEnv)
 import Michelson.Test.Util (failedProp)
 import Michelson.Typed (CT(..), CValue(..), IsoValue(..), T(..))
+import Michelson.Text
 import qualified Michelson.Typed as T
 import Test.Interpreter.A1.Feather (featherSpec)
 import Test.Interpreter.CallSelf (selfCallerSpec)
@@ -83,16 +84,16 @@ spec_Interpreter = do
   describe "FAILWITH" $ do
     specWithTypedContract "contracts/failwith_message.tz" $ \contract ->
       it "Failwith message test" $ do
-        let msg = "An error occurred." :: Text
+        let msg = [mt|An error occurred.|] :: MText
         contractProp contract (validateMichelsonFailsWith msg) dummyContractEnv msg ()
 
     specWithTypedContract "contracts/failwith_message2.tz" $ \contract -> do
         it "Conditional failwith message test" $ do
-          let msg = "An error occurred." :: Text
+          let msg = [mt|An error occurred.|]
           contractProp contract (validateMichelsonFailsWith msg) dummyContractEnv (True, msg) ()
 
         it "Conditional success test" $ do
-          let param = (False, "Err" :: Text)
+          let param = (False, [mt|Err|] :: MText)
           contractProp contract validateSuccess dummyContractEnv param ()
 
   compareSpec
@@ -115,7 +116,7 @@ spec_Interpreter = do
 
   specWithTypedContract "contracts/gas_exhaustion.tz" $ \contract -> do
     it "Contract should fail due to gas exhaustion" $ do
-      let dummyStr = toVal @Text "x"
+      let dummyStr = toVal [mt|x|]
       case fst $ interpret contract dummyStr dummyStr dummyContractEnv of
         Right _ -> expectationFailure "expecting contract to fail"
         Left MichelsonGasExhaustion -> pass
@@ -145,28 +146,28 @@ spec_Interpreter = do
             contractProp contract validateSuccess dummyContractEnv param ()
 
       it "Case 1" $ caseTest (Case1 3)
-      it "Case 2" $ caseTest (Case2 "a")
-      it "Case 3" $ caseTest (Case3 $ Just "b")
-      it "Case 4" $ caseTest (Case4 $ Left "b")
-      it "Case 5" $ caseTest (Case5 ["q"])
+      it "Case 2" $ caseTest (Case2 [mt|a|])
+      it "Case 3" $ caseTest (Case3 $ Just [mt|b|])
+      it "Case 4" $ caseTest (Case4 $ Left [mt|b|])
+      it "Case 5" $ caseTest (Case5 [[mt|q|]])
 
   specWithTypedContract "contracts/case.mtz" $ \contract -> do
     describe "CASE instruction" $ do
       let caseTest param expectedStorage =
-            contractProp contract (validateStorageIs @Text expectedStorage)
-              dummyContractEnv param ("" :: Text)
+            contractProp contract (validateStorageIs @MText expectedStorage)
+              dummyContractEnv param [mt||]
 
-      it "Case 1" $ caseTest (Case1 5) "int"
-      it "Case 2" $ caseTest (Case2 "a") "string"
-      it "Case 3" $ caseTest (Case3 $ Just "aa") "aa"
-      it "Case 4" $ caseTest (Case4 $ Right "b") "or string string"
-      it "Case 5" $ caseTest (Case5 $ ["a", "b"]) "ab"
+      it "Case 1" $ caseTest (Case1 5) [mt|int|]
+      it "Case 2" $ caseTest (Case2 [mt|a|]) [mt|string|]
+      it "Case 3" $ caseTest (Case3 $ Just [mt|aa|]) [mt|aa|]
+      it "Case 4" $ caseTest (Case4 $ Right [mt|b|]) [mt|or string string|]
+      it "Case 5" $ caseTest (Case5 $ [[mt|a|], [mt|b|]]) [mt|ab|]
 
   specWithTypedContract "contracts/tag.mtz" $ \contract -> do
     it "TAG instruction" $
-      let expected = mconcat ["unit", "o", "ab", "nat", "int"] :: Text
+      let expected = mconcat [[mt|unit|], [mt|o|], [mt|ab|], [mt|nat|], [mt|int|]]
       in contractProp contract (validateStorageIs expected) dummyContractEnv
-         () ("" :: Text)
+         () [mt||]
 
   specWithTypedContract "contracts/split_bytes.tz" $ \contract -> do
     it "splits given byte sequence into parts" $
@@ -177,29 +178,35 @@ spec_Interpreter = do
   specWithTypedContract "contracts/split_string_simple.tz" $ \contract -> do
     it "applies SLICE instruction" $ do
       let
-        oneTest :: Natural -> Natural -> Text -> Maybe Text -> Expectation
+        oneTest :: Natural -> Natural -> MText -> Maybe MText -> Expectation
         oneTest o l str expected =
           contractProp contract (validateStorageIs expected) dummyContractEnv
           (o, l) (Just str)
 
       -- These values have been tested using alphanet.sh
-      oneTest 0 0 "aaa" (Just "")
-      oneTest 2 0 "aaa" (Just "")
-      oneTest 3 0 "aaa" Nothing
-      oneTest 0 5 "aaa" Nothing
-      oneTest 1 2 "abc" (Just "bc")
-      oneTest 1 1 "abc" (Just "b")
-      oneTest 2 1 "abc" (Just "c")
-      oneTest 2 2 "abc" Nothing
-      -- TODO TM-176: add strings with complex characters
+      oneTest 0 0 [mt|aaa|] (Just [mt||])
+      oneTest 2 0 [mt|aaa|] (Just [mt||])
+      oneTest 3 0 [mt|aaa|] Nothing
+      oneTest 0 5 [mt|aaa|] Nothing
+      oneTest 1 2 [mt|abc|] (Just [mt|bc|])
+      oneTest 1 1 [mt|abc|] (Just [mt|b|])
+      oneTest 2 1 [mt|abc|] (Just [mt|c|])
+      oneTest 2 2 [mt|abc|] Nothing
+      oneTest 1 1 [mt|a""|] (Just [mt|"|])
+      oneTest 1 2 [mt|a\n|] Nothing
 
+  specWithTypedContract "contracts/complex_strings.tz" $ \contract ->
+    prop "Complex string" $
+      contractProp contract
+      (validateStorageIs [mt|text: "aa" \\\n|])
+      dummyContractEnv [mt|text: |] [mt||]
 
 data Union1
   = Case1 Integer
-  | Case2 Text
-  | Case3 (Maybe Text)
-  | Case4 (Either Text Text)
-  | Case5 [Text]
+  | Case2 MText
+  | Case3 (Maybe MText)
+  | Case4 (Either MText MText)
+  | Case5 [MText]
   deriving stock (Generic)
   deriving anyclass (IsoValue)
 

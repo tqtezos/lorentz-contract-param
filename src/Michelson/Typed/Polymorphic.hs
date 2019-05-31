@@ -16,8 +16,8 @@ module Michelson.Typed.Polymorphic
 import qualified Data.ByteString as B
 import qualified Data.Map as M
 import qualified Data.Set as S
-import qualified Data.Text as T
 
+import Michelson.Text
 import Michelson.Typed.CValue (CValue(..))
 import Michelson.Typed.T (CT(..), T(..))
 import Michelson.Typed.Value (Value'(..))
@@ -135,7 +135,7 @@ class ConcatOp (c :: T) where
 instance ConcatOp ('Tc 'CString) where
   evalConcat (VC (CvString s1)) (VC (CvString s2)) = (VC . CvString) (s1 <> s2)
   evalConcat' l =
-    (VC . CvString . fromString) $ concatMap (\(VC (CvString s)) -> toString s) l
+    (VC . CvString) $ mconcat $ map (\(VC (CvString s)) -> s) l
 instance ConcatOp ('Tc 'CBytes) where
   evalConcat (VC (CvBytes b1)) (VC (CvBytes b2)) = (VC . CvBytes) (b1 <> b2)
   evalConcat' l =
@@ -144,9 +144,11 @@ instance ConcatOp ('Tc 'CBytes) where
 class SliceOp (c :: T) where
   evalSlice :: Natural -> Natural -> Value' cp c -> Maybe (Value' cp c)
 instance SliceOp ('Tc 'CString) where
-  evalSlice o l (VC (CvString s)) = VC . CvString <$> sliceImpl T.drop T.take o l s
+  evalSlice o l (VC (CvString s)) =
+    VC . CvString <$> sliceImpl dropMText takeMText o l s
 instance SliceOp ('Tc 'CBytes) where
-  evalSlice o l (VC (CvBytes b)) = VC . CvBytes <$> sliceImpl B.drop B.take o l b
+  evalSlice o l (VC (CvBytes b)) =
+    VC . CvBytes <$> sliceImpl B.drop B.take o l b
 
 sliceImpl ::
   Container str

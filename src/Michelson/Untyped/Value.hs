@@ -18,10 +18,11 @@ import Text.Hex (decodeHex, encodeHex)
 import Text.PrettyPrint.Leijen.Text (braces, dquotes, parens, semi, text, textStrict, (<+>))
 
 import Michelson.Printer.Util (RenderDoc(..), buildRenderDoc, renderOps)
+import Michelson.Text
 
 data Value' op =
     ValueInt     Integer
-  | ValueString  Text
+  | ValueString  MText
   | ValueBytes   InternalByteString
   | ValueUnit
   | ValueTrue
@@ -55,7 +56,7 @@ instance RenderDoc op => RenderDoc (Value' op) where
     \case
       ValueNil       -> "{ }"
       ValueInt x     -> text . show $ x
-      ValueString x  -> dquotes (textStrict x)
+      ValueString x  -> dquotes (textStrict $ writeMText x)
       ValueBytes xs  -> "0x" <> (textStrict . encodeHex . unInternalByteString $ xs)
       ValueUnit      -> "Unit"
       ValueTrue      -> "True"

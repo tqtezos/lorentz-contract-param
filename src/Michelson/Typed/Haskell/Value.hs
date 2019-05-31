@@ -25,6 +25,7 @@ import Named (NamedF(..))
 import Michelson.Typed.Aliases
 import Michelson.Typed.CValue
 import Michelson.Typed.T
+import Michelson.Text
 import Michelson.Typed.Value
 import Tezos.Address (Address)
 import Tezos.Core (Mutez, Timestamp)
@@ -52,10 +53,15 @@ instance IsoCValue Natural where
   toCVal = CvNat
   fromCVal (CvNat i) = i
 
-instance IsoCValue Text where
-  type ToCT Text = 'CString
+instance IsoCValue MText where
+  type ToCT MText = 'CString
   toCVal = CvString
   fromCVal (CvString s) = s
+
+instance DoNotUseTextError => IsoCValue Text where
+  type ToCT Text = DoNotUseTextError
+  toCVal = error "impossible"
+  fromCVal _ = error "impossible"
 
 instance IsoCValue Bool where
   type ToCT Bool = 'CBool
@@ -138,10 +144,15 @@ instance IsoValue Natural where
   toVal = VC . toCVal
   fromVal (VC x) = fromCVal x
 
-instance IsoValue Text where
-  type ToT Text = 'Tc (ToCT Text)
+instance IsoValue MText where
+  type ToT MText = 'Tc (ToCT MText)
   toVal = VC . toCVal
   fromVal (VC x) = fromCVal x
+
+instance DoNotUseTextError => IsoValue Text where
+  type ToT Text = DoNotUseTextError
+  toVal = error "impossible"
+  fromVal = error "impossible"
 
 instance IsoValue Bool where
   type ToT Bool = 'Tc (ToCT Bool)

@@ -87,7 +87,7 @@ integrationalScenario contract fixture = do
       | otherwise = genesisAddress
     txData = TxData
       { tdSenderAddress = genesisAddress
-      , tdParameter = U.ValueString (formatAddress param)
+      , tdParameter = U.ValueString (mformatAddress param)
       , tdAmount = fAmount fixture
       }
   transfer txData environmentAddress

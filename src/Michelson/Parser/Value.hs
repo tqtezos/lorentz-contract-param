@@ -16,7 +16,7 @@ import qualified Data.ByteString.Base16 as B16
 import qualified Data.Char as Char
 import qualified Data.Map as Map
 
-import Text.Megaparsec (choice, customFailure, many, manyTill, satisfy, takeWhileP, try)
+import Text.Megaparsec (anySingle, choice, customFailure, manyTill, satisfy, takeWhileP, try)
 import Text.Megaparsec.Char (char, string)
 import qualified Text.Megaparsec.Char.Lexer as L
 
@@ -26,6 +26,7 @@ import Michelson.Parser.Error
 import Michelson.Parser.Helpers
 import Michelson.Parser.Lexer
 import Michelson.Parser.Types (Parser, letValues)
+import Michelson.Text (isMChar, mkMTextUnsafe)
 import qualified Michelson.Untyped as U
 
 -- | Parse untyped 'ParsedValue'. Take instruction parser as argument
@@ -44,31 +45,27 @@ valueInner opParser = choice $
   ]
 
 stringLiteral :: Parser ParsedValue
-stringLiteral = try $ U.ValueString <$>
-  (toText <$>
-    ( (++) <$>
-        (concat <$> (string "\"" >> many validChar)) <*>
-        (manyTill (lineBreakChar <|> (customFailure $ UnexpectedLineBreak)) (string "\""))
-    )
-  )
+stringLiteral = U.ValueString . mkMTextUnsafe . toText <$> do
+  _ <- try $ string "\""
+  manyTill validChar (string "\"")
   where
-      validChar :: Parser String
-      validChar =
-        try strEscape <|>
-          try ((:[]) <$> satisfy (\x -> x /= '"' && x /= '\n' && x /= '\r'))
-      lineBreakChar :: Parser Char
-      lineBreakChar = char '\n' <|> char '\r'
+      validChar :: Parser Char
+      validChar = choice
+        [ strEscape
+        , satisfy (\x -> x /= '"' && isMChar x)
+        , anySingle >>= stringLiteralFailure . InvalidChar
+        ]
 
-      strEscape :: Parser String
-      strEscape = char '\\' >> esc
+      strEscape :: Parser Char
+      strEscape = try (char '\\') >> esc
         where
-          esc = (char 't' >> return "\t")
-            <|> (char 'b' >> return "\b")
-            <|> (char '\\' >> return "\\")
-            <|> (char '"' >> return "\"")
-            <|> (char 'n' >> return "\n")
-            <|> (char 'r' >> return "\r")
-
+          esc = choice
+            [ char '\\'
+            , char '"'
+            , char 'n' $> '\n'
+            , anySingle >>= stringLiteralFailure . InvalidEscapeSequence
+            ]
+      stringLiteralFailure = customFailure . StringLiteralException
 
 -- It is safe not to use `try` here because bytesLiteral is the only
 -- thing that starts from 0x (at least for now)

@@ -5,6 +5,7 @@ module Michelson.Typed.CValue
   ( CValue (..)
   ) where
 
+import Michelson.Text
 import Michelson.Typed.T (CT(..))
 import Tezos.Address (Address)
 import Tezos.Core (Mutez, Timestamp)
@@ -22,7 +23,7 @@ import Tezos.Crypto (KeyHash)
 data CValue t where
   CvInt       :: Integer -> CValue 'CInt
   CvNat       :: Natural -> CValue 'CNat
-  CvString    :: Text -> CValue 'CString
+  CvString    :: MText -> CValue 'CString
   CvBytes     :: ByteString -> CValue 'CBytes
   CvMutez     :: Mutez -> CValue 'CMutez
   CvBool      :: Bool -> CValue 'CBool

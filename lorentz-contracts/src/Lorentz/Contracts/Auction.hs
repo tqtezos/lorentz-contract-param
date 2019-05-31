@@ -26,7 +26,7 @@ contract_auction = do
 checkIfAuctionHasEnded :: '[ Input ] :-> '[ Input, Timestamp ]
 checkIfAuctionHasEnded = do
   dup; cdar; dup; now
-  assertLe "Auction has ended"
+  assertLe [mt|Auction has ended|]
   swap
 
 setupReplacementStorage :: '[ Input, Timestamp] :-> '[ Bid, Storage ]
@@ -36,7 +36,7 @@ setupReplacementStorage =
 checkNewBidIsGreater :: '[ Bid, Storage ] :-> '[ Bid, Storage ]
 checkNewBidIsGreater = do
   dup; car; amount
-  assertGt "New big must be greater than the greatest one"
+  assertGt [mt|New big must be greater than the greatest one|]
 
 getRefund :: '[ Bid, Storage ] :-> '[ Mutez, Bid, Storage ]
 getRefund = do dup; car

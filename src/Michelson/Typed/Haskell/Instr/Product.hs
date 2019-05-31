@@ -29,6 +29,7 @@ import Named ((:!), (:?), NamedF(..))
 import Michelson.Typed.Haskell.Instr.Helpers
 import Michelson.Typed.Haskell.Value
 import Michelson.Typed.Instr
+import Michelson.Text
 import Util.Named (NamedInner)
 
 -- Fields lookup (helper)
@@ -159,17 +160,17 @@ instance (GInstrGet name y path f, GIsoValue x) => GInstrGet name (x :*: y) ('R 
 -- Examples
 ----------------------------------------------------------------------------
 
-type MyType1 = ("int" :! Integer, "text" :! Text, "text2" :? Text)
+type MyType1 = ("int" :! Integer, "bytes" :! ByteString, "bytes2" :? ByteString)
 
 _getIntInstr1 :: Instr (ToT MyType1 ': s) (ToT Integer ': s)
 _getIntInstr1 = instrGetField @MyType1 #int
 
-_getTextInstr1 :: Instr (ToT MyType1 ': s) (ToT (Maybe Text) ': s)
-_getTextInstr1 = instrGetField @MyType1 #text2
+_getTextInstr1 :: Instr (ToT MyType1 ': s) (ToT (Maybe ByteString) ': s)
+_getTextInstr1 = instrGetField @MyType1 #bytes2
 
 data MyType2 = MyType2
   { getInt :: Integer
-  , getText :: Text
+  , getText :: MText
   , getUnit :: ()
   , getMyType1 :: MyType1
   } deriving stock (Generic)
@@ -303,7 +304,7 @@ _constructInstr1 :: Instr (ToT MyType1 ': s) (ToT MyType2 ': ToT MyType1 ': s)
 _constructInstr1 =
   instrConstruct @MyType2 $
     FieldConstructor (PUSH (toVal @Integer 5)) :&
-    FieldConstructor (PUSH (toVal @Text "")) :&
+    FieldConstructor (PUSH (toVal @MText [mt||])) :&
     FieldConstructor UNIT :&
     FieldConstructor DUP :&
     RNil

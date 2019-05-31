@@ -85,7 +85,6 @@ import Prelude hiding
   (EQ, GT, LT, abs, and, compare, concat, drop, get, map, not, or, some, swap, xor)
 
 import qualified Data.Kind as Kind
-import Fmt ((+|), (|+))
 
 import Lorentz.Arith
 import Lorentz.Base
@@ -93,7 +92,9 @@ import Lorentz.Constraints
 import Lorentz.Polymorphic
 import Lorentz.Value
 import Michelson.Typed
-  (Instr(..), Notes(NStar), ToT, Value'(..), checkBigMapConstraint, forbiddenBigMap, forbiddenOp)
+  (Instr(..), Notes(NStar), ToT, Value'(..), checkBigMapConstraint, forbiddenBigMap,
+  forbiddenOp)
+import Michelson.Text
 import Michelson.Typed.Arith
 
 nop :: s :-> s
@@ -415,11 +416,11 @@ updateNew
 updateNew mkErr = failingWhenPresent mkErr # update
 
 -- | Fail with a given message.
-failText :: Text -> s :-> t
+failText :: MText -> s :-> t
 failText msg = push msg # failWith
 
 -- | Fail with a given message and the top of the current stack.
-failTagged :: (KnownValue a) => Text -> a & s :-> t
+failTagged :: (KnownValue a) => MText -> a & s :-> t
 failTagged tag = push tag # pair # failWith
 
 -- | Fail with the given Haskell value.
@@ -432,10 +433,10 @@ failUsing err = push err # failWith
 -- this function is called.
 --
 -- Like 'error' in Haskell code, this instruction is for internal errors only.
-failUnexpected :: HasCallStack => Text -> s :-> t
+failUnexpected :: HasCallStack => MText -> s :-> t
 failUnexpected msg =
-  failText $ "Unexpected failure: " +| msg |+ "\n"
-          +| prettyCallStack callStack |+ ""
+  failText $ [mt|Unexpected failure: |] <> msg <> [mt|\n|]
+          <> mkMTextCut (toText $ prettyCallStack callStack)
 
 class LorentzFunctor (c :: Kind.Type -> Kind.Type) where
   lmap :: KnownValue b => (a : s :-> b : s) -> (c a : s :-> c b : s)

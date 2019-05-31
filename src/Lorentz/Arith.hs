@@ -116,8 +116,8 @@ instance ArithOpHs Compare Natural Natural where
   type ArithResHs Compare Natural Natural = Integer
 instance ArithOpHs Compare Integer Integer where
   type ArithResHs Compare Integer Integer = Integer
-instance ArithOpHs Compare Text Text where
-  type ArithResHs Compare Text Text = Integer
+instance ArithOpHs Compare MText MText where
+  type ArithResHs Compare MText MText = Integer
 instance ArithOpHs Compare ByteString ByteString where
   type ArithResHs Compare ByteString ByteString = Integer
 instance ArithOpHs Compare Timestamp Timestamp where

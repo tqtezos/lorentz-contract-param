@@ -17,6 +17,7 @@ import Michelson.Runtime
 import Michelson.Runtime.GState (GState(..), initGState)
 import Michelson.Test.Dummy (dummyContractEnv, dummyMaxSteps, dummyNow, dummyOrigination)
 import Michelson.Typed (untypeValue)
+import Michelson.Text (mt)
 import Michelson.Untyped
 import Tezos.Address (Address(..))
 import Tezos.Core (unsafeMkMutez)
@@ -33,7 +34,7 @@ test_interpreterPure = do
       ]
     , testCase "Fails to originate an already originated contract" failsToOriginateTwice
     , testCase "Fails to originate an ill-typed contract"
-        (failsToOriginateIllTyped (ValueString "") illTypedContract)
+        (failsToOriginateIllTyped (ValueString [mt||]) illTypedContract)
     ]
 
 ----------------------------------------------------------------------------
@@ -123,7 +124,7 @@ contractAux1 = ContractAux
   { caContract = contract
   , caEnv = dummyContractEnv
   , caStorage = ValueTrue
-  , caParameter = ValueString "aaa"
+  , caParameter = ValueString [mt|aaa|]
   }
   where
     contract :: Contract

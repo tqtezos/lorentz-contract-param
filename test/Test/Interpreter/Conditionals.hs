@@ -14,10 +14,11 @@ import Michelson.Test (contractProp, specWithTypedContract)
 import Michelson.Test.Dummy (dummyContractEnv)
 import Michelson.Test.Util (failedProp, qcIsLeft, qcIsRight)
 import Michelson.Typed (CValue(..), ToT)
+import Michelson.Text
 import qualified Michelson.Typed as T
 
-type Param = Either Text (Maybe Integer)
-type ContractStorage = T.Value (ToT Text)
+type Param = Either MText (Maybe Integer)
+type ContractStorage = T.Value (ToT MText)
 type ContractResult x
    = ( Either MichelsonFailed ([x], ContractStorage)
      , InterpreterState)
@@ -30,10 +31,10 @@ conditionalsSpec = parallel $ do
     let
       contractProp' inputParam =
         contractProp contract (validate inputParam) dummyContractEnv inputParam
-        ("storage" :: Text)
+        [mt|storage|]
 
     it "success 1 test" $
-      contractProp' $ Left "abc"
+      contractProp' $ Left [mt|abc|]
 
     prop "Random check" $ withMaxSuccess 200 contractProp'
   where
