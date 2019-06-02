@@ -85,3 +85,10 @@
       - identifier:
         - ingredients
         - main
+- package:
+  - name: indigo
+  - section:
+    - name: library
+    - message:
+      - name: Redundant build-depends entry
+      - depends: base-noprelude

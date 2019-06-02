@@ -109,7 +109,7 @@ dup = I DUP
 swap :: a & b & s :-> b & a & s
 swap = I SWAP
 
-push :: forall t s .(KnownValue t, NoOperation t, NoBigMap t, IsoValue t) => t -> (s :-> t & s)
+push :: forall t s . (KnownValue t, NoOperation t, NoBigMap t, IsoValue t) => t -> (s :-> t & s)
 push a = I $ forbiddenOp @(ToT t) $ forbiddenBigMap @(ToT t) $ PUSH (toVal a)
 
 some :: a & s :-> Maybe a & s

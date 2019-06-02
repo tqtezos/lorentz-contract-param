@@ -4,6 +4,7 @@ packages:
 - .
 - prelude
 - lorentz-contracts
+- indigo
 
 extra-deps:
 - aeson-options-0.1.0

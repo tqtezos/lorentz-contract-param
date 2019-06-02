@@ -20,6 +20,7 @@ library:
     - bytestring
     - containers
     - data-default
+    - indigo
     - fmt
     - hex-text
     - morley
