@@ -1,4 +1,4 @@
 parameter unit;
 storage nat;
-code {DROP; PUSH int 12; PUSH bool True; LOOP {PUSH bool False};
-	  DROP; STEPS_TO_QUOTA; NIL operation; PAIR};
+code { DROP; PUSH int 12; PUSH bool True; LOOP {PUSH bool False};
+       DROP; STEPS_TO_QUOTA; NIL operation; PAIR };
