@@ -9,8 +9,9 @@ module Michelson.Runtime.GState
 
        -- * GState
        , GState (..)
+       , genesisAddresses
+       , genesisKeyHashes
        , genesisAddress
-       , genesisAddressText
        , genesisKeyHash
        , initGState
        , readGState
@@ -31,15 +32,15 @@ import Data.Aeson.Options (defaultOptions)
 import Data.Aeson.TH (deriveJSON)
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Map.Strict as Map
-import Fmt (genericF, pretty, (+|), (|+))
+import Fmt (genericF, (+|), (|+))
 import Formatting.Buildable (Buildable(build))
 import System.IO.Error (IOError, isDoesNotExistError)
 
 import Michelson.TypeCheck (TcOriginatedContracts)
 import Michelson.Untyped (Contract, Type, Value, para)
 import Tezos.Address (Address(..))
-import Tezos.Core (Mutez)
-import Tezos.Crypto (KeyHash, parseKeyHash)
+import Tezos.Core (Mutez, divModMutezInt)
+import Tezos.Crypto
 
 -- | State of a contract with code.
 data ContractState = ContractState
@@ -89,28 +90,43 @@ data GState = GState
 
 deriveJSON defaultOptions ''GState
 
--- | Initially this address has a lot of money.
-genesisAddressText :: Text
-genesisAddressText = "tz1Yz3VPaCNB5FjhdEVnSoN8Xv3ZM8g2LYhw"
+-- | Number of genesis addresses.
+genesisAddressesNum :: Word
+genesisAddressesNum = 10
+
+-- | Secrets from which genesis addresses are derived from.
+genesisSecrets :: NonEmpty SecretKey
+genesisSecrets = do
+  i <- 1 :| [2 .. genesisAddressesNum]
+  let seed = encodeUtf8 (show i :: Text)
+  return $ detSecretKey seed
 
 -- | KeyHash of genesis address.
-genesisKeyHash :: KeyHash
-genesisKeyHash =
-  either (error . mappend "genesisKeyHash: " . pretty) id $
-  parseKeyHash genesisAddressText
+genesisKeyHashes :: NonEmpty KeyHash
+genesisKeyHashes = hashKey . toPublic <$> genesisSecrets
 
--- | Initially this address has a lot of money.
+-- | Initially these addresses have a lot of money.
+genesisAddresses :: NonEmpty Address
+genesisAddresses = KeyAddress <$> genesisKeyHashes
+
+-- | One of genesis key hashes.
+genesisKeyHash :: KeyHash
+genesisKeyHash = head genesisKeyHashes
+
+-- | One of genesis addresses.
 genesisAddress :: Address
-genesisAddress = KeyAddress genesisKeyHash
+genesisAddress = head genesisAddresses
 
 -- | Initial 'GState'. It's supposed to be used if no 'GState' is
--- provided. For now it's empty, but we can hardcode some dummy data
--- in the future.
+-- provided. It puts plenty of money on each genesis address.
 initGState :: GState
 initGState =
   GState
   { gsAddresses = Map.fromList
-    [ (genesisAddress, ASSimple maxBound)
+    [ (genesis, ASSimple money)
+    | genesis <- toList genesisAddresses
+    , let (money, _) = maxBound @Mutez `divModMutezInt` genesisAddressesNum
+                    ?: error "Number of genesis addresses is 0"
     ]
   }
 
