@@ -8,6 +8,7 @@ module Tezos.Core
     Mutez (unMutez)
   , mkMutez
   , unsafeMkMutez
+  , toMutez
   , addMutez
   , unsafeAddMutez
   , subMutez
@@ -65,6 +66,19 @@ unsafeMkMutez n =
   fromMaybe (error $ "mkMutez: overflow (" <> show n <> ")") (mkMutez n)
 {-# INLINE unsafeMkMutez #-}
 
+-- | Safely create 'Mutez'.
+--
+-- This is recommended way to create @Mutez@ from a numeric literal;
+-- you can't construct all valid @Mutez@ values using this function
+-- but for small values it works neat.
+--
+-- Warnings displayed when trying to construct invalid 'Natural' or 'Word'
+-- literal are hardcoded for these types in GHC implementation, so we can only
+-- exploit these existing rules.
+toMutez :: Word32 -> Mutez
+toMutez = unsafeMkMutez . fromIntegral
+{-# INLINE toMutez #-}
+
 -- | Addition of 'Mutez' values. Returns 'Nothing' in case of overflow.
 addMutez :: Mutez -> Mutez -> Maybe Mutez
 addMutez (unMutez -> a) (unMutez -> b) =
@@ -107,10 +121,10 @@ divModMutez a (unMutez -> b) = first unMutez <$> divModMutezInt a b
 divModMutezInt :: Integral a => Mutez -> a -> Maybe (Mutez, Mutez)
 divModMutezInt (toInteger . unMutez -> a) (toInteger -> b)
   | b <= 0 = Nothing
-  | otherwise = Just $ bimap toMutez toMutez (a `divMod` b)
+  | otherwise = Just $ bimap toMutez' toMutez' (a `divMod` b)
   where
-    toMutez :: Integer -> Mutez
-    toMutez = Mutez . fromInteger
+    toMutez' :: Integer -> Mutez
+    toMutez' = Mutez . fromInteger
 
 ----------------------------------------------------------------------------
 -- Timestamp
