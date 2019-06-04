@@ -12,6 +12,13 @@ module Michelson.Runtime.GState
        , genesisAddresses
        , genesisKeyHashes
        , genesisAddress
+       -- * More genesisAddresses which can be used in tests
+       , genesisAddress1
+       , genesisAddress2
+       , genesisAddress3
+       , genesisAddress4
+       , genesisAddress5
+       , genesisAddress6
        , genesisKeyHash
        , initGState
        , readGState
@@ -31,6 +38,7 @@ import qualified Data.Aeson.Encode.Pretty as Aeson
 import Data.Aeson.Options (defaultOptions)
 import Data.Aeson.TH (deriveJSON)
 import qualified Data.ByteString.Lazy as LBS
+import Data.List.NonEmpty ((!!))
 import qualified Data.Map.Strict as Map
 import Fmt (genericF, (+|), (|+))
 import Formatting.Buildable (Buildable(build))
@@ -116,6 +124,18 @@ genesisKeyHash = head genesisKeyHashes
 -- | One of genesis addresses.
 genesisAddress :: Address
 genesisAddress = head genesisAddresses
+
+-- | More genesis addresses
+--
+-- We know size of @genesisAddresses@, so it is safe to use @!!@
+genesisAddress1, genesisAddress2, genesisAddress3 :: Address
+genesisAddress4, genesisAddress5, genesisAddress6 :: Address
+genesisAddress1 = genesisAddresses !! 1
+genesisAddress2 = genesisAddresses !! 2
+genesisAddress3 = genesisAddresses !! 3
+genesisAddress4 = genesisAddresses !! 4
+genesisAddress5 = genesisAddresses !! 5
+genesisAddress6 = genesisAddresses !! 6
 
 -- | Initial 'GState'. It's supposed to be used if no 'GState' is
 -- provided. It puts plenty of money on each genesis address.

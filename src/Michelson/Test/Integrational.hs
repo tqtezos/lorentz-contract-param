@@ -5,7 +5,14 @@ module Michelson.Test.Integrational
   (
     -- * Re-exports
     TxData (..)
+  -- * More genesis addresses which can be used in tests
   , genesisAddress
+  , genesisAddress1
+  , genesisAddress2
+  , genesisAddress3
+  , genesisAddress4
+  , genesisAddress5
+  , genesisAddress6
 
   -- * Testing engine
   , IntegrationalValidator
