@@ -26,7 +26,7 @@ type ContractResult x
 compareSpec :: Spec
 compareSpec = parallel $ do
 
-  specWithTypedContract "contracts/compare.tz" $ \contract -> do
+  specWithTypedContract "contracts/tezos_examples/compare.tz" $ \contract -> do
     let
       contractProp' inputParam =
         contractProp contract (validate (mkExpected inputParam))

@@ -119,7 +119,7 @@ checkFile originatedContracts wellTyped file onError = do
 
 unit_Unreachable_code :: Assertion
 unit_Unreachable_code = do
-  let file = "contracts/ill-typed/fail-before-nop.tz"
+  let file = "contracts/ill-typed/fail_before_nop.tz"
   let ics = InstrCallStack [] (srcPos 3 13)
   econtract <- readContract @'T.TUnit @'T.TUnit file <$> readFileUtf8 file
   econtract @?= Left (ICETypeCheck $ TCUnreachableCode ics (one $ Un.WithSrcEx ics $ Un.SeqEx []))

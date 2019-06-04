@@ -23,8 +23,8 @@ import Tezos.Core
 stringCallerSpec :: Spec
 stringCallerSpec =
   parallel $
-  specWithContract "contracts/stringCaller.tz" $ \stringCaller ->
-  specWithContract "contracts/failOrStoreAndTransfer.tz" $ \failOrStoreAndTransfer ->
+  specWithContract "contracts/string_caller.tz" $ \stringCaller ->
+  specWithContract "contracts/fail_or_store_and_transfer.tz" $ \failOrStoreAndTransfer ->
   specImpl stringCaller failOrStoreAndTransfer
 
 specImpl ::

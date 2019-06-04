@@ -40,8 +40,8 @@ featherSpec :: Spec
 featherSpec =
   specWithContractL "contracts/A1/counter.mtz" $ \counter ->
   specWithContractL "contracts/A1/feather.mtz" $ \feather ->
-  specWithContractL "contracts/A1/caller-add.mtz" $ \callerAdd ->
-  specWithContractL "contracts/A1/caller-append.mtz" $ \callerAppend ->
+  specWithContractL "contracts/A1/caller_add.mtz" $ \callerAdd ->
+  specWithContractL "contracts/A1/caller_append.mtz" $ \callerAppend ->
   specImpl counter feather callerAdd callerAppend
 
 data CounterParameter

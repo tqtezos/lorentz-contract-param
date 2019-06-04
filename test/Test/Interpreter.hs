@@ -45,7 +45,7 @@ spec_Interpreter = do
       interpret contract T.VUnit (toVal @Integer 23) dummyContractEnv
         `contractResShouldBe` (toVal @Integer 24)
 
-  specWithTypedContract "contracts/fail.tz" $ \contract ->
+  specWithTypedContract "contracts/tezos_examples/fail.tz" $ \contract ->
     it "Fail test" $
       interpret contract T.VUnit T.VUnit dummyContractEnv
         `shouldSatisfy` (isLeft . fst)
@@ -122,7 +122,7 @@ spec_Interpreter = do
         Left MichelsonGasExhaustion -> pass
         Left _ -> expectationFailure "expecting another failure reason"
 
-  specWithTypedContract "contracts/add1_list.tz" $ \contract -> do
+  specWithTypedContract "contracts/tezos_examples/add1_list.tz" $ \contract -> do
     let
       validate ::
         [Integer] -> ContractPropValidator (ToT [Integer]) Property
@@ -169,7 +169,7 @@ spec_Interpreter = do
       in contractProp contract (validateStorageIs expected) dummyContractEnv
          () [mt||]
 
-  specWithTypedContract "contracts/split_bytes.tz" $ \contract -> do
+  specWithTypedContract "contracts/tezos_examples/split_bytes.tz" $ \contract -> do
     it "splits given byte sequence into parts" $
       let expected = ["\11", "\12", "\13"] :: [ByteString]
       in contractProp contract (validateStorageIs expected) dummyContractEnv

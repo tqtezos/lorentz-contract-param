@@ -25,7 +25,7 @@ import Tezos.Core (unsafeMkMutez)
 test_interpreterPure :: IO [TestTree]
 test_interpreterPure = do
   illTypedContract <-
-    prepareContract (Just "contracts/ill-typed/sum-strings.tz")
+    prepareContract (Just "contracts/ill-typed/sum_strings.tz")
 
   pure
     [ testGroup "Updates storage value of executed contract" $

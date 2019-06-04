@@ -32,12 +32,12 @@ type Param = KeyHash
 -- and QuickCheck.
 spec_Auction :: Spec
 spec_Auction = parallel $ do
-  specWithTypedContract "../contracts/auction.tz" auctionSpec'
+  specWithTypedContract "../contracts/tezos_examples/auction.tz" auctionSpec'
   auctionSpec' (compileLorentz contract_auction)
   -- Test slightly modified version of auction.tz, it must fail.
   -- This block is given purely for demonstration of that tests are smart
   -- enough to filter common mistakes.
-  specWithTypedContract "../contracts/auction-buggy.tz" $ \contract -> do
+  specWithTypedContract "../contracts/auction_buggy.tz" $ \contract -> do
     prop "Random check (dense end of auction)" $
       expectFailure $ qcProp contract denseTime arbitrary
 

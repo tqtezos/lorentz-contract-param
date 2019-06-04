@@ -4,7 +4,7 @@ setup () {
   morley_script="./scripts/morley.sh"
   bin_dir="tmp"
   custom_executable="--morley_executable $bin_dir/morley"
-  contract="contracts/add1.tz"
+  contract="contracts/tezos_examples/add1.tz"
   db="bats_db.json"
   morley="$morley_script $custom_executable"
   genesisAddress="tz1f1S7V2hZJ3mhj47djb5j1saek8c2yB2Cx"
@@ -77,7 +77,7 @@ setup () {
 }
 
 @test "invoking morley to parse an invalid contract with non-ascii characters in error message" {
-  $morley parse --contract contracts/unparsable/non-ascii-error.mtz 2>&1 | grep 'unknown type'
+  $morley parse --contract contracts/unparsable/non_ascii_error.mtz 2>&1 | grep 'unknown type'
 }
 
 @test "lorentz registry finds some contracts" {
@@ -85,6 +85,6 @@ setup () {
 }
 
 @test "invoking ./morley.sh print -o" {
-  $morley print --contract contracts/first.tz -o output.mtz
+  $morley print --contract contracts/tezos_examples/first.tz -o output.mtz
   rm output.mtz
 }
