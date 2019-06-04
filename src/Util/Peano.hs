@@ -19,6 +19,7 @@ module Util.Peano
   , KnownPeano (..)
   , peanoVal'
   , Sing (SZ, SS)
+  , At
 
     -- * Morley-specific utils
   , IsLongerThan
@@ -80,6 +81,14 @@ instance SingI 'Z where
   sing = SZ
 instance SingI n => SingI ('S n) where
   sing = SS (sing @n)
+
+type family At (n :: Peano) s where
+  At 'Z (x ': _) = x
+  At ('S n) (_ ': xs) = At n xs
+  At a '[] =
+    TypeError
+      ('Text "You try to access to non-existing element of the stack, n = " ':<>:
+         'ShowType (FromPeano a))
 
 ----------------------------------------------------------------------------
 -- Morley-specific utils

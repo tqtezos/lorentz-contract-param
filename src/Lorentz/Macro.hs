@@ -334,33 +334,23 @@ cloneX
   => a & s :-> CloneXT (ToPeano n) a s
 cloneX = cloneXImpl @(ToPeano n)
 
-class DuupX (n :: Peano) (l :: [Kind.Type]) (r :: [Kind.Type]) (a :: Kind.Type) (s :: [Kind.Type]) where
-  duupXImpl :: l ++ r ++ (a & s) :-> l ++ '[a] ++ r ++ (a & s)
-instance ( DipX n l (a & s) (a & a & s)
-         , (l ++ (a & s)) ~ (l ++ '[] ++ (a & s))
-         , (l ++ (a & a & s)) ~ (l ++ '[a] ++ '[] ++ (a & s))
-         ) => DuupX n l '[] a s where
-  duupXImpl = dipXImpl @n @l @(a & s) @(a & a & s) dup
-instance ( DuupX ('S n) (l ++ '[r0]) r a s
-         , DipX n l (r0 & a & r ++ (a & s)) (a & r0 & r ++ (a & s))
-         , (l ++ '[r0] ++ r ++ (a & s)) ~ (l ++ (r0 & r) ++ (a & s))
-         , (l ++ '[a] ++ (r0 & r) ++ (a & s)) ~
-           (l ++ (a & r0 & r ++ (a & s)))
-         , (l ++ '[r0] ++ '[a] ++ r ++ (a & s)) ~
-           (l ++ (r0 & a & r ++ (a & s)))
-         ) => DuupX n l (r0 & r) a s where
-  duupXImpl = duupXImpl @('S n) @(l ++ '[r0]) @r @a @s #
-              dipXImpl @n @l @(r0 & a & r ++ (a & s)) @(a & r0 & r ++ (a & s)) swap
+class DuupX (n :: Peano) (s :: [Kind.Type]) (a :: Kind.Type) where
+  duupXImpl :: s :-> a & s
+
+instance DuupX ('S 'Z) (a & xs) a where
+  duupXImpl = dup
+
+instance DuupX ('S n) xs a => DuupX ('S ('S n)) (x & xs) a where
+  duupXImpl = dip (duupXImpl @('S n) @xs @a) # swap
 
 -- | @DUU+P@ macro. For example, `duupX @3` is `DUUUP`, it puts
 -- the 3-rd (starting from 1) element to the top of the stack.
 duupX
-  :: forall (n :: GHC.Nat) inp out s a.
-  ( DuupX 'Z '[] (Above (ToPeano (n - 1)) inp) a s
-  , ((Above (ToPeano (n - 1)) inp) ++ (a & s)) ~ inp
-  , (a & (Above (ToPeano (n - 1)) inp) ++ (a & s)) ~ out
-  ) => inp :-> out
-duupX = duupXImpl @'Z @'[] @(Above (ToPeano (n - 1)) inp) @a @s
+  :: forall (n :: GHC.Nat) inp .
+  ( DuupX (ToPeano n) inp (At (ToPeano (n - 1)) inp)
+  )
+  => inp :-> (At (ToPeano (n - 1)) inp) & inp
+duupX = duupXImpl @(ToPeano n) @inp @(At (ToPeano (n - 1)) inp)
 
 -- | Move item with given index (starting from 0) to the top of the stack.
 --
@@ -369,10 +359,10 @@ duupX = duupXImpl @'Z @'[] @(Above (ToPeano (n - 1)) inp) @a @s
 -- It only makes sense if it's applied to a relatively large index.
 elevateX
   :: forall (n :: GHC.Nat) inp out s a.
-  ( DuupX 'Z '[] (Above (ToPeano n) inp) a s
+  ( DuupX (ToPeano (1 + n)) inp a
   , DipX (ToPeano (n + 1)) (Above (ToPeano (n + 1)) (a : inp)) (a : s) s
-  , ((Above (ToPeano n) inp) ++ (a ': s)) ~ inp
   , (a ': (Above (ToPeano n) inp) ++ s) ~ out
+  , a ~ At (ToPeano n) inp
 
   -- These 3 constraints must hold if the above holds, but GHC can't deduce it.
   -- Btw, last constraint must always hold.
@@ -380,7 +370,7 @@ elevateX
   , (Above (ToPeano (n + 1)) (a : inp) ++ s) ~ (a : (Above (ToPeano n) inp ++ s))
   , ((1 + n) - 1) ~ n
   ) => inp :-> out
-elevateX = duupX @(1 + n) @inp @_ @s @a # dropX @(n + 1) @a @(a ': inp) @out @(a ': s) @s
+elevateX = duupX @(1 + n) @inp # dropX @(n + 1) @a @(a ': inp) @out @(a ': s) @s
 
 papair :: a & b & c & s :-> ((a, b), c) & s
 papair = pair # pair
