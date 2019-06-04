@@ -376,6 +376,9 @@ hashKey = I HASH_KEY
 stepsToQuota :: s :-> Natural & s
 stepsToQuota = I STEPS_TO_QUOTA
 
+{-# WARNING source
+    "Using `source` is considered a bad practice.\n\
+\    Consider using `sender` instead until further investigation" #-}
 source :: s :-> Address & s
 source = I SOURCE
 

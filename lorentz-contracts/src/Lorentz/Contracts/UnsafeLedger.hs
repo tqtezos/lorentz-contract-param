@@ -35,12 +35,12 @@ contract_UnsafeLedger = do
 debitSource :: '[TransferParams, Storage]
             :-> '[TransferParams, Storage]
 debitSource = do
-  dip (do getField #ledger; source; get; assertSome [mt|Source address is not in ledger|])
+  dip (do getField #ledger; sender; get; assertSome [mt|Sender address is not in ledger|])
   swap
   dip (getField #val);
   subGt0
   swap;
-  dip (do dip (getField #ledger); source; update; setField #ledger)
+  dip (do dip (getField #ledger); sender; update; setField #ledger)
 
 creditTo :: '[TransferParams, Storage] :-> '[Storage]
 creditTo = do
