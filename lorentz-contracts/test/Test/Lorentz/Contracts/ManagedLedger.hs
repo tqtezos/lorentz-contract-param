@@ -1,3 +1,7 @@
+-- To make multi genesis addresses bindings work, we don't need
+-- high quality code in tests anyway.
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+
 -- | Module, containing spec to FA1.4.
 
 module Test.Lorentz.Contracts.ManagedLedger
@@ -16,20 +20,15 @@ import Lorentz.Contracts.Consumer
 import Lorentz.Contracts.ManagedLedger
 import Lorentz.Test
 import Lorentz.Value
-import Tezos.Address (Address, mkContractAddressRaw)
+import Tezos.Address (Address)
 import Util.Instances ()
 import Util.Named ((.!))
 
 {-# ANN module ("HLint: ignore Reduce duplication" :: Text) #-}
 
-wallet1, wallet2, wallet3 :: Address
-wallet1 = mkContractAddressRaw "wallet1"
-wallet2 = mkContractAddressRaw "wallet2"
-wallet3 = mkContractAddressRaw "wallet3"
-
-manager, manager2 :: Address
-manager = mkContractAddressRaw "manager"
-manager2 = mkContractAddressRaw "manager2"
+wallet1, wallet2, wallet3, manager, manager2 :: Address
+wallet1 : wallet2 : wallet3
+  : manager : manager2 : _ = toList genesisAddresses
 
 -- | Originate the contract we are currently testing with empty storage.
 originateEmptyManagedLedger :: IntegrationalScenarioM (ContractAddr Parameter)
@@ -60,7 +59,7 @@ spec_ManagedLedger = do
         erc20 <- originateEmptyManagedLedger
         consumer <- lOriginateEmpty contractConsumer "consumer"
 
-        withSource manager . lCall erc20 $
+        withSender manager . lCall erc20 $
           Transfer
           ( #from .! manager
           , #to .! wallet1
@@ -87,7 +86,7 @@ spec_ManagedLedger = do
         erc20 <- originateEmptyManagedLedger
         consumer <- lOriginateEmpty contractConsumer "consumer"
 
-        withSource manager $ do
+        withSender manager $ do
           lCall erc20 $
             Transfer
             ( #from .! manager
@@ -112,7 +111,7 @@ spec_ManagedLedger = do
         erc20 <- originateEmptyManagedLedger
         consumer <- lOriginateEmpty contractConsumer "consumer"
 
-        withSource manager $ do
+        withSender manager $ do
           lCall erc20 $
             Transfer
             ( #from .! manager
@@ -145,7 +144,7 @@ spec_ManagedLedger = do
         erc20 <- originateManagedLedger 10
         consumer <- lOriginateEmpty contractConsumer "consumer"
 
-        withSource wallet1 $ do
+        withSender wallet1 $ do
           lCall erc20 $
             Transfer
             ( #from .! wallet1
@@ -162,7 +161,7 @@ spec_ManagedLedger = do
       integrationalTestProperty $ do
         erc20 <- originateManagedLedger 10
 
-        withSource wallet2 $ do
+        withSender wallet2 $ do
           lCall erc20 $
             Transfer
             ( #from .! wallet1
@@ -177,7 +176,7 @@ spec_ManagedLedger = do
       integrationalTestProperty $ do
         erc20 <- originateManagedLedger 10
 
-        withSource wallet1 $ do
+        withSender wallet1 $ do
           lCall erc20 $
             Transfer
             ( #from .! wallet1
@@ -192,7 +191,7 @@ spec_ManagedLedger = do
       integrationalTestProperty $ do
         erc20 <- originateManagedLedger 10
 
-        withSource wallet1 $ do
+        withSender wallet1 $ do
           lCall erc20 $
             Transfer
             ( #from .! wallet1
@@ -214,7 +213,7 @@ spec_ManagedLedger = do
         erc20 <- originateManagedLedger 10
         consumer <- lOriginateEmpty contractConsumer "consumer"
 
-        withSource wallet1 $ do
+        withSender wallet1 $ do
           lCall erc20 $
             Approve
             ( #to .! wallet2
@@ -224,7 +223,7 @@ spec_ManagedLedger = do
         lCall erc20 $ GetAllowance
           (View (#from .! wallet1, #to .! wallet2) consumer)
 
-        withSource wallet2 $ do
+        withSender wallet2 $ do
           lCall erc20 $
             Transfer
             ( #from .! wallet1
@@ -243,13 +242,13 @@ spec_ManagedLedger = do
         erc20 <- originateManagedLedger 10
         consumer <- lOriginateEmpty contractConsumer "consumer"
 
-        withSource wallet1 $ do
+        withSender wallet1 $ do
           lCall erc20 $
             Approve
             ( #to .! wallet2
             , #val .! 5
             )
-        withSource wallet2 $ do
+        withSender wallet2 $ do
           lCall erc20 $
             Transfer
             ( #from .! wallet1
@@ -266,13 +265,13 @@ spec_ManagedLedger = do
       integrationalTestProperty $ do
         erc20 <- originateManagedLedger 10
 
-        withSource wallet1 $ do
+        withSender wallet1 $ do
           lCall erc20 $
             Approve
             ( #to .! wallet2
             , #val .! 5
             )
-        withSource wallet2 . replicateM_ 2 $ do
+        withSender wallet2 . replicateM_ 2 $ do
           lCall erc20 $
             Transfer
             ( #from .! wallet1
@@ -290,7 +289,7 @@ spec_ManagedLedger = do
       integrationalTestProperty $ do
         erc20 <- originateManagedLedger 10
 
-        withSource wallet1 $ do
+        withSender wallet1 $ do
           lCall erc20 $
             Approve
             ( #to .! wallet2
@@ -301,7 +300,7 @@ spec_ManagedLedger = do
             ( #to .! wallet2
             , #val .! 0
             )
-        withSource wallet2 $ do
+        withSender wallet2 $ do
           lCall erc20 $
             Transfer
             ( #from .! wallet1
@@ -317,13 +316,13 @@ spec_ManagedLedger = do
         erc20 <- originateManagedLedger 10
         consumer <- lOriginateEmpty contractConsumer "consumer"
 
-        withSource wallet1 $ do
+        withSender wallet1 $ do
           lCall erc20 $
             Approve
             ( #to .! wallet2
             , #val .! 5
             )
-        withSource wallet2 $ do
+        withSender wallet2 $ do
           lCall erc20 $
             Transfer
             ( #from .! wallet1
@@ -342,7 +341,7 @@ spec_ManagedLedger = do
       integrationalTestProperty $ do
         erc20 <- originateManagedLedger 10
 
-        withSource wallet1 $ do
+        withSender wallet1 $ do
           lCall erc20 $
             Approve
             ( #to .! wallet2
@@ -362,9 +361,9 @@ spec_ManagedLedger = do
       integrationalTestProperty $ do
         erc20 <- originateManagedLedger 10
 
-        withSource manager $ do
+        withSender manager $ do
           lCall erc20 $ SetPause True
-        withSource wallet1 $ do
+        withSender wallet1 $ do
           lCall erc20 $
             Transfer
             ( #from .! wallet1
@@ -379,9 +378,9 @@ spec_ManagedLedger = do
       integrationalTestProperty $ do
         erc20 <- originateManagedLedger 10
 
-        withSource manager $ do
+        withSender manager $ do
           lCall erc20 $ SetPause True
-        withSource wallet1 $ do
+        withSender wallet1 $ do
           lCall erc20 $
             Approve
             ( #to .! wallet2
@@ -395,9 +394,9 @@ spec_ManagedLedger = do
       integrationalTestProperty $ do
         erc20 <- originateManagedLedger 10
 
-        withSource manager $ do
+        withSender manager $ do
           lCall erc20 $ SetPause True
-        withSource manager $ do
+        withSender manager $ do
           lCall erc20 $
             Transfer
             ( #from .! wallet1
@@ -413,9 +412,9 @@ spec_ManagedLedger = do
       integrationalTestProperty $ do
         erc20 <- originateManagedLedger 10
 
-        withSource manager $ do
+        withSender manager $ do
           lCall erc20 $ SetManager manager2
-        withSource manager2 $ do
+        withSender manager2 $ do
           lCall erc20 $ SetPause True
 
         validate . Right $ expectAnySuccess
@@ -424,7 +423,7 @@ spec_ManagedLedger = do
       integrationalTestProperty $ do
         erc20 <- originateManagedLedger 10
 
-        withSource wallet1 $ do
+        withSender wallet1 $ do
           lCall erc20 $ SetManager wallet2
 
         validate . Left $
@@ -434,7 +433,7 @@ spec_ManagedLedger = do
       integrationalTestProperty $ do
         erc20 <- originateManagedLedger 10
 
-        withSource manager $ do
+        withSender manager $ do
           lCall erc20 $ SetManager wallet2
 
         validate . Left $
@@ -446,7 +445,7 @@ spec_ManagedLedger = do
         erc20 <- originateEmptyManagedLedger
         consumer <- lOriginateEmpty contractConsumer "consumer"
 
-        withSource manager $ do
+        withSender manager $ do
           lCall erc20 $
             Transfer
             ( #from .! manager

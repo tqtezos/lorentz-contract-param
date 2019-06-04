@@ -7,6 +7,7 @@ setup () {
   contract="contracts/add1.tz"
   db="bats_db.json"
   morley="$morley_script $custom_executable"
+  genesisAddress="tz1f1S7V2hZJ3mhj47djb5j1saek8c2yB2Cx"
 }
 
 @test "invoking ./morley.sh without arguments" {
@@ -39,16 +40,16 @@ setup () {
 @test "invoking ./morley.sh originate with correct arguments" {
   $morley originate --contract "$contract" \
     --db "$db" \
-    --manager tz1Yz3VPaCNB5FjhdEVnSoN8Xv3ZM8g2LYhw \
-    --delegate tz1Yz3VPaCNB5FjhdEVnSoN8Xv3ZM8g2LYhw \
+    --manager $genesisAddress \
+    --delegate $genesisAddress \
     --spendable --delegatable --storage 1 --balance 1 --verbose
   rm "$db"
 }
 
 @test "invoking ./morley.sh transfer with correct arguments" {
   $morley transfer --db "$db" \
-    --to tz1Yz3VPaCNB5FjhdEVnSoN8Xv3ZM8g2LYhw \
-    --sender tz1Yz3VPaCNB5FjhdEVnSoN8Xv3ZM8g2LYhw \
+    --to $genesisAddress \
+    --sender $genesisAddress \
     --parameter 1 --amount 0 --now 0 --max-steps 1000 \
     --verbose --dry-run
 }

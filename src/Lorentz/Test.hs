@@ -28,7 +28,7 @@ module Lorentz.Test
   , validate
   , setMaxSteps
   , setNow
-  , withSource
+  , withSender
 
   -- ** Validators
   , composeValidators
@@ -45,6 +45,7 @@ module Lorentz.Test
 
   -- ** Various
   , TxData (..)
+  , genesisAddresses
   , genesisAddress
 
   -- * General utilities

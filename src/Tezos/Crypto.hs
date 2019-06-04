@@ -6,6 +6,7 @@ module Tezos.Crypto
   , SecretKey
   , Signature (..)
   , KeyHash (..)
+  , detSecretKey
   , toPublic
 
   -- * Formatting
@@ -78,12 +79,15 @@ newtype SecretKey = SecretKey
   { unSecretKey :: Ed25519.SecretKey
   } deriving (Show, Eq)
 
+-- | Deterministicaly generate a secret key from seed.
+detSecretKey :: ByteString -> SecretKey
+detSecretKey seed =
+  let chachaSeed = drgNewSeed . seedFromInteger . os2ip $ seed
+      (sk, _) = withDRG chachaSeed Ed25519.generateSecretKey
+  in SecretKey sk
+
 instance Arbitrary SecretKey where
-  arbitrary = do
-    seed <- BS.pack <$> vector 32
-    let chachaSeed = drgNewSeed . seedFromInteger . os2ip $ seed
-        (sk, _) = withDRG chachaSeed Ed25519.generateSecretKey
-    return (SecretKey sk)
+  arbitrary = detSecretKey . BS.pack <$> vector 32
 
 -- | Create a public key from a secret key.
 toPublic :: SecretKey -> PublicKey

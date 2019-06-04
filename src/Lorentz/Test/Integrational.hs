@@ -3,6 +3,7 @@ module Lorentz.Test.Integrational
   (
     -- * Re-exports
     TxData (..)
+  , genesisAddresses
   , genesisAddress
 
     -- * Testing engine
@@ -20,7 +21,7 @@ module Lorentz.Test.Integrational
   , I.validate
   , I.setMaxSteps
   , I.setNow
-  , I.withSource
+  , I.withSender
 
   -- * Validators
   , I.composeValidators

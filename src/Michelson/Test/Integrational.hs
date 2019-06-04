@@ -20,7 +20,7 @@ module Michelson.Test.Integrational
   , validate
   , setMaxSteps
   , setNow
-  , withSource
+  , withSender
 
   -- * Validators
   , composeValidators
@@ -66,7 +66,7 @@ data InternalState = InternalState
   -- ^ Operations to be interpreted when 'TOValidate' is encountered.
   , _isContractsNames :: !(Map Address Text)
   -- ^ Map from contracts addresses to humanreadable names.
-  , _isSource :: !(Maybe Address)
+  , _isSender :: !(Maybe Address)
   -- ^ If set, all following transfers will be executed on behalf
   -- of the given contract.
   }
@@ -174,8 +174,9 @@ originate contract contractName value balance = do
 -- | Transfer tokens to given address.
 transfer :: TxData -> Address -> IntegrationalScenarioM ()
 transfer txData destination = do
-  mSource <- use isSource
-  putOperation (TransferOp destination txData mSource)
+  mSender <- use isSender
+  let txData' = maybe id (set tdSenderAddressL) mSender txData
+  putOperation (TransferOp destination txData')
 
 -- | Execute all operations that were added to the scenarion since
 -- last 'validate' call. If validator fails, the execution will be aborted.
@@ -202,10 +203,10 @@ setMaxSteps :: RemainingSteps -> IntegrationalScenarioM ()
 setMaxSteps = assign isMaxSteps
 
 -- | Pretend that given address initiates all the transfers within the
--- code block (i.e. @SOURCE@ instruction will return this address).
-withSource :: Address -> IntegrationalScenarioM a -> IntegrationalScenarioM a
-withSource addr scenario =
-  (isSource ?= addr) *> scenario <* (isSource .= Nothing)
+-- code block (i.e. @SENDER@ instruction will return this address).
+withSender :: Address -> IntegrationalScenarioM a -> IntegrationalScenarioM a
+withSender addr scenario =
+  (isSender ?= addr) *> scenario <* (isSender .= Nothing)
 
 putOperation :: InterpreterOp -> IntegrationalScenarioM ()
 putOperation op = isOperations <>= one op
@@ -324,7 +325,7 @@ initIS = InternalState
   , _isGState = initGState
   , _isOperations = mempty
   , _isContractsNames = Map.empty
-  , _isSource = Nothing
+  , _isSender = Nothing
   }
 
 integrationalTest ::
