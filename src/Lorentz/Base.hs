@@ -3,6 +3,7 @@
 -- | Foundation of Lorentz development.
 module Lorentz.Base
   ( (:->) (..)
+  , type (%>)
   , type (&)
   , (#)
 
@@ -29,6 +30,12 @@ newtype (inp :: [Kind.Type]) :-> (out :: [Kind.Type]) =
   I { unI :: Instr (ToTs inp) (ToTs out) }
   deriving (Show, Eq)
 infixr 1 :->
+
+-- | Alias for ':->', seems to make signatures more readable sometimes.
+--
+-- Let's someday decide which one of these two should remain.
+type (%>) = (:->)
+infixr 1 %>
 
 -- | For use outside of Lorentz.
 compileLorentz :: (inp :-> out) -> Instr (ToTs inp) (ToTs out)

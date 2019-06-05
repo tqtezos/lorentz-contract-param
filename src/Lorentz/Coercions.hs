@@ -7,6 +7,9 @@ module Lorentz.Coercions
   , coerceWrap
   , toNamed
   , fromNamed
+
+    -- * Re-exports
+  , Wrapped (..)
   ) where
 
 import Control.Lens (Wrapped(..))

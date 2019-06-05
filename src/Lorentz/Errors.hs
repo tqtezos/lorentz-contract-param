@@ -2,7 +2,8 @@
 
 -- | Advanced errors.
 module Lorentz.Errors
-  ( LorentzUserError
+  ( IsError
+  , LorentzUserError
   , unLorentzUserError
   , UserFailInstr
   , userFailWith
@@ -15,10 +16,19 @@ import GHC.TypeLits (KnownSymbol, symbolVal)
 import Lorentz.ADT
 import Lorentz.Base
 import Lorentz.Coercions
+import Lorentz.Constraints
 import Lorentz.Instr
 import Lorentz.Value
 import Michelson.Text
 import Michelson.Typed.Haskell
+
+-- | Constraints on an object you can fail with.
+type IsError err =
+  ( IsoValue err
+  , KnownValue err
+  , NoOperation err
+  , NoBigMap err
+  )
 
 -- | A unique error identifier.
 newtype ErrorTag = ErrorTag MText
