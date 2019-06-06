@@ -36,6 +36,7 @@ _definitions:
         - MultiWayIf
         - NamedFieldPuns
         - NegativeLiterals
+        - NumDecimals
         - OverloadedLabels
         - OverloadedStrings
         - PatternSynonyms
