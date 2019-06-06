@@ -21,32 +21,32 @@ contractIfLorentz :: Contract Integer Integer
 contractIfLorentz = compileIndigoContract ifTest
 
 varTest :: Var Integer -> Var Integer -> IndigoM [Integer, Integer] [Integer, Integer] ()
-varTest _param _st = if_ (C (5 :: Integer) `Lt` C (10 :: Integer))
+varTest _param _st = if_ ((5 :: Integer) `Lt` (10 :: Integer))
   (do
-      _a <- newVar $ C (10 :: Integer)
+      _a <- newVar $ (10 :: Integer)
       return ()
   )
   ( return () )
 
 ifTest :: Var Integer -> Var Integer -> IndigoM [Integer, Integer] [Bool, Integer, Integer, Integer] ()
 ifTest param st = do
-  a <- newVar (C (5 :: Integer) `Add` (V param `Add` C (2 :: Integer)))
-  if_ (V param `Lt` V a)
+  a <- newVar ((5 :: Integer) `Add` (param `Add` (2 :: Integer)))
+  if_ (param `Lt` a)
     (do
-        _c <- newVar (V st)
+        _c <- newVar st
         return ()
     )
     (return ())
-  _c <- newVar (V param `Lt` V st)
+  _c <- newVar (param `Lt` st)
   return ()
 
 contractWhileLorentz :: Contract Integer Integer
 contractWhileLorentz = compileIndigoContract $ \param st -> do
-  i <- newVar @Integer (C 0)
-  s <- newVar @Integer (C 0)
-  while (V i `Lt` V st) $ do
-    if_ ((V i `Mod` V param) `Eq'` C (0 :: Natural))
-      (setVar s (V s `Add` V i))
+  i <- newVar @Integer 0
+  s <- newVar @Integer 0
+  while (i `Lt` st) $ do
+    if_ ((i `Mod` param) `Eq'` (0 :: Natural))
+      (setVar s (s `Add` i))
       (return ())
-    setVar i (V i `Add` C (1 :: Integer))
-  setVar st (V s)
+    setVar i (i `Add` (1 :: Integer))
+  setVar st s

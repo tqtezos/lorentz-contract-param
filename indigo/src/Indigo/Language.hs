@@ -19,7 +19,7 @@ import Prelude hiding (return, (>>), (>>=))
 
 import Data.Vinyl.Derived (Label)
 
-import Indigo.Expr (Expr (..), ValidValue, compileExpr)
+import Indigo.Expr (Expr(..), IsExpr, ValidValue, compileExpr, toExpr, IsExpr)
 import Indigo.State
   (DestroyPrefix(..), GenCode(..), IndigoM(..), MetaData(..), Var, VarActions(..), iget, lookupVar,
   makeTopVar, popNoRefMd, pushNoRefMd, pushRefMd, return, (>>), (>>=))
@@ -28,24 +28,24 @@ import qualified Lorentz.Macro as L
 import Michelson.Typed.Haskell.Instr.Product (GetFieldType, InstrSetFieldC)
 
 -- | Create a new variable with passed expression as an initial value.
-newVar :: Typeable x => Expr x -> IndigoM inp (x & inp) (Var x)
-newVar e = compileExpr e >> makeTopVar
+newVar :: (IsExpr ex x, Typeable x) => ex -> IndigoM inp (x & inp) (Var x)
+newVar e = compileExpr (toExpr e) >> makeTopVar
 
 -- | Set to variable new value.
-setVar :: Typeable x => Var x -> Expr x -> IndigoM inp inp ()
+setVar :: (IsExpr ex x, Typeable x) => Var x -> ex -> IndigoM inp inp ()
 setVar v e = do
   MetaData s _ <- iget
   let setter = vaSet $ lookupVar v s
-  compileExpr e
+  compileExpr (toExpr e)
   IndigoM (\md -> ((), GenCode (popNoRefMd md) setter))
 
 setField_ ::
-  forall dt name inp . (InstrSetFieldC dt name, Typeable dt)
-  => Var dt -> Label name -> Expr (GetFieldType dt name) -> IndigoM inp inp ()
+  forall dt name inp ex . (InstrSetFieldC dt name, Typeable dt, IsExpr ex (GetFieldType dt name))
+  => Var dt -> Label name -> ex -> IndigoM inp inp ()
 setField_ v l e = do
   MetaData s _ <- iget
   let setFl = vaSetField $ lookupVar v s
-  compileExpr e
+  compileExpr (toExpr e)
   IndigoM (\md -> ((), GenCode (popNoRefMd md) (setFl l)))
 -- Can be implemented in this way:
 -- setField_ v l newVal = setVar v (SetField (V v) l newVal)
@@ -98,8 +98,8 @@ while e body = IndigoM $ \md ->
 failUsing_ :: ValidValue x => x -> IndigoM s s ()
 failUsing_ x = IndigoM $ \md -> ((), GenCode md (L.failUsing x))
 
-assert :: ValidValue x => x -> Expr Bool -> IndigoM s s ()
-assert err e = compileExpr e >> assertImpl
+assert :: (ValidValue x, IsExpr ex Bool) => x -> ex -> IndigoM s s ()
+assert err e = compileExpr (toExpr e) >> assertImpl
   where
     assertImpl :: IndigoM (Bool & s) s ()
     assertImpl = IndigoM $ \md ->
@@ -110,18 +110,19 @@ assert err e = compileExpr e >> assertImpl
 -- | Convert Lorentz binary function to IndigoM.
 -- Will be removed when all Lorentz code is translated in Indigo.
 fromLorentzFun2Args
-  :: Typeable ret
+  :: (Typeable ret, IsExpr ex1 a, IsExpr ex2 b)
   => a & b & s :-> ret & s
-  -> Expr a -> Expr b -> IndigoM s (ret & s) (Var ret)
+  -> ex1 -> ex2 -> IndigoM s (ret & s) (Var ret)
 fromLorentzFun2Args fun e1 e2 = do
-  compileExpr e2
-  compileExpr e1
+  compileExpr (toExpr e2)
+  compileExpr (toExpr e1)
   IndigoM (\md -> ((), GenCode (pushNoRefMd $ popNoRefMd $ popNoRefMd md) fun))
   makeTopVar
 
 fromLorentzFun1ArgVoid
-  :: a & s :-> s
-  -> Expr a -> IndigoM s s ()
+  :: IsExpr ex a
+  => a & s :-> s
+  -> ex -> IndigoM s s ()
 fromLorentzFun1ArgVoid fun e = do
-  compileExpr e
+  compileExpr (toExpr e)
   IndigoM (\md -> ((), GenCode (popNoRefMd md) fun))

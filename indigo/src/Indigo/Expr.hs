@@ -3,6 +3,8 @@
 module Indigo.Expr
   ( Expr (..)
   , ValidValue
+  , IsExpr
+  , toExpr
   , compileExpr
   , (.!)
   ) where
@@ -11,6 +13,7 @@ import Lorentz hiding (get, return, (>>))
 import Prelude hiding (return, (>>), (>>=))
 
 import GHC.TypeLits (KnownSymbol)
+import qualified Data.Kind as Kind
 import Data.Vinyl.Derived (Label)
 import Data.Vinyl.Core (RMap(..), Rec(..))
 
@@ -25,55 +28,65 @@ import qualified Michelson.Typed.Arith as M
 import Michelson.Typed.Haskell.Instr.Product (GetFieldType, InstrGetFieldC, InstrSetFieldC)
 
 type ValidValue t = (KnownValue t, NoOperation t, NoBigMap t, IsoValue t)
+type IsExpr op n = (ToExpr op, ExprType op ~ n)
+type AreExprs ex1 ex2 n m = (IsExpr ex1 n, IsExpr ex2 m)
 
 data Expr a where
   C   :: ValidValue a => a -> Expr a
   V   :: Typeable a => Var a -> Expr a
-  Add :: ArithOpHs M.Add n m => Expr n -> Expr m -> Expr (ArithResHs M.Add n m)
-  Sub :: ArithOpHs M.Sub n m => Expr n -> Expr m -> Expr (ArithResHs M.Sub n m)
-  Mul :: ArithOpHs M.Mul n m => Expr n -> Expr m -> Expr (ArithResHs M.Mul n m)
-  Div :: EDivOpHs n m => Expr n -> Expr m -> Expr (EDivOpResHs n m)
-  Mod :: EDivOpHs n m => Expr n -> Expr m -> Expr (EModOpResHs n m)
+  Add :: (AreExprs ex1 ex2 n m, ArithOpHs M.Add n m) => ex1 -> ex2 -> Expr (ArithResHs M.Add n m)
+  Sub :: (AreExprs ex1 ex2 n m, ArithOpHs M.Sub n m) => ex1 -> ex2 -> Expr (ArithResHs M.Sub n m)
+  Mul :: (AreExprs ex1 ex2 n m, ArithOpHs M.Mul n m) => ex1 -> ex2 -> Expr (ArithResHs M.Mul n m)
+  Div :: (AreExprs ex1 ex2 n m, EDivOpHs n m) => ex1 -> ex2 -> Expr (EDivOpResHs n m)
+  Mod :: (AreExprs ex1 ex2 n m, EDivOpHs n m) => ex1 -> ex2 -> Expr (EModOpResHs n m)
 
-  Eq' :: (ArithOpHs M.Compare n m, UnaryArithOpHs M.Eq' (ArithResHs M.Compare n m))
-      => Expr n -> Expr m -> Expr (UnaryArithResHs M.Eq' (ArithResHs M.Compare n m))
+  Eq' :: ( AreExprs ex1 ex2 n m
+         , ArithOpHs M.Compare n m, UnaryArithOpHs M.Eq' (ArithResHs M.Compare n m))
+      => ex1 -> ex2 -> Expr (UnaryArithResHs M.Eq' (ArithResHs M.Compare n m))
 
-  Neq :: (ArithOpHs M.Compare n m, UnaryArithOpHs M.Neq (ArithResHs M.Compare n m))
-      => Expr n -> Expr m -> Expr (UnaryArithResHs M.Neq (ArithResHs M.Compare n m))
+  Neq :: ( AreExprs ex1 ex2 n m
+         , ArithOpHs M.Compare n m, UnaryArithOpHs M.Neq (ArithResHs M.Compare n m))
+      => ex1 -> ex2 -> Expr (UnaryArithResHs M.Neq (ArithResHs M.Compare n m))
 
-  Le :: (ArithOpHs M.Compare n m, UnaryArithOpHs M.Le (ArithResHs M.Compare n m))
-     => Expr n -> Expr m -> Expr (UnaryArithResHs M.Le (ArithResHs M.Compare n m))
+  Le :: ( AreExprs ex1 ex2 n m
+        , ArithOpHs M.Compare n m, UnaryArithOpHs M.Le (ArithResHs M.Compare n m))
+     => ex1 -> ex2 -> Expr (UnaryArithResHs M.Le (ArithResHs M.Compare n m))
 
-  Lt :: (ArithOpHs M.Compare n m, UnaryArithOpHs M.Lt (ArithResHs M.Compare n m))
-     => Expr n -> Expr m -> Expr (UnaryArithResHs M.Lt (ArithResHs M.Compare n m))
+  Lt :: ( AreExprs ex1 ex2 n m
+        , ArithOpHs M.Compare n m, UnaryArithOpHs M.Lt (ArithResHs M.Compare n m))
+     => ex1 -> ex2 -> Expr (UnaryArithResHs M.Lt (ArithResHs M.Compare n m))
 
-  Ge :: (ArithOpHs M.Compare n m, UnaryArithOpHs M.Ge (ArithResHs M.Compare n m))
-     => Expr n -> Expr m -> Expr (UnaryArithResHs M.Ge (ArithResHs M.Compare n m))
+  Ge :: ( AreExprs ex1 ex2 n m
+        , ArithOpHs M.Compare n m, UnaryArithOpHs M.Ge (ArithResHs M.Compare n m))
+     => ex1 -> ex2 -> Expr (UnaryArithResHs M.Ge (ArithResHs M.Compare n m))
 
-  Gt :: (ArithOpHs M.Compare n m, UnaryArithOpHs M.Gt (ArithResHs M.Compare n m))
-     => Expr n -> Expr m -> Expr (UnaryArithResHs M.Gt (ArithResHs M.Compare n m))
+  Gt :: ( AreExprs ex1 ex2 n m
+        , ArithOpHs M.Compare n m, UnaryArithOpHs M.Gt (ArithResHs M.Compare n m))
+     => ex1 -> ex2 -> Expr (UnaryArithResHs M.Gt (ArithResHs M.Compare n m))
 
-  Or :: ArithOpHs M.Or n m => Expr n -> Expr m -> Expr (ArithResHs M.Or n m)
-  And :: ArithOpHs M.And n m => Expr n -> Expr m -> Expr (ArithResHs M.And n m)
-  Not :: UnaryArithOpHs M.Not n => Expr n -> Expr (UnaryArithResHs M.Not n)
+  Or :: (AreExprs ex1 ex2 n m, ArithOpHs M.Or n m) => ex1 -> ex2 -> Expr (ArithResHs M.Or n m)
+  And :: (AreExprs ex1 ex2 n m, ArithOpHs M.And n m) => ex1 -> ex2 -> Expr (ArithResHs M.And n m)
+  Not :: (IsExpr op n, UnaryArithOpHs M.Not n) => op -> Expr (UnaryArithResHs M.Not n)
 
-  Fst :: Expr (n, m) -> Expr n
-  Snd :: Expr (n, m) -> Expr m
+  Fst :: IsExpr op (n, m) => op -> Expr n
+  Snd :: IsExpr op (n, m) => op -> Expr m
 
-  Lookup :: StoreGetC store name
-         => Label name -> Expr (GetStoreKey store name) -> Expr (Store store) -> Expr (Maybe $ GetStoreValue store name)
+  Lookup :: (StoreGetC store name, IsExpr exKey (GetStoreKey store name), IsExpr exStore (Store store))
+         => Label name -> exKey -> exStore -> Expr (Maybe $ GetStoreValue store name)
   InsertNew
     :: ( StoreInsertC store name, KnownSymbol name, KnownValue err
        , NoOperation err, NoBigMap err, IsoValue err
+       , IsExpr exKey (GetStoreKey store name)
+       , IsExpr exVal (GetStoreValue store name)
+       , IsExpr exStore (Store store)
        )
     => Label name -> err
-    -> Expr (GetStoreKey store name) -> Expr (GetStoreValue store name)
-    -> Expr (Store store) -> Expr (Store store)
+    -> exKey -> exVal -> exStore -> Expr (Store store)
 
-  ToField :: InstrGetFieldC dt name
-       => Expr dt -> Label name -> Expr (GetFieldType dt name)
-  SetField :: InstrSetFieldC dt name
-       => Expr dt -> Label name -> Expr (GetFieldType dt name) -> Expr dt
+  ToField :: (InstrGetFieldC dt name, IsExpr exDt dt)
+       => exDt -> Label name -> Expr (GetFieldType dt name)
+  SetField :: (InstrSetFieldC dt name, IsExpr exDt dt, IsExpr exFld (GetFieldType dt name))
+       => exDt -> Label name -> exFld -> Expr dt
   Construct ::
     ( InstrConstructC dt
     , RMap (ConstructorFieldTypes dt)
@@ -83,7 +96,7 @@ data Expr a where
   Sender :: Expr Address
 
 infixl 8 .!
-(.!) :: InstrGetFieldC dt name => Expr dt -> Label name -> Expr (GetFieldType dt name)
+(.!) :: (InstrGetFieldC dt name, IsExpr exDt dt) => exDt -> Label name -> Expr (GetFieldType dt name)
 (.!) = ToField
 
 data ArithError = ZeroDivision
@@ -110,39 +123,73 @@ compileExpr (Gt e1 e2) = binaryOp e1 e2 gt
 compileExpr (Ge e1 e2) = binaryOp e1 e2 ge
 compileExpr (And e1 e2) = binaryOp e1 e2 L.and
 compileExpr (Or e1 e2) = binaryOp e1 e2 L.or
-compileExpr (Not e1) = do
-  compileExpr e1
-  IndigoM $ \md -> ((), GenCode (pushNoRefMd $ popNoRefMd md) L.not)
+compileExpr (Not e) = unaryOp e L.not
 
-compileExpr (Fst e) = do
-  compileExpr e
-  IndigoM $ \md -> ((), GenCode (pushNoRefMd $ popNoRefMd md) L.car)
-compileExpr (Snd e) = do
-  compileExpr e
-  IndigoM $ \md -> ((), GenCode (pushNoRefMd $ popNoRefMd md) L.cdr)
+compileExpr (Fst e) = unaryOp e L.car
+compileExpr (Snd e) = unaryOp e L.cdr
 
 compileExpr (InsertNew l err k v store) = do
-  compileExpr store
-  compileExpr v
-  compileExpr k
+  compileExpr (toExpr store)
+  compileExpr (toExpr v)
+  compileExpr (toExpr k)
   IndigoM $ \md -> ((), GenCode (popNoRefMd $ popNoRefMd md) (storeInsertNew l (L.drop # L.push err)))
 compileExpr (Lookup l ekey estore) = binaryOp ekey estore (storeGet l)
 
 compileExpr (ToField e l) = do
-  compileExpr e
+  compileExpr (toExpr e)
   IndigoM (\md -> ((), GenCode (pushNoRefMd $ popNoRefMd md) (toField l)))
 compileExpr (SetField ev l ef) = do
-  compileExpr ev
-  compileExpr ef
+  compileExpr (toExpr ev)
+  compileExpr (toExpr ef)
   IndigoM (\md -> ((), GenCode (popNoRefMd md) (setField l)))
 compileExpr (Construct fields) = IndigoM $ \md ->
   let cd = construct $ rmap (\e -> fieldCtor $ gcCode $ snd $ runIndigoM (compileExpr e) md) fields in
   ((), GenCode (pushNoRefMd md) cd)
 compileExpr Sender = IndigoM $ \md -> ((), GenCode (pushNoRefMd md) sender)
 
-binaryOp :: forall res n m inp .
-  Expr n -> Expr m -> n & m & inp :-> res & inp -> IndigoM inp (res & inp) ()
-binaryOp e1 e2 opCode = do
+binaryOp :: forall n m ex1 ex2 res inp . (AreExprs ex1 ex2 n m)
+  => ex1 -> ex2 -> n & m & inp :-> res & inp -> IndigoM inp (res & inp) ()
+binaryOp (toExpr -> e1) (toExpr -> e2) opCode = do
   compileExpr e2
   compileExpr e1
   IndigoM $ \md -> ((), GenCode (pushNoRefMd $ popNoRefMd $ popNoRefMd md) opCode)
+
+unaryOp :: forall n ex res inp . (IsExpr ex n)
+  => ex -> n & inp :-> res & inp -> IndigoM inp (res & inp) ()
+unaryOp (toExpr -> e) opCode = do
+  compileExpr e
+  IndigoM $ \md -> ((), GenCode (pushNoRefMd $ popNoRefMd md) opCode)
+
+--------- Abstract Expr -------
+
+type ExprType a = ExprType' (Decide a) a
+
+toExpr :: forall a . ToExpr a => a -> Expr (ExprType a)
+toExpr = toExpr' @(Decide a) @a
+
+class ToExpr' (Decide x) x => ToExpr x
+instance ToExpr' (Decide x) x => ToExpr x
+
+-- This type class is needed to cope with overlapping instances.
+class ToExpr' decision c where
+  type family ExprType' decision c :: Kind.Type
+  toExpr' :: c -> Expr (ExprType' decision c)
+
+instance Typeable (a :: Kind.Type) => ToExpr' 'VarD (Var a) where
+  type instance ExprType' 'VarD (Var a) = a
+  toExpr' = V
+
+instance ValidValue a => ToExpr' 'ValD a where
+  type instance ExprType' 'ValD a = a
+  toExpr' = C
+
+instance ToExpr' 'ExprD (Expr a) where
+  type instance ExprType' 'ExprD (Expr a) = a
+  toExpr' = id
+
+data Decision = VarD | ValD | ExprD
+
+type family Decide x :: Decision where
+  Decide (Var _) = 'VarD
+  Decide (Expr _) = 'ExprD
+  Decide _ = 'ValD
