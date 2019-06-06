@@ -24,7 +24,7 @@ stack exec lorentz-contracts -- list
 Shows all registered contracts.
 
 ```sh
-stack exec lorentz-contracts -- print auction
+stack exec lorentz-contracts -- print -n auction
 ```
 Prints the code of auction contract.
 
