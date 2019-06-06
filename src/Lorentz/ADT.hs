@@ -17,6 +17,8 @@ module Lorentz.ADT
   , case_
   , caseT
   , (/->)
+  , InstrConstructC
+  , ConstructorFieldTypes
 
     -- * Useful re-exports
   , Rec (..)

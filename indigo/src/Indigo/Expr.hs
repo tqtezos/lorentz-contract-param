@@ -2,18 +2,27 @@
 -- it's compilation to Lorentz code.
 module Indigo.Expr
   ( Expr (..)
+  , ValidValue
   , compileExpr
+  , (.!)
   ) where
 
 import Lorentz hiding (get, return, (>>))
 import Prelude hiding (return, (>>), (>>=))
 
+import GHC.TypeLits (KnownSymbol)
+import Data.Vinyl.Derived (Label)
+import Data.Vinyl.Core (RMap(..), Rec(..))
+
+import Indigo.State
+  (GenCode(..), IndigoM(..), MetaData(..), Var, VarActions(..), iget, iput, lookupVar, popNoRefMd,
+  pushNoRefMd, return, (>>), (>>=))
+import Lorentz.ADT (InstrConstructC, fieldCtor)
 import qualified Lorentz.Instr as L
 import qualified Lorentz.Macro as L
+import Lorentz.Store (storeGet)
 import qualified Michelson.Typed.Arith as M
-import Indigo.State
-  (GenCode(..), IndigoM (..), MetaData(..), Var, VarActions (..), iget, iput, lookupVar,
-  popNoRefMd, pushNoRefMd, return, (>>), (>>=))
+import Michelson.Typed.Haskell.Instr.Product (GetFieldType, InstrGetFieldC, InstrSetFieldC)
 
 type ValidValue t = (KnownValue t, NoOperation t, NoBigMap t, IsoValue t)
 
@@ -48,6 +57,35 @@ data Expr a where
   And :: ArithOpHs M.And n m => Expr n -> Expr m -> Expr (ArithResHs M.And n m)
   Not :: UnaryArithOpHs M.Not n => Expr n -> Expr (UnaryArithResHs M.Not n)
 
+  Fst :: Expr (n, m) -> Expr n
+  Snd :: Expr (n, m) -> Expr m
+
+  Lookup :: StoreGetC store name
+         => Label name -> Expr (GetStoreKey store name) -> Expr (Store store) -> Expr (Maybe $ GetStoreValue store name)
+  InsertNew
+    :: ( StoreInsertC store name, KnownSymbol name, KnownValue err
+       , NoOperation err, NoBigMap err, IsoValue err
+       )
+    => Label name -> err
+    -> Expr (GetStoreKey store name) -> Expr (GetStoreValue store name)
+    -> Expr (Store store) -> Expr (Store store)
+
+  ToField :: InstrGetFieldC dt name
+       => Expr dt -> Label name -> Expr (GetFieldType dt name)
+  SetField :: InstrSetFieldC dt name
+       => Expr dt -> Label name -> Expr (GetFieldType dt name) -> Expr dt
+  Construct ::
+    ( InstrConstructC dt
+    , RMap (ConstructorFieldTypes dt)
+    )
+    => Rec Expr (ConstructorFieldTypes dt) -> Expr dt
+
+  Sender :: Expr Address
+
+infixl 8 .!
+(.!) :: InstrGetFieldC dt name => Expr dt -> Label name -> Expr (GetFieldType dt name)
+(.!) = ToField
+
 data ArithError = ZeroDivision
   deriving stock Generic
   deriving anyclass IsoValue
@@ -75,6 +113,32 @@ compileExpr (Or e1 e2) = binaryOp e1 e2 L.or
 compileExpr (Not e1) = do
   compileExpr e1
   IndigoM $ \md -> ((), GenCode (pushNoRefMd $ popNoRefMd md) L.not)
+
+compileExpr (Fst e) = do
+  compileExpr e
+  IndigoM $ \md -> ((), GenCode (pushNoRefMd $ popNoRefMd md) L.car)
+compileExpr (Snd e) = do
+  compileExpr e
+  IndigoM $ \md -> ((), GenCode (pushNoRefMd $ popNoRefMd md) L.cdr)
+
+compileExpr (InsertNew l err k v store) = do
+  compileExpr store
+  compileExpr v
+  compileExpr k
+  IndigoM $ \md -> ((), GenCode (popNoRefMd $ popNoRefMd md) (storeInsertNew l (L.drop # L.push err)))
+compileExpr (Lookup l ekey estore) = binaryOp ekey estore (storeGet l)
+
+compileExpr (ToField e l) = do
+  compileExpr e
+  IndigoM (\md -> ((), GenCode (pushNoRefMd $ popNoRefMd md) (toField l)))
+compileExpr (SetField ev l ef) = do
+  compileExpr ev
+  compileExpr ef
+  IndigoM (\md -> ((), GenCode (popNoRefMd md) (setField l)))
+compileExpr (Construct fields) = IndigoM $ \md ->
+  let cd = construct $ rmap (\e -> fieldCtor $ gcCode $ snd $ runIndigoM (compileExpr e) md) fields in
+  ((), GenCode (pushNoRefMd md) cd)
+compileExpr Sender = IndigoM $ \md -> ((), GenCode (pushNoRefMd md) sender)
 
 binaryOp :: forall res n m inp .
   Expr n -> Expr m -> n & m & inp :-> res & inp -> IndigoM inp (res & inp) ()

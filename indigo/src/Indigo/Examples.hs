@@ -45,7 +45,7 @@ contractWhileLorentz = compileIndigoContract $ \param st -> do
   i <- newVar @Integer (C 0)
   s <- newVar @Integer (C 0)
   while (V i `Lt` V st) $ do
-    if_ (V param `Lt` V i)
+    if_ ((V i `Mod` V param) `Eq'` C (0 :: Natural))
       (setVar s (V s `Add` V i))
       (return ())
     setVar i (V i `Add` C (1 :: Integer))

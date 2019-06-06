@@ -23,23 +23,32 @@ module Indigo.State
 
   , makeTopVar
   , lookupVar
+  , pushRefMd
   , pushNoRefMd
   , popNoRefMd
 
   , compileIndigo
   , compileIndigoContract
   , DestroyPrefix (..)
+
+  , toLorentzFun2Args
+  , DefaultStack
   ) where
 
 import Lorentz hiding (get, return, (>>))
 import Prelude hiding (return, (>>), (>>=))
 
+import Data.Vinyl.Derived (Label)
+import Data.Default (Default (..))
+import Data.Vinyl.TypeLevel (type (++))
 import qualified Data.Kind as Kind
 import Data.Typeable ((:~:)(..), eqT)
 import Data.Vinyl (Rec(..))
 import qualified GHC.TypeLits as Lit (ErrorMessage(..), TypeError)
 
+import Michelson.Typed.Haskell.Instr.Product
 import qualified Lorentz.Instr as L
+import qualified Lorentz.ADT as L
 
 {-# ANN module ("HLint: ignore Reduce duplication" :: Text) #-}
 
@@ -133,6 +142,8 @@ data VarActions a s = VarActions
   -- ^ Get a variable on the top of a stack.
   , vaSet :: a & s :-> s
   -- ^ Set a new value to variable.
+  , vaSetField :: forall name . InstrSetFieldC a name => Label name -> GetFieldType a name & s :-> s
+  -- ^ Set a new value to variable's field.
   }
 
 -- | Look up variable on the stack and provide actions
@@ -152,12 +163,17 @@ lookupVarNonEmpty x@(Var varNum) (cv :& s') = case cv of
   Ref (Var varNum1)
     | varNum == varNum1 ->
         case eqT @x @a of
-          Just Refl -> VarActions L.dup (L.swap # L.drop)
+          Just Refl -> VarActions L.dup (L.swap # L.drop) L.setField
           Nothing   -> error $ "Invalid type of a varible with ref #" <> show varNum
   _ -> buildVA $ lookupVar x s'
   where
     buildVA :: VarActions x s' -> VarActions x s
-    buildVA (VarActions g s) = VarActions (L.dip g # L.swap) (L.swap # dip s)
+    buildVA (VarActions g s sf) = VarActions (L.dip g # L.swap) (L.swap # dip s) (\label -> L.swap # dip (sf label))
+
+-- | Push a new stack element with reference to it.
+-- Return a variable which references to the just added element.
+pushRefMd :: Typeable x => MetaData stk -> (Var x, MetaData (x & stk))
+pushRefMd (MetaData stk cnt) = (Var cnt, MetaData (Ref (Var cnt) :& stk) (cnt + 1))
 
 -- | Push a new stack element without reference to it.
 pushNoRefMd :: MetaData inp -> MetaData (a & inp)
@@ -232,3 +248,31 @@ type family Decide from to :: Decision where
   Decide from from = 'Done
   Decide (_ ': rs) to = 'Skip (Decide rs to)
   Decide '[] _ = Lit.TypeError ('Lit.Text "Prefix can't be destroyed. Not matched stacks")
+
+----------------------------------------------------------------------------
+-- Utility for compatibility with Lorentz
+----------------------------------------------------------------------------
+
+type DefaultStack stk = Default (MetaData stk)
+
+instance Default (MetaData '[]) where
+  def = MetaData RNil 0
+
+instance Default (MetaData xs) => Default (MetaData (x ': xs)) where
+  def = MetaData (NoRef :& mdStack def)  0
+
+-- | Convert Indigo function to Lorentz one.
+toLorentzFun2Args
+  :: forall out s a b any .
+     ( Typeable a, Typeable b
+     , DestroyPrefix any (out ++ s)
+     , Default (MetaData s)
+     )
+  => (Var a -> Var b -> IndigoM (a & b & s) any ())
+  -> (a & b & s :-> (out ++ s))
+toLorentzFun2Args code = do
+  let varSt = Var 0
+  let varParam = Var 1
+  let vars = Ref varParam :& Ref varSt :& (mdStack $ def @(MetaData s))
+  let md = MetaData vars 2
+  gcCode $ destroyPrefix @any @(out ++ s) $ snd $ runIndigoM (code varParam varSt) md
