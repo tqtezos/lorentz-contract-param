@@ -81,6 +81,7 @@ module Lorentz.Macro
   -- * Additional Morley macros
   , View (..)
   , Void_ (..)
+  , VoidResult(..)
   , view_
   , void_
   , mkVoid
@@ -497,6 +498,14 @@ data Void_ (a :: Kind.Type) (b :: Kind.Type) = Void_
   } deriving stock Generic
     deriving anyclass IsoValue
 
+-- | Newtype over void result type used in tests to
+-- distinguish successful void result from other errors.
+--
+-- Usage example:
+-- lExpectFailWith (== VoidResult roleMaster)`
+newtype VoidResult r = VoidResult { unVoidResult :: r }
+  deriving newtype (Eq, IsoValue)
+
 mkVoid :: forall b a. a -> Void_ a b
 mkVoid a = Void_ a nop
 
@@ -506,4 +515,4 @@ void_
   => a & s :-> b & s' -> Void_ a b & s :-> anything
 void_ code =
   coerce_ @_ @(_, Lambda b b) #
-  unpair # swap # dip code # swap # exec # failWith
+  unpair # swap # dip code # swap # exec # coerce_ @b @(VoidResult b) # failWith
