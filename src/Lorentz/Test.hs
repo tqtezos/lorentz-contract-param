@@ -47,6 +47,12 @@ module Lorentz.Test
   , TxData (..)
   , genesisAddresses
   , genesisAddress
+  , genesisAddress1
+  , genesisAddress2
+  , genesisAddress3
+  , genesisAddress4
+  , genesisAddress5
+  , genesisAddress6
 
   -- * General utilities
   , failedProp

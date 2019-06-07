@@ -1,7 +1,3 @@
--- To make multi genesis addresses bindings work, we don't need
--- high quality code in tests anyway.
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
-
 -- | Module, containing spec to FA1.4.
 
 module Test.Lorentz.Contracts.ManagedLedger
@@ -27,8 +23,11 @@ import Util.Named ((.!))
 {-# ANN module ("HLint: ignore Reduce duplication" :: Text) #-}
 
 wallet1, wallet2, wallet3, manager, manager2 :: Address
-wallet1 : wallet2 : wallet3
-  : manager : manager2 : _ = toList genesisAddresses
+wallet1 = genesisAddress1
+wallet2 = genesisAddress2
+wallet3 = genesisAddress3
+manager = genesisAddress4
+manager2 = genesisAddress5
 
 -- | Originate the contract we are currently testing with empty storage.
 originateEmptyManagedLedger :: IntegrationalScenarioM (ContractAddr Parameter)
