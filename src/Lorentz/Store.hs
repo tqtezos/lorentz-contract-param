@@ -35,6 +35,7 @@ module Lorentz.Store
     -- ** Instructions
   , storeMem
   , storeGet
+  , storeUpdate
   , storeInsert
   , storeInsertNew
   , storeDelete
@@ -42,6 +43,7 @@ module Lorentz.Store
     -- ** Instruction constraints
   , StoreMemC
   , StoreGetC
+  , StoreUpdateC
   , StoreInsertC
   , StoreDeleteC
   , HasStore
@@ -276,6 +278,28 @@ type StoreGetC store name =
   ( StoreOpC store name
   , InstrUnwrapC store name
   , SingI (ToT (GetStoreValue store name))
+  , CtorHasOnlyField name store
+      (GetStoreKey store name |-> GetStoreValue store name)
+  )
+
+storeUpdate
+  :: forall store name s.
+     StoreUpdateC store name
+  => Label name
+  -> GetStoreKey store name
+      : Maybe (GetStoreValue store name)
+      : Store store
+      : s
+  :-> Store store : s
+storeUpdate label = I $
+  packKey @(MSCtorIdx (GetStore name store)) `Seq`
+  DIP (IF_NONE NONE (instrWrap @store label `Seq` SOME)) `Seq`
+  UPDATE
+
+type StoreUpdateC store name =
+  ( SingI (ToT store)
+  , StoreOpC store name
+  , InstrWrapC store name
   , CtorHasOnlyField name store
       (GetStoreKey store name |-> GetStoreValue store name)
   )
