@@ -28,6 +28,8 @@ module Michelson.Test.Integrational
   , setMaxSteps
   , setNow
   , withSender
+  , branchout
+  , (?-)
 
   -- * Validators
   , composeValidators
@@ -41,8 +43,8 @@ module Michelson.Test.Integrational
   , expectMichelsonFailed
   ) where
 
-import Control.Lens (assign, at, makeLenses, (%=), (.=), (<>=), (?=))
-import Control.Monad.Except (Except, runExcept, throwError)
+import Control.Lens (assign, at, makeLenses, makeLensesFor, (%=), (.=), (<>=), (?=))
+import Control.Monad.Except (Except, runExcept, throwError, withExcept)
 import qualified Data.List as List
 import Data.Map as Map (empty, insert, lookup)
 import Fmt (Buildable(..), blockListF, pretty, (+|), (|+))
@@ -80,6 +82,13 @@ data InternalState = InternalState
 
 makeLenses ''InternalState
 
+-- | When using 'branch' function for building test scenarios - names
+-- of branches we are currently within.
+newtype ScenarioBranchName = ScenarioBranchName { unTestBranch :: [Text] }
+
+instance Buildable ScenarioBranchName where
+  build = mconcat . intersperse "/" . map build . unTestBranch
+
 ----------------------------------------------------------------------------
 -- Interface
 ----------------------------------------------------------------------------
@@ -94,7 +103,7 @@ type SuccessValidator = (InternalState -> GState -> [GStateUpdate] -> Either Val
 
 -- | A monad inside which integrational tests can be described using
 -- do-notation.
-type IntegrationalScenarioM = StateT InternalState (Except ValidationError)
+type IntegrationalScenarioM = StateT InternalState (Except ScenarioError)
 
 -- | A dummy data type that ensures that `validate` is called in the
 -- end of each scenario. It is intentionally not exported.
@@ -149,6 +158,21 @@ instance Buildable ValidationError where
 instance Exception ValidationError where
   displayException = pretty
 
+-- | Overall information about test scenario error.
+data ScenarioError = ScenarioError
+  { _seBranch :: ScenarioBranchName
+  , _seError :: ValidationError
+  }
+
+makeLensesFor [("_seBranch", "seBranch")] ''ScenarioError
+
+instance Buildable ScenarioError where
+  build (ScenarioError br err) =
+    let builtBranch
+          | nullScenarioBranch br = ""
+          | otherwise = "In '" +| br |+ "' branch:\n"
+    in builtBranch <> build err
+
 -- | Integrational test that executes given operations and validates
 -- them using given validator. It can fail using 'Expectation'
 -- capability.
@@ -195,7 +219,10 @@ validate validator = Validated <$ do
   ops <- use isOperations
   iState <- get
   let interpret = interpreterPure now maxSteps gState ops
-  mUpdatedGState <- lift $ validateResult validator interpret iState
+  mUpdatedGState <-
+    lift $
+    withExcept (ScenarioError emptyScenarioBranch) $
+    validateResult validator interpret iState
   isOperations .= mempty
   whenJust mUpdatedGState $ \newGState -> isGState .= newGState
 
@@ -219,6 +246,45 @@ withSender addr scenario = do
 
 putOperation :: InterpreterOp -> IntegrationalScenarioM ()
 putOperation op = isOperations <>= one op
+
+-- | Make branch names for a case when we are not within any branch.
+emptyScenarioBranch :: ScenarioBranchName
+emptyScenarioBranch = ScenarioBranchName []
+
+-- | Add a new branch element to names provided by inner 'branch' calls.
+appendScenarioBranch :: Text -> ScenarioBranchName -> ScenarioBranchName
+appendScenarioBranch brName (ScenarioBranchName branches) =
+  ScenarioBranchName (brName : branches)
+
+nullScenarioBranch :: ScenarioBranchName -> Bool
+nullScenarioBranch (ScenarioBranchName brs) = null brs
+
+-- | Execute multiple testing scenarios independently, basing
+-- them on scenario built till this point.
+--
+-- The following property holds for this function:
+--
+-- @ pre >> branchout [a, b, c] = branchout [pre >> a, pre >> b, pre >> c] @.
+--
+-- In case of property failure in one of the branches no following branch is
+-- executed.
+--
+-- Providing empty list of scenarios to this function causes error;
+-- we do not require 'NonEmpty' here though for convenience.
+branchout :: HasCallStack => [(Text, IntegrationalScenario)] -> IntegrationalScenario
+branchout scenarios = do
+  st <- get
+  res <- lift . forM scenarios $ \(name, scenario) ->
+    withExcept (seBranch %~ appendScenarioBranch name) $
+    evalStateT scenario st
+  case nonEmpty res of
+    Nothing -> error "branch: empty list of scenarios provided"
+    Just (validated :| _) -> pure validated
+
+-- | Make a tuple with name without extra syntactic noise.
+(?-) :: Text -> a -> (Text, a)
+(?-) = (,)
+infixr 0 ?-
 
 ----------------------------------------------------------------------------
 -- Validators to be used within 'IntegrationalValidator'
@@ -338,7 +404,7 @@ initIS = InternalState
   }
 
 integrationalTest ::
-     (Maybe ValidationError -> res)
+     (Maybe ScenarioError -> res)
   -> IntegrationalScenario
   -> res
 integrationalTest howToFail scenario =

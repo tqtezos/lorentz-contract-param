@@ -29,6 +29,8 @@ module Lorentz.Test.Integrational
   , I.setMaxSteps
   , I.setNow
   , I.withSender
+  , I.branchout
+  , (I.?-)
 
   -- * Validators
   , I.composeValidators

@@ -31,6 +31,8 @@ module Michelson.Test
   , validate
   , setMaxSteps
   , setNow
+  , branchout
+  , (?-)
 
   -- ** Validators
   , composeValidators
