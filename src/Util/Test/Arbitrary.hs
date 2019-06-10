@@ -6,7 +6,8 @@ module Util.Test.Arbitrary
 
 import Prelude hiding (EQ, GT, LT)
 
-import Test.QuickCheck (Arbitrary(..), Gen, choose, elements, oneof, suchThatMap, vector)
+import Test.QuickCheck
+  (Arbitrary(..), Gen, choose, elements, frequency, oneof, resize, suchThatMap, vector)
 import Test.QuickCheck.Arbitrary.ADT (ToADTArbitrary(..))
 import Test.QuickCheck.Gen (unGen)
 import Test.QuickCheck.Instances.ByteString ()
@@ -49,11 +50,13 @@ instance Arbitrary SrcPos where
 
 instance ToADTArbitrary LetName
 instance Arbitrary LetName where
-  arbitrary = LetName <$> arbitrary
+  arbitrary = LetName <$> resize 3 arbitrary
 
 instance ToADTArbitrary InstrCallStack
 instance Arbitrary InstrCallStack where
-  arbitrary = liftA2 InstrCallStack (vector 2) arbitrary
+  arbitrary = liftA2 InstrCallStack genName arbitrary
+    where
+    genName = frequency [(80, pure []), (18, vector 1), (2, vector 2)]
 
 instance ToADTArbitrary ExpandedOp
 instance Arbitrary ExpandedOp where
@@ -61,17 +64,18 @@ instance Arbitrary ExpandedOp where
 
 instance ToADTArbitrary Mutez
 
+-- TODO: why not to merge these three?
 instance ToADTArbitrary TypeAnn
 instance Arbitrary TypeAnn where
-  arbitrary = Annotation <$> arbitrary
+  arbitrary = Annotation <$> resize 5 arbitrary
 
 instance ToADTArbitrary FieldAnn
 instance Arbitrary FieldAnn where
-  arbitrary = Annotation <$> arbitrary
+  arbitrary = Annotation <$> resize 5 arbitrary
 
 instance ToADTArbitrary VarAnn
 instance Arbitrary VarAnn where
-  arbitrary = Annotation <$> arbitrary
+  arbitrary = Annotation <$> resize 5 arbitrary
 
 smallSize :: Gen Int
 smallSize = choose (0, 3)
@@ -84,7 +88,7 @@ smallList1 = smallList `suchThatMap` nonEmpty
 
 instance (Arbitrary op, ToADTArbitrary op) => ToADTArbitrary (Contract' op)
 instance (Arbitrary op) => Arbitrary (Contract' op) where
-  arbitrary = Contract <$> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary = Contract <$> arbitrary <*> arbitrary <*> smallList
 
 instance (Arbitrary op, ToADTArbitrary op, Arbitrary (ExtInstrAbstract op)) => ToADTArbitrary (InstrAbstract op)
 instance (Arbitrary op, Arbitrary (ExtInstrAbstract op)) => Arbitrary (InstrAbstract op) where
@@ -200,6 +204,11 @@ instance ToADTArbitrary Type
 instance Arbitrary Type where
   arbitrary = Type <$> arbitrary <*> arbitrary
 
+-- | @getRareT k@ generates 'T' producing anything big once per @1 / (k + 1)@
+-- invocation.
+genRareType :: Word -> Gen Type
+genRareType k = Type <$> genRareT k <*> arbitrary
+
 instance ToADTArbitrary T
 instance Arbitrary T where
   arbitrary =
@@ -213,12 +222,19 @@ instance Arbitrary T where
       , TSet <$> arbitrary
       , pure TOperation
       , TContract <$> arbitrary
-      , TPair <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      , TOr <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      , TLambda <$> arbitrary <*> arbitrary
+      , TPair <$> arbitrary <*> arbitrary <*> genRareType 5 <*> genRareType 5
+      , TOr <$> arbitrary <*> arbitrary <*> genRareType 5 <*> genRareType 5
+      , TLambda <$> genRareType 5 <*> genRareType 5
       , TMap <$> arbitrary <*> arbitrary
       , TBigMap <$> arbitrary <*> arbitrary
       ]
+
+-- | @getRareT k@ generates 'Type' producing anything big once per @1 / (k + 1)@
+-- invocation.
+--
+-- Useful to avoid exponensial growth.
+genRareT :: Word -> Gen T
+genRareT k = frequency [(1, arbitrary), (fromIntegral k, pure TUnit)]
 
 instance ToADTArbitrary CT
 instance Arbitrary CT where
