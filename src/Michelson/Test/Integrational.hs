@@ -212,8 +212,10 @@ setMaxSteps = assign isMaxSteps
 -- | Pretend that given address initiates all the transfers within the
 -- code block (i.e. @SENDER@ instruction will return this address).
 withSender :: Address -> IntegrationalScenarioM a -> IntegrationalScenarioM a
-withSender addr scenario =
-  (isSender ?= addr) *> scenario <* (isSender .= Nothing)
+withSender addr scenario = do
+  prevSender <- use isSender
+  isSender ?= addr
+  scenario <* (isSender .= prevSender)
 
 putOperation :: InterpreterOp -> IntegrationalScenarioM ()
 putOperation op = isOperations <>= one op
