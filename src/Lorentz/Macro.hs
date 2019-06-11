@@ -98,6 +98,7 @@ import Lorentz.Arith
 import Lorentz.Base
 import Lorentz.Constraints
 import Lorentz.Coercions
+import Lorentz.Errors
 import Lorentz.Instr
 import Lorentz.Value
 import Michelson.Typed.Arith
@@ -218,7 +219,7 @@ fail_ = unit # failWith
 assertionFailed :: MText -> whatever :-> anything
 assertionFailed reason
   | null reason = fail_
-  | otherwise = failText reason
+  | otherwise = failUsing reason
 
 assert :: MText -> Bool & s :-> s
 assert reason = if_ nop (assertionFailed reason)
@@ -272,7 +273,7 @@ assertRight :: MText -> Either a b & s :-> b & s
 assertRight reason = ifLeft (assertionFailed reason) nop
 
 assertUsing
-  :: (IsoValue a, KnownValue a, NoOperation a, NoBigMap a)
+  :: IsError a
   => a -> Bool & s :-> s
 assertUsing err = if_ nop $ failUsing err
 

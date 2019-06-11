@@ -74,8 +74,8 @@ data Expr a where
   Lookup :: (StoreGetC store name, IsExpr exKey (GetStoreKey store name), IsExpr exStore (Store store))
          => Label name -> exKey -> exStore -> Expr (Maybe $ GetStoreValue store name)
   InsertNew
-    :: ( StoreInsertC store name, KnownSymbol name, KnownValue err
-       , NoOperation err, NoBigMap err, IsoValue err
+    :: ( StoreInsertC store name, KnownSymbol name
+       , IsError err
        , IsExpr exKey (GetStoreKey store name)
        , IsExpr exVal (GetStoreValue store name)
        , IsExpr exStore (Store store)
@@ -109,7 +109,6 @@ infixl 8 .!
 
 data ArithError = ZeroDivision
   deriving stock Generic
-  deriving anyclass IsoValue
 
 compileExpr :: forall a inp . Expr a -> IndigoM inp (a & inp) ()
 compileExpr (C a) = do
@@ -140,7 +139,7 @@ compileExpr (InsertNew l err k v store) = do
   compileExpr (toExpr store)
   compileExpr (toExpr v)
   compileExpr (toExpr k)
-  IndigoM $ \md -> ((), GenCode (popNoRefMd $ popNoRefMd md) (storeInsertNew l (L.drop # L.push err)))
+  IndigoM $ \md -> ((), GenCode (popNoRefMd $ popNoRefMd md) (storeInsertNew l (failUsing err)))
 compileExpr (Insert l k v store) = do
   compileExpr (toExpr store)
   compileExpr (toExpr v)
@@ -206,3 +205,9 @@ type family Decide x :: Decision where
   Decide (Var _) = 'VarD
   Decide (Expr _) = 'ExprD
   Decide _ = 'ValD
+
+----------------------------------------------------------------------------
+-- TH derivations
+----------------------------------------------------------------------------
+
+deriveCustomError ''ArithError

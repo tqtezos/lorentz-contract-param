@@ -4,7 +4,7 @@ module Michelson.TypeCheck.Types
     , SomeHST (..)
     , SomeInstrOut (..)
     , SomeInstr (..)
-    , SomeValue (..)
+    , SomeNotedValue (..)
     , SomeContract (..)
     , SomeCValue (..)
     , BoundVars (..)
@@ -134,11 +134,11 @@ instance Show (ExtInstr inp) => Show (SomeInstr inp) where
 
 -- | Data type, holding strictly-typed Michelson value along with its
 -- type singleton.
-data SomeValue where
+data SomeNotedValue where
     (::::) :: (SingI t, Typeable t)
            => T.Value t
            -> (Sing t, Notes t)
-           -> SomeValue
+           -> SomeNotedValue
 
 -- | Data type, holding strictly-typed Michelson value along with its
 -- type singleton.

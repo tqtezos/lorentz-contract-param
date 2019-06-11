@@ -169,7 +169,7 @@ spec_ManagedLedger = do
             )
 
         validate . Left $
-          lExpectUserError (== NotEnoughAllowance (#required .! 5, #present .! 0))
+          lExpectError (== NotEnoughAllowance (#required .! 5, #present .! 0))
 
     it "Cannot transfer too much money" $
       integrationalTestProperty $ do
@@ -184,7 +184,7 @@ spec_ManagedLedger = do
             )
 
         validate . Left $
-          lExpectUserError (== NotEnoughBalance (#required .! 11, #present .! 10))
+          lExpectError (== NotEnoughBalance (#required .! 11, #present .! 10))
 
     it "Transferring 0 tokens does not create entry in the ledger" $
       integrationalTestProperty $ do
@@ -279,7 +279,7 @@ spec_ManagedLedger = do
             )
 
         validate . Left $
-          lExpectUserError (== NotEnoughAllowance (#required .! 3, #present .! 2))
+          lExpectError (== NotEnoughAllowance (#required .! 3, #present .! 2))
 
     -- TODO: do we need this behavior?
     -- it "Approving funds flow from manager is not possible" $
@@ -308,7 +308,7 @@ spec_ManagedLedger = do
             )
 
         validate . Left $
-          lExpectUserError (== NotEnoughAllowance (#required .! 1, #present .! 0))
+          lExpectError (== NotEnoughAllowance (#required .! 1, #present .! 0))
 
     it "Can transfer approved money to a foreign address" $
       integrationalTestProperty $ do
@@ -353,7 +353,7 @@ spec_ManagedLedger = do
             )
 
         validate . Left $
-          lExpectUserError (== UnsafeAllowanceChange 5)
+          lExpectError (== UnsafeAllowanceChange 5)
 
   describe "setPause" $ do
     it "Pause prohibits transfers" $
@@ -371,7 +371,7 @@ spec_ManagedLedger = do
             )
 
         validate . Left $
-          lExpectUserError (== OperationsArePaused)
+          lExpectError (== OperationsArePaused)
 
     it "Pause prohibits approvals" $
       integrationalTestProperty $ do
@@ -387,7 +387,7 @@ spec_ManagedLedger = do
             )
 
         validate . Left $
-          lExpectUserError (== OperationsArePaused)
+          lExpectError (== OperationsArePaused)
 
     it "Manager cannot do transfers even during pause" $
       integrationalTestProperty $ do
@@ -404,7 +404,7 @@ spec_ManagedLedger = do
             )
 
         validate . Left $
-          lExpectUserError (== OperationsArePaused)
+          lExpectError (== OperationsArePaused)
 
   describe "setManager" $ do
     it "Manager can delegate his rights" $
@@ -426,7 +426,7 @@ spec_ManagedLedger = do
           lCall erc20 $ SetManager wallet2
 
         validate . Left $
-          lExpectUserError (== InitiatorIsNotManager)
+          lExpectError (== InitiatorIsNotManager)
 
     it "Cannot set manager to an address from ledger" $
       integrationalTestProperty $ do
@@ -436,7 +436,7 @@ spec_ManagedLedger = do
           lCall erc20 $ SetManager wallet2
 
         validate . Left $
-          lExpectUserError (== ManagerAddressWouldShadow)
+          lExpectError (== ManagerAddressWouldShadow)
 
   describe "Total supply" $ do
     it "Is correct after multiple transfers" $

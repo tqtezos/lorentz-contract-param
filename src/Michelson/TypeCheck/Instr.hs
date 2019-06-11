@@ -150,7 +150,7 @@ typeCheckList = usingReaderT def ... typeCheckImpl typeCheckInstr
 typeCheckValue
   :: U.Value
   -> (Sing t, Notes t)
-  -> TypeCheckInstr SomeValue
+  -> TypeCheckInstr SomeNotedValue
 typeCheckValue = typeCheckValImpl typeCheckInstr
 
 -- | Like 'typeCheckValue', but returns value of a desired type.

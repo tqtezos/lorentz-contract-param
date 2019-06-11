@@ -41,7 +41,7 @@ module Lorentz.Test
   , lExpectStorageConst
   , lExpectMichelsonFailed
   , lExpectFailWith
-  , lExpectUserError
+  , lExpectError
   , lExpectConsumerStorage
   , lExpectViewConsumerStorage
 

@@ -34,10 +34,6 @@ module Lorentz.Instr
   , exec
   , dip
   , failWith
-  , failText
-  , failTagged
-  , failUsing
-  , failUnexpected
   , cast
   , pack
   , unpack
@@ -93,9 +89,7 @@ import Lorentz.Constraints
 import Lorentz.Polymorphic
 import Lorentz.Value
 import Michelson.Typed
-  (Instr(..), Notes(NStar), ToT, Value'(..), checkBigMapConstraint, forbiddenBigMap,
-  forbiddenOp)
-import Michelson.Text
+  (Instr(..), Notes(NStar), ToT, Value'(..), checkBigMapConstraint, forbiddenBigMap, forbiddenOp)
 import Michelson.Typed.Arith
 
 nop :: s :-> s
@@ -418,29 +412,6 @@ updateNew
   => (forall s0. k : s0 :-> e : s0)
   -> k & UpdOpParamsHs c & c & s :-> c & s
 updateNew mkErr = failingWhenPresent mkErr # update
-
--- | Fail with a given message.
-failText :: MText -> s :-> t
-failText msg = push msg # failWith
-
--- | Fail with a given message and the top of the current stack.
-failTagged :: (KnownValue a) => MText -> a & s :-> t
-failTagged tag = push tag # pair # failWith
-
--- | Fail with the given Haskell value.
-failUsing
-  :: (IsoValue a, KnownValue a, NoOperation a, NoBigMap a)
-  => a -> s :-> t
-failUsing err = push err # failWith
-
--- | Fail, providing a reference to the place in the code where
--- this function is called.
---
--- Like 'error' in Haskell code, this instruction is for internal errors only.
-failUnexpected :: HasCallStack => MText -> s :-> t
-failUnexpected msg =
-  failText $ [mt|Unexpected failure: |] <> msg <> [mt|\n|]
-          <> mkMTextCut (toText $ prettyCallStack callStack)
 
 class LorentzFunctor (c :: Kind.Type -> Kind.Type) where
   lmap :: KnownValue b => (a : s :-> b : s) -> (c a : s :-> c b : s)
