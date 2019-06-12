@@ -11,7 +11,7 @@
   --package morley
 -}
 
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, QuasiQuotes #-}
 
 module StringCallerSpec where
 
@@ -20,15 +20,15 @@ import Test.Hspec (Spec, hspec, it, parallel)
 import Test.Hspec.QuickCheck (modifyMaxSuccess, prop)
 import Test.QuickCheck.Instances.Text ()
 
-import Michelson.Typed (Contract, ToT)
-import Michelson.Untyped (UntypedContract)
-import qualified Michelson.Untyped as Untyped
-import Morley.Test
+import Michelson.Test
   (IntegrationalScenario, SuccessValidator, TxData(..), composeValidatorsList, expectAnySuccess,
   expectBalance, expectMichelsonFailed, expectStorageUpdateConst, genesisAddress,
   integrationalTestExpectation, integrationalTestProperty, originate, setNow, specWithContract,
   transfer, validate)
-import Tezos.Address (Address, formatAddress, unsafeParseAddress)
+import Michelson.Text (MText, mt)
+import Michelson.Typed (Contract, ToT)
+import qualified Michelson.Untyped as Untyped
+import Tezos.Address (Address, mformatAddress, unsafeParseAddress)
 import Tezos.Core (timestampFromSeconds, unsafeMkMutez)
 
 main :: IO ()
@@ -42,8 +42,8 @@ spec =
   specImpl stringCaller failOrStoreAndTransfer
 
 specImpl ::
-     (UntypedContract, Contract (ToT Text) (ToT Address))
-  -> (UntypedContract, Contract (ToT Text) (ToT Text))
+     (Untyped.Contract, Contract (ToT MText) (ToT Address))
+  -> (Untyped.Contract, Contract (ToT MText) (ToT MText))
   -> Spec
 specImpl (uStringCaller, _stringCaller) (uFailOrStore, _failOrStoreAndTransfer) = do
   let scenario = integrationalScenario uStringCaller uFailOrStore
@@ -60,9 +60,9 @@ specImpl (uStringCaller, _stringCaller) (uFailOrStore, _failOrStoreAndTransfer) 
     prop (prefix <> "an arbitrary value" <> suffix) $
       \str -> integrationalTestProperty (scenario str)
   where
-    constStr = "caller"
+    constStr = [mt|caller|]
 
-integrationalScenario :: UntypedContract -> UntypedContract -> Text -> IntegrationalScenario
+integrationalScenario :: Untyped.Contract -> Untyped.Contract -> MText -> IntegrationalScenario
 integrationalScenario stringCaller failOrStoreAndTransfer str = do
   let
     initFailOrStoreBalance = unsafeMkMutez 900
@@ -70,10 +70,10 @@ integrationalScenario stringCaller failOrStoreAndTransfer str = do
 
   -- Originate both contracts
   failOrStoreAndTransferAddress <-
-    originate failOrStoreAndTransfer (Untyped.ValueString "hello") initFailOrStoreBalance
+    originate failOrStoreAndTransfer "failOrStoreAndTransfer" (Untyped.ValueString [mt|hello|]) initFailOrStoreBalance
   stringCallerAddress <-
-    originate stringCaller
-    (Untyped.ValueString $ formatAddress failOrStoreAndTransferAddress)
+    originate stringCaller "stringCaller"
+    (Untyped.ValueString $ mformatAddress failOrStoreAndTransferAddress)
     initStringCallerBalance
 
   -- NOW = 500, so stringCaller shouldn't fail
@@ -115,7 +115,7 @@ integrationalScenario stringCaller failOrStoreAndTransfer str = do
 
   -- This time execution should fail, because failOrStoreAndTransfer should fail
   -- because its balance is greater than 1000.
-  validate (Left $ expectMichelsonFailed failOrStoreAndTransferAddress)
+  validate (Left $ expectMichelsonFailed (const True) failOrStoreAndTransferAddress)
 
   -- We can also send tokens from failOrStoreAndTransfer to tz1 address directly
   let
@@ -150,7 +150,7 @@ integrationalScenario stringCaller failOrStoreAndTransfer str = do
   -- Now let's set NOW to 600 and expect stringCaller to fail
   setNow (timestampFromSeconds (600 :: Int))
   transferToStringCaller
-  validate (Left $ expectMichelsonFailed stringCallerAddress)
+  validate (Left $ expectMichelsonFailed (const True) stringCallerAddress)
 
 -- Address hardcoded in 'failOrStoreAndTransfer.tz'.
 constAddr :: Address

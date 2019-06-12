@@ -81,7 +81,7 @@ Here is the full test suite:
   --package morley
 -}
 
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, QuasiQuotes #-}
 
 module HelloTezosSpec where
 
@@ -89,8 +89,9 @@ import Data.Text (Text)
 import Fmt (pretty)
 import Test.Hspec (Spec, expectationFailure, hspec, it, shouldBe)
 
+import Michelson.Test (contractProp, dummyContractEnv, specWithTypedContract)
+import Michelson.Text (mt)
 import Michelson.Typed (toVal)
-import Morley.Test (contractProp, dummyContractEnv, specWithTypedContract)
 
 main :: IO ()
 main = hspec spec
@@ -99,14 +100,14 @@ spec :: Spec
 spec = do
   specWithTypedContract "contracts/helloTezos.tz" $ \contract -> do
     it "Puts 'Hello Tezos!' to its storage" $
-      contractProp contract validate' dummyContractEnv () ("" :: Text)
+      contractProp contract validate' dummyContractEnv () [mt||]
   where
     validate' (res, _) =
       case res of
         Left err -> expectationFailure $
           "Unexpected contract failure: " <> pretty err
         Right (_operations, val) ->
-          val `shouldBe` toVal ("Hello Tezos!" :: Text)
+          val `shouldBe` toVal [mt|Hello Tezos!|]
 ```
 
 It starts with a shebang line to execute `stack` and arguments that will be passed to the `stack` executable.
@@ -116,7 +117,8 @@ We are using the following packages:
 * `hspec` is a generic Haskell testing framework that we use to setup testing infrastructure.
 * `morley` is the Morley library itself.
 
-Then we enable `OverloadedStrings` to be able to write `Text` constants and import some modules.
+Then we enable `OverloadedStrings` to be able to write `Text` constants and `QuasiQuotes` to create Michelson strings using `mt`.
+Then we import some modules.
 All test logic is in `spec` which has type `Spec`.
 You can treat it as a specification of a contract we want to test.
 The test itself does the following:
@@ -130,7 +132,7 @@ In our case, the only behavior we want to describe is that the contract puts a c
 It takes a contract, a validation function, environment, contract's parameter, and initial storage.
 Environment essentially contains blockchain state which is irrelevant for this test, so we just use a dummy value (`dummyContractEnv`).
 The contract's parameter is `unit` and the storage type is `string`.
-We pass `()` and `""` as parameter and storage respectively, and they get automatically converted to Michelson values.
+We pass `()` and empty string as parameter and storage respectively, and they get automatically converted to Michelson values.
 4. The most interesting part is the validation function.
 It takes a pair of values.
 The first value is `Either` an error (which corresponds to the `[FAILED]` state from Michelson) or a pair which contains a list of operations (`operation` type in Michelson) and a final storage value.
@@ -138,7 +140,7 @@ The second value is the final interpreter state, which is not essential for us n
 If the contract fails, we use `hspec`'s `expectationFailure` because the contract's failure is not what we expect.
 Otherwise, we check that resulting storage value is `"Hello Tezos!"`.
 
-Notice that we use `toVal` to convert `"Hello Tezos!"`, which has type `Text`, to a Michelson value.
+Notice that we use `toVal` to convert `[mt|Hello Tezos!|]`, which has type `MText`, to a Michelson value.
 It's a polymorphic function which converts various Haskell values to Michelson values.
 Michelson value type is a GADT defined in `Michelson.Typed`.
 It's not necessary to understand its internals in order to use this EDSL, but it might be useful to know how it works under the hood.
@@ -216,9 +218,9 @@ import Test.Hspec (Spec, hspec)
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck (Property, (===))
 
-import Michelson.Typed (ToT, fromVal)
-import Morley.Test
+import Michelson.Test
   (ContractReturn, contractProp, dummyContractEnv, failedProp, specWithTypedContract)
+import Michelson.Typed (ToT, fromVal)
 import Tezos.Core (Mutez)
 
 type Parameter = (Mutez, Mutez)
@@ -242,7 +244,7 @@ spec = do
 
     validate
       :: Parameter
-      -> ContractReturn s (ToT Storage)
+      -> ContractReturn (ToT Storage)
       -> Property
     validate p (Right ([], l), _) = fromVal l === mkExpected p
     validate _ (Left e, _) =
@@ -367,8 +369,8 @@ We import two contracts and pass them to `specImpl`:
 
 ```haskell
 specImpl ::
-     (UntypedContract, Contract (ToT Text) (ToT Address))
-  -> (UntypedContract, Contract (ToT Text) (ToT Text))
+     (Untyped.Contract, Contract (ToT MText) (ToT Address))
+  -> (Untyped.Contract, Contract (ToT MText) (ToT MText))
   -> Spec
 specImpl (uStringCaller, _stringCaller) (uFailOrStore, _failOrStoreAndTransfer) = do
   let scenario = integrationalScenario uStringCaller uFailOrStore
@@ -385,7 +387,7 @@ specImpl (uStringCaller, _stringCaller) (uFailOrStore, _failOrStoreAndTransfer) 
     prop (prefix <> "an arbitrary value" <> suffix) $
       \str -> integrationalTestProperty (scenario str)
   where
-    constStr = "caller"
+    constStr = [mt|caller]
 ```
 
 First of all, let's look at its type.
@@ -402,7 +404,7 @@ The second test is property-based, we use `modifyMaxSuccess` to run it at most t
 The most interesting part happens in `integrationalScenario` that is defined below:
 
 ```haskell
-integrationalScenario :: UntypedContract -> UntypedContract -> Text -> IntegrationalScenario
+integrationalScenario :: Untyped.Contract -> Untyped.Contract -> MText -> IntegrationalScenario
 integrationalScenario stringCaller failOrStoreAndTransfer str = do
   let
     initFailOrStoreBalance = unsafeMkMutez 900
@@ -410,10 +412,10 @@ integrationalScenario stringCaller failOrStoreAndTransfer str = do
 
   -- Originate both contracts
   failOrStoreAndTransferAddress <-
-    originate failOrStoreAndTransfer (Untyped.ValueString "hello") initFailOrStoreBalance
+    originate failOrStoreAndTransfer "failOrStoreAndTransfer" (Untyped.ValueString [mt|hello|]) initFailOrStoreBalance
   stringCallerAddress <-
-    originate stringCaller
-    (Untyped.ValueString $ formatAddress failOrStoreAndTransferAddress)
+    originate stringCaller "stringCaller"
+    (Untyped.ValueString $ mformatAddress failOrStoreAndTransferAddress)
     initStringCallerBalance
 
   -- NOW = 500, so stringCaller shouldn't fail
@@ -482,7 +484,7 @@ It should fail, because `failOrStoreAndTransfer` fails when its balance is great
 
   -- This time execution should fail, because failOrStoreAndTransfer should fail
   -- because its balance is greater than 1000.
-  validate (Left $ expectMichelsonFailed failOrStoreAndTransferAddress)
+  validate (Left $ expectMichelsonFailed (const True) failOrStoreAndTransferAddress)
 ```
 
 In this case we expect that `failOrStoreAndTransfer` will reach `[FAILED]` state.
@@ -534,7 +536,7 @@ After that `stringCaller` should fail because the current timestamp is greater t
   -- Now let's set NOW to 600 and expect stringCaller to fail
   setNow (timestampFromSeconds (600 :: Int))
   transferToStringCaller
-  validate (Left $ expectMichelsonFailed stringCallerAddress)
+  validate (Left $ expectMichelsonFailed (const True) stringCallerAddress)
 ```
 
 This is the end of this test, but in principle we can continue performing operations and validating their effects.
@@ -648,7 +650,7 @@ shouldExpectFailed fixture =
     , fAmount fixture < unsafeMkMutez 15
     ]
 
-shouldReturn :: Fixture -> UntypedValue
+shouldReturn :: Fixture -> Untyped.Value
 shouldReturn fixture
   | fMaxSteps fixture - consumedGas > 1000 = Untyped.ValueTrue
   | otherwise = Untyped.ValueFalse
@@ -662,7 +664,7 @@ shouldReturn fixture
 Our `specImpl` looks similar to `specImpl` from the previous test case:
 ```haskell
 specImpl ::
-    (UntypedContract, Contract (ToT Address) (ToT Bool))
+    (Untyped.Contract, Contract (ToT Address) (ToT Bool))
   -> Spec
 specImpl (uEnvironment, _environment)  = do
   let scenario = integrationalScenario uEnvironment
@@ -680,15 +682,15 @@ In this case, `Fixture` will be generated by QuickCheck using `Arbitrary` instan
 All logic is defined in `integrationalScenario` again, so let's see it:
 
 ```haskell
-integrationalScenario :: UntypedContract -> Fixture -> IntegrationalScenario
+integrationalScenario :: Untyped.Contract -> Fixture -> IntegrationalScenario
 integrationalScenario contract fixture = do
   -- First of all let's set desired gas limit and NOW
   setNow $ fNow fixture
   setMaxSteps $ fMaxSteps fixture
 
-  -- Then let's originated the 'environment.tz' contract
+  -- Then let's originate the 'environment.tz' contract
   environmentAddress <-
-    originate contract Untyped.ValueFalse (fBalance fixture)
+    originate contract "environment" Untyped.ValueFalse (fBalance fixture)
 
   -- And transfer tokens to it
   let
@@ -697,7 +699,7 @@ integrationalScenario contract fixture = do
       | otherwise = genesisAddress
     txData = TxData
       { tdSenderAddress = genesisAddress
-      , tdParameter = Untyped.ValueString (formatAddress param)
+      , tdParameter = Untyped.ValueString (mformatAddress param)
       , tdAmount = fAmount fixture
       }
   transfer txData environmentAddress
@@ -708,7 +710,7 @@ integrationalScenario contract fixture = do
   let
     validator
       | shouldExpectFailed fixture =
-        Left $ expectMichelsonFailed environmentAddress
+        Left $ expectMichelsonFailed (const True) environmentAddress
       | otherwise =
         Right $ expectStorageConst environmentAddress $ shouldReturn fixture
   validate validator
