@@ -1,7 +1,7 @@
 <<: !include "./hpack/module.yaml"
 
 name:                morley
-version:             0.2.0.1
+version:             0.3.0
 synopsis:            Developer tools for the Michelson Language
 description:
   A library to make writing smart contracts in Michelson — the smart contract
