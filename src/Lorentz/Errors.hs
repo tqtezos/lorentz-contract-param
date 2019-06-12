@@ -1,4 +1,4 @@
-{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE DerivingStrategies, DeriveAnyClass #-}
 
 -- We want to make sure 'failUsingArg' is used with sane argument.
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
@@ -11,6 +11,8 @@ module Lorentz.Errors
   , customErrorFromVal
 
   , deriveCustomError
+
+  , UnspecifiedError (..)
 
     -- * Instructions
   , failUsing
@@ -139,6 +141,16 @@ instance IsError MText where
 instance TypeError ('Text "Use representative error messages") => IsError () where
   errorToVal _ _ = error "impossible"
   errorFromVal = error "impossible"
+
+-- | Use this type as replacement for @()@ when you __really__ want to leave
+-- error cause unspecified.
+data UnspecifiedError = UnspecifiedError
+  deriving stock Generic
+  deriving anyclass IsoValue
+
+instance IsError UnspecifiedError where
+  errorToVal = isoErrorToVal
+  errorFromVal = isoErrorFromVal
 
 ----------------------------------------------------------------------------
 -- Instructions
