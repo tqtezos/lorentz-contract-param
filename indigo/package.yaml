@@ -1,0 +1,19 @@
+<<: !include "./hpack/module.yaml"
+
+<<: *meta
+name:                indigo
+version:             0.1.0.0
+synopsis:            Convenient imperative eDSL over Lorentz.
+description:         Syntax and implementation of Indigo eDSL.
+category:            Language
+extra-source-files:
+  - README.md
+
+library:
+  <<: *indigo-lib-common
+
+  dependencies:
+    - data-default
+    - morley
+    - morley-prelude
+    - vinyl
