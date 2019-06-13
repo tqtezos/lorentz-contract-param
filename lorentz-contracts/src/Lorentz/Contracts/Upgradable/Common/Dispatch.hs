@@ -3,18 +3,18 @@ module Lorentz.Contracts.Upgradable.Common.Dispatch
   , ifArg
   ) where
 
-import Prelude (foldl')
 import Lorentz
+import Prelude (foldl')
 
 import Lorentz.Contracts.Upgradable.Common.Base
 
-type Action a = '[a, UStorage] :-> '[([Operation], UStorage)]
-type DispatchStack = '[Maybe ([Operation], UStorage), (UParameter, UStorage)]
+type Action a st = '[a, st] :-> '[([Operation], st)]
+type DispatchStack = '[Maybe ([Operation], UStore_), (UParameter, UStore_)]
 
 getParameter
-  :: forall a. (KnownValue a, NoOperation a, NoBigMap a)
+  :: forall a st. (KnownValue a, NoOperation a, NoBigMap a)
   => MText
-  -> '[UParameter, UStorage] :-> '[Maybe a, UStorage]
+  -> '[UParameter, st] :-> '[Maybe a, st]
 getParameter parameterName = do
   unpair
   push parameterName
@@ -23,25 +23,29 @@ getParameter parameterName = do
   else drop # none
 
 ifArg
-  :: forall a. (KnownValue a, NoOperation a, NoBigMap a)
+  :: forall a st. (KnownValue a, NoOperation a, NoBigMap a, Coercible_ UStore_ st)
   => MText
-  -> Action a
+  -> Action a st
   -> DispatchStack :-> DispatchStack
 ifArg parameterName action = do
-  if IsSome   -- Maybe ([Operation], UStorage) : (UParameter, UStorage)
-  then some   -- Maybe ([Operation], UStorage) : (UParameter, UStorage)
-  else do     -- (UParameter, UStorage)
-    dup       -- (UParameter, UStorage) : (UParameter, UStorage)
+  if IsSome   -- Maybe ([Operation], UStore_) : (UParameter, UStore_)
+  then some   -- Maybe ([Operation], UStore_) : (UParameter, UStore_)
+  else do     -- (UParameter, UStore_)
+    dup       -- (UParameter, UStore_) : (UParameter, UStore_)
     dip $ do
       unpair    -- UParameter : UStorage
-      getParameter @a parameterName -- Maybe Natural : UStorage
+      getParameter @a parameterName -- Maybe a : UStore_
       if IsSome
-      then do   -- Natural : UStorage
-        action  -- ([Operation], UStorage)
+      then do   -- a : UStore_
+        dip $ coerce_ @UStore_ @st -- a : st
+        action  -- ([Operation], st)
+        unpair
+        dip $ coerce_ @st @UStore_ -- ([Operation], UStore_)
+        pair
         some
       else do   -- UStorage
         drop    --
-        none    -- Maybe ([Operation], UStorage)
+        none    -- Maybe ([Operation], UStore_)
     swap
 
 dispatch :: [DispatchStack :-> DispatchStack] -> ContractCode

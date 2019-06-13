@@ -15,7 +15,7 @@ import Lorentz.Contracts.Upgradable.Common.Base
 
 data Parameter
   = Run UParameter
-  | Upgrade ContractCode
+  | Upgrade (MigrationScript, ContractCode)
   deriving stock Generic
   deriving anyclass IsoValue
 
@@ -43,13 +43,19 @@ upgradableContract = do
         dip $ do   -- Storage
           getField #dataMap    -- UStorage : Storage
           dip $ getField #code -- UStorage : ContractCode : Storage
-        -- UParameter : UStorage : ContractCode : Storage
         pair   -- (UParameter, UStorage) : ContractCode : Storage
         exec   -- ([Operation], UStorage) : Storage
         unpair -- [Operation] : UStorage : Storage
         dip $ setField #dataMap -- [Operation] : Storage
         pair   -- ([Operation], Storage)
     , #cUpgrade /-> do
+        dip $ getField #dataMap -- (MigrationScript, ContractCode) : UStorage : Storage
+        unpair    -- MigrationScript : ContractCode : UStorage : Storage
+        swap      -- ContractCode : MigrationScript : UStorage : Storage
+        dip $ do  -- MigrationScript : UStorage : Storage
+          swap    -- UStorage : MigrationScript : Storage
+          exec    -- UStorage : Storage
+          setField #dataMap  -- Storage
         setField #code;
         nil; pair;
     )
