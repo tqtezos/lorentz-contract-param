@@ -105,7 +105,7 @@ haskellExportsParser = do
     symbol = void . PL.symbol space
 
 isExportEntryChar :: Char -> Bool
-isExportEntryChar c = isAlphaNum c || c == '_'
+isExportEntryChar c = isAlphaNum c || c `elem` ['.', '_']
 
 toContractDecl :: Text -> Maybe ExportedContractDecl
 toContractDecl varName = do

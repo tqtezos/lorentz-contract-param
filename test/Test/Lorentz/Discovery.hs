@@ -56,6 +56,7 @@ test_Export_list_parse =
               , SomethingElse2
                  ( Ctor2  -- constructor
                  , getter2  {- getter -})
+              , Qualified.Thing
               , contract
               , contract_Some
               ) where
