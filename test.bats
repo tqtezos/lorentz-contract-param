@@ -84,6 +84,10 @@ setup () {
   $bin_dir/lorentz-contracts -- print -n walker
 }
 
+@test "lorentz registry finds DSProtocol" {
+  $bin_dir/lorentz-contracts -- print -n DSProtocol
+}
+
 @test "invoking ./morley.sh print -o" {
   $morley print --contract contracts/tezos_examples/first.tz -o output.mtz
   rm output.mtz
