@@ -1,7 +1,7 @@
 <<: !include "../hpack/module.yaml"
 
 name:                morley-prelude
-version:             0.2.0
+version:             0.2.0.1
 synopsis:            A custom prelude used in Morley
 description:
   A custom prelude used in Morley. It re-exports the Universum prelude
