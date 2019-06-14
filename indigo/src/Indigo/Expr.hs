@@ -82,6 +82,14 @@ data Expr a where
        )
     => Label name -> err
     -> exKey -> exVal -> exStore -> Expr (Store store)
+  Insert
+    :: ( StoreInsertC store name, KnownSymbol name
+       , IsExpr exKey (GetStoreKey store name)
+       , IsExpr exVal (GetStoreValue store name)
+       , IsExpr exStore (Store store)
+       )
+    => Label name
+    -> exKey -> exVal -> exStore -> Expr (Store store)
 
   ToField :: (InstrGetFieldC dt name, IsExpr exDt dt)
        => exDt -> Label name -> Expr (GetFieldType dt name)
@@ -133,6 +141,11 @@ compileExpr (InsertNew l err k v store) = do
   compileExpr (toExpr v)
   compileExpr (toExpr k)
   IndigoM $ \md -> ((), GenCode (popNoRefMd $ popNoRefMd md) (storeInsertNew l (L.drop # L.push err)))
+compileExpr (Insert l k v store) = do
+  compileExpr (toExpr store)
+  compileExpr (toExpr v)
+  compileExpr (toExpr k)
+  IndigoM $ \md -> ((), GenCode (popNoRefMd $ popNoRefMd md) (storeInsert l))
 compileExpr (Lookup l ekey estore) = binaryOp ekey estore (storeGet l)
 
 compileExpr (ToField e l) = do
