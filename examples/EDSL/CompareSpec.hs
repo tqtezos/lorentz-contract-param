@@ -19,9 +19,9 @@ import Test.Hspec (Spec, hspec)
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck (Property, (===))
 
-import Michelson.Typed (ToT, fromVal)
-import Morley.Test
+import Michelson.Test
   (ContractReturn, contractProp, dummyContractEnv, failedProp, specWithTypedContract)
+import Michelson.Typed (ToT, fromVal)
 import Tezos.Core (Mutez)
 
 type Parameter = (Mutez, Mutez)
@@ -45,7 +45,7 @@ spec = do
 
     validate
       :: Parameter
-      -> ContractReturn s (ToT Storage)
+      -> ContractReturn (ToT Storage)
       -> Property
     validate p (Right ([], l), _) = fromVal l === mkExpected p
     validate _ (Left e, _) =

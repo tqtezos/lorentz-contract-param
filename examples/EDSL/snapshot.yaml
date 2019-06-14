@@ -9,5 +9,5 @@ packages:
 - hex-text-0.1.0.0
 
 # morley itself
-- morley-prelude-0.1.0.3
-- morley-0.2.0
+- morley-prelude-0.2.0
+- morley-0.3.0

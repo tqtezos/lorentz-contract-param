@@ -1,5 +1,7 @@
 # Morley: Developer tools for the Michelson Language
 
+[![Hackage](https://img.shields.io/hackage/v/morley.svg)](https://hackage.haskell.org/package/morley)
+
 Morley is a library to make writing smart contracts in Michelson pleasant and
 effective.
 

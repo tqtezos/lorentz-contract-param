@@ -21,14 +21,13 @@ import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck (Arbitrary(..), choose)
 
 import Michelson.Interpret (RemainingSteps(..))
-import Michelson.Typed (Contract, ToT)
-import Michelson.Untyped (UntypedContract, UntypedValue)
-import qualified Michelson.Untyped as Untyped
-import Morley.Test
+import Michelson.Test
   (IntegrationalScenario, TxData(..), expectMichelsonFailed, expectStorageConst, genesisAddress,
   integrationalTestExpectation, originate, setMaxSteps, setNow, specWithContract, transfer,
   validate)
-import Tezos.Address (Address, formatAddress)
+import Michelson.Typed (Contract, ToT)
+import qualified Michelson.Untyped as Untyped
+import Tezos.Address (Address, mformatAddress)
 import Tezos.Core (Mutez, Timestamp, timestampFromSeconds, unsafeMkMutez)
 
 main :: IO ()
@@ -63,7 +62,7 @@ shouldExpectFailed fixture =
     , fAmount fixture < unsafeMkMutez 15
     ]
 
-shouldReturn :: Fixture -> UntypedValue
+shouldReturn :: Fixture -> Untyped.Value
 shouldReturn fixture
   | fMaxSteps fixture - consumedGas > 1000 = Untyped.ValueTrue
   | otherwise = Untyped.ValueFalse
@@ -71,7 +70,7 @@ shouldReturn fixture
     consumedGas = 19
 
 specImpl ::
-    (UntypedContract, Contract (ToT Address) (ToT Bool))
+    (Untyped.Contract, Contract (ToT Address) (ToT Bool))
   -> Spec
 specImpl (uEnvironment, _environment)  = do
   let scenario = integrationalScenario uEnvironment
@@ -83,15 +82,15 @@ specImpl (uEnvironment, _environment)  = do
       "beginning of this contract and returns whether remaining gas is " <>
       "greater than 1000"
 
-integrationalScenario :: UntypedContract -> Fixture -> IntegrationalScenario
+integrationalScenario :: Untyped.Contract -> Fixture -> IntegrationalScenario
 integrationalScenario contract fixture = do
   -- First of all let's set desired gas limit and NOW
   setNow $ fNow fixture
   setMaxSteps $ fMaxSteps fixture
 
-  -- Then let's originated the 'environment.tz' contract
+  -- Then let's originate the 'environment.tz' contract
   environmentAddress <-
-    originate contract Untyped.ValueFalse (fBalance fixture)
+    originate contract "environment" Untyped.ValueFalse (fBalance fixture)
 
   -- And transfer tokens to it
   let
@@ -100,7 +99,7 @@ integrationalScenario contract fixture = do
       | otherwise = genesisAddress
     txData = TxData
       { tdSenderAddress = genesisAddress
-      , tdParameter = Untyped.ValueString (formatAddress param)
+      , tdParameter = Untyped.ValueString (mformatAddress param)
       , tdAmount = fAmount fixture
       }
   transfer txData environmentAddress
@@ -111,7 +110,7 @@ integrationalScenario contract fixture = do
   let
     validator
       | shouldExpectFailed fixture =
-        Left $ expectMichelsonFailed environmentAddress
+        Left $ expectMichelsonFailed (const True) environmentAddress
       | otherwise =
         Right $ expectStorageConst environmentAddress $ shouldReturn fixture
   validate validator

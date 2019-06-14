@@ -5,7 +5,7 @@ _definitions:
   _top-level:
     - &meta
         author:              camlCase, Serokell, Tocqueville Group
-        maintainer:          john.c.burnham@gmail.com
+        maintainer:          Serokell <hi@serokell.io>
         copyright:           2018 camlCase, 2019 Tocqueville Group
         license:             AGPL-3.0-or-later
         license-file:        LICENSE
