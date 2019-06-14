@@ -64,16 +64,13 @@ the sum of balances must be reflected by a corresponding changing the `nat
 ## Errors
 
 Failures of this contract are represented as
-`(string :tag, a | b | ... :details)` pairs, the first element of which
+`(string, d)` pairs, the first element of which
 is an identifier of an error and the second element keeps details of this error,
-if any, lifted to a union.
+or `unit` if no details required.
 
 For example, attempt to withdraw `5` tokens when only `3` is present
 will result in the following error:
-`("NotEnoughBalance", Left (Right (Right (5, 3))))`
-
-Client can safely omit `Left`s and `Right`s when
-iterpreting error details.
+`("NotEnoughBalance", (5, 3))`
 
 ## Entry-points
 
