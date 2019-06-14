@@ -29,6 +29,8 @@ module Lorentz.Test
   , setMaxSteps
   , setNow
   , withSender
+  , branchout
+  , (?-)
 
   -- ** Validators
   , composeValidators

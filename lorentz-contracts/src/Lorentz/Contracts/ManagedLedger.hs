@@ -245,10 +245,6 @@ nonEmptyLedgerValue = do
     then some
     else drop >> none
 
--- | Ensure that given value is not zero and return it.
-zeroNone :: (Natural ': s) :-> (Maybe Natural ': s)
-zeroNone = do dup; int; eq0; if_ (drop >> none) some
-
 approveParamsToAllowanceParams :: ApproveParams : s :-> AllowanceParams : s
 approveParamsToAllowanceParams = do
   -- a hack for performance
@@ -271,7 +267,7 @@ setAllowance = do
   dip (getField #from); swap;
   get; ifNone (emptyLedgerValue >> emptyMap) (getField #approvals);
   stackType @(Map Address Natural : LedgerValue : AllowanceParams : Storage : _)
-  duupX @3; toField #val; zeroNone
+  duupX @3; toField #val; nonZero
   duupX @4; toField #to
   update; setField #approvals
   stackType @(LedgerValue : AllowanceParams : Storage : _)

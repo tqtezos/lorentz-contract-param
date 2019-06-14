@@ -79,6 +79,7 @@ module Lorentz.Instr
   , sender
   , address
   , LorentzFunctor (..)
+  , nonZero
   ) where
 
 import Prelude hiding
@@ -446,3 +447,13 @@ class LorentzFunctor (c :: Kind.Type -> Kind.Type) where
 
 instance LorentzFunctor Maybe where
   lmap f = ifNone none (f # some)
+
+class NonZero t where
+  -- | Retain the value only if it is not zero.
+  nonZero :: t : s :-> Maybe t : s
+
+instance NonZero Integer where
+  nonZero = dup # eq0 # if_ (drop # none) some
+
+instance NonZero Natural where
+  nonZero = dup # int # eq0 # if_ (drop # none) some
