@@ -9,6 +9,7 @@ module Lorentz.Base
 
   , compileLorentz
   , compileLorentzContract
+  , interpretLorentzInstr
   , printLorentzContract
 
   , ContractOut
@@ -20,11 +21,13 @@ module Lorentz.Base
 
 import qualified Data.Kind as Kind
 import Data.Singletons (SingI)
+import Data.Vinyl.Core (Rec)
 
 import Lorentz.Constraints
 import Lorentz.Value
+import Michelson.Interpret
 import Michelson.Printer (printTypedContract)
-import Michelson.Typed (Instr(..), T(..), ToT, ToTs, Value'(..))
+import Michelson.Typed (Instr(..), IsoValuesStack(..), T(..), ToT, ToTs, Value'(..))
 
 -- | Alias for instruction which hides inner types representation via 'T'.
 newtype (inp :: [Kind.Type]) :-> (out :: [Kind.Type]) =
@@ -62,6 +65,17 @@ compileLorentzContract
   => Contract cp st -> Instr '[ToT (cp, st)] '[ToT ([Operation], st)]
 compileLorentzContract = compileLorentz
 
+-- | Interpret a Lorentz instruction, for test purposes.
+interpretLorentzInstr
+  :: (IsoValuesStack inp, IsoValuesStack out)
+  => ContractEnv
+  -> inp :-> out
+  -> Rec Identity inp
+  -> Either MichelsonFailed (Rec Identity out)
+interpretLorentzInstr env (compileLorentz -> instr) inp =
+  fromValStack <$> interpretInstr env instr (toValStack inp)
+
+-- | Pretty-print a Lorentz contract into Michelson code.
 printLorentzContract
   :: forall cp st.
       ( SingI (ToT cp), SingI (ToT st)

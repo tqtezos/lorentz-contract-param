@@ -14,6 +14,7 @@ module Michelson.Interpret
 
   , interpret
   , interpretRepeated
+  , interpretInstr
   , ContractReturn
 
   , interpretUntyped
@@ -238,6 +239,22 @@ interpretRepeated instr params initSt env =
           in (res2 <&> \(ops2, st2) -> (ops ++ ops2, st2), ist2)
         Left err ->
           (Left err, ist)
+
+-- | Interpret an instruction in vacuum, putting no extra contraints on
+-- its execution.
+--
+-- Mostly for testing purposes.
+interpretInstr
+  :: ContractEnv
+  -> Instr inp out
+  -> Rec T.Value inp
+  -> Either MichelsonFailed (Rec T.Value out)
+interpretInstr env instr inpSt =
+  fst $
+  runEvalOp
+    (runInstr instr inpSt)
+    env
+    InterpreterState{ isMorleyLogs = MorleyLogs [], isRemainingSteps = 9999999999 }
 
 data SomeItStack where
   SomeItStack :: T.ExtInstr inp -> Rec T.Value inp -> SomeItStack

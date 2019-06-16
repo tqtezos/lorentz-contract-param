@@ -5,6 +5,9 @@
 module Lorentz.UStore.Lift
   ( liftUStore
   , unliftUStore
+
+    -- * Internals
+  , UStoreFieldsAreUnique
   ) where
 
 import Data.Vinyl.Derived (Label)
@@ -40,9 +43,11 @@ type family GUStoreFields (x :: Kind.Type -> Kind.Type) :: [Symbol] where
   GUStoreFields (G.S1 _ (G.Rec0 a)) =
     UStoreFields a
 
+type UStoreFieldsAreUnique template = AllUnique (UStoreFields template)
+
 type family RequireAllUniqueFields (template :: Kind.Type) :: Constraint where
   RequireAllUniqueFields template =
-    If (AllUnique (UStoreFields template))
+    If (UStoreFieldsAreUnique template)
        (() :: Constraint)
        (TypeError ('Text "Some field in template is duplicated"))
       -- TODO: if this ever fires for you and it's not clear which exact field
