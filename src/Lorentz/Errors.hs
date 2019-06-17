@@ -10,6 +10,7 @@ module Lorentz.Errors
   , customErrorToVal
   , customErrorFromVal
 
+  , CustomErrorNoIsoValue
   , deriveCustomError
 
   , UnspecifiedError (..)
@@ -111,6 +112,11 @@ customErrorFromVal v = case (v, sing @t) of
                                             ", got " +|| got ||+ ""
   _ -> Left $ "Expected a (tag, dat) pair representing error"
 
+type family CustomErrorNoIsoValue a where
+  CustomErrorNoIsoValue a = TypeError
+    ('Text "No IsoValue instance for " ':<>: 'ShowType a ':$$:
+     'Text "It has custom error representation")
+
 -- | Derive 'IsError' instance for given type.
 --
 -- This will also forbid deriving 'IsoValue' instance for that type to avoid
@@ -122,9 +128,8 @@ deriveCustomError name =
       errorToVal = customErrorToVal
       errorFromVal = customErrorFromVal
 
-    instance TypeError ('Text "No IsoValue instance for " ':<>: 'ShowType $ty) =>
-        IsoValue $ty where
-      type ToT $ty = TypeError ('Text "No IsoValue instance for " ':<>: 'ShowType $ty)
+    instance CustomErrorNoIsoValue $ty => IsoValue $ty where
+      type ToT $ty = CustomErrorNoIsoValue $ty
       toVal = error "impossible"
       fromVal = error "impossible"
   |]

@@ -90,6 +90,7 @@ module Lorentz.Macro
 import Prelude hiding (compare, drop, some, swap)
 
 import qualified Data.Kind as Kind
+import Data.Singletons (SingI)
 import Data.Vinyl.TypeLevel (Nat(..))
 import GHC.TypeNats (type (+), type (-))
 import qualified GHC.TypeNats as GHC (Nat)
@@ -499,15 +500,28 @@ data Void_ (a :: Kind.Type) (b :: Kind.Type) = Void_
 -- Usage example:
 -- lExpectFailWith (== VoidResult roleMaster)`
 newtype VoidResult r = VoidResult { unVoidResult :: r }
-  deriving newtype (Eq, IsoValue)
+  deriving stock (Generic)
+  deriving newtype (Eq)
+
+instance ( Typeable r, IsoValue r
+         , Each [Typeable, SingI] '[ToT r]
+         ) =>
+         IsError (VoidResult r) where
+  errorToVal = customErrorToVal
+  errorFromVal = customErrorFromVal
+
+instance CustomErrorNoIsoValue (VoidResult r) => IsoValue (VoidResult r) where
+  type ToT (VoidResult r) = CustomErrorNoIsoValue (VoidResult r)
+  toVal = error "impossible"
+  fromVal = error "impossible"
 
 mkVoid :: forall b a. a -> Void_ a b
 mkVoid a = Void_ a nop
 
 void_
   :: forall a b s s' anything.
-      (KnownValue b)
+      (Typeable b, IsoValue b, KnownValue b)
   => a & s :-> b & s' -> Void_ a b & s :-> anything
 void_ code =
   coerce_ @_ @(_, Lambda b b) #
-  unpair # swap # dip code # swap # exec # coerce_ @b @(VoidResult b) # failWith
+  unpair # swap # dip code # swap # exec # failUsingArg @(VoidResult b) #cVoidResult
