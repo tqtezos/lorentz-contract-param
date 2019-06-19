@@ -9,6 +9,7 @@ module Michelson.TypeCheck.Types
     , SomeCValue (..)
     , BoundVars (..)
     , TcExtFrames
+    , mapSomeContract
     , noBoundVars
     ) where
 
@@ -154,6 +155,13 @@ data SomeContract where
     -> HST (ContractInp cp st)
     -> HST (ContractOut st)
     -> SomeContract
+
+mapSomeContract ::
+  (forall inp out. Instr inp out -> Instr inp out)
+  -> SomeContract
+  -> SomeContract
+mapSomeContract f (SomeContract c inp out) =
+   SomeContract (f c) inp out
 
 deriving instance Show SomeContract
 
