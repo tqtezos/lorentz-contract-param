@@ -10,12 +10,14 @@ import Paths_lorentz_contracts (version)
 
 data CmdLnArgs
   = List
-  | Print Text Bool
+  | Print Text (Maybe FilePath) Bool
+  | Document Text (Maybe FilePath)
 
 argParser :: Opt.Parser CmdLnArgs
 argParser = Opt.subparser $ mconcat
   [ listSubCmd
   , printSubCmd
+  , documentSubCmd
   ]
   where
     mkCommandParser commandName parser desc =
@@ -30,14 +32,26 @@ argParser = Opt.subparser $ mconcat
 
     printSubCmd =
       mkCommandParser "print"
-      (Print <$> printOptions <*> onelineOption)
+      (Print <$> printOptions <*> outputOptions <*> onelineOption)
       "Dump a contract in form of Michelson code"
+
+    documentSubCmd =
+      mkCommandParser "document"
+      (Document <$> printOptions <*> outputOptions)
+      "Dump contract documentation in Markdown"
 
     printOptions = Opt.strOption $ mconcat
       [ Opt.short 'n'
       , Opt.long "name"
       , Opt.metavar "IDENTIFIER"
       , Opt.help "Name of a contract returned by `list` command."
+      ]
+
+    outputOptions = optional . Opt.strOption $ mconcat
+      [ Opt.short 'o'
+      , Opt.long "output"
+      , Opt.metavar "FILEPATH"
+      , Opt.help "File to use as output. If not specified, stdout is used."
       ]
 
     onelineOption :: Opt.Parser Bool
