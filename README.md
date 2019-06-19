@@ -5,11 +5,6 @@
 Morley is a library to make writing smart contracts in Michelson pleasant and
 effective.
 
-## ZuriHac notice
-
-Morley is one of the projects at [ZuriHac 2019](https://zfoh.ch/zurihac2019/).
-If you want to participate, please go to https://morley-zurihac.serokell.io/ to get more information.
-
 ## I: A reimplementation of the Michelson Language in Haskell
 
 It consists of the following parts:
