@@ -287,8 +287,8 @@ xor = I XOR
 not :: UnaryArithOpHs Not n => n & s :-> UnaryArithResHs Not n & s
 not = I NOT
 
-compare :: ArithOpHs Compare n m
-        => n & m & s :-> ArithResHs Compare n m & s
+compare :: ArithOpHs Compare n n
+        => n & n & s :-> ArithResHs Compare n n & s
 compare = I COMPARE
 
 eq0 :: UnaryArithOpHs Eq' n => n & s :-> UnaryArithResHs Eq' n & s

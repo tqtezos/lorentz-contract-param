@@ -48,12 +48,12 @@ data Condition st arg argl argr where
   IsNotZero :: (UnaryArithOpHs Eq' a, UnaryArithResHs Eq' a ~ Bool)
          => Condition s (a ': s) s s
 
-  IsEq :: IfCmpXConstraints a b Eq' => Condition s (a ': b ': s) s s
-  IsNeq :: IfCmpXConstraints a b Neq => Condition s (a ': b ': s) s s
-  IsLt :: IfCmpXConstraints a b Lt => Condition s (a ': b ': s) s s
-  IsGt :: IfCmpXConstraints a b Gt => Condition s (a ': b ': s) s s
-  IsLe :: IfCmpXConstraints a b Le => Condition s (a ': b ': s) s s
-  IsGe :: IfCmpXConstraints a b Ge => Condition s (a ': b ': s) s s
+  IsEq :: IfCmpXConstraints a Eq' => Condition s (a ': a ': s) s s
+  IsNeq :: IfCmpXConstraints a Neq => Condition s (a ': a ': s) s s
+  IsLt :: IfCmpXConstraints a Lt => Condition s (a ': a ': s) s s
+  IsGt :: IfCmpXConstraints a Gt => Condition s (a ': a ': s) s s
+  IsLe :: IfCmpXConstraints a Le => Condition s (a ': a ': s) s s
+  IsGe :: IfCmpXConstraints a Ge => Condition s (a ': a ': s) s s
 
 -- | Defines semantics of @if ... then ... else ...@ construction.
 ifThenElse

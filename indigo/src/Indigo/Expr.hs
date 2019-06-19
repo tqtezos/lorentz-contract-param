@@ -40,29 +40,29 @@ data Expr a where
   Div :: (AreExprs ex1 ex2 n m, EDivOpHs n m) => ex1 -> ex2 -> Expr (EDivOpResHs n m)
   Mod :: (AreExprs ex1 ex2 n m, EDivOpHs n m) => ex1 -> ex2 -> Expr (EModOpResHs n m)
 
-  Eq' :: ( AreExprs ex1 ex2 n m
-         , ArithOpHs M.Compare n m, UnaryArithOpHs M.Eq' (ArithResHs M.Compare n m))
-      => ex1 -> ex2 -> Expr (UnaryArithResHs M.Eq' (ArithResHs M.Compare n m))
+  Eq' :: ( AreExprs ex1 ex2 n n
+         , ArithOpHs M.Compare n n, UnaryArithOpHs M.Eq' (ArithResHs M.Compare n n))
+      => ex1 -> ex2 -> Expr (UnaryArithResHs M.Eq' (ArithResHs M.Compare n n))
 
-  Neq :: ( AreExprs ex1 ex2 n m
-         , ArithOpHs M.Compare n m, UnaryArithOpHs M.Neq (ArithResHs M.Compare n m))
-      => ex1 -> ex2 -> Expr (UnaryArithResHs M.Neq (ArithResHs M.Compare n m))
+  Neq :: ( AreExprs ex1 ex2 n n
+         , ArithOpHs M.Compare n n, UnaryArithOpHs M.Neq (ArithResHs M.Compare n n))
+      => ex1 -> ex2 -> Expr (UnaryArithResHs M.Neq (ArithResHs M.Compare n n))
 
-  Le :: ( AreExprs ex1 ex2 n m
-        , ArithOpHs M.Compare n m, UnaryArithOpHs M.Le (ArithResHs M.Compare n m))
-     => ex1 -> ex2 -> Expr (UnaryArithResHs M.Le (ArithResHs M.Compare n m))
+  Le :: ( AreExprs ex1 ex2 n n
+        , ArithOpHs M.Compare n n, UnaryArithOpHs M.Le (ArithResHs M.Compare n n))
+     => ex1 -> ex2 -> Expr (UnaryArithResHs M.Le (ArithResHs M.Compare n n))
 
-  Lt :: ( AreExprs ex1 ex2 n m
-        , ArithOpHs M.Compare n m, UnaryArithOpHs M.Lt (ArithResHs M.Compare n m))
-     => ex1 -> ex2 -> Expr (UnaryArithResHs M.Lt (ArithResHs M.Compare n m))
+  Lt :: ( AreExprs ex1 ex2 n n
+        , ArithOpHs M.Compare n n, UnaryArithOpHs M.Lt (ArithResHs M.Compare n n))
+     => ex1 -> ex2 -> Expr (UnaryArithResHs M.Lt (ArithResHs M.Compare n n))
 
-  Ge :: ( AreExprs ex1 ex2 n m
-        , ArithOpHs M.Compare n m, UnaryArithOpHs M.Ge (ArithResHs M.Compare n m))
-     => ex1 -> ex2 -> Expr (UnaryArithResHs M.Ge (ArithResHs M.Compare n m))
+  Ge :: ( AreExprs ex1 ex2 n n
+        , ArithOpHs M.Compare n n, UnaryArithOpHs M.Ge (ArithResHs M.Compare n n))
+     => ex1 -> ex2 -> Expr (UnaryArithResHs M.Ge (ArithResHs M.Compare n n))
 
-  Gt :: ( AreExprs ex1 ex2 n m
-        , ArithOpHs M.Compare n m, UnaryArithOpHs M.Gt (ArithResHs M.Compare n m))
-     => ex1 -> ex2 -> Expr (UnaryArithResHs M.Gt (ArithResHs M.Compare n m))
+  Gt :: ( AreExprs ex1 ex2 n n
+        , ArithOpHs M.Compare n n, UnaryArithOpHs M.Gt (ArithResHs M.Compare n n))
+     => ex1 -> ex2 -> Expr (UnaryArithResHs M.Gt (ArithResHs M.Compare n n))
 
   Or :: (AreExprs ex1 ex2 n m, ArithOpHs M.Or n m) => ex1 -> ex2 -> Expr (ArithResHs M.Or n m)
   And :: (AreExprs ex1 ex2 n m, ArithOpHs M.And n m) => ex1 -> ex2 -> Expr (ArithResHs M.And n m)

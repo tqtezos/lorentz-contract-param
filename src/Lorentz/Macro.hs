@@ -97,8 +97,8 @@ import qualified GHC.TypeNats as GHC (Nat)
 
 import Lorentz.Arith
 import Lorentz.Base
-import Lorentz.Constraints
 import Lorentz.Coercions
+import Lorentz.Constraints
 import Lorentz.Errors
 import Lorentz.Instr
 import Lorentz.Value
@@ -110,28 +110,28 @@ import Util.Peano
 -- Compare
 ----------------------------------------------------------------------------
 
-eq :: (ArithOpHs Compare n m, UnaryArithOpHs Eq' (ArithResHs Compare n m))
-   => n & m & s :-> (UnaryArithResHs Eq' (ArithResHs Compare n m)) & s
+eq :: (ArithOpHs Compare n n, UnaryArithOpHs Eq' (ArithResHs Compare n n))
+   => n & n & s :-> (UnaryArithResHs Eq' (ArithResHs Compare n n)) & s
 eq = compare # eq0
 
-neq :: (ArithOpHs Compare n m, UnaryArithOpHs Neq (ArithResHs Compare n m))
-   => n & m & s :-> (UnaryArithResHs Neq (ArithResHs Compare n m)) & s
+neq :: (ArithOpHs Compare n n, UnaryArithOpHs Neq (ArithResHs Compare n n))
+   => n & n & s :-> (UnaryArithResHs Neq (ArithResHs Compare n n)) & s
 neq = compare # neq0
 
-gt :: (ArithOpHs Compare n m, UnaryArithOpHs Gt (ArithResHs Compare n m))
-   => n & m & s :-> (UnaryArithResHs Gt (ArithResHs Compare n m)) & s
+gt :: (ArithOpHs Compare n n, UnaryArithOpHs Gt (ArithResHs Compare n n))
+   => n & n & s :-> (UnaryArithResHs Gt (ArithResHs Compare n n)) & s
 gt = compare # gt0
 
-le :: (ArithOpHs Compare n m, UnaryArithOpHs Le (ArithResHs Compare n m))
-   => n & m & s :-> (UnaryArithResHs Le (ArithResHs Compare n m)) & s
+le :: (ArithOpHs Compare n n, UnaryArithOpHs Le (ArithResHs Compare n n))
+   => n & n & s :-> (UnaryArithResHs Le (ArithResHs Compare n n)) & s
 le = compare # le0
 
-ge :: (ArithOpHs Compare n m, UnaryArithOpHs Ge (ArithResHs Compare n m))
-   => n & m & s :-> (UnaryArithResHs Ge (ArithResHs Compare n m)) & s
+ge :: (ArithOpHs Compare n n, UnaryArithOpHs Ge (ArithResHs Compare n n))
+   => n & n & s :-> (UnaryArithResHs Ge (ArithResHs Compare n n)) & s
 ge = compare # ge0
 
-lt :: (ArithOpHs Compare n m, UnaryArithOpHs Lt (ArithResHs Compare n m))
-   => n & m & s :-> (UnaryArithResHs Lt (ArithResHs Compare n m)) & s
+lt :: (ArithOpHs Compare n n, UnaryArithOpHs Lt (ArithResHs Compare n n))
+   => n & n & s :-> (UnaryArithResHs Lt (ArithResHs Compare n n)) & s
 lt = compare # lt0
 
 type IfCmp0Constraints a op =
@@ -167,39 +167,39 @@ ifGe0
   => (s :-> s') -> (s :-> s') -> (a & s :-> s')
 ifGe0 l r = ge0 # if_ l r
 
-type IfCmpXConstraints a b op =
-  (Typeable a, Typeable b, ArithOpHs Compare a b
-  , UnaryArithOpHs op (ArithResHs Compare a b)
-  , UnaryArithResHs op (ArithResHs Compare a b) ~ Bool)
+type IfCmpXConstraints a op =
+  (Typeable a, ArithOpHs Compare a a
+  , UnaryArithOpHs op (ArithResHs Compare a a)
+  , UnaryArithResHs op (ArithResHs Compare a a) ~ Bool)
 
 ifEq
-  :: (IfCmpXConstraints a b Eq')
-  => (s :-> s') -> (s :-> s') -> (a & b & s :-> s')
+  :: (IfCmpXConstraints a Eq')
+  => (s :-> s') -> (s :-> s') -> (a & a & s :-> s')
 ifEq l r = eq # if_ l r
 
 ifNeq
-  :: (IfCmpXConstraints a b Neq)
-  => (s :-> s') -> (s :-> s') -> (a & b & s :-> s')
+  :: (IfCmpXConstraints a Neq)
+  => (s :-> s') -> (s :-> s') -> (a & a & s :-> s')
 ifNeq l r = neq # if_ l r
 
 ifLt
-  :: (IfCmpXConstraints a b Lt)
-  => (s :-> s') -> (s :-> s') -> (a & b & s :-> s')
+  :: (IfCmpXConstraints a Lt)
+  => (s :-> s') -> (s :-> s') -> (a & a & s :-> s')
 ifLt l r = lt # if_ l r
 
 ifGt
-  :: (IfCmpXConstraints a b Gt)
-  => (s :-> s') -> (s :-> s') -> (a & b & s :-> s')
+  :: (IfCmpXConstraints a Gt)
+  => (s :-> s') -> (s :-> s') -> (a & a & s :-> s')
 ifGt l r = gt # if_ l r
 
 ifLe
-  :: (IfCmpXConstraints a b Le)
-  => (s :-> s') -> (s :-> s') -> (a & b & s :-> s')
+  :: (IfCmpXConstraints a Le)
+  => (s :-> s') -> (s :-> s') -> (a & a & s :-> s')
 ifLe l r = le # if_ l r
 
 ifGe
-  :: (IfCmpXConstraints a b Ge)
-  => (s :-> s') -> (s :-> s') -> (a & b & s :-> s')
+  :: (IfCmpXConstraints a Ge)
+  => (s :-> s') -> (s :-> s') -> (a & a & s :-> s')
 ifGe l r = ge # if_ l r
 
 ----------------------------------------------------------------------------
@@ -237,22 +237,22 @@ assertLe0 reason = ifLe0 nop (failUsing reason)
 assertGe0 :: (IfCmp0Constraints a Ge, IsError err) => err -> a & s :-> s
 assertGe0 reason = ifGe0 nop (failUsing reason)
 
-assertEq :: (IfCmpXConstraints a b Eq', IsError err) => err -> a & b & s :-> s
+assertEq :: (IfCmpXConstraints a Eq', IsError err) => err -> a & a & s :-> s
 assertEq reason = ifEq nop (failUsing reason)
 
-assertNeq :: (IfCmpXConstraints a b Neq, IsError err) => err -> a & b & s :-> s
+assertNeq :: (IfCmpXConstraints a Neq, IsError err) => err -> a & a & s :-> s
 assertNeq reason = ifNeq nop (failUsing reason)
 
-assertLt :: (IfCmpXConstraints a b Lt, IsError err) => err -> a & b & s :-> s
+assertLt :: (IfCmpXConstraints a Lt, IsError err) => err -> a & a & s :-> s
 assertLt reason = ifLt nop (failUsing reason)
 
-assertGt :: (IfCmpXConstraints a b Gt, IsError err) => err -> a & b & s :-> s
+assertGt :: (IfCmpXConstraints a Gt, IsError err) => err -> a & a & s :-> s
 assertGt reason = ifGt nop (failUsing reason)
 
-assertLe :: (IfCmpXConstraints a b Le, IsError err) => err -> a & b & s :-> s
+assertLe :: (IfCmpXConstraints a Le, IsError err) => err -> a & a & s :-> s
 assertLe reason = ifLe nop (failUsing reason)
 
-assertGe :: (IfCmpXConstraints a b Ge, IsError err) => err -> a & b & s :-> s
+assertGe :: (IfCmpXConstraints a Ge, IsError err) => err -> a & a & s :-> s
 assertGe reason = ifGe nop (failUsing reason)
 
 assertNone :: IsError err => err -> Maybe a & s :-> s
