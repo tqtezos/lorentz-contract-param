@@ -16,6 +16,7 @@ module Michelson.Typed.Doc
   , cdContentsL
   , cdDefinitionsL
   , cdDefinitionIdsL
+  , docBlockToMarkdown
   , contractDocToMarkdown
 
   , DName (..)

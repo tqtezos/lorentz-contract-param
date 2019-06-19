@@ -12,6 +12,7 @@ import Fmt (Buildable (..), (+|), (|+))
 import qualified Data.Map as M
 
 import qualified Michelson.Typed as T
+import Michelson.Typed.Haskell.Doc
 import Util.Instances ()
 
 import Lorentz.Contracts.Upgradeable.Common.Base
@@ -33,6 +34,17 @@ data Parameter interface
   | EpwFinishUpgrade
   deriving stock Generic
   deriving anyclass IsoValue
+
+instance TypeHasDoc (Parameter interface) where
+  typeDocName _ = "Global.Parameter"
+  typeDocMdDescription =
+    "Top-level parameter of upgradeable contract.\n\
+    \Use `Run` entrypoint in order to access contract logic, other entrypoints \
+    \are intended solely for migrations purposes."
+  typeDocMdReference tp =
+    customTypeDocMdReference ("Global.Parameter", DType tp) []
+  typeDocHaskellRep = homomorphicTypeDocHaskellRep
+  typeDocMichelsonRep = homomorphicTypeDocMichelsonRep
 
 type UpgradeParameters =
   ( "newVersion" :! Natural

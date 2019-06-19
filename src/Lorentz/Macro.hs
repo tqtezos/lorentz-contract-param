@@ -104,6 +104,7 @@ import Lorentz.Instr
 import Lorentz.Value
 import Michelson.Typed.Arith
 import Michelson.Typed.Haskell.Value
+import Michelson.Typed.Haskell.Doc
 import Util.Peano
 
 ----------------------------------------------------------------------------
@@ -475,6 +476,20 @@ data View (a :: Kind.Type) (r :: Kind.Type) = View
   , viewCallbackTo :: ContractAddr r
   } deriving stock Generic
     deriving anyclass IsoValue
+
+instance Each [Typeable, TypeHasDoc] [a, r] => TypeHasDoc (View a r) where
+  typeDocMdDescription =
+    "`View a r` accepts an argument of type `a` and callback contract \
+    \which accepts `r` and returns result via calling that contract.\n\
+    \Read more in [A1 conventions document](https://gitlab.com/tzip/tzip/blob/master/A/A1.md#view-entry-points)."
+  typeDocMdReference = poly2TypeDocMdReference
+  typeDocDependencies p =
+    genericTypeDocDependencies p <>
+    [SomeTypeWithDoc (Proxy @()), SomeTypeWithDoc (Proxy @Integer)]
+  typeDocHaskellRep =
+    haskellRepNoFields $ concreteTypeDocHaskellRep @(View () Integer)
+  typeDocMichelsonRep =
+    concreteTypeDocMichelsonRep @(View () Integer)
 
 view_ ::
      (KnownValue r, NoOperation r, NoBigMap r)

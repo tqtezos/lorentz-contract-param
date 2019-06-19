@@ -43,6 +43,7 @@ library:
     - QuickCheck
     - quickcheck-arbitrary-adt
     - quickcheck-instances
+    - show-type
     - singletons
     - syb
     - tasty
