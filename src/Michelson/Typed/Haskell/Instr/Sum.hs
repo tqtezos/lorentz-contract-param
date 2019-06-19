@@ -16,6 +16,8 @@ module Michelson.Typed.Haskell.Instr.Sum
   , CaseClauseParam (..)
   , CaseClause (..)
   , CaseClauses
+  , GCaseClauses
+  , GCaseBranchInput
 
   , Branch (..)
   , Path

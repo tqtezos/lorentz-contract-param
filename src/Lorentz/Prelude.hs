@@ -1,6 +1,7 @@
 -- | Commonly used parts of regular Prelude.
 module Lorentz.Prelude
   ( ($)
+  , (.)
   , type ($)
   , Eq
   , Ord
@@ -9,6 +10,8 @@ module Lorentz.Prelude
   , Monoid (..)
   , Generic
   , Text
+  , Proxy (..)
   , fromString
   , undefined
+  , error
   ) where

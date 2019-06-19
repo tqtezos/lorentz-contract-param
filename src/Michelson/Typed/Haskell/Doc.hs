@@ -6,6 +6,7 @@
 -- | Documentation of types appearing in contracts.
 module Michelson.Typed.Haskell.Doc
   ( ADTRep
+  , WithinParens (..)
   , TypeHasDoc (..)
   , TypeDocHaskellRep
   , TypeDocMichelsonRep

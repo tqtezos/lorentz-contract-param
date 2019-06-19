@@ -10,6 +10,7 @@ module Util.Markdown
   , mdLocalRef
   , mdAnchor
   , mdSeparator
+  , mdSpoiler
   ) where
 
 import Fmt (Builder, build, (+|), (|+))
@@ -64,3 +65,14 @@ mdAnchor name = "<a name=\"" <> mdEscapeAnchor name <> "\"></a>\n\n"
 
 mdSeparator :: Builder
 mdSeparator = "---\n\n"
+
+-- | Text which is hidden until clicked.
+mdSpoiler :: Builder -> Builder -> Builder
+mdSpoiler name contents =
+  mconcat $ intersperse "\n"
+    [ "<details>"
+    , "  <summary>" <> mdBold (build name) <> "</summary>"
+    , contents
+    , "</details>"
+    , "<p>"
+    ]

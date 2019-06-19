@@ -96,6 +96,7 @@ import GHC.TypeNats (type (+), type (-))
 import qualified GHC.TypeNats as GHC (Nat)
 
 import Lorentz.Arith
+import Lorentz.Doc
 import Lorentz.Base
 import Lorentz.Coercions
 import Lorentz.Constraints
@@ -104,7 +105,6 @@ import Lorentz.Instr
 import Lorentz.Value
 import Michelson.Typed.Arith
 import Michelson.Typed.Haskell.Value
-import Michelson.Typed.Haskell.Doc
 import Util.Peano
 
 ----------------------------------------------------------------------------
@@ -508,6 +508,29 @@ data Void_ (a :: Kind.Type) (b :: Kind.Type) = Void_
     -- ^ Type of result reported via 'failWith'.
   } deriving stock Generic
     deriving anyclass IsoValue
+
+instance Each [Typeable, TypeHasDoc] [a, r] => TypeHasDoc (Void_ a r) where
+  typeDocName _ = "Void"
+  typeDocMdDescription =
+    "`Void a r` accepts an argument of type `a` and returns a value of type `r` \
+    \via `FAILWITH` instruction.\n\
+    \Read more in [A1 conventions document](https://gitlab.com/tzip/tzip/blob/master/A/A1.md#void-entry-points)."
+  typeDocMdReference tp =
+    -- Avoiding trailing underscore
+    customTypeDocMdReference
+      ("Void", DType tp)
+      [ DType (Proxy @a)
+      , DType (Proxy @r)
+      ]
+  typeDocDependencies p =
+    genericTypeDocDependencies p <>
+    [SomeTypeWithDoc (Proxy @()), SomeTypeWithDoc (Proxy @Integer)]
+  typeDocHaskellRep p = do
+    (_, rhs) <- haskellRepNoFields (concreteTypeDocHaskellRep @(Void_ () Integer)) p
+    return (Just "Void () Integer", rhs)
+  typeDocMichelsonRep p =
+    let (_, rhs) = concreteTypeDocMichelsonRep @(Void_ () Integer) p
+    in (Just "Void () Integer", rhs)
 
 -- | Newtype over void result type used in tests to
 -- distinguish successful void result from other errors.
