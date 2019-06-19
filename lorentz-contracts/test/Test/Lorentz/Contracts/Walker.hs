@@ -76,7 +76,7 @@ spec_Walker = do
 walkerProp :: Storage -> [Parameter] -> (Storage -> Bool) -> Expectation
 walkerProp storage params predicate =
   contractRepeatedProp
-    (compileLorentz contract_walker)
+    (compileLorentz walkerContract)
     (validateStorageSatisfies (predicate . T.fromVal))
     dummyContractEnv params storage
 

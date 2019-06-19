@@ -13,6 +13,7 @@ module Lorentz.Base
 
   , ContractOut
   , Contract
+  , SomeContract (..)
   , Lambda
 
   ) where
@@ -43,6 +44,15 @@ compileLorentz = unI
 
 type ContractOut st = '[([Operation], st)]
 type Contract cp st = '[(cp, st)] :-> ContractOut st
+
+data SomeContract where
+  SomeContract
+    :: ( KnownValue cp, KnownValue st
+       , NoOperation cp, NoOperation st
+       , NoBigMap cp, CanHaveBigMap st
+       )
+    => Contract cp st
+    -> SomeContract
 
 -- | Version of 'compileLorentz' specialized to instruction corresponding to
 -- contract code.

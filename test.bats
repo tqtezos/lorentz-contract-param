@@ -80,10 +80,6 @@ setup () {
   $morley parse --contract contracts/unparsable/non_ascii_error.mtz 2>&1 | grep 'unknown type'
 }
 
-@test "lorentz registry finds some contracts" {
-  $bin_dir/lorentz-contracts -- print -n walker
-}
-
 @test "lorentz registry finds DSProtocol" {
   $bin_dir/lorentz-contracts -- print -n DSProtocol
 }

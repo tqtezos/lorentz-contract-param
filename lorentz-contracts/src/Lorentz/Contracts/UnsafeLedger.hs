@@ -3,7 +3,7 @@
 module Lorentz.Contracts.UnsafeLedger
   ( Parameter (..)
   , Storage (..)
-  , contract_UnsafeLedger
+  , unsafeLedgerContract
   ) where
 
 import Lorentz
@@ -23,8 +23,8 @@ data Storage = Storage
   deriving stock Generic
   deriving anyclass IsoValue
 
-contract_UnsafeLedger :: Contract Parameter Storage
-contract_UnsafeLedger = do
+unsafeLedgerContract :: Contract Parameter Storage
+unsafeLedgerContract = do
   unpair
   caseT @Parameter
     ( #cTransfer /-> do debitSource; creditTo; nil; pair;

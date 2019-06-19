@@ -32,7 +32,7 @@ manager2 = genesisAddress5
 -- | Originate the contract we are currently testing with empty storage.
 originateEmptyManagedLedger :: IntegrationalScenarioM (ContractAddr Parameter)
 originateEmptyManagedLedger =
-  lOriginate contract_Managed_ledger "Managed ledger"
+  lOriginate managedLedgerContract "Managed ledger"
     (mkStorage manager) (toMutez 1000)
 
 -- | Originate the contract we are currently testing with given amount of money
@@ -41,7 +41,7 @@ originateManagedLedger
   :: Natural
   -> IntegrationalScenarioM (ContractAddr Parameter)
 originateManagedLedger initMoney =
-  lOriginate contract_Managed_ledger "Managed ledger"
+  lOriginate managedLedgerContract "Managed ledger"
     (mkStorage manager)
     { ledger = BigMap $ Map.fromList
         [ (wallet1, (#balance .! initMoney, #approvals .! mempty))
