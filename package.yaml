@@ -27,7 +27,6 @@ library:
     - containers
     - cryptonite
     - data-default
-    - filepath
     - fmt
     - formatting
     - ghc-prim
@@ -72,20 +71,6 @@ executables:
       - optparse-applicative
       - pretty-simple
 
-  contract-discover:
-    main:        Main.hs
-    source-dirs: contract-discover
-
-    dependencies:
-      - data-default
-      - directory
-      - filepath
-      - fmt
-      - megaparsec
-      - morley-prelude
-      - morley
-      - text
-
 tests:
   morley-test:
     <<: *test-common
@@ -106,7 +91,6 @@ tests:
       - hex-text
       - hspec
       - hspec-expectations
-      - qm-interpolated-string
       - HUnit
       - lens
       - megaparsec >= 7.0.0

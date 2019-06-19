@@ -30,7 +30,7 @@ spec_UnsafeLedger = do
         getBalance fa1
   specWithTypedContract "../contracts/FA1/FA1.mtz" spec
   describe "Test Lorentz version" $
-    spec (compileLorentzContract contract_UnsafeLedger)
+    spec (compileLorentzContract unsafeLedgerContract)
 
 type TStorage = T.ToT Storage
 type TContract = T.Contract (T.ToT Parameter) TStorage

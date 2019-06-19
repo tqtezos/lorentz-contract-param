@@ -1,5 +1,5 @@
 module Lorentz.Contracts.Auction
-  ( contract_auction
+  ( auctionContract
   ) where
 
 import Lorentz
@@ -14,8 +14,8 @@ type Storage = (AuctionEnd, Bid)
 type Input = (Parameter, Storage)
 type Output storage = ([Operation], storage)
 
-contract_auction :: Contract Parameter Storage
-contract_auction = do
+auctionContract :: Contract Parameter Storage
+auctionContract = do
   checkIfAuctionHasEnded
   setupReplacementStorage
   checkNewBidIsGreater

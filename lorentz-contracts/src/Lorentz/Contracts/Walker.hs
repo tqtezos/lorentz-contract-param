@@ -1,5 +1,5 @@
 module Lorentz.Contracts.Walker
-  ( contract_walker
+  ( walkerContract
   , Parameter (..)
   , Storage
   , StorageFields (..)
@@ -52,8 +52,8 @@ data StorageFields = StorageFields
 
 type Storage = StorageSkeleton StoreTemplate StorageFields
 
-contract_walker :: Contract Parameter Storage
-contract_walker =
+walkerContract :: Contract Parameter Storage
+walkerContract =
   unpair # caseT @Parameter
     ( #cGoLeft /-> do
         modifyField #sFields $ modifyField #pos $ modifyField #x $ do

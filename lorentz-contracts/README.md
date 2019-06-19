@@ -29,20 +29,4 @@ stack exec lorentz-contracts -- print -n auction
 ```
 Prints the code of auction contract.
 
-### Contracts discovery
-
-Contracts defined in this package are registered automatically.
-Define your contracts following the `contract_<name>` pattern. Example:
-```hs
-module Lorentz.Contracts.FungibleToken
-  ( contract_Fungible_token
-  ) where
-
-...
-```
-This way, `Fungible token` contract will be available in the registry.
-
-Automatic discovery is implemented via `contract-discovery` executable.
-Being called via the GHC preprocessor from within a Haskell module,
-it scans all modules within the same directory and forms a contract map which can
-be later imported. See [`app/LorentzContracts.hs`](app/LorentzContracts.hs) for example.
+All contracts should appear in the registry; for this, add your contract to [the executable](./app/Main.hs).

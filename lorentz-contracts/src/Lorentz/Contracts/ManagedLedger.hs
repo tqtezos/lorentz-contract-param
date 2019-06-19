@@ -5,7 +5,7 @@ module Lorentz.Contracts.ManagedLedger
   , Storage (..)
   , Error (..)
   , mkStorage
-  , contract_Managed_ledger
+  , managedLedgerContract
   ) where
 
 import Lorentz
@@ -95,8 +95,8 @@ instance Buildable Error where
       "This address cannot be assigned as new manager because it appears \
       \in the ledger"
 
-contract_Managed_ledger :: Contract Parameter Storage
-contract_Managed_ledger = do
+managedLedgerContract :: Contract Parameter Storage
+managedLedgerContract = do
   unpair
   caseT @Parameter
     ( #cTransfer /-> do

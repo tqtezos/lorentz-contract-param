@@ -13,9 +13,6 @@ extra-source-files:
 library:
   <<: *lorentz-lib-common
 
-  build-tools:
-    - morley:contract-discover
-
   dependencies:
     - bytestring
     - containers
