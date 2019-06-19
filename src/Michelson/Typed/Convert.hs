@@ -109,6 +109,7 @@ instrToOps :: Instr inp out -> [U.ExpandedOp]
 instrToOps instr = case instr of
   Seq i1 i2 -> instrToOps i1 <> instrToOps i2
   Nested sq -> one $ U.SeqEx $ instrToOps sq
+  DocGroup _ sq -> instrToOps sq
   i -> U.PrimEx <$> handleInstr i
   -- TODO pva701: perphaps, typed instr has to hold a position too
   -- to make it possible to report a precise location of a runtime error
@@ -116,8 +117,9 @@ instrToOps instr = case instr of
     handleInstr :: Instr inp out -> [U.ExpandedInstr]
     handleInstr (Seq _ _) = error "impossible"
     handleInstr Nop = []
-    handleInstr (Ext (nop :: ExtInstr inp)) = [U.EXT $ extInstrToOps nop]
+    handleInstr (Ext (nop :: ExtInstr inp)) = U.EXT <$> extInstrToOps nop
     handleInstr (Nested _) = error "impossible"
+    handleInstr DocGroup{} = error "impossible"
     handleInstr DROP = [U.DROP]
     handleInstr DUP = [U.DUP U.noAnn]
     handleInstr SWAP = [U.SWAP]
@@ -235,11 +237,13 @@ untypeStackRef (StackRef n) = U.StackRef (peanoVal n)
 untypePrintComment :: PrintComment s -> U.PrintComment
 untypePrintComment (PrintComment pc) = U.PrintComment $ map (second untypeStackRef) pc
 
-extInstrToOps :: ExtInstr s -> U.ExtInstrAbstract U.ExpandedOp
+extInstrToOps :: ExtInstr s -> [U.ExtInstrAbstract U.ExpandedOp]
 extInstrToOps = \case
-  PRINT pc -> U.UPRINT (untypePrintComment pc)
+  PRINT pc -> one $ U.UPRINT (untypePrintComment pc)
   TEST_ASSERT (TestAssert nm pc i) ->
-    U.UTEST_ASSERT $ U.TestAssert nm (untypePrintComment pc) (instrToOps i)
+    one $ U.UTEST_ASSERT $
+    U.TestAssert nm (untypePrintComment pc) (instrToOps i)
+  DOC_ITEM{} -> []
 
 -- It's an orphan instance, but it's better than checking all cases manually.
 -- We can also move this convertion to the place where `Instr` is defined,
@@ -257,5 +261,3 @@ instance Typeable s => Eq (TestAssert s) where
     , pattern1 `eqParam1` pattern2
     , instr1 `eqParam2` instr2
     ]
-
-deriving instance Typeable s => Eq (ExtInstr s)

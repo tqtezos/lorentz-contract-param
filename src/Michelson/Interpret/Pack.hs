@@ -145,6 +145,8 @@ encodeInstr = \case
     mempty
   Nested i ->
     encodeInstrs i
+  DocGroup _ i ->
+    encodeInstrs i
   Ext _ ->
     ""
   DROP ->

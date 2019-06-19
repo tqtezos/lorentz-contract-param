@@ -345,6 +345,7 @@ runInstrImpl runner (Seq i1 i2) r = runner i1 r >>= \r' -> runner i2 r'
 runInstrImpl _ Nop r = pure $ r
 runInstrImpl _ (Ext nop) r = r <$ interpretExt (SomeItStack nop r)
 runInstrImpl runner (Nested sq) r = runInstrImpl runner sq r
+runInstrImpl runner (DocGroup _ sq) r = runInstrImpl runner sq r
 runInstrImpl _ DROP (_ :& r) = pure $ r
 runInstrImpl _ DUP (a :& r) = pure $ a :& a :& r
 runInstrImpl _ SWAP (a :& b :& r) = pure $ b :& a :& r
@@ -559,6 +560,8 @@ interpretExt (SomeItStack (T.TEST_ASSERT (T.TestAssert nm pc instr)) st) = do
   unless succeeded $ do
     interpretExt (SomeItStack (T.PRINT pc) st)
     throwError $ MichelsonFailedTestAssert $ "TEST_ASSERT " <> nm <> " failed"
+
+interpretExt (SomeItStack T.DOC_ITEM{} _) = pass
 
 -- | Access given stack reference (in CPS style).
 withStackElem

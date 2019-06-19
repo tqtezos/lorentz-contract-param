@@ -18,6 +18,7 @@ import qualified Text.Show
 
 import Michelson.Typed.Annotation (Notes)
 import Michelson.Typed.Arith
+import Michelson.Typed.Doc
 import Michelson.Typed.Polymorphic
 import Michelson.Typed.Scope
 import Michelson.Typed.T (CT(..), T(..))
@@ -50,6 +51,10 @@ data Instr (inp :: [T]) (out :: [T]) where
   -- It is crucial because serialisation of a contract
   -- depends on precise structure of its code.
   Nested :: Instr inp out -> Instr inp out
+  -- | Places documentation generated for given instruction under some group.
+  -- This is not part of 'ExtInstr' because it does not behave like 'Nop';
+  -- instead, it inherits behaviour of instruction put within it.
+  DocGroup :: DocGrouping -> Instr inp out -> Instr inp out
 
   DROP :: Instr (a ': s) s
   DUP  :: Instr (a ': s) (a ': a ': s)
@@ -266,6 +271,7 @@ instance IsString (PrintComment st) where
 data ExtInstr s
   = TEST_ASSERT (TestAssert s)
   | PRINT (PrintComment s)
+  | DOC_ITEM SomeDocItem
   deriving (Show)
 
 ---------------------------------------------------
