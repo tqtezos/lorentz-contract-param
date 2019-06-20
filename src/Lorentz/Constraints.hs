@@ -1,3 +1,5 @@
+{-# LANGUAGE UndecidableSuperClasses #-}
+
 module Lorentz.Constraints
   ( CanHaveBigMap
   , KnownValue
@@ -10,14 +12,22 @@ import Data.Singletons (SingI)
 
 import Michelson.Typed
 
--- | Gathers constraints, commonly required for values.
-type KnownValue a = (Typeable (ToT a), SingI (ToT a))
+-- We write these constraints as class + instance, rather than
+-- type aliases, in order to allow their partial application.
 
-type KnownCValue a = (IsoValue a, Typeable (ToCT a), SingI (ToCT a))
+-- | Gathers constraints, commonly required for values.
+class (Typeable (ToT a), SingI (ToT a)) => KnownValue a
+instance (Typeable (ToT a), SingI (ToT a)) => KnownValue a
+
+class (IsoValue a, Typeable (ToCT a), SingI (ToCT a)) => KnownCValue a
+instance (IsoValue a, Typeable (ToCT a), SingI (ToCT a)) => KnownCValue a
 
 -- | Ensure given type does not contain "operation".
-type NoOperation a = ForbidOp (ToT a)
+class ForbidOp (ToT a) => NoOperation a
+instance ForbidOp (ToT a) => NoOperation a
 
-type NoBigMap a = ForbidBigMap (ToT a)
+class ForbidBigMap (ToT a) => NoBigMap a
+instance ForbidBigMap (ToT a) => NoBigMap a
 
-type CanHaveBigMap a = AllowBigMap (ToT a)
+class AllowBigMap (ToT a) => CanHaveBigMap a
+instance AllowBigMap (ToT a) => CanHaveBigMap a

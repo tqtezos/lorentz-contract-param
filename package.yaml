@@ -106,3 +106,4 @@ tests:
       - tasty-hspec
       - tasty-quickcheck
       - text
+      - vinyl

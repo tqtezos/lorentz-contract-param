@@ -15,7 +15,9 @@ module Michelson.Interpret.Unpack
   ( UnpackError (..)
   , unpackValue
   , unpackValue'
+
   , UnpackEnv (..)
+  , dummyUnpackEnv
   ) where
 
 import Prelude hiding (EQ, Ordering(..), get)
@@ -65,6 +67,12 @@ instance Buildable UnpackError where
 
 data UnpackEnv = UnpackEnv
   { ueContracts :: TcOriginatedContracts
+  }
+
+-- | 'UnpackEnv' suitable for simple cases. Mostly for testing purposes.
+dummyUnpackEnv :: UnpackEnv
+dummyUnpackEnv = UnpackEnv
+  { ueContracts = mempty
   }
 
 -- | Alias for label attaching.

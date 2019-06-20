@@ -16,6 +16,7 @@ import Test.QuickCheck.Instances.Semigroup ()
 import Test.QuickCheck.Instances.Text ()
 import Test.QuickCheck.Random (mkQCGen)
 
+import Lorentz.UStore
 import Michelson.ErrorPos (InstrCallStack(..), LetName(..), Pos(..), SrcPos(..))
 import Michelson.Test ()
 import Michelson.Untyped
@@ -238,11 +239,18 @@ genRareT k = frequency [(1, arbitrary), (fromIntegral k, pure TUnit)]
 
 instance ToADTArbitrary CT
 instance Arbitrary CT where
-  arbitrary =  elements [minBound .. maxBound]
+  arbitrary = elements [minBound .. maxBound]
 
 instance ToADTArbitrary Comparable
 instance Arbitrary Comparable where
   arbitrary = Comparable <$> arbitrary <*> arbitrary
+
+instance (Ord k, Arbitrary k, Arbitrary v) =>
+         Arbitrary (k |~> v) where
+  arbitrary = UStoreSubMap <$> arbitrary
+
+instance Arbitrary v => Arbitrary (UStoreField v) where
+  arbitrary = UStoreField <$> arbitrary
 
 -- | Run given generator deterministically.
 runGen :: Int -> Gen a -> a

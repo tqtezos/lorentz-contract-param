@@ -2,21 +2,27 @@
 
 -- | Conversions between haskell types/values and Michelson ones.
 module Michelson.Typed.Haskell.Value
-  ( IsoCValue (..)
+  ( -- * Value conversions
+    IsoCValue (..)
   , IsoValue (..)
   , GIsoValue (GValueType)
-  , ToTs
   , ToT'
-  , ToTs'
   , SomeIsoValue (..)
   , AnyIsoValue (..)
   , IsComparable
 
+    -- * Missing Haskell analogies to Michelson values
   , ContractAddr (..)
   , BigMap (..)
+
+    -- * Stack conversion
+  , ToTs
+  , ToTs'
+  , IsoValuesStack (..)
   ) where
 
 import qualified Data.Kind as Kind
+import Data.Vinyl.Core (Rec (..))
 import Data.Default (Default)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
@@ -126,20 +132,10 @@ class IsoValue a where
     => Value (ToT a) -> a
   fromVal = G.to . gFromValue
 
--- | Type function to convert a Haskell stack type to @T@-based one.
-type family ToTs (ts :: [Kind.Type]) :: [T] where
-  ToTs '[] = '[]
-  ToTs (x ': xs) = ToT x ': ToTs xs
-
 -- | Overloaded version of 'ToT' to work on Haskell and @T@ types.
 type family ToT' (t :: k) :: T where
   ToT' (t :: T) = t
   ToT' (t :: Kind.Type) = ToT t
-
--- | Overloaded version of 'ToTs' to work on Haskell and @T@ stacks.
-type family ToTs' (t :: [k]) :: [T] where
-  ToTs' (t :: [T]) = t
-  ToTs' (a :: [Kind.Type]) = ToTs a
 
 -- | Hides some Haskell value put in line with Michelson 'Value'.
 data SomeIsoValue where
@@ -328,3 +324,30 @@ instance IsoValue a => GIsoValue (G.Rec0 a) where
   type GValueType (G.Rec0 a) = ToT a
   gToValue = toVal . G.unK1
   gFromValue = G.K1 . fromVal
+
+----------------------------------------------------------------------------
+-- Stacks conversion
+----------------------------------------------------------------------------
+
+-- | Type function to convert a Haskell stack type to @T@-based one.
+type family ToTs (ts :: [Kind.Type]) :: [T] where
+  ToTs '[] = '[]
+  ToTs (x ': xs) = ToT x ': ToTs xs
+
+-- | Overloaded version of 'ToTs' to work on Haskell and @T@ stacks.
+type family ToTs' (t :: [k]) :: [T] where
+  ToTs' (t :: [T]) = t
+  ToTs' (a :: [Kind.Type]) = ToTs a
+
+-- | Isomorphism between Michelson stack and its Haskell reflection.
+class IsoValuesStack (ts :: [Kind.Type]) where
+  toValStack :: Rec Identity ts -> Rec Value (ToTs ts)
+  fromValStack :: Rec Value (ToTs ts) -> Rec Identity ts
+
+instance IsoValuesStack '[] where
+  toValStack RNil = RNil
+  fromValStack RNil = RNil
+
+instance (IsoValue t, IsoValuesStack st) => IsoValuesStack (t ': st) where
+  toValStack (v :& vs) = toVal v :& toValStack vs
+  fromValStack (v :& vs) = fromVal v :& fromValStack vs
