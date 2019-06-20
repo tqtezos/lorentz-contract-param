@@ -17,6 +17,8 @@ module Michelson.Typed.Haskell.Instr.Sum
   , CaseClause (..)
   , CaseClauses
 
+  , Branch (..)
+  , Path
   , CtorField (..)
   , ExtractCtorField
   , AppendCtorField

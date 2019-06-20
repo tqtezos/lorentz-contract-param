@@ -31,8 +31,8 @@ module Lorentz.Macro
   -- They differ from the same macros in Michelson, because those
   -- macros use FAIL macro which is not informative (fails with unit).
   -- If you __really__ want Michelson versions (maybe to produce exact
-  -- copy of an existing contract), you can pass empty string, then
-  -- FAILWITH will be called with unit, not empty string.
+  -- copy of an existing contract), you can pass 'UnspecifiedError', then
+  -- FAILWITH will be called with unit.
   , assert
   , assertEq0
   , assertNeq0
@@ -90,6 +90,7 @@ module Lorentz.Macro
 import Prelude hiding (compare, drop, some, swap)
 
 import qualified Data.Kind as Kind
+import Data.Singletons (SingI)
 import Data.Vinyl.TypeLevel (Nat(..))
 import GHC.TypeNats (type (+), type (-))
 import qualified GHC.TypeNats as GHC (Nat)
@@ -98,6 +99,7 @@ import Lorentz.Arith
 import Lorentz.Base
 import Lorentz.Constraints
 import Lorentz.Coercions
+import Lorentz.Errors
 import Lorentz.Instr
 import Lorentz.Value
 import Michelson.Typed.Arith
@@ -214,65 +216,59 @@ fail_ = unit # failWith
 -- Assertions
 ----------------------------------------------------------------------------
 
--- Helper function, see Haddock comment in the export list.
-assertionFailed :: MText -> whatever :-> anything
-assertionFailed reason
-  | null reason = fail_
-  | otherwise = failText reason
+assert :: IsError err => err -> Bool & s :-> s
+assert reason = if_ nop (failUsing reason)
 
-assert :: MText -> Bool & s :-> s
-assert reason = if_ nop (assertionFailed reason)
+assertEq0 :: (IfCmp0Constraints a Eq', IsError err) => err -> a & s :-> s
+assertEq0 reason = ifEq0 nop (failUsing reason)
 
-assertEq0 :: IfCmp0Constraints a Eq' => MText -> a & s :-> s
-assertEq0 reason = ifEq0 nop (assertionFailed reason)
+assertNeq0 :: (IfCmp0Constraints a Neq, IsError err) => err -> a & s :-> s
+assertNeq0 reason = ifNeq0 nop (failUsing reason)
 
-assertNeq0 :: IfCmp0Constraints a Neq => MText -> a & s :-> s
-assertNeq0 reason = ifNeq0 nop (assertionFailed reason)
+assertLt0 :: (IfCmp0Constraints a Lt, IsError err) => err -> a & s :-> s
+assertLt0 reason = ifLt0 nop (failUsing reason)
 
-assertLt0 :: IfCmp0Constraints a Lt => MText -> a & s :-> s
-assertLt0 reason = ifLt0 nop (assertionFailed reason)
+assertGt0 :: (IfCmp0Constraints a Gt, IsError err) => err -> a & s :-> s
+assertGt0 reason = ifGt0 nop (failUsing reason)
 
-assertGt0 :: IfCmp0Constraints a Gt => MText -> a & s :-> s
-assertGt0 reason = ifGt0 nop (assertionFailed reason)
+assertLe0 :: (IfCmp0Constraints a Le, IsError err) => err -> a & s :-> s
+assertLe0 reason = ifLe0 nop (failUsing reason)
 
-assertLe0 :: IfCmp0Constraints a Le => MText -> a & s :-> s
-assertLe0 reason = ifLe0 nop (assertionFailed reason)
+assertGe0 :: (IfCmp0Constraints a Ge, IsError err) => err -> a & s :-> s
+assertGe0 reason = ifGe0 nop (failUsing reason)
 
-assertGe0 :: IfCmp0Constraints a Ge => MText -> a & s :-> s
-assertGe0 reason = ifGe0 nop (assertionFailed reason)
+assertEq :: (IfCmpXConstraints a b Eq', IsError err) => err -> a & b & s :-> s
+assertEq reason = ifEq nop (failUsing reason)
 
-assertEq :: IfCmpXConstraints a b Eq' => MText -> a & b & s :-> s
-assertEq reason = ifEq nop (assertionFailed reason)
+assertNeq :: (IfCmpXConstraints a b Neq, IsError err) => err -> a & b & s :-> s
+assertNeq reason = ifNeq nop (failUsing reason)
 
-assertNeq :: IfCmpXConstraints a b Neq => MText -> a & b & s :-> s
-assertNeq reason = ifNeq nop (assertionFailed reason)
+assertLt :: (IfCmpXConstraints a b Lt, IsError err) => err -> a & b & s :-> s
+assertLt reason = ifLt nop (failUsing reason)
 
-assertLt :: IfCmpXConstraints a b Lt => MText -> a & b & s :-> s
-assertLt reason = ifLt nop (assertionFailed reason)
+assertGt :: (IfCmpXConstraints a b Gt, IsError err) => err -> a & b & s :-> s
+assertGt reason = ifGt nop (failUsing reason)
 
-assertGt :: IfCmpXConstraints a b Gt => MText -> a & b & s :-> s
-assertGt reason = ifGt nop (assertionFailed reason)
+assertLe :: (IfCmpXConstraints a b Le, IsError err) => err -> a & b & s :-> s
+assertLe reason = ifLe nop (failUsing reason)
 
-assertLe :: IfCmpXConstraints a b Le => MText -> a & b & s :-> s
-assertLe reason = ifLe nop (assertionFailed reason)
+assertGe :: (IfCmpXConstraints a b Ge, IsError err) => err -> a & b & s :-> s
+assertGe reason = ifGe nop (failUsing reason)
 
-assertGe :: IfCmpXConstraints a b Ge => MText -> a & b & s :-> s
-assertGe reason = ifGe nop (assertionFailed reason)
+assertNone :: IsError err => err -> Maybe a & s :-> s
+assertNone reason = ifNone nop (failUsing reason)
 
-assertNone :: MText -> Maybe a & s :-> s
-assertNone reason = ifNone nop (assertionFailed reason)
+assertSome :: IsError err => err -> Maybe a & s :-> a & s
+assertSome reason = ifNone (failUsing reason) nop
 
-assertSome :: MText -> Maybe a & s :-> a & s
-assertSome reason = ifNone (assertionFailed reason) nop
+assertLeft :: IsError err => err -> Either a b & s :-> a & s
+assertLeft reason = ifLeft nop (failUsing reason)
 
-assertLeft :: MText -> Either a b & s :-> a & s
-assertLeft reason = ifLeft nop (assertionFailed reason)
-
-assertRight :: MText -> Either a b & s :-> b & s
-assertRight reason = ifLeft (assertionFailed reason) nop
+assertRight :: IsError err => err -> Either a b & s :-> b & s
+assertRight reason = ifLeft (failUsing reason) nop
 
 assertUsing
-  :: (IsoValue a, KnownValue a, NoOperation a, NoBigMap a)
+  :: IsError a
   => a -> Bool & s :-> s
 assertUsing err = if_ nop $ failUsing err
 
@@ -504,15 +500,28 @@ data Void_ (a :: Kind.Type) (b :: Kind.Type) = Void_
 -- Usage example:
 -- lExpectFailWith (== VoidResult roleMaster)`
 newtype VoidResult r = VoidResult { unVoidResult :: r }
-  deriving newtype (Eq, IsoValue)
+  deriving stock (Generic)
+  deriving newtype (Eq)
+
+instance ( Typeable r, IsoValue r
+         , Each [Typeable, SingI] '[ToT r]
+         ) =>
+         IsError (VoidResult r) where
+  errorToVal = customErrorToVal
+  errorFromVal = customErrorFromVal
+
+instance CustomErrorNoIsoValue (VoidResult r) => IsoValue (VoidResult r) where
+  type ToT (VoidResult r) = CustomErrorNoIsoValue (VoidResult r)
+  toVal = error "impossible"
+  fromVal = error "impossible"
 
 mkVoid :: forall b a. a -> Void_ a b
 mkVoid a = Void_ a nop
 
 void_
   :: forall a b s s' anything.
-      (KnownValue b)
+      (Typeable b, IsoValue b, KnownValue b)
   => a & s :-> b & s' -> Void_ a b & s :-> anything
 void_ code =
   coerce_ @_ @(_, Lambda b b) #
-  unpair # swap # dip code # swap # exec # coerce_ @b @(VoidResult b) # failWith
+  unpair # swap # dip code # swap # exec # failUsingArg @(VoidResult b) #cVoidResult

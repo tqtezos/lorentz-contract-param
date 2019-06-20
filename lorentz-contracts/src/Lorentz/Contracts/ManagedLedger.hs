@@ -74,7 +74,8 @@ data Error
     -- ^ Cannot set token manager to the given address because it already
     -- appears in the ledger.
   deriving stock (Eq, Generic)
-  deriving anyclass (IsoValue)
+
+deriveCustomError ''Error
 
 instance Buildable Error where
   build = \case
@@ -128,7 +129,7 @@ managedLedgerContract = do
     , #cSetManager /-> do
         dip authorizeManager;
         dupT @Storage; toField #ledger; dupT @Address; mem
-        if_ (userFail #cManagerAddressWouldShadow) nop
+        if_ (failUsing ManagerAddressWouldShadow) nop
         stackType @[Address, Storage]
         dip (getField #fields); setField #manager; setField #fields
         nil; pair;
@@ -140,13 +141,13 @@ managedLedgerContract = do
         ifSome (toField #balance) (push 0)
     )
 
-userFail :: forall name s s'. UserFailInstr Error name s s'
-userFail = userFailWith @Error @name @s
+userFail :: forall name fieldTy s s'. FailUsingArg Error name fieldTy s s'
+userFail = failUsingArg @Error @name
 
 authorizeManager :: Storage : s :-> Storage : s
 authorizeManager = do
   getField #fields; toField #manager; sender; eq
-  if_ nop (userFail #cInitiatorIsNotManager)
+  if_ nop (failUsing InitiatorIsNotManager)
 
 addTotalSupply :: Integer : Storage : s :-> Storage : s
 addTotalSupply = do
@@ -315,4 +316,4 @@ needAllowance = do
 ensureNotPaused :: Storage : s :-> Storage : s
 ensureNotPaused = do
   getField #fields; toField #paused
-  if_ (userFail #cOperationsArePaused) nop
+  if_ (failUsing OperationsArePaused) nop

@@ -19,7 +19,7 @@ import Prelude hiding (return, (>>), (>>=))
 
 import Data.Vinyl.Derived (Label)
 
-import Indigo.Expr (Expr(..), IsExpr, ValidValue, compileExpr, toExpr, IsExpr)
+import Indigo.Expr (Expr(..), IsExpr, compileExpr, toExpr)
 import Indigo.State
   (DestroyPrefix(..), GenCode(..), IndigoM(..), MetaData(..), Var, VarActions(..), iget, lookupVar,
   makeTopVar, popNoRefMd, pushNoRefMd, pushRefMd, return, (>>), (>>=))
@@ -95,10 +95,10 @@ while e body = IndigoM $ \md ->
   let ((), GenCode _ bodyCode) = fmap (destroyPrefix @xs @inp) $ runIndigoM body md in
   ((), GenCode md $ expCd # L.loop (bodyCode # expCd))
 
-failUsing_ :: ValidValue x => x -> IndigoM s s ()
-failUsing_ x = IndigoM $ \md -> ((), GenCode md (L.failUsing x))
+failUsing_ :: IsError x => x -> IndigoM s s ()
+failUsing_ x = IndigoM $ \md -> ((), GenCode md (failUsing x))
 
-assert :: (ValidValue x, IsExpr ex Bool) => x -> ex -> IndigoM s s ()
+assert :: (IsError x, IsExpr ex Bool) => x -> ex -> IndigoM s s ()
 assert err e = compileExpr (toExpr e) >> assertImpl
   where
     assertImpl :: IndigoM (Bool & s) s ()

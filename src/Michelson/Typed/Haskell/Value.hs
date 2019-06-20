@@ -8,6 +8,8 @@ module Michelson.Typed.Haskell.Value
   , ToTs
   , ToT'
   , ToTs'
+  , SomeIsoValue (..)
+  , AnyIsoValue (..)
   , IsComparable
 
   , ContractAddr (..)
@@ -30,6 +32,10 @@ import Michelson.Typed.Value
 import Tezos.Address (Address)
 import Tezos.Core (Mutez, Timestamp)
 import Tezos.Crypto (KeyHash, PublicKey, Signature)
+
+----------------------------------------------------------------------------
+-- Comparable values isomorphism
+----------------------------------------------------------------------------
 
 -- | Isomorphism between Michelson primitive values and plain Haskell types.
 class IsoCValue a where
@@ -93,6 +99,10 @@ instance IsoCValue Timestamp where
   toCVal = CvTimestamp
   fromCVal (CvTimestamp t) = t
 
+----------------------------------------------------------------------------
+-- Complex values isomorphism
+----------------------------------------------------------------------------
+
 -- | Isomorphism between Michelson values and plain Haskell types.
 --
 -- Default implementation of this typeclass converts ADTs to Michelson
@@ -131,8 +141,18 @@ type family ToTs' (t :: [k]) :: [T] where
   ToTs' (t :: [T]) = t
   ToTs' (a :: [Kind.Type]) = ToTs a
 
+-- | Hides some Haskell value put in line with Michelson 'Value'.
+data SomeIsoValue where
+  SomeIsoValue :: (Typeable a, IsoValue a) => a -> SomeIsoValue
+
+-- | Any Haskell value which can be converted to Michelson 'Value'.
+newtype AnyIsoValue = AnyIsoValue (forall a. IsoValue a => a)
+
 -- | A useful property which holds for all 'CT' types.
 type IsComparable c = ToT c ~ 'Tc (ToCT c)
+
+-- Instances
+----------------------------------------------------------------------------
 
 instance IsoValue Integer where
   type ToT Integer = 'Tc (ToCT Integer)

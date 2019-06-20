@@ -39,7 +39,7 @@ import Michelson.EqParam (eqParam1, eqParam2)
 import Michelson.Interpret.Pack (packValue')
 import Michelson.Interpret.Unpack (UnpackError, unpackValue', UnpackEnv (..))
 import Michelson.TypeCheck
-  ( SomeContract(..), SomeValue(..), TCError, TcOriginatedContracts,
+  ( SomeContract(..), SomeNotedValue(..), TCError, TcOriginatedContracts,
   TCTypeError(..), compareTypes, eqType, runTypeCheck, typeCheckContract, typeCheckValue)
 import Michelson.Typed
   (CValue(..), Contract, CreateAccount(..), CreateContract(..), HasNoBigMap, HasNoOp, Instr(..),

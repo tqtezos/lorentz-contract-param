@@ -327,18 +327,18 @@ type StoreInsertC store name =
 
 -- | Insert a key-value pair, but fail if it will overwrite some existing entry.
 storeInsertNew
-  :: forall store name err s.
-     (StoreInsertC store name, KnownSymbol name, KnownValue err)
+  :: forall store name s.
+     (StoreInsertC store name, KnownSymbol name)
   => Label name
-  -> (forall s0. GetStoreKey store name : s0 :-> err : s0)
+  -> (forall s0 any. GetStoreKey store name : s0 :-> any)
   -> GetStoreKey store name
       : GetStoreValue store name
       : Store store
       : s
   :-> Store store : s
-storeInsertNew label mkErr =
+storeInsertNew label doFail =
   duupX @3 # duupX @2 # storeMem label #
-  if_ (mkErr # failWith)
+  if_ doFail
       (storeInsert label)
 
 storeDelete
@@ -527,18 +527,18 @@ storageInsert label =
 
 -- | Insert a key-value pair, but fail if it will overwrite some existing entry.
 storageInsertNew
-  :: forall store name fields err s.
-     (StoreInsertC store name, KnownSymbol name, KnownValue err)
+  :: forall store name fields s.
+     (StoreInsertC store name, KnownSymbol name)
   => Label name
-  -> (forall s0. GetStoreKey store name : s0 :-> err : s0)
+  -> (forall s0 any. GetStoreKey store name : s0 :-> any)
   -> GetStoreKey store name
       : GetStoreValue store name
       : StorageSkeleton store fields
       : s
   :-> StorageSkeleton store fields : s
-storageInsertNew label mkErr =
+storageInsertNew label doFail =
   dip (dip (storageUnpack # dup # car # dip cdr)) #
-  storeInsertNew label mkErr #
+  storeInsertNew label doFail #
   pair # storagePack
 
 storageDelete

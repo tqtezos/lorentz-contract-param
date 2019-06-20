@@ -83,7 +83,7 @@ typeCheckValImpl
   :: TcInstrHandler
   -> U.Value
   -> (Sing t, Notes t)
-  -> TypeCheckInstr SomeValue
+  -> TypeCheckInstr SomeNotedValue
 typeCheckValImpl _ mv (t@(STc ct), ann) = do
   let nt = notesCase U.noAnn (\(NTc x) -> x) ann
   case typeCheckCValue mv (fromSingCT ct) of

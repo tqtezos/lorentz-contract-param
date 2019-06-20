@@ -2,6 +2,7 @@
 
 module Michelson.Typed.Value
   ( Value' (..)
+  , SomeValue' (..)
   , ContractInp1
   , ContractInp
   , ContractOut1
@@ -155,6 +156,9 @@ data Value' instr t where
 
 deriving instance Show (Value' instr t)
 deriving instance Eq (Value' instr t)
+
+data SomeValue' instr where
+  SomeValue :: (Typeable t, SingI t) => Value' instr t -> SomeValue' instr
 
 -- TODO: actually we should handle big maps with something close
 -- to following:

@@ -41,7 +41,7 @@ module Lorentz.Test.Integrational
   , lExpectStorageConst
   , lExpectMichelsonFailed
   , lExpectFailWith
-  , lExpectUserError
+  , lExpectError
   , lExpectConsumerStorage
   , lExpectViewConsumerStorage
   ) where
@@ -194,11 +194,17 @@ lExpectFailWith predicate =
     _ -> False
 
 -- | Expect contract to fail with given 'LorentzUserError' error.
-lExpectUserError
+lExpectError
   :: forall e.
-      (Typeable (T.ToT e), T.IsoValue e)
+      (L.IsError e)
   => (e -> Bool) -> InterpreterError -> Bool
-lExpectUserError predicate = lExpectFailWith (predicate . L.unLorentzUserError)
+lExpectError predicate =
+  \case
+    IEInterpreterFailed _ (RuntimeFailure (MichelsonFailedWith err, _)) ->
+        case L.errorFromVal err of
+          Right err' -> predicate err'
+          Left _ -> False
+    _ -> False
 
 -- | Version of 'lExpectStorageUpdate' specialized to "consumer" contract
 -- (see 'Lorentz.Contracts.Consumer.contractConsumer').
