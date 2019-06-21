@@ -1,20 +1,20 @@
 -- | A buggy implementation of Unsafe ledger, returns balances multiplied by 2
 
 module Lorentz.Contracts.UpgradableUnsafeLedger.V1
-  ( UpgradableStorageSkeleton(..)
-  , UpgradableInterfaceSkeleton(..)
+  ( UpgradableInterfaceSkeleton(..)
   , migrate
   , unsafeLedgerContract
 
   -- The following are used in V2
+  , UStoreV1
   , TransferParams
   , transfer
   , getTotalSupply
-  , toElementOfBigMap_ledger
   ) where
 
 import Lorentz
 
+import Lorentz.UStore
 import Lorentz.Contracts.Upgradable.Common
 
 -- Currently ignored
@@ -27,44 +27,25 @@ data UpgradableInterfaceSkeleton
 -- in generic implementation
 type TransferParams = (Address, Natural)
 
--- Currently ignored
-data UpgradableStorageSkeleton = Storage
-  { ledger      :: BigMap Address Natural
-  , totalSupply :: Natural
-  }
+data UStoreTempate = UStoreTempate
+  { ledger      :: Address |~> Natural
+  , totalSupply :: UStoreField Natural
+  } deriving stock (Eq, Generic)
 
-toElementOfBigMap_ledger
-  :: Address ': UStorage ': s
-  :-> Maybe Natural ': s
-toElementOfBigMap_ledger = toElementOfBigMap @Address @Natural [mt|ledger|]
+type UStoreV1 = UStore UStoreTempate
 
-getElementOfBigMap_ledger
-  :: Address ': UStorage ': s
-  :-> Maybe Natural ': UStorage ': s
-getElementOfBigMap_ledger = getElementOfBigMap @Address @Natural [mt|ledger|]
-
-setElementOfBigMap_ledger
-  :: Address ': Maybe Natural ': UStorage ': s
-  :-> UStorage ': s
-setElementOfBigMap_ledger = setElementOfBigMap @Address @Natural [mt|ledger|]
-
-toUField_totalSupply :: UStorage ': s :-> Natural ': s
-toUField_totalSupply = do
-  toUField @Natural [mt|#totalSupply|]
-  assertSome [mt|Inconsistent storage|]
-
-setUField_totalSupply :: Natural ': UStorage ': s :-> UStorage ': s
-setUField_totalSupply = setUField @Natural [mt|#totalSupply|]
-
-migrate :: '[UStorage] :-> '[UStorage]
+-- | Like in UpgradableCounter, this function  populates the empty UStore_
+--   with entries and initial values for each field. The result is expected
+--   to adhere to V1.UStoreTemplate
+migrate :: '[UStore_] :-> '[UStore_]
 migrate = do
+  coerce_ @UStore_ @UStoreV1
   push @Natural 500
   dup
-  dip $ do
-    some
-    sender
-    setElementOfBigMap_ledger
-  setUField_totalSupply
+  dip $ ustoreSetField #totalSupply
+  sender
+  ustoreInsert #ledger
+  coerce_ @UStoreV1 @UStore_
 
 unsafeLedgerContract :: ContractCode
 unsafeLedgerContract = do
@@ -74,49 +55,50 @@ unsafeLedgerContract = do
     , ifArg @(View Address (Maybe Natural)) [mt|GetBalance|] buggyGetBalance
     ]
 
-transfer :: '[TransferParams, UStorage]
-         :-> '[([Operation], UStorage)]
+transfer :: '[TransferParams, UStoreV1]
+         :-> '[([Operation], UStoreV1)]
 transfer = do
   debitSource; creditTo; nil; pair;
 
-getTotalSupply :: '[View () Natural, UStorage]
-               :-> '[([Operation], UStorage)]
-getTotalSupply = view_ (do cdr; toUField_totalSupply)
+getTotalSupply :: '[View () Natural, UStoreV1]
+               :-> '[([Operation], UStoreV1)]
+getTotalSupply = view_ (do cdr; ustoreToField #totalSupply)
 
 -- Buggy getBalance returns balance multiplied by 2
-buggyGetBalance :: '[View Address (Maybe Natural), UStorage]
-                :-> '[([Operation], UStorage)]
+buggyGetBalance :: '[View Address (Maybe Natural), UStoreV1]
+                :-> '[([Operation], UStoreV1)]
 buggyGetBalance = view_ $ do
   unpair
-  toElementOfBigMap_ledger
+  ustoreGet #ledger
   if IsSome
   then push @Natural 2 >> mul >> some
   else none
 
-debitSource :: '[TransferParams, UStorage]
-            :-> '[TransferParams, UStorage]
+debitSource :: '[TransferParams, UStoreV1]
+            :-> '[TransferParams, UStoreV1]
 debitSource = do
   dip $ do
     sender
-    getElementOfBigMap_ledger
+    dip dup
+    ustoreGet #ledger
     assertSome [mt|Sender address is not in ledger|]
   swap
   dip (dup # cdr)
   subGt0
   swap
-  dip (do sender; setElementOfBigMap_ledger)
+  dip (do sender; ustoreUpdate #ledger)
 
-creditTo :: '[TransferParams, UStorage] :-> '[UStorage]
+creditTo :: '[TransferParams, UStoreV1] :-> '[UStoreV1]
 creditTo = do
   dup; car
   swap
-  dip (getElementOfBigMap_ledger)
+  dip (dip dup # ustoreGet #ledger)
   swap
   if IsSome then dip (dup >> cdr) >> add @Natural else (dup >> cdr)
   some
   dip (car)
   swap
-  setElementOfBigMap_ledger
+  ustoreUpdate #ledger
 
 subGt0 :: Natural ': Natural ': s :-> Maybe Natural ': s
 subGt0 = do

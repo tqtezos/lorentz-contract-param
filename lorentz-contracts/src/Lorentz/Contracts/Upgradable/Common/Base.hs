@@ -1,6 +1,6 @@
 module Lorentz.Contracts.Upgradable.Common.Base
   ( UParameter
-  , UStorage
+  , UStore_
   , MigrationScript
   , ContractCode
   ) where
@@ -8,6 +8,6 @@ module Lorentz.Contracts.Upgradable.Common.Base
 import Lorentz
 
 type UParameter = (MText, ByteString)
-type UStorage = BigMap ByteString ByteString
-type MigrationScript = Lambda UStorage UStorage
-type ContractCode = Lambda (UParameter, UStorage) ([Operation], UStorage)
+type UStore_ = BigMap ByteString ByteString
+type MigrationScript = Lambda UStore_ UStore_
+type ContractCode = Lambda (UParameter, UStore_) ([Operation], UStore_)

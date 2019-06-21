@@ -53,7 +53,6 @@ getCounterValueV2
 getCounterValueV2 contract consumer = do
   uCall contract [mt|GetCounterValue|] $ View () consumer
 
--- | All tests for HelloWorld (FCK1).
 spec_UpgradableCounter :: Spec
 spec_UpgradableCounter = do
   describe "v1" $ do

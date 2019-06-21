@@ -20,7 +20,7 @@ data Parameter
   deriving anyclass IsoValue
 
 data Storage = Storage
-  { dataMap :: UStorage
+  { dataMap :: UStore_
   , code :: ContractCode
   }
   deriving stock Generic
@@ -39,23 +39,23 @@ upgradableContract :: Contract Parameter Storage
 upgradableContract = do
   unpair
   caseT @Parameter
-    ( #cRun /-> do -- UParameter : Storage
-        dip $ do   -- Storage
-          getField #dataMap    -- UStorage : Storage
-          dip $ getField #code -- UStorage : ContractCode : Storage
-        pair   -- (UParameter, UStorage) : ContractCode : Storage
-        exec   -- ([Operation], UStorage) : Storage
-        unpair -- [Operation] : UStorage : Storage
-        dip $ setField #dataMap -- [Operation] : Storage
-        pair   -- ([Operation], Storage)
+    ( #cRun /-> do
+        dip $ do
+          getField #dataMap
+          dip $ getField #code
+        pair
+        exec
+        unpair
+        dip $ setField #dataMap
+        pair
     , #cUpgrade /-> do
-        dip $ getField #dataMap -- (MigrationScript, ContractCode) : UStorage : Storage
-        unpair    -- MigrationScript : ContractCode : UStorage : Storage
-        swap      -- ContractCode : MigrationScript : UStorage : Storage
-        dip $ do  -- MigrationScript : UStorage : Storage
-          swap    -- UStorage : MigrationScript : Storage
-          exec    -- UStorage : Storage
-          setField #dataMap  -- Storage
+        dip $ getField #dataMap
+        unpair
+        swap
+        dip $ do
+          swap
+          exec
+          setField #dataMap
         setField #code;
         nil; pair;
     )
