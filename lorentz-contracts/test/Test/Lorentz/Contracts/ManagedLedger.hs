@@ -22,18 +22,18 @@ import Util.Named ((.!))
 
 {-# ANN module ("HLint: ignore Reduce duplication" :: Text) #-}
 
-wallet1, wallet2, wallet3, manager, manager2 :: Address
+wallet1, wallet2, wallet3, admin, admin2 :: Address
 wallet1 = genesisAddress1
 wallet2 = genesisAddress2
 wallet3 = genesisAddress3
-manager = genesisAddress4
-manager2 = genesisAddress5
+admin = genesisAddress4
+admin2 = genesisAddress5
 
 -- | Originate the contract we are currently testing with empty storage.
 originateEmptyManagedLedger :: IntegrationalScenarioM (ContractAddr Parameter)
 originateEmptyManagedLedger =
   lOriginate managedLedgerContract "Managed ledger"
-    (mkStorage manager) (toMutez 1000)
+    (mkStorage admin) (toMutez 1000)
 
 -- | Originate the contract we are currently testing with given amount of money
 -- on some accounts.
@@ -42,7 +42,7 @@ originateManagedLedger
   -> IntegrationalScenarioM (ContractAddr Parameter)
 originateManagedLedger initMoney =
   lOriginate managedLedgerContract "Managed ledger"
-    (mkStorage manager)
+    (mkStorage admin)
     { ledger = BigMap $ Map.fromList
         [ (wallet1, (#balance .! initMoney, #approvals .! mempty))
         , (wallet2, (#balance .! initMoney, #approvals .! mempty))
@@ -56,13 +56,13 @@ lCallSane addr = lCall addr . fromSaneParameter
 
 spec_ManagedLedger :: Spec
 spec_ManagedLedger = do
-  describe "Transfers authorized by manager" $ do
+  describe "Transfers authorized by admin" $ do
     it "Can mint money" $
       integrationalTestProperty $ do
         ml <- originateEmptyManagedLedger
         consumer <- lOriginateEmpty contractConsumer "consumer"
 
-        withSender manager . lCallSane ml $
+        withSender admin . lCallSane ml $
           SMint
           ( #to .! wallet1
           , #deltaVal .! 10
@@ -88,7 +88,7 @@ spec_ManagedLedger = do
         ml <- originateEmptyManagedLedger
         consumer <- lOriginateEmpty contractConsumer "consumer"
 
-        withSender manager $ do
+        withSender admin $ do
           lCallSane ml $
             SMint
             ( #to .! wallet1
@@ -112,7 +112,7 @@ spec_ManagedLedger = do
         ml <- originateEmptyManagedLedger
         consumer <- lOriginateEmpty contractConsumer "consumer"
 
-        withSender manager $ do
+        withSender admin $ do
           lCallSane ml $
             SMint
             ( #to .! wallet1
@@ -356,7 +356,7 @@ spec_ManagedLedger = do
       integrationalTestProperty $ do
         ml <- originateManagedLedger 10
 
-        withSender manager $ do
+        withSender admin $ do
           lCallSane ml $ SSetPause True
         withSender wallet1 $ do
           lCallSane ml $
@@ -373,7 +373,7 @@ spec_ManagedLedger = do
       integrationalTestProperty $ do
         ml <- originateManagedLedger 10
 
-        withSender manager $ do
+        withSender admin $ do
           lCallSane ml $ SSetPause True
         withSender wallet1 $ do
           lCallSane ml $
@@ -385,13 +385,13 @@ spec_ManagedLedger = do
         validate . Left $
           lExpectError (== OperationsArePaused)
 
-    it "Manager cannot do transfers even during pause" $
+    it "Admin cannot do transfers even during pause" $
       integrationalTestProperty $ do
         ml <- originateManagedLedger 10
 
-        withSender manager $ do
+        withSender admin $ do
           lCallSane ml $ SSetPause True
-        withSender manager $ do
+        withSender admin $ do
           lCallSane ml $
             STransfer
             ( #from .! wallet1
@@ -402,27 +402,27 @@ spec_ManagedLedger = do
         validate . Left $
           lExpectError (== OperationsArePaused)
 
-  describe "setManager" $ do
-    it "Manager can delegate his rights" $
+  describe "setAdministrator" $ do
+    it "Admin can delegate his rights" $
       integrationalTestProperty $ do
         ml <- originateManagedLedger 10
 
-        withSender manager $ do
-          lCallSane ml $ SSetManager manager2
-        withSender manager2 $ do
+        withSender admin $ do
+          lCallSane ml $ SSetAdministrator admin2
+        withSender admin2 $ do
           lCallSane ml $ SSetPause True
 
         validate . Right $ expectAnySuccess
 
-    it "Only manager can set a new manager" $
+    it "Only admin can set a new admin" $
       integrationalTestProperty $ do
         ml <- originateManagedLedger 10
 
         withSender wallet1 $ do
-          lCallSane ml $ SSetManager wallet2
+          lCallSane ml $ SSetAdministrator wallet2
 
         validate . Left $
-          lExpectError (== SenderIsNotManager)
+          lExpectError (== SenderIsNotAdmin)
 
   describe "Total supply" $ do
     it "Is correct after multiple transfers" $
@@ -430,7 +430,7 @@ spec_ManagedLedger = do
         ml <- originateEmptyManagedLedger
         consumer <- lOriginateEmpty contractConsumer "consumer"
 
-        withSender manager $ do
+        withSender admin $ do
           lCallSane ml $
             SMint
             ( #to .! wallet1
