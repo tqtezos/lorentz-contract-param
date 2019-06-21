@@ -1,4 +1,4 @@
--- | Module, containing spec to FA1.4.
+-- | Module, containing spec to FA1.2.
 
 module Test.Lorentz.Contracts.ManagedLedger
   ( spec_ManagedLedger
@@ -63,9 +63,8 @@ spec_ManagedLedger = do
         consumer <- lOriginateEmpty contractConsumer "consumer"
 
         withSender manager . lCallSane ml $
-          STransfer
-          ( #from .! manager
-          , #to .! wallet1
+          SMint
+          ( #to .! wallet1
           , #deltaVal .! 10
           )
 
@@ -91,9 +90,8 @@ spec_ManagedLedger = do
 
         withSender manager $ do
           lCallSane ml $
-            STransfer
-            ( #from .! manager
-            , #to .! wallet1
+            SMint
+            ( #to .! wallet1
             , #deltaVal .! 10
             )
           lCallSane ml $
@@ -116,9 +114,8 @@ spec_ManagedLedger = do
 
         withSender manager $ do
           lCallSane ml $
-            STransfer
-            ( #from .! manager
-            , #to .! wallet1
+            SMint
+            ( #to .! wallet1
             , #deltaVal .! 10
             )
           lCallSane ml $
@@ -128,18 +125,16 @@ spec_ManagedLedger = do
             , #deltaVal .! 10
             )
           lCallSane ml $
-            STransfer
+            SBurn
             ( #from .! wallet2
-            , #to .! manager
             , #deltaVal .! 9
             )
 
         lCallSane ml $ SGetBalance (View wallet1 consumer)
         lCallSane ml $ SGetBalance (View wallet2 consumer)
-        lCallSane ml $ SGetBalance (View manager consumer)
 
         validate . Right $
-          lExpectViewConsumerStorage consumer [0, 1, 0]
+          lExpectViewConsumerStorage consumer [0, 1]
 
   describe "Transfers authorized by users" $ do
     it "Can transfer own money" $
@@ -285,9 +280,6 @@ spec_ManagedLedger = do
         validate . Left $
           lExpectError (== NotEnoughAllowance (#required .! 3, #present .! 2))
 
-    -- TODO: do we need this behavior?
-    -- it "Approving funds flow from manager is not possible" $
-
     it "Can close allowance suggestion" $
       integrationalTestProperty $ do
         ml <- originateManagedLedger 10
@@ -430,17 +422,7 @@ spec_ManagedLedger = do
           lCallSane ml $ SSetManager wallet2
 
         validate . Left $
-          lExpectError (== InitiatorIsNotManager)
-
-    it "Cannot set manager to an address from ledger" $
-      integrationalTestProperty $ do
-        ml <- originateManagedLedger 10
-
-        withSender manager $ do
-          lCallSane ml $ SSetManager wallet2
-
-        validate . Left $
-          lExpectError (== ManagerAddressWouldShadow)
+          lExpectError (== SenderIsNotManager)
 
   describe "Total supply" $ do
     it "Is correct after multiple transfers" $
@@ -450,15 +432,13 @@ spec_ManagedLedger = do
 
         withSender manager $ do
           lCallSane ml $
-            STransfer
-            ( #from .! manager
-            , #to .! wallet1
+            SMint
+            ( #to .! wallet1
             , #deltaVal .! 20
             )
           lCallSane ml $
-            STransfer
-            ( #from .! manager
-            , #to .! wallet2
+            SMint
+            ( #to .! wallet2
             , #deltaVal .! 5
             )
           lCallSane ml $
@@ -468,9 +448,8 @@ spec_ManagedLedger = do
             , #deltaVal .! 10
             )
           lCallSane ml $
-            STransfer
+            SBurn
             ( #from .! wallet2
-            , #to .! manager
             , #deltaVal .! 1
             )
 
