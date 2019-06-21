@@ -1,7 +1,11 @@
--- | FA 1.4: ERC-20 equivalent with Mintable, Burnable, Pausable,
--- Ownable functionality.
+-- | Managed ledger which is compatible with FA1.2 standard and
+-- extended with manager functionality.
+
 module Lorentz.Contracts.ManagedLedger
   ( Parameter (..)
+  , SaneParameter (..)
+  , fromSaneParameter
+
   , Storage (..)
   , Error (..)
   , mkStorage
@@ -17,17 +21,114 @@ import Util.Named ()
 
 {-# ANN module ("HLint: ignore Reduce duplication" :: Text) #-}
 
-data Parameter
-  = Transfer       TransferParams
-  | Approve        ApproveParams
-  | SetPause       Bool
-  | SetManager     Address
-  | GetManager     (View () Address)
-  | GetAllowance   (View GetAllowanceParams Natural)
-  | GetTotalSupply (View () Natural)
-  | GetBalance     (View Address Natural)
+----------------------------------------------------------------------------
+-- Parameter
+----------------------------------------------------------------------------
+
+-- We have to manually assemble linear parameter type, because Lorentz
+-- uses balanced trees by default.
+
+data Parameter0
+  = Approve        !ApproveParams
+  | Parameter1     !Parameter1
   deriving stock Generic
   deriving anyclass IsoValue
+
+data Parameter1
+  = GetBalance     !(View Address Natural)
+  | Parameter2     !Parameter2
+  deriving stock Generic
+  deriving anyclass IsoValue
+
+data Parameter2
+  = GetAllowance   !(View GetAllowanceParams Natural)
+  | Parameter3     !Parameter3
+  deriving stock Generic
+  deriving anyclass IsoValue
+
+data Parameter3
+  = GetTotalSupply !(View () Natural)
+  | Parameter4     !Parameter4
+  deriving stock Generic
+  deriving anyclass IsoValue
+
+data Parameter4
+  = SetPause       !Bool
+  | Parameter5     !Parameter5
+  deriving stock Generic
+  deriving anyclass IsoValue
+
+data Parameter5
+  = SetManager     !Address
+  | GetManager     !(View () Address)
+  deriving stock Generic
+  deriving anyclass IsoValue
+
+data Parameter
+  = Transfer       !TransferParams
+  | Parameter0     !Parameter0
+  deriving stock Generic
+  deriving anyclass IsoValue
+
+-- | Sane representation of parameter which we currently can't use
+-- because it's Michelson representation is a balanced tree, while we
+-- need to be compatible with FA1.2 which requires linear structure.
+data SaneParameter
+  = STransfer       !TransferParams
+  | SApprove        !ApproveParams
+  | SSetPause       !Bool
+  | SSetManager     !Address
+  | SGetManager     !(View () Address)
+  | SGetAllowance   !(View GetAllowanceParams Natural)
+  | SGetTotalSupply !(View () Natural)
+  | SGetBalance     !(View Address Natural)
+
+-- | Convert sane parameter to parameter of this contract.
+fromSaneParameter :: SaneParameter -> Parameter
+fromSaneParameter =
+  \case
+    STransfer tp -> Transfer tp
+    SApprove ap ->
+      Parameter0 $
+      Approve ap
+    SSetPause b ->
+      Parameter0 $
+      Parameter1 $
+      Parameter2 $
+      Parameter3 $
+      Parameter4 $
+      SetPause b
+    SSetManager a ->
+      Parameter0 $
+      Parameter1 $
+      Parameter2 $
+      Parameter3 $
+      Parameter4 $
+      Parameter5 $
+      SetManager a
+    SGetManager v ->
+      Parameter0 $
+      Parameter1 $
+      Parameter2 $
+      Parameter3 $
+      Parameter4 $
+      Parameter5 $
+      GetManager v
+    SGetAllowance v ->
+      Parameter0 $
+      Parameter1 $
+      Parameter2 $
+      GetAllowance v
+    SGetTotalSupply v ->
+      Parameter0 $
+      Parameter1 $
+      Parameter2 $
+      Parameter3 $
+      GetTotalSupply v
+    SGetBalance v ->
+      Parameter0 $
+      Parameter1 $
+      GetBalance v
 
 type TransferParams = ("from" :! Address, "to" :! Address, "deltaVal" :! Natural)
 type AllowanceParams = ("from" :! Address, "to" :! Address, "val" :! Natural)
@@ -112,33 +213,47 @@ managedLedgerContract = do
             creditTo; debitFrom
             drop @TransferParams
         nil; pair
-    , #cApprove /-> do
-        dip ensureNotPaused
-        approveParamsToAllowanceParams
-        dupT @Storage; dupT @AllowanceParams; allowance
-        dup; int
-        if IsZero
-          then drop
-          else do duupX @2; toField #val; int
-                  ifEq0 drop (userFail #cUnsafeAllowanceChange)
-        setAllowance; nil; pair
-    , #cSetPause /-> do
-        dip authorizeManager
-        dip (getField #fields); setField #paused; setField #fields
-        nil; pair
-    , #cSetManager /-> do
-        dip authorizeManager;
-        dupT @Storage; toField #ledger; dupT @Address; mem
-        if_ (failUsing ManagerAddressWouldShadow) nop
-        stackType @[Address, Storage]
-        dip (getField #fields); setField #manager; setField #fields
-        nil; pair;
-    , #cGetManager /-> do view_ (do cdr; toField #fields; toField #manager)
-    , #cGetAllowance /-> view_ (do unpair; allowance)
-    , #cGetTotalSupply /-> do view_ (do cdr; toField #fields; toField #totalSupply)
-    , #cGetBalance /-> view_ $ do
-        unpair; dip ( toField #ledger ); get;
-        ifSome (toField #balance) (push 0)
+    , #cParameter0 /-> caseT @Parameter0
+      ( #cApprove /-> do
+          dip ensureNotPaused
+          approveParamsToAllowanceParams
+          dupT @Storage; dupT @AllowanceParams; allowance
+          dup; int
+          if IsZero
+            then drop
+            else do duupX @2; toField #val; int
+                    ifEq0 drop (userFail #cUnsafeAllowanceChange)
+          setAllowance; nil; pair
+      , #cParameter1 /-> caseT @Parameter1
+        ( #cGetBalance /-> view_ $ do
+            unpair; dip ( toField #ledger ); get;
+            ifSome (toField #balance) (push 0)
+        , #cParameter2 /-> caseT @Parameter2
+          ( #cGetAllowance /-> view_ (do unpair; allowance)
+          , #cParameter3 /-> caseT @Parameter3
+            ( #cGetTotalSupply /->
+              view_ (do cdr; toField #fields; toField #totalSupply)
+            , #cParameter4 /-> caseT @Parameter4
+              ( #cSetPause /-> do
+                  dip authorizeManager
+                  dip (getField #fields); setField #paused; setField #fields
+                  nil; pair
+              , #cParameter5 /-> caseT @Parameter5
+                ( #cSetManager /-> do
+                    dip authorizeManager;
+                    dupT @Storage; toField #ledger; dupT @Address; mem
+                    if_ (failUsing ManagerAddressWouldShadow) nop
+                    stackType @[Address, Storage]
+                    dip (getField #fields); setField #manager; setField #fields
+                    nil; pair;
+                , #cGetManager /->
+                    view_ (do cdr; toField #fields; toField #manager)
+                )
+              )
+            )
+          )
+        )
+      )
     )
 
 userFail :: forall name fieldTy s s'. FailUsingArg Error name fieldTy s s'
