@@ -1,7 +1,11 @@
--- | FA 1.4: ERC-20 equivalent with Mintable, Burnable, Pausable,
--- Ownable functionality.
+-- | Managed ledger which is compatible with FA1.2 standard and
+-- extended with administrator functionality.
+
 module Lorentz.Contracts.ManagedLedger
   ( Parameter (..)
+  , SaneParameter (..)
+  , fromSaneParameter
+
   , Storage (..)
   , Error (..)
   , mkStorage
@@ -17,25 +21,159 @@ import Util.Named ()
 
 {-# ANN module ("HLint: ignore Reduce duplication" :: Text) #-}
 
-data Parameter
-  = Transfer       TransferParams
-  | Approve        ApproveParams
-  | SetPause       Bool
-  | SetManager     Address
-  | GetManager     (View () Address)
-  | GetAllowance   (View GetAllowanceParams Natural)
-  | GetTotalSupply (View () Natural)
-  | GetBalance     (View Address Natural)
+----------------------------------------------------------------------------
+-- Parameter
+----------------------------------------------------------------------------
+
+-- We have to manually assemble linear parameter type, because Lorentz
+-- uses balanced trees by default.
+
+data Parameter0
+  = Approve        !ApproveParams
+  | Parameter1     !Parameter1
   deriving stock Generic
   deriving anyclass IsoValue
 
+data Parameter1
+  = GetBalance     !(View Address Natural)
+  | Parameter2     !Parameter2
+  deriving stock Generic
+  deriving anyclass IsoValue
+
+data Parameter2
+  = GetAllowance   !(View GetAllowanceParams Natural)
+  | Parameter3     !Parameter3
+  deriving stock Generic
+  deriving anyclass IsoValue
+
+data Parameter3
+  = GetTotalSupply !(View () Natural)
+  | Parameter4     !Parameter4
+  deriving stock Generic
+  deriving anyclass IsoValue
+
+data Parameter4
+  = SetPause       !Bool
+  | Parameter5     !Parameter5
+  deriving stock Generic
+  deriving anyclass IsoValue
+
+data Parameter5
+  = SetAdministrator !Address
+  | Parameter6       !Parameter6
+  deriving stock Generic
+  deriving anyclass IsoValue
+
+data Parameter6
+  = GetAdministrator !(View () Address)
+  | Parameter7       !Parameter7
+  deriving stock Generic
+  deriving anyclass IsoValue
+
+data Parameter7
+  = Mint           !MintParams
+  | Burn           !BurnParams
+  deriving stock Generic
+  deriving anyclass IsoValue
+
+data Parameter
+  = Transfer       !TransferParams
+  | Parameter0     !Parameter0
+  deriving stock Generic
+  deriving anyclass IsoValue
+
+-- | Sane representation of parameter which we currently can't use
+-- because it's Michelson representation is a balanced tree, while we
+-- need to be compatible with FA1.2 which requires linear structure.
+data SaneParameter
+  = STransfer         !TransferParams
+  | SMint             !MintParams
+  | SBurn             !BurnParams
+  | SApprove          !ApproveParams
+  | SSetPause         !Bool
+  | SSetAdministrator !Address
+  | SGetAdministrator !(View () Address)
+  | SGetAllowance     !(View GetAllowanceParams Natural)
+  | SGetTotalSupply   !(View () Natural)
+  | SGetBalance       !(View Address Natural)
+
+-- | Convert sane parameter to parameter of this contract.
+fromSaneParameter :: SaneParameter -> Parameter
+fromSaneParameter =
+  \case
+    STransfer tp -> Transfer tp
+    SMint mp ->
+      Parameter0 $
+      Parameter1 $
+      Parameter2 $
+      Parameter3 $
+      Parameter4 $
+      Parameter5 $
+      Parameter6 $
+      Parameter7 $
+      Mint mp
+    SBurn mp ->
+      Parameter0 $
+      Parameter1 $
+      Parameter2 $
+      Parameter3 $
+      Parameter4 $
+      Parameter5 $
+      Parameter6 $
+      Parameter7 $
+      Burn mp
+    SApprove ap ->
+      Parameter0 $
+      Approve ap
+    SSetPause b ->
+      Parameter0 $
+      Parameter1 $
+      Parameter2 $
+      Parameter3 $
+      Parameter4 $
+      SetPause b
+    SSetAdministrator a ->
+      Parameter0 $
+      Parameter1 $
+      Parameter2 $
+      Parameter3 $
+      Parameter4 $
+      Parameter5 $
+      SetAdministrator a
+    SGetAdministrator v ->
+      Parameter0 $
+      Parameter1 $
+      Parameter2 $
+      Parameter3 $
+      Parameter4 $
+      Parameter5 $
+      Parameter6 $
+      GetAdministrator v
+    SGetAllowance v ->
+      Parameter0 $
+      Parameter1 $
+      Parameter2 $
+      GetAllowance v
+    SGetTotalSupply v ->
+      Parameter0 $
+      Parameter1 $
+      Parameter2 $
+      Parameter3 $
+      GetTotalSupply v
+    SGetBalance v ->
+      Parameter0 $
+      Parameter1 $
+      GetBalance v
+
 type TransferParams = ("from" :! Address, "to" :! Address, "deltaVal" :! Natural)
+type MintParams = ("to" :! Address, "deltaVal" :! Natural)
+type BurnParams = ("from" :! Address, "deltaVal" :! Natural)
 type AllowanceParams = ("from" :! Address, "to" :! Address, "val" :! Natural)
 type ApproveParams = ("to" :! Address, "val" :! Natural)
 type GetAllowanceParams = ("from" :! Address, "to" :! Address)
 
 data StorageFields = StorageFields
-  { manager     :: Address
+  { admin     :: Address
   , paused      :: Bool
   , totalSupply :: Natural
   } deriving stock Generic
@@ -48,10 +186,10 @@ data Storage = Storage
     deriving anyclass IsoValue
 
 mkStorage :: Address -> Storage
-mkStorage managerAddress = Storage
+mkStorage adminAddress = Storage
   { ledger = mempty
   , fields = StorageFields
-    { manager = managerAddress
+    { admin = adminAddress
     , paused = False
     , totalSupply = 0
     }
@@ -62,17 +200,14 @@ type LedgerValue = ("balance" :! Natural, "approvals" :! Map Address Natural)
 data Error
   = UnsafeAllowanceChange Natural
     -- ^ Attempt to change allowance from non-zero to a non-zero value.
-  | InitiatorIsNotManager
+  | SenderIsNotAdmin
     -- ^ Contract initiator has not enough rights to perform this operation.
   | NotEnoughBalance ("required" :! Natural, "present" :! Natural)
     -- ^ Insufficient balance.
   | NotEnoughAllowance ("required" :! Natural, "present" :! Natural)
     -- ^ Insufficient allowance to transfer foreign funds.
   | OperationsArePaused
-    -- ^ Operation is unavailable until resume by token manager.
-  | ManagerAddressWouldShadow
-    -- ^ Cannot set token manager to the given address because it already
-    -- appears in the ledger.
+    -- ^ Operation is unavailable until resume by token admin.
   deriving stock (Eq, Generic)
 
 deriveCustomError ''Error
@@ -81,8 +216,8 @@ instance Buildable Error where
   build = \case
     UnsafeAllowanceChange prevVal ->
       "Cannot change allowance from " +| prevVal |+ " to a non-zero value"
-    InitiatorIsNotManager ->
-      "This operation can be executed only by manager, but is invoked by \
+    SenderIsNotAdmin ->
+      "This operation can be executed only by admin, but is invoked by \
       \someone else"
     NotEnoughBalance (arg #required -> required, arg #present -> present) ->
       "Insufficient balance, needed " +| required |+ ", but only" +|
@@ -92,9 +227,6 @@ instance Buildable Error where
       required |+ " was requested"
     OperationsArePaused ->
       "Operations are paused and cannot be invoked"
-    ManagerAddressWouldShadow ->
-      "This address cannot be assigned as new manager because it appears \
-      \in the ledger"
 
 managedLedgerContract :: Contract Parameter Storage
 managedLedgerContract = do
@@ -112,42 +244,68 @@ managedLedgerContract = do
             creditTo; debitFrom
             drop @TransferParams
         nil; pair
-    , #cApprove /-> do
-        dip ensureNotPaused
-        approveParamsToAllowanceParams
-        dupT @Storage; dupT @AllowanceParams; allowance
-        dup; int
-        if IsZero
-          then drop
-          else do duupX @2; toField #val; int
-                  ifEq0 drop (userFail #cUnsafeAllowanceChange)
-        setAllowance; nil; pair
-    , #cSetPause /-> do
-        dip authorizeManager
-        dip (getField #fields); setField #paused; setField #fields
-        nil; pair
-    , #cSetManager /-> do
-        dip authorizeManager;
-        dupT @Storage; toField #ledger; dupT @Address; mem
-        if_ (failUsing ManagerAddressWouldShadow) nop
-        stackType @[Address, Storage]
-        dip (getField #fields); setField #manager; setField #fields
-        nil; pair;
-    , #cGetManager /-> do view_ (do cdr; toField #fields; toField #manager)
-    , #cGetAllowance /-> view_ (do unpair; allowance)
-    , #cGetTotalSupply /-> do view_ (do cdr; toField #fields; toField #totalSupply)
-    , #cGetBalance /-> view_ $ do
-        unpair; dip ( toField #ledger ); get;
-        ifSome (toField #balance) (push 0)
+    , #cParameter0 /-> caseT @Parameter0
+      ( #cApprove /-> do
+          dip ensureNotPaused
+          approveParamsToAllowanceParams
+          dupT @Storage; dupT @AllowanceParams; allowance
+          dup; int
+          if IsZero
+            then drop
+            else do duupX @2; toField #val; int
+                    ifEq0 drop (userFail #cUnsafeAllowanceChange)
+          setAllowance; nil; pair
+      , #cParameter1 /-> caseT @Parameter1
+        ( #cGetBalance /-> view_ $ do
+            unpair; dip ( toField #ledger ); get;
+            ifSome (toField #balance) (push 0)
+        , #cParameter2 /-> caseT @Parameter2
+          ( #cGetAllowance /-> view_ (do unpair; allowance)
+          , #cParameter3 /-> caseT @Parameter3
+            ( #cGetTotalSupply /->
+              view_ (do cdr; toField #fields; toField #totalSupply)
+            , #cParameter4 /-> caseT @Parameter4
+              ( #cSetPause /-> do
+                  dip authorizeAdmin
+                  dip (getField #fields); setField #paused; setField #fields
+                  nil; pair
+              , #cParameter5 /-> caseT @Parameter5
+                ( #cSetAdministrator /-> do
+                    dip authorizeAdmin;
+                    stackType @[Address, Storage]
+                    dip (getField #fields); setField #admin; setField #fields
+                    nil; pair;
+                , #cParameter6 /-> caseT @Parameter6
+                  ( #cGetAdministrator /->
+                      view_ (do cdr; toField #fields; toField #admin)
+                  , #cParameter7 /-> caseT @Parameter7
+                      ( #cMint /-> do
+                          dip authorizeAdmin
+                          creditTo
+                          drop @MintParams
+                          nil; pair
+                      , #cBurn /-> do
+                          dip authorizeAdmin
+                          debitFrom
+                          drop @BurnParams
+                          nil; pair
+                      )
+                  )
+                )
+              )
+            )
+          )
+        )
+      )
     )
 
 userFail :: forall name fieldTy s s'. FailUsingArg Error name fieldTy s s'
 userFail = failUsingArg @Error @name
 
-authorizeManager :: Storage : s :-> Storage : s
-authorizeManager = do
-  getField #fields; toField #manager; sender; eq
-  if_ nop (failUsing InitiatorIsNotManager)
+authorizeAdmin :: Storage : s :-> Storage : s
+authorizeAdmin = do
+  getField #fields; toField #admin; sender; eq
+  if_ nop (failUsing SenderIsNotAdmin)
 
 addTotalSupply :: Integer : Storage : s :-> Storage : s
 addTotalSupply = do
@@ -160,11 +318,6 @@ debitFrom
      (param `HasFieldsOfType` ["from" := Address, "deltaVal" := Natural])
   => '[param, Storage] :-> '[param, Storage]
 debitFrom = do
-  -- Pass if debiting from manager
-  getField #from; duupX @3; toField #fields; toField #manager
-  if IsEq
-  then nop
-  else do
     -- Get LedgerValue
     duupX @2; toField #ledger; duupX @2; toField #from
     get; ifSome nop $ do
@@ -197,11 +350,6 @@ creditTo
   :: (param `HasFieldsOfType` ["to" := Address, "deltaVal" := Natural])
   => '[param, Storage] :-> '[param, Storage]
 creditTo = do
-  -- Pass if crediting to manager
-  getField #to; duupX @3; toField #fields; toField #manager
-  if IsEq
-  then nop
-  else do
     -- Get LedgerValue
     duupX @2; toField #ledger; duupX @2; toField #to
     get
@@ -311,7 +459,7 @@ needAllowance = do
   sender
   if IsEq
   then drop >> push False
-  else do toField #fields; toField #manager; sender; neq
+  else do toField #fields; toField #admin; sender; neq
 
 ensureNotPaused :: Storage : s :-> Storage : s
 ensureNotPaused = do
