@@ -13,7 +13,7 @@ extra-source-files:
 library:
   <<: *lib-common
 
-  source-dirs: .
+  source-dirs: src
   generated-other-modules:
     - Paths_morley_prelude
 
