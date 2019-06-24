@@ -1,6 +1,7 @@
 -- | Type families from 'Michelson.Typed.Arith' lifted to Haskell types.
 module Lorentz.Arith
   ( ArithOpHs (..)
+  , CompareOpHs
   , UnaryArithOpHs (..)
   ) where
 
@@ -108,24 +109,19 @@ instance UnaryArithOpHs Not Natural where
 instance UnaryArithOpHs Not Bool where
   type UnaryArithResHs Not Bool = Bool
 
-instance ArithOpHs Compare Bool Bool where
-  type ArithResHs Compare Bool Bool = Integer
-instance ArithOpHs Compare Address Address where
-  type ArithResHs Compare Address Address = Integer
-instance ArithOpHs Compare Natural Natural where
-  type ArithResHs Compare Natural Natural = Integer
-instance ArithOpHs Compare Integer Integer where
-  type ArithResHs Compare Integer Integer = Integer
-instance ArithOpHs Compare MText MText where
-  type ArithResHs Compare MText MText = Integer
-instance ArithOpHs Compare ByteString ByteString where
-  type ArithResHs Compare ByteString ByteString = Integer
-instance ArithOpHs Compare Timestamp Timestamp where
-  type ArithResHs Compare Timestamp Timestamp = Integer
-instance ArithOpHs Compare Mutez Mutez where
-  type ArithResHs Compare Mutez Mutez = Integer
-instance ArithOpHs Compare KeyHash KeyHash where
-  type ArithResHs Compare KeyHash KeyHash = Integer
+class (Typeable (ToCT n), IsComparable n, CompareOp (ToCT n)) =>
+      CompareOpHs n
+instance (n ~ m, CompareOpHs n) => ArithOpHs Compare n m where
+  type ArithResHs Compare n m = Integer
+instance CompareOpHs Bool
+instance CompareOpHs Address
+instance CompareOpHs Natural
+instance CompareOpHs Integer
+instance CompareOpHs MText
+instance CompareOpHs ByteString
+instance CompareOpHs Timestamp
+instance CompareOpHs Mutez
+instance CompareOpHs KeyHash
 
 instance UnaryArithOpHs Eq' Integer where
   type UnaryArithResHs Eq' Integer = Bool
