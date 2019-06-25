@@ -49,7 +49,7 @@ import Michelson.Typed.Haskell.Instr.Helpers
 import Michelson.Typed.Haskell.Value
 import Michelson.Typed.Instr
 import Michelson.Typed.T
-import Michelson.Text (mt)
+import Michelson.Text (MText, mt)
 import Michelson.Typed.Value
 import Tezos.Address (Address)
 import Tezos.Core (Mutez, Timestamp)
@@ -181,6 +181,7 @@ type family CanGoDeeper (x :: Kind.Type) :: Bool where
   CanGoDeeper Integer = 'False
   CanGoDeeper Natural = 'False
   CanGoDeeper Text = 'False
+  CanGoDeeper MText = 'False
   CanGoDeeper Bool = 'False
   CanGoDeeper ByteString = 'False
   CanGoDeeper Mutez = 'False
