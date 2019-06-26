@@ -198,6 +198,11 @@ case_ = I . instrCase @dt . rmap coerceCaseClause
           case appendCtorFieldAxiom @cc @inp of Dict -> cc
 
 -- | Like 'case_', accepts a tuple of clauses, which may be more convenient.
+--
+-- If user is experiencing problems with wierd errors about tuples while using
+-- this function, he should take look at `Util.TypeTuple.Instances` and ensure
+-- that his tuple isn't bigger than generated instances, if so, he should probably
+-- extend number of generated instances.
 caseT
   :: forall dt out inp clauses.
      ( InstrCaseC dt inp out
