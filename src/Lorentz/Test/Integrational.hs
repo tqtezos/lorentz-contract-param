@@ -25,7 +25,6 @@ module Lorentz.Test.Integrational
   , lOriginateEmpty
   , lTransfer
   , lCall
-  , uCall
   , I.validate
   , I.setMaxSteps
   , I.setNow
@@ -50,9 +49,7 @@ module Lorentz.Test.Integrational
 import Data.Default (Default(..))
 import Data.Singletons (SingI(..))
 import Data.Typeable (gcast)
-import Data.Vinyl.Derived (Label)
 import Fmt (Buildable, listF, (+|), (|+))
-import GHC.TypeLits (KnownSymbol)
 import Named ((:!), arg)
 
 import qualified Lorentz as L
