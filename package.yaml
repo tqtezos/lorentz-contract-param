@@ -27,6 +27,7 @@ library:
     - containers
     - cryptonite
     - data-default
+    - first-class-families
     - fmt
     - formatting
     - ghc-prim

@@ -16,4 +16,5 @@ import Lorentz.Prelude as Exports
 import Lorentz.Rebinded as Exports
 import Lorentz.Referenced as Exports
 import Lorentz.Store as Exports
+import Lorentz.UParam as Exports
 import Lorentz.Value as Exports

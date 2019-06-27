@@ -28,15 +28,19 @@ module Michelson.Text
   , qqMText
   , mt
   , DoNotUseTextError
+  , labelToMText
   ) where
 
 import Data.Aeson (FromJSON(..), ToJSON(..))
 import Data.Data (Data)
 import qualified Data.Text as T
+import Data.Vinyl.Derived (Label)
 import Fmt (Buildable)
 import GHC.TypeLits (ErrorMessage(..), TypeError)
 import qualified Language.Haskell.TH.Quote as TH
 import Test.QuickCheck (Arbitrary(..), choose, listOf)
+
+import Util.TypeLits
 
 -- | Michelson string value.
 --
@@ -181,3 +185,10 @@ type family DoNotUseTextError where
     ( 'Text "`Text` is not isomorphic to Michelson strings," ':$$:
       'Text "consider using `MText` type instead"
     )
+
+-- | Create a 'MText' from label.
+--
+-- We assume that no unicode characters are used in plain Haskell code,
+-- so unless special tricky manipulations are used this should be safe.
+labelToMText :: KnownSymbol name => Label name -> MText
+labelToMText (_ :: Label name) = mkMTextUnsafe $ symbolValT' @name

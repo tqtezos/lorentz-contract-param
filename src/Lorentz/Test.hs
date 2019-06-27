@@ -25,6 +25,7 @@ module Lorentz.Test
   , lOriginateEmpty
   , lTransfer
   , lCall
+  , uCall
   , validate
   , setMaxSteps
   , setNow

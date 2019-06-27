@@ -1,3 +1,5 @@
+{-# LANGUAGE FunctionalDependencies #-}
+
 module Lorentz.ADT
   ( HasField
   , HasFieldOfType
@@ -16,7 +18,7 @@ module Lorentz.ADT
   , wrap_
   , case_
   , caseT
-  , (/->)
+  , CaseArrow (..)
   , InstrConstructC
   , ConstructorFieldTypes
 
@@ -162,20 +164,24 @@ wrap_ =
 data CaseClauseL (inp :: [Kind.Type]) (out :: [Kind.Type]) (param :: CaseClauseParam) where
   CaseClauseL :: AppendCtorField x inp :-> out -> CaseClauseL inp out ('CaseClauseParam ctor x)
 
--- | Lift an instruction to case clause.
---
--- You should write out constructor name corresponding to the clause
--- explicitly. Prefix constructor name with "c" letter, otherwise
--- your label will not be recognized by Haskell parser.
--- Passing constructor name can be circumvented but doing so is not recomended
--- as mentioning contructor name improves readability and allows avoiding
--- some mistakes.
-(/->)
-  :: Label ("c" `AppendSymbol` ctor)
-  -> AppendCtorField x inp :-> out
-  -> CaseClauseL inp out ('CaseClauseParam ctor x)
-(/->) _ = CaseClauseL
-infixr 0 /->
+-- | Provides "case" arrow which works on different wrappers for clauses.
+class CaseArrow name body clause | clause -> name, clause -> body where
+  -- | Lift an instruction to case clause.
+  --
+  -- You should write out constructor name corresponding to the clause
+  -- explicitly. Prefix constructor name with "c" letter, otherwise
+  -- your label will not be recognized by Haskell parser.
+  -- Passing constructor name can be circumvented but doing so is not recomended
+  -- as mentioning contructor name improves readability and allows avoiding
+  -- some mistakes.
+  (/->) :: Label name -> body -> clause
+  infixr 0 /->
+
+instance ( name ~ ("c" `AppendSymbol` ctor)
+         , body ~ (AppendCtorField x inp :-> out)
+         ) => CaseArrow name body
+                (CaseClauseL inp out ('CaseClauseParam ctor x)) where
+  (/->) _ = CaseClauseL
 
 -- | Pattern match on the given sum type.
 --
