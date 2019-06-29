@@ -1,5 +1,6 @@
 module Lorentz.Contracts.UpgradeableCounter.V1
   ( UpgradeableInterfaceSkeleton(..)
+  , version
   , migrate
   , counterContract
   , UStoreV1
@@ -9,6 +10,9 @@ import Lorentz
 
 import Lorentz.Contracts.Upgradeable.Common
 import Lorentz.UStore
+
+version :: Natural
+version = 1
 
 -- Currently ignored
 data UStoreTempate = UStoreTempate

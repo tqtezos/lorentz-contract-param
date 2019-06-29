@@ -16,6 +16,7 @@ import Lorentz.Value
 import Michelson.Interpret.Pack (packValue')
 import qualified Michelson.Typed as T
 import Util.Instances ()
+import Util.Named ((.!))
 
 
 originateUpgradeableCounter
@@ -28,7 +29,11 @@ originateUpgradeableCounterV1
   :: IntegrationalScenarioM (ContractAddr Parameter)
 originateUpgradeableCounterV1 = do
   contract <- originateUpgradeableCounter
-  lCall contract $ Upgrade (V1.migrate, V1.counterContract)
+  lCall contract $ Upgrade
+    ( #newVersion V1.version
+    , #migrationScript V1.migrate
+    , #newCode V1.counterContract
+    )
   return contract
 
 uCall
@@ -45,6 +50,13 @@ getCounterValueV1
   -> IntegrationalScenarioM ()
 getCounterValueV1 contract consumer = do
   uCall contract [mt|GetCounterValue|] $ View () consumer
+
+getVersion
+  :: ContractAddr Parameter
+  -> ContractAddr Natural
+  -> IntegrationalScenarioM ()
+getVersion contract consumer = do
+  lCall contract $ GetVersion (View () consumer)
 
 getCounterValueV2
   :: ContractAddr Parameter
@@ -79,13 +91,33 @@ spec_UpgradeableCounter = do
           lExpectViewConsumerStorage consumer [2, 6]
 
   describe "v2" $ do
+    it "Upgrades to v2" $ do
+      integrationalTestProperty $ do
+        contract <- originateUpgradeableCounterV1
+        consumer <- lOriginateEmpty contractConsumer "consumer"
+
+        getVersion contract consumer
+        lCall contract $ Upgrade
+          ( #newVersion V2.version
+          , #migrationScript V2.migrate
+          , #newCode V2.counterContract
+          )
+        getVersion contract consumer
+
+        validate . Right $
+          lExpectViewConsumerStorage consumer [1, 2]
+
     it "Preserves the counter after the upgrade" $ do
       integrationalTestProperty $ do
         contract <- originateUpgradeableCounterV1
         consumer <- lOriginateEmpty contractConsumer "consumer"
 
         uCall contract [mt|Add|] (42 :: Natural)
-        lCall contract $ Upgrade (V2.migrate, V2.counterContract)
+        lCall contract $ Upgrade
+          ( #newVersion V2.version
+          , #migrationScript V2.migrate
+          , #newCode V2.counterContract
+          )
         getCounterValueV2 contract consumer
 
         validate . Right $
@@ -96,7 +128,11 @@ spec_UpgradeableCounter = do
         contract <- originateUpgradeableCounterV1
         consumer <- lOriginateEmpty contractConsumer "consumer"
 
-        lCall contract $ Upgrade (V2.migrate, V2.counterContract)
+        lCall contract $ Upgrade
+          ( #newVersion V2.version
+          , #migrationScript V2.migrate
+          , #newCode V2.counterContract
+          )
         uCall contract [mt|Inc|] ()
         uCall contract [mt|Inc|] ()
         getCounterValueV2 contract consumer
@@ -111,7 +147,11 @@ spec_UpgradeableCounter = do
         contract <- originateUpgradeableCounterV1
         consumer <- lOriginateEmpty contractConsumer "consumer"
 
-        lCall contract $ Upgrade (V2.migrate, V2.counterContract)
+        lCall contract $ Upgrade
+          ( #newVersion V2.version
+          , #migrationScript V2.migrate
+          , #newCode V2.counterContract
+          )
         uCall contract [mt|Dec|] ()
         getCounterValueV2 contract consumer
         uCall contract [mt|Dec|] ()
@@ -121,3 +161,30 @@ spec_UpgradeableCounter = do
 
         validate . Right $
           lExpectViewConsumerStorage consumer [-1, -2, -3]
+
+  describe "Illegal migrations" $ do
+    it "Cannot migrate to the same version" $ do
+      integrationalTestProperty $ do
+        contract <- originateUpgradeableCounterV1
+
+        lCall contract $ Upgrade
+          ( #newVersion V1.version
+          , #migrationScript V1.migrate
+          , #newCode V1.counterContract
+          )
+
+        validate . Left $
+          lExpectError (== VersionMismatch (#expected .! 2, #actual .! 1))
+
+    it "Cannot migrate to the wrong version" $ do
+      integrationalTestProperty $ do
+        contract <- originateUpgradeableCounter
+
+        lCall contract $ Upgrade
+          ( #newVersion V2.version
+          , #migrationScript V2.migrate
+          , #newCode V2.counterContract
+          )
+
+        validate . Left $
+          lExpectError (== VersionMismatch (#expected .! 1, #actual .! 2))

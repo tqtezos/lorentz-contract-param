@@ -2,6 +2,7 @@
 
 module Lorentz.Contracts.UpgradeableUnsafeLedger.V2
   ( migrate
+  , version
   , unsafeLedgerContract
   ) where
 
@@ -10,6 +11,9 @@ import Lorentz
 import Lorentz.UStore
 import Lorentz.Contracts.Upgradeable.Common
 import qualified Lorentz.Contracts.UpgradeableUnsafeLedger.V1 as V1
+
+version :: Natural
+version = 2
 
 -- The storage does not change
 type UStoreV2 = V1.UStoreV1

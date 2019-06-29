@@ -1,6 +1,7 @@
 module Lorentz.Contracts.UpgradeableCounter.V2
   ( UpgradeableInterfaceSkeleton(..)
   , UStoreV2
+  , version
   , migrate
   , counterContract
   ) where
@@ -10,6 +11,9 @@ import Lorentz
 import Lorentz.UStore
 import Lorentz.Contracts.Upgradeable.Common
 import Lorentz.Contracts.UpgradeableCounter.V1 (UStoreV1)
+
+version :: Natural
+version = 2
 
 data UStoreTemplate = UStoreTemplate
   { newCounterValue :: UStoreField Integer

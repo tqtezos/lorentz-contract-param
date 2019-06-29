@@ -2,6 +2,7 @@
 
 module Lorentz.Contracts.UpgradeableUnsafeLedger.V1
   ( UpgradeableInterfaceSkeleton(..)
+  , version
   , migrate
   , unsafeLedgerContract
 
@@ -16,6 +17,9 @@ import Lorentz
 
 import Lorentz.UStore
 import Lorentz.Contracts.Upgradeable.Common
+
+version :: Natural
+version = 1
 
 -- Currently ignored
 data UpgradeableInterfaceSkeleton
