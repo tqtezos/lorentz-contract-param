@@ -18,23 +18,39 @@ import qualified Michelson.Typed as T
 import Util.Instances ()
 import Util.Named ((.!))
 
+admin, admin2, adversary :: Address
+admin = genesisAddress1
+admin2 = genesisAddress2
+adversary = genesisAddress3
 
 originateUpgradeableCounter
   :: IntegrationalScenarioM (ContractAddr Parameter)
 originateUpgradeableCounter =
   lOriginate upgradeableCounterContract "UpgradeableCounter"
-    emptyMigration (toMutez 1000)
+    (emptyMigration admin) (toMutez 1000)
 
 originateUpgradeableCounterV1
   :: IntegrationalScenarioM (ContractAddr Parameter)
 originateUpgradeableCounterV1 = do
   contract <- originateUpgradeableCounter
+  withSender admin $ upgradeToV1 contract
+  return contract
+
+upgradeToV1 :: ContractAddr Parameter -> IntegrationalScenarioM ()
+upgradeToV1 contract =
   lCall contract $ Upgrade
     ( #newVersion V1.version
     , #migrationScript V1.migrate
     , #newCode V1.counterContract
     )
-  return contract
+
+upgradeToV2 :: ContractAddr Parameter -> IntegrationalScenarioM ()
+upgradeToV2 contract =
+  lCall contract $ Upgrade
+    ( #newVersion V2.version
+    , #migrationScript V2.migrate
+    , #newCode V2.counterContract
+    )
 
 uCall
   :: forall a.
@@ -97,11 +113,7 @@ spec_UpgradeableCounter = do
         consumer <- lOriginateEmpty contractConsumer "consumer"
 
         getVersion contract consumer
-        lCall contract $ Upgrade
-          ( #newVersion V2.version
-          , #migrationScript V2.migrate
-          , #newCode V2.counterContract
-          )
+        withSender admin $ upgradeToV2 contract
         getVersion contract consumer
 
         validate . Right $
@@ -113,11 +125,7 @@ spec_UpgradeableCounter = do
         consumer <- lOriginateEmpty contractConsumer "consumer"
 
         uCall contract [mt|Add|] (42 :: Natural)
-        lCall contract $ Upgrade
-          ( #newVersion V2.version
-          , #migrationScript V2.migrate
-          , #newCode V2.counterContract
-          )
+        withSender admin $ upgradeToV2 contract
         getCounterValueV2 contract consumer
 
         validate . Right $
@@ -128,11 +136,7 @@ spec_UpgradeableCounter = do
         contract <- originateUpgradeableCounterV1
         consumer <- lOriginateEmpty contractConsumer "consumer"
 
-        lCall contract $ Upgrade
-          ( #newVersion V2.version
-          , #migrationScript V2.migrate
-          , #newCode V2.counterContract
-          )
+        withSender admin $ upgradeToV2 contract
         uCall contract [mt|Inc|] ()
         uCall contract [mt|Inc|] ()
         getCounterValueV2 contract consumer
@@ -147,11 +151,7 @@ spec_UpgradeableCounter = do
         contract <- originateUpgradeableCounterV1
         consumer <- lOriginateEmpty contractConsumer "consumer"
 
-        lCall contract $ Upgrade
-          ( #newVersion V2.version
-          , #migrationScript V2.migrate
-          , #newCode V2.counterContract
-          )
+        withSender admin $ upgradeToV2 contract
         uCall contract [mt|Dec|] ()
         getCounterValueV2 contract consumer
         uCall contract [mt|Dec|] ()
@@ -166,25 +166,35 @@ spec_UpgradeableCounter = do
     it "Cannot migrate to the same version" $ do
       integrationalTestProperty $ do
         contract <- originateUpgradeableCounterV1
-
-        lCall contract $ Upgrade
-          ( #newVersion V1.version
-          , #migrationScript V1.migrate
-          , #newCode V1.counterContract
-          )
-
+        withSender admin $ upgradeToV1 contract
         validate . Left $
           lExpectError (== VersionMismatch (#expected .! 2, #actual .! 1))
 
     it "Cannot migrate to the wrong version" $ do
       integrationalTestProperty $ do
         contract <- originateUpgradeableCounter
-
-        lCall contract $ Upgrade
-          ( #newVersion V2.version
-          , #migrationScript V2.migrate
-          , #newCode V2.counterContract
-          )
-
+        withSender admin $ upgradeToV2 contract
         validate . Left $
           lExpectError (== VersionMismatch (#expected .! 1, #actual .! 2))
+
+    it "Cannot migrate if sender is not admin" $ do
+      integrationalTestProperty $ do
+        contract <- originateUpgradeableCounter
+        withSender adversary $ upgradeToV1 contract
+        validate . Left $
+          lExpectError (== SenderIsNotAdmin)
+
+  describe "Administrator change" $ do
+    it "Admin can set a new administrator" $ do
+      integrationalTestProperty $ do
+        contract <- originateUpgradeableCounter
+        withSender admin . lCall contract $ SetAdministrator admin2
+        withSender admin2 $ upgradeToV1 contract
+        validate $ Right expectAnySuccess
+
+    it "Non-admin cannot set a new administrator" $ do
+      integrationalTestProperty $ do
+        contract <- originateUpgradeableCounter
+        withSender adversary . lCall contract $ SetAdministrator admin2
+        validate . Left $
+          lExpectError (== SenderIsNotAdmin)

@@ -15,7 +15,7 @@
 
 module Lorentz.Contracts.UpgradeableCounter
   ( Parameter(..)
-  , Storage(..)
+  , Storage
   , Error(..)
   , upgradeableCounterContract
   , emptyMigration

@@ -1,6 +1,6 @@
 module Lorentz.Contracts.Upgradeable.Common.Contract
   ( Parameter(..)
-  , Storage(..)
+  , Storage
   , Error(..)
   , upgradeableContract
   , emptyMigration
@@ -20,6 +20,7 @@ data Parameter
   = Run UParameter
   | Upgrade UpgradeParameters
   | GetVersion (View () Natural)
+  | SetAdministrator Address
   deriving stock Generic
   deriving anyclass IsoValue
 
@@ -29,13 +30,18 @@ type UpgradeParameters =
   , "newCode" :! ContractCode
   )
 
+data StorageFields = StorageFields
+  { code  :: ContractCode
+  , admin :: Address
+  , currentVersion :: Natural
+  } deriving stock Generic
+    deriving anyclass IsoValue
+
 data Storage = Storage
   { dataMap :: UStore_
-  , code :: ContractCode
-  , currentVersion :: Natural
-  }
-  deriving stock Generic
-  deriving anyclass IsoValue
+  , fields :: StorageFields
+  } deriving stock Generic
+    deriving anyclass IsoValue
 
 data Error
   = SenderIsNotAdmin
@@ -61,11 +67,14 @@ userFail = failUsingArg @Error @name
 emptyCode :: ContractCode
 emptyCode = unpair # drop # nil # pair
 
-emptyMigration :: Storage
-emptyMigration = Storage
+emptyMigration :: Address -> Storage
+emptyMigration admin = Storage
   { dataMap = T.BigMap $ M.fromList []
-  , code = emptyCode
-  , currentVersion = 0
+  , fields = StorageFields
+    { code  = emptyCode
+    , admin = admin
+    , currentVersion = 0
+    }
   }
 
 upgradeableContract :: Contract Parameter Storage
@@ -75,25 +84,42 @@ upgradeableContract = do
     ( #cRun /-> do
         dip $ do
           getField #dataMap
-          dip $ getField #code
+          dip $ do
+            getField #fields
+            toField #code
         pair
         exec
         unpair
         dip $ setField #dataMap
         pair
     , #cUpgrade /-> do
+        ensureAdmin
         checkVersion
         bumpVersion
         migrateStorage
-        toField #newCode
-        setField #code
-        nil; pair;
-    , #cGetVersion /-> view_ (do cdr; toField #currentVersion)
+        migrateCode
+        nil; pair
+    , #cGetVersion /-> view_ (do cdr; toField #fields; toField #currentVersion)
+    , #cSetAdministrator /-> do
+        ensureAdmin
+        dip (getField #fields)
+        setField #admin
+        setField #fields
+        nil; pair
     )
+
+ensureAdmin :: '[param, Storage] :-> '[param, Storage]
+ensureAdmin = do
+  duupX @2; toField #fields; toField #admin
+  sender
+  if IsEq
+  then nop
+  else do
+    failUsing SenderIsNotAdmin
 
 checkVersion :: '[UpgradeParameters, Storage] :-> '[UpgradeParameters, Storage]
 checkVersion = do
-  duupX @2; toField #currentVersion
+  duupX @2; toField #fields; toField #currentVersion
   push @Natural 1
   add
   dip (getField #newVersion)
@@ -117,7 +143,10 @@ bumpVersion :: '[UpgradeParameters, Storage] :-> '[UpgradeParameters, Storage]
 bumpVersion = do
   getField #newVersion
   swap
-  dip $ setField #currentVersion
+  dip $ do
+    dip (getField #fields)
+    setField #currentVersion
+    setField #fields
 
 migrateStorage
   :: '[UpgradeParameters, Storage] :-> '[UpgradeParameters, Storage]
@@ -129,3 +158,10 @@ migrateStorage = do
     swap
     exec
     setField #dataMap
+
+migrateCode :: '[UpgradeParameters, Storage] :-> '[Storage]
+migrateCode = do
+  toField #newCode
+  dip (getField #fields)
+  setField #code
+  setField #fields
