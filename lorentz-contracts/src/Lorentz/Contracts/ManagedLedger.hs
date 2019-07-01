@@ -27,6 +27,7 @@ import Util.Named ()
 
 -- We have to manually assemble linear parameter type, because Lorentz
 -- uses balanced trees by default.
+-- Last-minute hack to comply to the changed interface.
 
 data Parameter0
   = Approve        !ApproveParams
@@ -35,13 +36,13 @@ data Parameter0
   deriving anyclass IsoValue
 
 data Parameter1
-  = GetBalance     !(View Address Natural)
+  = GetAllowance   !(View GetAllowanceParams Natural)
   | Parameter2     !Parameter2
   deriving stock Generic
   deriving anyclass IsoValue
 
 data Parameter2
-  = GetAllowance   !(View GetAllowanceParams Natural)
+  = GetBalance     !(View Address Natural)
   | Parameter3     !Parameter3
   deriving stock Generic
   deriving anyclass IsoValue
@@ -152,7 +153,6 @@ fromSaneParameter =
     SGetAllowance v ->
       Parameter0 $
       Parameter1 $
-      Parameter2 $
       GetAllowance v
     SGetTotalSupply v ->
       Parameter0 $
@@ -163,6 +163,7 @@ fromSaneParameter =
     SGetBalance v ->
       Parameter0 $
       Parameter1 $
+      Parameter2 $
       GetBalance v
 
 type TransferParams = ("from" :! Address, "to" :! Address, "deltaVal" :! Natural)
@@ -256,11 +257,11 @@ managedLedgerContract = do
                     ifEq0 drop (userFail #cUnsafeAllowanceChange)
           setAllowance; nil; pair
       , #cParameter1 /-> caseT @Parameter1
-        ( #cGetBalance /-> view_ $ do
+        ( #cGetAllowance /-> view_ (do unpair; allowance)
+        , #cParameter2 /-> caseT @Parameter2
+          ( #cGetBalance /-> view_ $ do
             unpair; dip ( toField #ledger ); get;
             ifSome (toField #balance) (push 0)
-        , #cParameter2 /-> caseT @Parameter2
-          ( #cGetAllowance /-> view_ (do unpair; allowance)
           , #cParameter3 /-> caseT @Parameter3
             ( #cGetTotalSupply /->
               view_ (do cdr; toField #fields; toField #totalSupply)
