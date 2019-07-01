@@ -21,6 +21,11 @@ module Lorentz.UParam
     -- * Constraints
   , LookupEntryPoint
   , RequireUniqueEntryPoints
+
+    -- * Conversion from ADT
+  , uparamFromAdt
+  , UParamLinearize
+  , UParamLinearized
   ) where
 
 import qualified Data.Kind as Kind
@@ -58,7 +63,7 @@ type (n :: Symbol) ?: (a :: k) = '(n, a)
 -- In Haskell world, we keep an invariant of that contained value relates
 -- to one of entry points from @entries@ list.
 newtype UParam (entries :: [EntryPointKind]) = UParamUnsafe (MText, ByteString)
-  deriving stock (Generic)
+  deriving stock (Generic, Eq, Show)
   deriving anyclass (IsoValue)
 
 ----------------------------------------------------------------------------
@@ -207,3 +212,76 @@ _caseSample = caseUParamT
   ( #add /-> nop
   , #reset /-> L.drop @() # push 0
   ) uparamFallbackFail
+
+----------------------------------------------------------------------------
+-- ADT conversion
+----------------------------------------------------------------------------
+
+{- @martoon: I actually hope no one will use this capability,
+   it's here primarily because in other places we also use Generic stuff.
+
+   Representation with type-level list and a datatype made polymorhpic over
+   it seems more powerful than Generics.
+   1. It's simpler to implement features for it. No extra boilerplate.
+   2. 'Data.Vinyl' provides many useful utilities to work with such things.
+   3. You are not such constrained in selecting names of entry points as when
+      they come from constructor names.
+-}
+
+-- | Make up 'UParam' from ADT sum.
+--
+-- Entry points template will consist of
+-- @(constructorName, constructorFieldType)@ pairs.
+-- Each constructor is expected to have exactly one field.
+uparamFromAdt
+  :: UParamLinearize up
+  => up -> UParam (UParamLinearized up)
+uparamFromAdt = adtToRec . G.from
+
+-- | Constraint required by 'uparamFromAdt'.
+type UParamLinearize p = (Generic p, GUParamLinearize (G.Rep p))
+
+-- | Entry points template derived from given ADT sum.
+type UParamLinearized p = GUParamLinearized (G.Rep p)
+
+-- | Generic traversal for conversion between ADT sum and 'UParam'.
+class GUParamLinearize (x :: Kind.Type -> Kind.Type) where
+  type GUParamLinearized x :: [(Symbol, Kind.Type)]
+  adtToRec :: x p -> UParam (GUParamLinearized x)
+
+instance GUParamLinearize x => GUParamLinearize (G.D1 i x) where
+  type GUParamLinearized (G.D1 i x) = GUParamLinearized x
+  adtToRec = adtToRec . G.unM1
+
+instance (GUParamLinearize x, GUParamLinearize y) => GUParamLinearize (x :+: y) where
+  type GUParamLinearized (x :+: y) = GUParamLinearized x ++ GUParamLinearized y
+  adtToRec = \case
+    G.L1 x -> let UParamUnsafe up = adtToRec x in UParamUnsafe up
+    G.R1 y -> let UParamUnsafe up = adtToRec y in UParamUnsafe up
+
+instance (KnownSymbol name, IsoValue a, KnownValue a, NoOperation a, NoBigMap a) =>
+         GUParamLinearize (G.C1 ('G.MetaCons name _1 _2) (G.S1 si (G.Rec0 a))) where
+  type GUParamLinearized (G.C1 ('G.MetaCons name _1 _2) (G.S1 si (G.Rec0 a))) =
+    '[ '(name, a) ]
+
+  adtToRec (G.M1 (G.M1 (G.K1 a))) = UParamUnsafe
+    ( symbolToMText @name
+    , forbiddenOp @(ToT a) $ forbiddenBigMap @(ToT a) $
+        packValue' $ toVal a
+    )
+
+instance
+    TypeError ('Text "UParam linearization requires exactly one field \
+                    \in each constructor") =>
+    GUParamLinearize (G.C1 i G.U1) where
+  type GUParamLinearized (G.C1 i G.U1) =
+    TypeError ('Text "Bad linearized ADT")
+  adtToRec = error "impossible"
+
+instance
+    TypeError ('Text "UParam linearization requires exactly one field \
+                    \in each constructor") =>
+    GUParamLinearize (G.C1 i (x :*: y)) where
+  type GUParamLinearized (G.C1 i (x :*: y)) =
+    TypeError ('Text "Bad linearized ADT")
+  adtToRec = error "impossible"

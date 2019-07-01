@@ -82,6 +82,7 @@ tests:
     dependencies:
       - aeson
       - bytestring
+      - constraints
       - containers
       - data-default
       - directory

@@ -3,14 +3,17 @@
 -- | Tests for Lorentz 'UParam'.
 module Test.Lorentz.UParam
   ( test_Simple_contract
+  , test_ADT_conversion
   ) where
 
 import Data.Vinyl.Core (Rec(..))
+import Data.Constraint (Dict (..))
 import Test.HUnit ((@?=), assertBool)
 import Test.Tasty (TestTree)
 import Test.Tasty.HUnit (testCase)
 
 import Michelson.Text
+import Michelson.Interpret.Pack
 import Lorentz ((/->))
 import qualified Lorentz as L
 import Lorentz.Base
@@ -45,3 +48,30 @@ test_Simple_contract =
       resStack <- interpretLorentzInstr dummyContractEnv simpleCode initStack
       let Identity res :& RNil = resStack
       return res
+
+-- Test ADT conversion
+----------------------------------------------------------------------------
+
+data Parameter1
+  = MyEntryPoint1 Integer
+  | MyEntryPoint2 ()
+  deriving Generic
+
+type ExpectedLinearization1 =
+  [ "MyEntryPoint1" ?: Integer
+  , "MyEntryPoint2" ?: ()
+  ]
+
+_checkLinearizedType
+  :: Dict (UParamLinearized Parameter1 ~ ExpectedLinearization1)
+_checkLinearizedType = Dict
+
+test_ADT_conversion :: [TestTree]
+test_ADT_conversion =
+  [ testCase "Linearization 1.1" $
+      uparamFromAdt (MyEntryPoint1 5)
+        @?= UParamUnsafe ([mt|MyEntryPoint1|], packValue' (L.toVal @Integer 5))
+  , testCase "Linearization 1.2" $
+      uparamFromAdt (MyEntryPoint2 ())
+        @?= UParamUnsafe ([mt|MyEntryPoint2|], packValue' (L.toVal ()))
+  ]

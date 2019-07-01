@@ -28,6 +28,7 @@ module Michelson.Text
   , qqMText
   , mt
   , DoNotUseTextError
+  , symbolToMText
   , labelToMText
   ) where
 
@@ -186,9 +187,16 @@ type family DoNotUseTextError where
       'Text "consider using `MText` type instead"
     )
 
+-- | Create a 'MText' from type-level string.
+--
+-- We assume that no unicode characters are used in plain Haskell code,
+-- so unless special tricky manipulations are used this should be safe.
+symbolToMText :: forall name. KnownSymbol name => MText
+symbolToMText = mkMTextUnsafe $ symbolValT' @name
+
 -- | Create a 'MText' from label.
 --
 -- We assume that no unicode characters are used in plain Haskell code,
 -- so unless special tricky manipulations are used this should be safe.
 labelToMText :: KnownSymbol name => Label name -> MText
-labelToMText (_ :: Label name) = mkMTextUnsafe $ symbolValT' @name
+labelToMText (_ :: Label name) = symbolToMText @name
