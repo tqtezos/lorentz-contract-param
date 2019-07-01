@@ -35,4 +35,4 @@ getContractsWithExtension ext dir = mapMaybe convertPath <$> listDirectory dir
       | otherwise = Nothing
 
 wellTypedContractDirs :: [FilePath]
-wellTypedContractDirs = ["contracts", "contracts/A1", "contracts/tezos_examples"]
+wellTypedContractDirs = ["contracts", "contracts/tezos_examples"]

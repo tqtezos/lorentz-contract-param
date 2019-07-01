@@ -87,3 +87,18 @@
     - message:
       - name: Redundant build-depends entry
       - depends: base-noprelude
+
+
+# TODO [TM-237]: remove
+- package:
+  - name: lorentz-contracts
+  - section:
+    - name: test:lorentz-contracts-test
+    - message:
+      - name: Excessive other-modules entry
+      - module: Test.Lorentz.Contracts.UnsafeLedger
+    - message:
+      - name: Weeds exported
+      - module:
+        - name: Test.Lorentz.Contracts.UnsafeLedger
+        - identifier: disabled_spec_UnsafeLedger

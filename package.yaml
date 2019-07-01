@@ -87,7 +87,6 @@ tests:
       - filepath
       - fmt
       - formatting
-      - generic-arbitrary
       - hex-text
       - hspec
       - hspec-expectations
@@ -96,7 +95,6 @@ tests:
       - megaparsec >= 7.0.0
       - morley
       - morley-prelude
-      - mtl
       - QuickCheck
       - quickcheck-arbitrary-adt
       - quickcheck-instances
