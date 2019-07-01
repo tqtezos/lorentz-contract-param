@@ -242,9 +242,7 @@ t_view implicit fp = do
   a <- typeHelper implicit
   r <- typeHelper implicit
   (f, t) <- fieldType fp
-  let r' = Type (TOption noAnn r) noAnn
-  let c = Type (TPair noAnn noAnn a r') noAnn
-  let c' = Type (TContract c) noAnn
+  let c' = Type (TContract r) noAnn
   return (f, Type (TPair noAnn noAnn a c') t)
 
 t_void :: Default a => Parser Type -> Parser a -> Parser (a, Type)
