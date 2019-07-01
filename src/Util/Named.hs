@@ -39,6 +39,7 @@ instance Wrapped (NamedF Maybe a name) where
   _Wrapped' = iso (\(ArgF a) -> a) ArgF
 
 deriving instance Eq a => Eq (NamedF Identity a name)
+deriving instance Eq a => Eq (NamedF Maybe a name)
 
 instance (Show a, KnownSymbol name) => Show (NamedF Identity a name) where
   show (ArgF a) = symbolVal (Proxy @name) <> " :! " <> show a
