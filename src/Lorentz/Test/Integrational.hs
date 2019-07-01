@@ -220,17 +220,14 @@ lExpectConsumerStorage = lExpectStorageUpdate
 -- this function cares about it, so you should provide a list of expected values
 -- in the same order in which the corresponding events were happenning.
 lExpectViewConsumerStorage
-  :: ( st ~ [cp], cp ~ (arg, Maybe res)
-     , Eq res, Buildable res
+  :: ( st ~ [cp]
+     , Eq cp, Buildable cp
      , T.IsoValue st, Each [Typeable, SingI, T.HasNoOp] '[T.ToT st]
      )
-  => T.ContractAddr cp -> [res] -> SuccessValidator
+  => T.ContractAddr cp -> [cp] -> SuccessValidator
 lExpectViewConsumerStorage addr expected =
-  lExpectConsumerStorage addr (extractJusts >=> matchExpected . reverse)
+  lExpectConsumerStorage addr (matchExpected . reverse)
   where
-    extractJusts = mapM $ \case
-      (_, Just got) -> pure got
-      (_, Nothing) -> mkError "Consumer got empty value unexpectedly"
     mkError = Left . I.CustomError
     matchExpected got
       | got == expected = pass

@@ -20,7 +20,6 @@ import Michelson.Test.Util (failedProp)
 import Michelson.Typed (CT(..), CValue(..), IsoValue(..), T(..))
 import Michelson.Text
 import qualified Michelson.Typed as T
-import Test.Interpreter.A1.Feather (featherSpec)
 import Test.Interpreter.CallSelf (selfCallerSpec)
 import Test.Interpreter.Compare (compareSpec)
 import Test.Interpreter.Conditionals (conditionalsSpec)
@@ -102,7 +101,6 @@ spec_Interpreter = do
   selfCallerSpec
   environmentSpec
   contractOpSpec
-  featherSpec
 
   specWithTypedContract "contracts/steps_to_quota_test1.tz" $ \contract -> do
     it "Amount of steps should reduce" $ do

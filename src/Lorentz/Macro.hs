@@ -472,17 +472,17 @@ setDelete = dip (push False) # update
 -- | @view@ type synonym as described in A1.
 data View (a :: Kind.Type) (r :: Kind.Type) = View
   { viewParam :: a
-  , viewCallbackTo :: ContractAddr (a, Maybe r)
+  , viewCallbackTo :: ContractAddr r
   } deriving stock Generic
     deriving anyclass IsoValue
 
 view_ ::
-     (KnownValue a, KnownValue r, NoOperation (a, r), NoBigMap (a, r))
+     (KnownValue r, NoOperation r, NoBigMap r)
   => (forall s0. (a, storage) & s0 :-> r : s0)
   -> View a r & storage & s :-> (List Operation, storage) & s
 view_ code =
   coerce_ #
-  unpair # dip (duupX @2) # dup # dip (pair # code # some) # pair # dip amount #
+  unpair # dip (duupX @2) # pair # code # dip amount #
   transferTokens # nil # swap # cons # pair
 
 -- | @void@ type synonym as described in A1.

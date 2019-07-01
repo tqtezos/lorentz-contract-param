@@ -212,15 +212,10 @@ expand cs (LMac l pos) = expandLetMac l
 expandMacro :: InstrCallStack -> Macro -> [ExpandedOp]
 expandMacro p@InstrCallStack{icsCallStack=cs,icsSrcPos=macroPos} = \case
   VIEW a             -> expandMacro p (UNPAIR $ P (F (noAnn,noAnn)) (F (noAnn,noAnn))) ++
-                        [ PrimEx (DIP $ expandMacro p $ DUUP 2 noAnn)
-                        , PrimEx $ DUP noAnn
-                        , PrimEx $ DIP $ concat [
-                              [PrimEx $ PAIR noAnn noAnn noAnn noAnn]
-                            , expand cs <$> a
-                            , [PrimEx $ SOME noAnn noAnn noAnn]
-                            ]
-                        , PrimEx $ PAIR noAnn noAnn noAnn noAnn
-                        , PrimEx (DIP [PrimEx $ AMOUNT noAnn])
+                        [ PrimEx (DIP $ expandMacro p $ DUUP 2 noAnn) ] ++
+                        [ PrimEx $ PAIR noAnn noAnn noAnn noAnn ] ++
+                        (expand cs <$> a) ++
+                        [ PrimEx (DIP [PrimEx $ AMOUNT noAnn])
                         , PrimEx $ TRANSFER_TOKENS noAnn
                         , PrimEx $ NIL noAnn noAnn (Type TOperation noAnn)
                         , PrimEx $ SWAP

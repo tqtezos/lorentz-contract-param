@@ -27,7 +27,6 @@ import Util.Named ()
 
 -- We have to manually assemble linear parameter type, because Lorentz
 -- uses balanced trees by default.
--- Last-minute hack to comply to the changed interface.
 
 data Parameter0
   = Approve        !ApproveParams
