@@ -1,5 +1,5 @@
 module Test.Lorentz.Contracts.UnsafeLedger
-  ( disabled_spec_UnsafeLedger
+  ( spec_UnsafeLedger
   ) where
 
 import qualified Data.Map as M
@@ -16,10 +16,8 @@ import Tezos.Address
 import Tezos.Core (Mutez)
 
 -- | All tests for UnsafeLedger (FA1).
---
--- TODO: these tests care too much about implementation details, will fix them later
-disabled_spec_UnsafeLedger :: Spec
-disabled_spec_UnsafeLedger = do
+spec_UnsafeLedger :: Spec
+spec_UnsafeLedger = do
   let
     spec fa1 = do
       describe "Transfer" $ do
@@ -109,10 +107,7 @@ gettingNonExistingBalance (Right (ops, store), _) = do
   ops `shouldBe`
     [ T.OpTransferTokens $
         T.TransferTokens
-          { ttContractParameter = T.toVal
-              ( foo
-              , Just (Nothing :: Maybe Natural)
-              )
+          { ttContractParameter = T.toVal (Nothing @Natural)
           , ttAmount   = transferredAmount
           , ttContract = T.VContract feather
           }
