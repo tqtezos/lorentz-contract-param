@@ -41,8 +41,7 @@ you must be able to justify that.
   - I checked whether I should update the docs and did so if necessary:
     - [ ] [README](../blob/master/README.md)
     - [ ] Haddock
-    - [ ] [DS Protocol documentation](../blob/master/docs/DSProtocol.md)
-    - [ ] [Other docs/](../blob/master/docs/)
+    - [ ] [docs/](../blob/master/docs/)
 
 #### Stylistic guide (mandatory)
 

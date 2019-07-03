@@ -9,7 +9,6 @@ import qualified Options.Applicative as Opt
 
 import qualified Lorentz.Base as L
 import Lorentz.Contracts.Auction
-import Lorentz.Contracts.DSProtocol
 import Lorentz.Contracts.ManagedLedger
 import Lorentz.Contracts.UnsafeLedger
 import Lorentz.Contracts.Walker
@@ -21,7 +20,6 @@ contracts = Map.fromList
   , ("UnsafeLedger", L.SomeContract unsafeLedgerContract)
   , ("Walker", L.SomeContract walkerContract)
   , ("Auction", L.SomeContract auctionContract)
-  , ("DSProtocol", L.SomeContract dsProtocolContract)
   ]
 
 main :: IO ()

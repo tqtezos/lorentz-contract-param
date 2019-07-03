@@ -5,7 +5,7 @@ name:                lorentz-contracts
 version:             0.2.0.1
 synopsis:            Set of Michelson contracts implemented in Lorentz eDSL.
 description:
-  Various contracts including simple examples, DS Token and other.
+  Various contracts including simple examples.
 category:            Language
 extra-source-files:
   - README.md
@@ -14,12 +14,9 @@ library:
   <<: *lorentz-lib-common
 
   dependencies:
-    - bytestring
     - containers
     - data-default
-    - indigo
     - fmt
-    - hex-text
     - morley
     - morley-prelude
     - text
@@ -43,7 +40,6 @@ tests:
     <<: *test-common
 
     dependencies:
-      - bytestring
       - containers
       - data-default
       - fmt
