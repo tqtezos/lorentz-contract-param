@@ -42,6 +42,7 @@ build-and-test:
       - Dockerfile
       - .dockerignore
       - .gitlab-ci.yml
+      - .weeder.yaml
       - morley.cabal
       - stack.yaml
       - test.bats
