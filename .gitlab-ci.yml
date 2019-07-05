@@ -42,6 +42,7 @@ build-and-test:
       - Dockerfile
       - .dockerignore
       - .gitlab-ci.yml
+      - .weeder.yaml
       - morley.cabal
       - stack.yaml
       - test.bats
@@ -60,7 +61,7 @@ build-and-test:
     - cp /usr/lib/gcc/x86_64-linux-gnu/6/crtbeginT.o /usr/lib/gcc/x86_64-linux-gnu/6/crtbeginT.o.orig
     - cp /usr/lib/gcc/x86_64-linux-gnu/6/crtbeginS.o /usr/lib/gcc/x86_64-linux-gnu/6/crtbeginT.o
     - stack install morley $STACK_BUILD_OPTIONS
-    - stack install indigo $STACK_BUILD_OPTIONS
+    - stack build indigo $STACK_BUILD_OPTIONS
     - stack install lorentz-contracts $STACK_BUILD_OPTIONS
     - stack test morley
         --test-arguments="--xml=report/morley_test_report.xml"
