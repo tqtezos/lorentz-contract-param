@@ -18,12 +18,14 @@ module Lorentz.Contracts.UpgradeableCounter
   , Storage
   , Error(..)
   , upgradeableCounterContract
-  , emptyMigration
+  , mkEmptyStorage
   ) where
 
-import Lorentz (Contract)
+import Lorentz (Contract, EntryPointKind)
 
 import Lorentz.Contracts.Upgradeable.Common
 
-upgradeableCounterContract :: Contract Parameter Storage
+upgradeableCounterContract
+  :: forall (interface :: [EntryPointKind]).
+     Contract (Parameter interface) Storage
 upgradeableCounterContract = upgradeableContract

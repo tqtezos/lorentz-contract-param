@@ -51,3 +51,4 @@ tests:
       - QuickCheck
       - tasty
       - tasty-hspec
+      - vinyl
