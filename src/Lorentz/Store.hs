@@ -61,6 +61,7 @@ module Lorentz.Store
 
     -- * Store management from Haskell
   , storePiece
+  , storeKeyValueList
   , storeLookup
 
     -- ** Function constraints
@@ -594,6 +595,19 @@ storePiece label key val =
     ( packHsKey @(MSCtorIdx (GetStore name store)) key
     , hsWrap @store label (BigMapImage val)
     )
+
+storeKeyValueList
+  :: forall name store key value.
+     StorePieceC store name key value
+  => Label name
+  -> [(key, value)]
+  -> Store store
+storeKeyValueList label keyValues =
+  Store . BigMap . Map.fromList $
+  Prelude.map (\(key, val) ->
+                 ( packHsKey @(MSCtorIdx (GetStore name store)) key
+                 , hsWrap @store label (BigMapImage val)
+                 )) keyValues
 
 type StorePieceC store name key value =
   ( key ~ GetStoreKey store name
