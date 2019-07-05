@@ -17,12 +17,9 @@ library:
     - morley:contract-discover
 
   dependencies:
-    - bytestring
     - containers
     - data-default
-    - indigo
     - fmt
-    - hex-text
     - morley
     - morley-prelude
     - text
@@ -46,7 +43,6 @@ tests:
     <<: *test-common
 
     dependencies:
-      - bytestring
       - containers
       - data-default
       - fmt
