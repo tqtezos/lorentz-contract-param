@@ -1,7 +1,7 @@
 -- | A buggy implementation of Unsafe ledger, returns balances multiplied by 2
 
 module Lorentz.Contracts.UpgradeableUnsafeLedger.V1
-  ( UpgradeableInterfaceSkeleton(..)
+  ( Interface
   , version
   , migrate
   , unsafeLedgerContract
@@ -15,20 +15,17 @@ module Lorentz.Contracts.UpgradeableUnsafeLedger.V1
 
 import Lorentz
 
-import Lorentz.UStore
 import Lorentz.Contracts.Upgradeable.Common
 
 version :: Natural
 version = 1
 
--- Currently ignored
-data UpgradeableInterfaceSkeleton
-  = Transfer TransferParams
-  | GetTotalSupply (View () Natural)
-  | GetBalance     (View Address (Maybe Natural))
+type Interface =
+  [ "transfer" ?: TransferParams
+  , "getTotalSupply" ?: View () Natural
+  , "getBalance" ?: View Address (Maybe Natural)
+  ]
 
--- We lose arg names here but I believe it's possible to bring them back
--- in generic implementation
 type TransferParams = (Address, Natural)
 
 data UStoreTempate = UStoreTempate
@@ -53,11 +50,18 @@ migrate = do
 
 unsafeLedgerContract :: ContractCode
 unsafeLedgerContract = do
-  dispatch
-    [ ifArg @TransferParams [mt|Transfer|] transfer
-    , ifArg @(View () Natural) [mt|GetTotalSupply|] getTotalSupply
-    , ifArg @(View Address (Maybe Natural)) [mt|GetBalance|] buggyGetBalance
-    ]
+  unpair
+  coerce_ @UParameter @(UParam Interface)
+  dip (coerce_ @UStore_ @UStoreV1)
+  caseUParamT
+    ( #transfer /-> transfer
+    , #getTotalSupply /-> getTotalSupply
+    , #getBalance /-> buggyGetBalance
+    )
+    uparamFallbackFail
+  unpair
+  dip (coerce_ @UStoreV1 @UStore_)
+  pair
 
 transfer :: '[TransferParams, UStoreV1]
          :-> '[([Operation], UStoreV1)]

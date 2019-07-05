@@ -16,8 +16,8 @@ import Util.Instances ()
 
 import Lorentz.Contracts.Upgradeable.Common.Base
 
-data Parameter
-  = Run UParameter
+data Parameter interface
+  = Run (UParam interface)
   | Upgrade UpgradeParameters
   | GetVersion (View () Natural)
   | SetAdministrator Address
@@ -77,16 +77,19 @@ emptyMigration admin = Storage
     }
   }
 
-upgradeableContract :: Contract Parameter Storage
+upgradeableContract
+  :: forall (interface :: [EntryPointKind]).
+     Contract (Parameter interface) Storage
 upgradeableContract = do
   unpair
-  caseT @Parameter
+  caseT @(Parameter interface)
     ( #cRun /-> do
         dip $ do
           getField #dataMap
           dip $ do
             getField #fields
             toField #code
+        unwrapUParam
         pair
         exec
         unpair
