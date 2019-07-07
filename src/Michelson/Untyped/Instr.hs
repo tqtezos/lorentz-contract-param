@@ -62,7 +62,7 @@ data ExpandedOp
 instance RenderDoc ExpandedOp where
   renderDoc (WithSrcEx _ op) = renderDoc op
   renderDoc (PrimEx i) = renderDoc i
-  renderDoc (SeqEx i)    = renderOpsList True i
+  renderDoc (SeqEx i)    = renderOpsList False i
   isRenderable =
     \case PrimEx i -> isRenderable i
           WithSrcEx _ op -> isRenderable op
@@ -273,7 +273,7 @@ instance (RenderDoc op) => RenderDoc (InstrAbstract op) where
     SENDER va             -> "SENDER" <+> renderDoc va
     ADDRESS va            -> "ADDRESS" <+> renderDoc va
     where
-      renderOps = renderOpsList True
+      renderOps = renderOpsList False
       renderTwoAnnotations ann1 ann2 =
         -- If both annotations are noAnn we don't want to explicitly print them
         if (ann1 /= noAnn || ann2 /= noAnn)

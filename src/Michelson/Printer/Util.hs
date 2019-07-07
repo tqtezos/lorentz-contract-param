@@ -11,8 +11,8 @@ module Michelson.Printer.Util
 import qualified Data.Text.Lazy as LT
 import Data.Text.Lazy.Builder (Builder)
 import Text.PrettyPrint.Leijen.Text
-  (Doc, SimpleDoc, braces, displayB, displayT, hcat, isEmpty, parens, punctuate, renderOneLine,
-  semi, space, vcat, (<+>))
+  (Doc, SimpleDoc, braces, displayB, displayT, hcat, isEmpty, parens, punctuate, renderPretty,
+  semi, space, align, vcat, (<+>))
 
 -- | Generalize converting a type into a
 -- Text.PrettyPrint.Leijen.Text.Doc. Used to pretty print Michelson code
@@ -45,7 +45,7 @@ renderOpsList :: (RenderDoc op) => Bool -> [op] -> Doc
 renderOpsList oneLine ops =
   braces $ cat' $ punctuate semi (renderDoc <$> filter isRenderable ops)
   where
-    cat' = if oneLine then maybe "" spacecat . nonEmpty else vcat
+    cat' = if oneLine then maybe "" spacecat . nonEmpty else align . vcat
 
 -- | Create a specific number of spaces.
 spaces :: Int -> Doc
@@ -63,5 +63,7 @@ wrapInParens ds =
 buildRenderDoc :: RenderDoc a => a -> Builder
 buildRenderDoc = displayB . doRender . renderDoc
 
+-- | Here using a page width of 80 and a ribbon width of 1.0
+-- https://hackage.haskell.org/package/wl-pprint-1.2.1/docs/Text-PrettyPrint-Leijen.html
 doRender :: Doc -> SimpleDoc
-doRender = renderOneLine
+doRender = renderPretty 1.0 80
