@@ -27,6 +27,7 @@ library:
     - containers
     - cryptonite
     - data-default
+    - first-class-families
     - fmt
     - formatting
     - ghc-prim
@@ -81,6 +82,7 @@ tests:
     dependencies:
       - aeson
       - bytestring
+      - constraints
       - containers
       - data-default
       - directory
