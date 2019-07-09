@@ -11,7 +11,7 @@ module Michelson.Printer.Util
 import qualified Data.Text.Lazy as LT
 import Data.Text.Lazy.Builder (Builder)
 import Text.PrettyPrint.Leijen.Text
-  (Doc, SimpleDoc, braces, displayB, displayT, hcat, isEmpty, parens, punctuate, renderPretty,
+  (Doc, SimpleDoc, braces, enclose, displayB, displayT, hcat, isEmpty, parens, punctuate, renderPretty,
   semi, space, align, vcat, (<+>))
 
 -- | Generalize converting a type into a
@@ -43,7 +43,9 @@ spacecat = foldr (<+>) mempty
 
 renderOpsList :: (RenderDoc op) => Bool -> [op] -> Doc
 renderOpsList oneLine ops =
-  braces $ cat' $ punctuate semi (renderDoc <$> filter isRenderable ops)
+  braces $
+    enclose space space $
+      cat' $ punctuate semi (renderDoc <$> filter isRenderable ops)
   where
     cat' = if oneLine then maybe "" spacecat . nonEmpty else align . vcat
 
