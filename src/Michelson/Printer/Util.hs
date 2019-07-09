@@ -11,8 +11,8 @@ module Michelson.Printer.Util
 import qualified Data.Text.Lazy as LT
 import Data.Text.Lazy.Builder (Builder)
 import Text.PrettyPrint.Leijen.Text
-  (Doc, SimpleDoc, braces, enclose, displayB, displayT, hcat, isEmpty, parens, punctuate, renderPretty,
-  semi, space, align, vcat, (<+>))
+  (Doc, SimpleDoc, align, braces, displayB, displayT, enclose, hcat, isEmpty, parens, punctuate,
+  renderPretty, semi, space, vcat, (<+>))
 
 -- | Generalize converting a type into a
 -- Text.PrettyPrint.Leijen.Text.Doc. Used to pretty print Michelson code

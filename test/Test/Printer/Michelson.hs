@@ -1,19 +1,36 @@
 module Test.Printer.Michelson
   ( unit_Roundtrip
   , unit_let_macro
+  , unit_PrettyPrint
   ) where
 
+import Data.Text.Lazy (strip)
 import Fmt (pretty)
-import Test.HUnit (Assertion, assertEqual, assertFailure, (@?=))
 import Generics.SYB (everywhere, mkT)
+import Test.HUnit (Assertion, assertEqual, assertFailure, (@?=))
 
 import Michelson.Printer (printUntypedContract)
 import Michelson.Runtime (parseExpandContract)
 import Michelson.Test (importUntypedContract)
-import Michelson.Untyped.Instr (ExpandedOp(..))
 import qualified Michelson.Untyped as U
+import Michelson.Untyped.Instr (ExpandedOp(..))
 
 import Test.Util.Contracts
+import Util.IO (readFileUtf8)
+
+unit_PrettyPrint :: Assertion
+unit_PrettyPrint = do
+  contracts <- getPrettyPrintContracts
+  mapM_ prettyTest contracts
+  where
+    prettyTest :: (FilePath, FilePath) -> Assertion
+    prettyTest (srcPath, dstPath) = do
+      contract <- importUntypedContract srcPath
+      targetSrc <- (strip . fromStrict) <$> readFileUtf8 dstPath
+      assertEqual
+        ("Prettifying " <> srcPath <> " does not match the expected format")
+        (printUntypedContract contract)
+        targetSrc
 
 unit_Roundtrip :: Assertion
 unit_Roundtrip = do

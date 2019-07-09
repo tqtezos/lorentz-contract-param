@@ -5,11 +5,12 @@ module Test.Util.Contracts
        , getWellTypedContracts
        , getWellTypedMichelsonContracts
        , getWellTypedMorleyContracts
+       , getPrettyPrintContracts
        ) where
 
 import Data.List (isSuffixOf)
 import System.Directory (listDirectory)
-import System.FilePath ((</>))
+import System.FilePath (addExtension, (</>))
 
 getIllTypedContracts :: IO [FilePath]
 getIllTypedContracts =
@@ -36,3 +37,10 @@ getContractsWithExtension ext dir = mapMaybe convertPath <$> listDirectory dir
 
 wellTypedContractDirs :: [FilePath]
 wellTypedContractDirs = ["contracts", "contracts/tezos_examples"]
+
+getPrettyPrintContracts :: IO [(FilePath, FilePath)]
+getPrettyPrintContracts =
+  fmap attachPrettyPath <$> getContractsWithExtension ".tz" "contracts/pretty"
+  where
+    attachPrettyPath :: FilePath -> (FilePath, FilePath)
+    attachPrettyPath src = (src, addExtension src  "pretty")
