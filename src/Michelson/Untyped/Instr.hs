@@ -23,12 +23,11 @@ import Data.Data (Data(..))
 import Fmt (Buildable(build), (+|), (|+))
 import Generics.SYB (everywhere, mkT)
 import Prelude hiding (EQ, GT, LT)
-import Text.PrettyPrint.Leijen.Text (braces, nest, (<$$>), (<+>))
+import Text.PrettyPrint.Leijen.Text (align, braces, enclose, indent, nest, space, (<$$>), (<+>))
 
 import Michelson.ErrorPos (InstrCallStack)
 import Michelson.Printer.Util (RenderDoc(..), buildRenderDoc, renderOpsList, spaces)
-import Michelson.Untyped.Annotation
-  (FieldAnn, TypeAnn, VarAnn, RenderAnn(..), noAnn)
+import Michelson.Untyped.Annotation (FieldAnn, RenderAnn(..), TypeAnn, VarAnn, noAnn)
 import Michelson.Untyped.Contract (Contract'(..))
 import Michelson.Untyped.Ext (ExtInstrAbstract)
 import Michelson.Untyped.Type (Comparable, Type)
@@ -257,8 +256,9 @@ instance (RenderDoc op) => RenderDoc (InstrAbstract op) where
     TRANSFER_TOKENS va    -> "TRANSFER_TOKENS" <+> renderDoc va
     SET_DELEGATE va       -> "SET_DELEGATE" <+> renderDoc va
     CREATE_ACCOUNT va1 va2  -> "CREATE_ACCOUNT" <+> renderTwoAnnotations va1 va2
-    CREATE_CONTRACT va1 va2 contract ->
-      "CREATE_CONTRACT" <+> renderTwoAnnotations va1 va2 <$$> braces (renderDoc contract)
+    CREATE_CONTRACT va1 va2 contract -> let
+      body = enclose space space $ align $ (renderDoc contract)
+      in "CREATE_CONTRACT" <+> renderTwoAnnotations va1 va2 <$$> (indent 2 $ braces $ body)
     IMPLICIT_ACCOUNT va   -> "IMPLICIT_ACCOUNT" <+> renderDoc va
     NOW va                -> "NOW" <+> renderDoc va
     AMOUNT va             -> "AMOUNT" <+> renderDoc va
