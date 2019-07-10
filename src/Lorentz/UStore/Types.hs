@@ -47,11 +47,11 @@ newtype UStore a = UStore { unUStore :: BigMap ByteString ByteString }
                     MemOpHs, GetOpHs, UpdOpHs)
 
 -- | Describes one virtual big map in the storage.
-newtype k |~> v = UStoreSubMap (Map k v)
+newtype k |~> v = UStoreSubMap { unUStoreSubMap :: Map k v }
   deriving stock (Show, Eq)
   deriving newtype (Default)
 
-newtype UStoreField v = UStoreField v
+newtype UStoreField v = UStoreField { unUStoreField :: v }
   deriving stock (Show, Eq)
 
 -- Type-safe lookup magic

@@ -23,7 +23,6 @@ import Indigo.State
 import Lorentz.ADT (InstrConstructC, fieldCtor)
 import qualified Lorentz.Instr as L
 import qualified Lorentz.Macro as L
-import Lorentz.Store (storeGet)
 import qualified Michelson.Typed.Arith as M
 import Michelson.Typed.Haskell.Instr.Product (GetFieldType, InstrGetFieldC, InstrSetFieldC)
 
@@ -71,9 +70,9 @@ data Expr a where
   Fst :: IsExpr op (n, m) => op -> Expr n
   Snd :: IsExpr op (n, m) => op -> Expr m
 
-  Lookup :: (StoreGetC store name, IsExpr exKey (GetStoreKey store name), IsExpr exStore (Store store))
+  SLookup :: (StoreGetC store name, IsExpr exKey (GetStoreKey store name), IsExpr exStore (Store store))
          => Label name -> exKey -> exStore -> Expr (Maybe $ GetStoreValue store name)
-  InsertNew
+  SInsertNew
     :: ( StoreInsertC store name, KnownSymbol name
        , IsError err
        , IsExpr exKey (GetStoreKey store name)
@@ -82,7 +81,7 @@ data Expr a where
        )
     => Label name -> err
     -> exKey -> exVal -> exStore -> Expr (Store store)
-  Insert
+  SInsert
     :: ( StoreInsertC store name, KnownSymbol name
        , IsExpr exKey (GetStoreKey store name)
        , IsExpr exVal (GetStoreValue store name)
@@ -90,6 +89,26 @@ data Expr a where
        )
     => Label name
     -> exKey -> exVal -> exStore -> Expr (Store store)
+
+  ULookup :: (HasUStore name key value store, IsExpr exKey key, IsExpr exStore (UStore store))
+         => Label name -> exKey -> exStore -> Expr (Maybe value)
+  UInsertNew
+    :: ( HasUStore name key value store, KnownSymbol name
+       , IsError err
+       , IsExpr exKey key
+       , IsExpr exVal value
+       , IsExpr exStore (UStore store)
+       )
+    => Label name -> err
+    -> exKey -> exVal -> exStore -> Expr (UStore store)
+  UInsert
+    :: ( HasUStore name key value store, KnownSymbol name
+       , IsExpr exKey key
+       , IsExpr exVal value
+       , IsExpr exStore (UStore store)
+       )
+    => Label name
+    -> exKey -> exVal -> exStore -> Expr (UStore store)
 
   ToField :: (InstrGetFieldC dt name, IsExpr exDt dt)
        => exDt -> Label name -> Expr (GetFieldType dt name)
@@ -135,17 +154,29 @@ compileExpr (Not e) = unaryOp e L.not
 compileExpr (Fst e) = unaryOp e L.car
 compileExpr (Snd e) = unaryOp e L.cdr
 
-compileExpr (InsertNew l err k v store) = do
+compileExpr (SInsertNew l err k v store) = do
   compileExpr (toExpr store)
   compileExpr (toExpr v)
   compileExpr (toExpr k)
   IndigoM $ \md -> ((), GenCode (popNoRefMd $ popNoRefMd md) (storeInsertNew l (failUsing err)))
-compileExpr (Insert l k v store) = do
+compileExpr (SInsert l k v store) = do
   compileExpr (toExpr store)
   compileExpr (toExpr v)
   compileExpr (toExpr k)
   IndigoM $ \md -> ((), GenCode (popNoRefMd $ popNoRefMd md) (storeInsert l))
-compileExpr (Lookup l ekey estore) = binaryOp ekey estore (storeGet l)
+compileExpr (SLookup l ekey estore) = binaryOp ekey estore (storeGet l)
+
+compileExpr (UInsertNew l err k v store) = do
+  compileExpr (toExpr store)
+  compileExpr (toExpr v)
+  compileExpr (toExpr k)
+  IndigoM $ \md -> ((), GenCode (popNoRefMd $ popNoRefMd md) (ustoreInsertNew l (failUsing err)))
+compileExpr (UInsert l k v store) = do
+  compileExpr (toExpr store)
+  compileExpr (toExpr v)
+  compileExpr (toExpr k)
+  IndigoM $ \md -> ((), GenCode (popNoRefMd $ popNoRefMd md) (ustoreInsert l))
+compileExpr (ULookup l ekey estore) = binaryOp ekey estore (ustoreGet l)
 
 compileExpr (ToField e l) = do
   compileExpr (toExpr e)

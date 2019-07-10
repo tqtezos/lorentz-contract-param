@@ -40,6 +40,8 @@ instance Wrapped (NamedF Maybe a name) where
 
 deriving instance Eq a => Eq (NamedF Identity a name)
 deriving instance Eq a => Eq (NamedF Maybe a name)
+deriving instance Ord a => Ord (NamedF Identity a name)
+deriving instance Ord a => Ord (NamedF Maybe a name)
 
 instance (Show a, KnownSymbol name) => Show (NamedF Identity a name) where
   show (ArgF a) = symbolVal (Proxy @name) <> " :! " <> show a

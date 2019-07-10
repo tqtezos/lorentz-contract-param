@@ -16,16 +16,20 @@ module Lorentz.UStore.Instr
 
     -- ** Instruction constraints
   , HasUStore
+  , HasUField
+  , HasUStoreForAllIn
   ) where
 
 import Data.Singletons (SingI)
+import qualified Data.Kind as Kind
+import GHC.Generics ((:*:), (:+:))
+import qualified GHC.Generics as G
 import Data.Vinyl.Derived (Label)
 import GHC.TypeLits (KnownSymbol, Symbol)
 import Type.Reflection ((:~:)(Refl))
 
 import Lorentz.Base
 import Lorentz.Errors
-import Lorentz.Constraints
 import Lorentz.Instr as L
 import Lorentz.Macro
 import Lorentz.UStore.Types
@@ -139,19 +143,18 @@ ustoreInsert _ =
 
 -- | Insert a key-value pair, but fail if it will overwrite some existing entry.
 ustoreInsertNew
-  :: forall store name err s.
-     (KeyAccessC store name, ValueAccessC store name, KnownValue err)
+  :: forall store name s.
+     (KeyAccessC store name, ValueAccessC store name)
   => Label name
-  -> (forall s0. GetUStoreKey store name : s0 :-> err : s0)
+  -> (forall s0 any. GetUStoreKey store name : s0 :-> any)
   -> GetUStoreKey store name
       : GetUStoreValue store name
       : UStore store
       : s
   :-> UStore store : s
-ustoreInsertNew label mkErr =
+ustoreInsertNew label doFail =
   duupX @3 # duupX @2 # ustoreMem label #
-  if_ (mkErr # failWith)
-      (ustoreInsert label)
+  if_ doFail (ustoreInsert label)
 
 ustoreDelete
   :: forall store name s.
@@ -211,7 +214,7 @@ ustoreSetField _ =
   L.update
 
 -- | This constraint can be used if a function needs to work with
--- /big/ store, but needs to know only about some part(s) of it.
+-- /big/ store, but needs to know only about some submap(s) of it.
 --
 -- It can use all UStore operations for a particular name, key and
 -- value without knowing whole template.
@@ -220,6 +223,38 @@ type HasUStore name key value store =
    , GetUStoreKey store name ~ key
    , GetUStoreValue store name ~ value
    )
+
+-- | This constraint can be used if a function needs to work with
+-- /big/ store, but needs to know only about some field of it.
+type HasUField name ty store =
+   ( FieldAccessC store name
+   , GetUStoreField store name ~ ty
+   )
+
+-- | Write down all sensisble constraints which given @store@ satisfies
+-- and apply them to @constrained@.
+--
+-- This store should have '|~>' and 'UStoreField' fields in its immediate fields,
+-- no deep inspection is performed.
+type HasUStoreForAllIn store constrained =
+  (Generic store, GHasStoreForAllIn constrained (G.Rep store))
+
+type family GHasStoreForAllIn (store :: Kind.Type) (x :: Kind.Type -> Kind.Type)
+            :: Constraint where
+  GHasStoreForAllIn store (G.D1 _ x) = GHasStoreForAllIn store x
+  GHasStoreForAllIn store (x :+: y) =
+    (GHasStoreForAllIn store x, GHasStoreForAllIn store y)
+  GHasStoreForAllIn store (x :*: y) =
+    (GHasStoreForAllIn store x, GHasStoreForAllIn store y)
+  GHasStoreForAllIn store (G.C1 _ x) = GHasStoreForAllIn store x
+  GHasStoreForAllIn store (G.S1 ('G.MetaSel ('Just name) _ _ _)
+                            (G.Rec0 (key |~> value))) =
+    HasUStore name key value store
+  GHasStoreForAllIn store (G.S1 ('G.MetaSel ('Just name) _ _ _)
+                            (G.Rec0 (UStoreField value))) =
+    HasUField name value store
+  GHasStoreForAllIn _ G.V1 = ()
+  GHasStoreForAllIn _ G.U1 = ()
 
 ----------------------------------------------------------------------------
 -- Examples
@@ -284,3 +319,18 @@ _sample5 = ustoreMem #bytes
 
 _sample6 :: Natural : MyNatural : MyStoreBig : s :-> MyStoreBig : s
 _sample6 = ustoreInsert #store3
+
+-- | When you want to express a constraint like
+-- "given big store contains all elements present in given small concrete store",
+-- you can use 'HasUStoreForAllIn'.
+--
+-- Here @store@ is a big store, and we expect it to contain 'MyStoreTemplate'
+-- entirely.
+_sample7
+  :: HasUStoreForAllIn MyStoreTemplate store
+  => UStore store : s :-> Bool : Maybe ByteString : s
+_sample7 = ustoreGetField #flag # dip (push "x" # ustoreGet #bytes)
+
+-- | '_sample7' with @store@ instantiated to 'MyStoreTemplateBig'.
+_sample7' :: UStore MyStoreTemplateBig : s :-> Bool : Maybe ByteString : s
+_sample7' = _sample7

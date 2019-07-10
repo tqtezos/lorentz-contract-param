@@ -46,6 +46,8 @@ module Lorentz.UStore
 
     -- ** Instruction constraints
   , HasUStore
+  , HasUField
+  , HasUStoreForAllIn
 
     -- * UStore composability
   , liftUStore
