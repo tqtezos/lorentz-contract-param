@@ -102,13 +102,10 @@ makeLenses ''InterpreterRes
 -- and get a new one after performing some operations.
 instance Semigroup InterpreterRes where
   a <> b =
-    InterpreterRes
-      { _irGState = _irGState b
-      , _irOperations = _irOperations b
-      , _irUpdates = _irUpdates a <> _irUpdates b
+    b
+      { _irUpdates = _irUpdates a <> _irUpdates b
       , _irInterpretResults = _irInterpretResults a <> _irInterpretResults b
       , _irSourceAddress = _irSourceAddress a <|> _irSourceAddress b
-      , _irRemainingSteps = _irRemainingSteps b
       }
 
 -- | Errors that can happen during contract interpreting.
@@ -318,7 +315,10 @@ interpreterPure now maxSteps gState =
 
     step :: InterpreterRes -> InterpreterOp -> Either InterpreterError InterpreterRes
     step currentRes op =
-      let start = currentRes { _irOperations = [op] }
+      let start = currentRes { _irOperations = [op]
+                             , _irUpdates = []
+                             , _irInterpretResults = []
+                             }
        in (currentRes <>) <$> runExcept (execStateT (statefulInterpreter now) start)
 
 statefulInterpreter
