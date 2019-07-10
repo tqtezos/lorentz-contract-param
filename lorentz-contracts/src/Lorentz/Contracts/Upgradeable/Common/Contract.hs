@@ -1,7 +1,7 @@
-module Lorentz.Contracts.Upgradable.Common.Contract
+module Lorentz.Contracts.Upgradeable.Common.Contract
   ( Parameter(..)
   , Storage(..)
-  , upgradableContract
+  , upgradeableContract
   , emptyMigration
   ) where
 
@@ -11,7 +11,7 @@ import qualified Data.Map as M
 
 import qualified Michelson.Typed as T
 
-import Lorentz.Contracts.Upgradable.Common.Base
+import Lorentz.Contracts.Upgradeable.Common.Base
 
 data Parameter
   = Run UParameter
@@ -35,8 +35,8 @@ emptyMigration = Storage
   , code = emptyCode
   }
 
-upgradableContract :: Contract Parameter Storage
-upgradableContract = do
+upgradeableContract :: Contract Parameter Storage
+upgradeableContract = do
   unpair
   caseT @Parameter
     ( #cRun /-> do

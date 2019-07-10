@@ -1,4 +1,4 @@
-module Lorentz.Contracts.Upgradable.Common.Dispatch
+module Lorentz.Contracts.Upgradeable.Common.Dispatch
   ( dispatch
   , ifArg
   ) where
@@ -6,7 +6,7 @@ module Lorentz.Contracts.Upgradable.Common.Dispatch
 import Lorentz
 import Prelude (foldl')
 
-import Lorentz.Contracts.Upgradable.Common.Base
+import Lorentz.Contracts.Upgradeable.Common.Base
 
 type Action a st = '[a, st] :-> '[([Operation], st)]
 type DispatchStack = '[Maybe ([Operation], UStore_), (UParameter, UStore_)]

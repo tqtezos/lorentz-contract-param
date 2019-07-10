@@ -1,6 +1,6 @@
 -- | The implementation of Unsafe ledger with V1 balance bug fixed
 
-module Lorentz.Contracts.UpgradableUnsafeLedger.V2
+module Lorentz.Contracts.UpgradeableUnsafeLedger.V2
   ( migrate
   , unsafeLedgerContract
   ) where
@@ -8,8 +8,8 @@ module Lorentz.Contracts.UpgradableUnsafeLedger.V2
 import Lorentz
 
 import Lorentz.UStore
-import Lorentz.Contracts.Upgradable.Common
-import qualified Lorentz.Contracts.UpgradableUnsafeLedger.V1 as V1
+import Lorentz.Contracts.Upgradeable.Common
+import qualified Lorentz.Contracts.UpgradeableUnsafeLedger.V1 as V1
 
 -- The storage does not change
 type UStoreV2 = V1.UStoreV1
@@ -19,7 +19,7 @@ type UStoreV2 = V1.UStoreV1
 migrate :: '[UStore_] :-> '[UStore_]
 migrate = nop
 
--- | The second version of the UpgradableUnsafeLedger.
+-- | The second version of the UpgradeableUnsafeLedger.
 --   Most of the functions are from V1 except for getBalance.
 unsafeLedgerContract :: ContractCode
 unsafeLedgerContract = do

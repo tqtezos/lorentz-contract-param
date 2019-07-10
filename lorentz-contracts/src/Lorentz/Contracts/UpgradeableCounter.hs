@@ -1,4 +1,4 @@
--- | UpgradableCounter demonstrates the implementation of a simple contract
+-- | UpgradeableCounter demonstrates the implementation of a simple contract
 --   that has upgradeable storage, interface, and implementation.
 --
 --   In the first version it stores a Natural and allows to add some value
@@ -13,16 +13,16 @@
 --   and serves as an example on how to apply this concept.
 
 
-module Lorentz.Contracts.UpgradableCounter
+module Lorentz.Contracts.UpgradeableCounter
   ( Parameter(..)
   , Storage(..)
-  , upgradableCounterContract
+  , upgradeableCounterContract
   , emptyMigration
   ) where
 
 import Lorentz (Contract)
 
-import Lorentz.Contracts.Upgradable.Common
+import Lorentz.Contracts.Upgradeable.Common
 
-upgradableCounterContract :: Contract Parameter Storage
-upgradableCounterContract = upgradableContract
+upgradeableCounterContract :: Contract Parameter Storage
+upgradeableCounterContract = upgradeableContract

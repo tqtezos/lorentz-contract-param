@@ -1,5 +1,5 @@
-module Test.Lorentz.Contracts.UpgradableCounter
-  ( spec_UpgradableCounter
+module Test.Lorentz.Contracts.UpgradeableCounter
+  ( spec_UpgradeableCounter
   ) where
 
 import Lorentz (View(..), MText, mt)
@@ -8,9 +8,9 @@ import Test.Hspec (Spec, describe, it)
 
 import Lorentz.Constraints
 import Lorentz.Contracts.Consumer (contractConsumer)
-import Lorentz.Contracts.UpgradableCounter
-import qualified Lorentz.Contracts.UpgradableCounter.V1 as V1
-import qualified Lorentz.Contracts.UpgradableCounter.V2 as V2
+import Lorentz.Contracts.UpgradeableCounter
+import qualified Lorentz.Contracts.UpgradeableCounter.V1 as V1
+import qualified Lorentz.Contracts.UpgradeableCounter.V2 as V2
 import Lorentz.Test
 import Lorentz.Value
 import Michelson.Interpret.Pack (packValue')
@@ -18,16 +18,16 @@ import qualified Michelson.Typed as T
 import Util.Instances ()
 
 
-originateUpgradableCounter
+originateUpgradeableCounter
   :: IntegrationalScenarioM (ContractAddr Parameter)
-originateUpgradableCounter =
-  lOriginate upgradableCounterContract "UpgradableCounter"
+originateUpgradeableCounter =
+  lOriginate upgradeableCounterContract "UpgradeableCounter"
     emptyMigration (toMutez 1000)
 
-originateUpgradableCounterV1
+originateUpgradeableCounterV1
   :: IntegrationalScenarioM (ContractAddr Parameter)
-originateUpgradableCounterV1 = do
-  contract <- originateUpgradableCounter
+originateUpgradeableCounterV1 = do
+  contract <- originateUpgradeableCounter
   lCall contract $ Upgrade (V1.migrate, V1.counterContract)
   return contract
 
@@ -53,12 +53,12 @@ getCounterValueV2
 getCounterValueV2 contract consumer = do
   uCall contract [mt|GetCounterValue|] $ View () consumer
 
-spec_UpgradableCounter :: Spec
-spec_UpgradableCounter = do
+spec_UpgradeableCounter :: Spec
+spec_UpgradeableCounter = do
   describe "v1" $ do
     it "Initially contains zero" $ do
       integrationalTestProperty $ do
-        contract <- originateUpgradableCounterV1
+        contract <- originateUpgradeableCounterV1
         consumer <- lOriginateEmpty contractConsumer "consumer"
         getCounterValueV1 contract consumer
         validate . Right $
@@ -66,7 +66,7 @@ spec_UpgradableCounter = do
 
     it "Updates counter after each operation" $ do
       integrationalTestProperty $ do
-        contract <- originateUpgradableCounterV1
+        contract <- originateUpgradeableCounterV1
         consumer <- lOriginateEmpty contractConsumer "consumer"
 
         uCall contract [mt|Add|] (2 :: Natural)
@@ -81,7 +81,7 @@ spec_UpgradableCounter = do
   describe "v2" $ do
     it "Preserves the counter after the upgrade" $ do
       integrationalTestProperty $ do
-        contract <- originateUpgradableCounterV1
+        contract <- originateUpgradeableCounterV1
         consumer <- lOriginateEmpty contractConsumer "consumer"
 
         uCall contract [mt|Add|] (42 :: Natural)
@@ -93,7 +93,7 @@ spec_UpgradableCounter = do
 
     it "Exposes new methods" $ do
       integrationalTestProperty $ do
-        contract <- originateUpgradableCounterV1
+        contract <- originateUpgradeableCounterV1
         consumer <- lOriginateEmpty contractConsumer "consumer"
 
         lCall contract $ Upgrade (V2.migrate, V2.counterContract)
@@ -108,7 +108,7 @@ spec_UpgradableCounter = do
 
     it "Allows to decrement below zero" $ do
       integrationalTestProperty $ do
-        contract <- originateUpgradableCounterV1
+        contract <- originateUpgradeableCounterV1
         consumer <- lOriginateEmpty contractConsumer "consumer"
 
         lCall contract $ Upgrade (V2.migrate, V2.counterContract)

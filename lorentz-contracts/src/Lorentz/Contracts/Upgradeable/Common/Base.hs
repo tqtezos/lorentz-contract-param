@@ -1,4 +1,4 @@
-module Lorentz.Contracts.Upgradable.Common.Base
+module Lorentz.Contracts.Upgradeable.Common.Base
   ( UParameter
   , UStore_
   , MigrationScript

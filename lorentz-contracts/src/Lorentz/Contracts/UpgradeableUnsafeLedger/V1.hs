@@ -1,7 +1,7 @@
 -- | A buggy implementation of Unsafe ledger, returns balances multiplied by 2
 
-module Lorentz.Contracts.UpgradableUnsafeLedger.V1
-  ( UpgradableInterfaceSkeleton(..)
+module Lorentz.Contracts.UpgradeableUnsafeLedger.V1
+  ( UpgradeableInterfaceSkeleton(..)
   , migrate
   , unsafeLedgerContract
 
@@ -15,10 +15,10 @@ module Lorentz.Contracts.UpgradableUnsafeLedger.V1
 import Lorentz
 
 import Lorentz.UStore
-import Lorentz.Contracts.Upgradable.Common
+import Lorentz.Contracts.Upgradeable.Common
 
 -- Currently ignored
-data UpgradableInterfaceSkeleton
+data UpgradeableInterfaceSkeleton
   = Transfer TransferParams
   | GetTotalSupply (View () Natural)
   | GetBalance     (View Address (Maybe Natural))
@@ -34,7 +34,7 @@ data UStoreTempate = UStoreTempate
 
 type UStoreV1 = UStore UStoreTempate
 
--- | Like in UpgradableCounter, this function  populates the empty UStore_
+-- | Like in UpgradeableCounter, this function  populates the empty UStore_
 --   with entries and initial values for each field. The result is expected
 --   to adhere to V1.UStoreTemplate
 migrate :: '[UStore_] :-> '[UStore_]
