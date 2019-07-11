@@ -3,6 +3,7 @@ module Michelson.Printer
   , printDoc
   , printUntypedContract
   , printTypedContract
+  , printTypedValue
   ) where
 
 import Data.Singletons (SingI)
@@ -21,3 +22,6 @@ printUntypedContract = printDoc . renderDoc
 -- will be accepted by the OCaml reference client.
 printTypedContract :: (SingI p, SingI s) => T.Contract p s -> TL.Text
 printTypedContract = printUntypedContract . T.convertContract
+
+printTypedValue :: (SingI t, T.HasNoOp t) => T.Value t -> TL.Text
+printTypedValue = printDoc . renderDoc . T.untypeValue
