@@ -3,6 +3,7 @@ module Lorentz.Contracts.Upgradeable.EntryPointWise
   , EpwFallback
   , EpwContract (..)
   , mkEpwContract
+  , mkEpwContractT
   , epwFallbackFail
   , (/==>)
   , removeEndpoint
@@ -17,6 +18,7 @@ import Data.Vinyl.Derived (Label(..))
 import Lorentz.Contracts.Upgradeable.Common
 import Lorentz.UStore.Common
 import Util.TypeLits
+import Util.TypeTuple
 
 -- | This data type represents the new contract code and migrations necessary
 --   to upgrade the contract endpoints to the new version.
@@ -56,6 +58,21 @@ mkEpwContract entries fallback = EpwContract
         (push fallback # ustoreSetField #fallback) : mkMigrations entries
   }
 
+-- | Like 'mkEpwContract', but accepts a tuple of clauses, not a 'Rec'.
+mkEpwContractT
+  :: forall clauses (interface :: [EntryPointKind]) store.
+  ( clauses ~ Rec (EpwCaseClause store) interface
+  , RecFromTuple clauses
+  , CodeMigrations interface
+  , GetUStoreKey store "code" ~ MText
+  , GetUStoreValue store "code" ~ EntryPointImpl store
+  , GetUStoreField store "fallback" ~ EpwFallback store
+  )
+  => IsoRecTuple clauses
+  -> EpwFallback store
+  -> EpwContract interface store
+mkEpwContractT clauses fallback = mkEpwContract (recFromTuple clauses) fallback
+
 -- | A helper type that defines an entry point that receives
 --   an unpacked argument
 type TypedEntryPointImpl arg store =
@@ -90,6 +107,7 @@ data EpwCaseClause store (entry :: EntryPointKind) where
   -> Lambda (arg, UStore store) ([Operation], UStore store)
   -> EpwCaseClause store '(name, arg)
 (/==>) _ = EpwCaseClause
+infixr 0 /==>
 
 -- | A greatly simplified version of UParam lookup code.
 --
