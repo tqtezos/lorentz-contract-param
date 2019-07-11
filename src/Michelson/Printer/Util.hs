@@ -12,7 +12,7 @@ import qualified Data.Text.Lazy as LT
 import Data.Text.Lazy.Builder (Builder)
 import Text.PrettyPrint.Leijen.Text
   (Doc, SimpleDoc, align, braces, displayB, displayT, enclose, hcat, isEmpty, parens, punctuate,
-  renderPretty, semi, space, vcat, (<+>))
+  renderOneLine, renderPretty, semi, space, vcat, (<+>))
 
 -- | Generalize converting a type into a
 -- Text.PrettyPrint.Leijen.Text.Doc. Used to pretty print Michelson code
@@ -30,8 +30,8 @@ class RenderDoc a where
   isRenderable _ = True
 
 -- | Convert 'Doc' to 'Text' with a line width of 80.
-printDoc :: Doc -> LT.Text
-printDoc = displayT . doRender
+printDoc :: Bool -> Doc -> LT.Text
+printDoc oneLine = displayT . doRender oneLine
 
 -- | Generic way to render the different op types that get passed
 -- to a contract.
@@ -63,9 +63,9 @@ wrapInParens ds =
 -- | Turn something that is instance of `RenderDoc` into a `Builder`.
 -- It's formatted the same way as `printDoc` formats docs.
 buildRenderDoc :: RenderDoc a => a -> Builder
-buildRenderDoc = displayB . doRender . renderDoc
+buildRenderDoc = displayB . doRender True . renderDoc
 
 -- | Here using a page width of 80 and a ribbon width of 1.0
 -- https://hackage.haskell.org/package/wl-pprint-1.2.1/docs/Text-PrettyPrint-Leijen.html
-doRender :: Doc -> SimpleDoc
-doRender = renderPretty 1.0 80
+doRender :: Bool -> Doc -> SimpleDoc
+doRender oneLine = if oneLine then renderOneLine else renderPretty 1.0 80

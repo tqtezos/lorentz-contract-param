@@ -20,12 +20,12 @@ code { DUP;
                    DUP;
                    NONE key_hash;
                    PUSH key_hash "tz1cxcwwnzENRdhe2Kb8ZdTrdNy4bFNyScx5";
-                   CREATE_CONTRACT @ @
+                   CREATE_CONTRACT
                      { parameter string;
                        storage string;
                        code { CAR;
                               NIL operation;
-                              PAIR % % }; };
+                              PAIR }; };
                    SWAP;
                    DIP { SWAP;
                          DIP { CONS } };
@@ -34,4 +34,4 @@ code { DUP;
                          DIP { CONS } };
                    PUSH bool True } };
        DROP;
-       PAIR % % };
+       PAIR };

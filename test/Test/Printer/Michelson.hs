@@ -14,9 +14,9 @@ import Michelson.Runtime (parseExpandContract)
 import Michelson.Test (importUntypedContract)
 import qualified Michelson.Untyped as U
 import Michelson.Untyped.Instr (ExpandedOp(..))
+import Util.IO (readFileUtf8)
 
 import Test.Util.Contracts
-import Util.IO (readFileUtf8)
 
 unit_PrettyPrint :: Assertion
 unit_PrettyPrint = do
@@ -26,11 +26,15 @@ unit_PrettyPrint = do
     prettyTest :: (FilePath, FilePath) -> Assertion
     prettyTest (srcPath, dstPath) = do
       contract <- importUntypedContract srcPath
-      targetSrc <- (strip . fromStrict) <$> readFileUtf8 dstPath
+      targetSrc <- strip . fromStrict <$> readFileUtf8 dstPath
       assertEqual
         ("Prettifying " <> srcPath <> " does not match the expected format")
-        (printUntypedContract contract)
+        (printUntypedContract False contract)
         targetSrc
+      assertEqual
+        ("Single line pretty printer output "
+          <> srcPath <> " contain new lines.")
+        (find (=='\n') $ printUntypedContract True contract) Nothing
 
 unit_Roundtrip :: Assertion
 unit_Roundtrip = do
@@ -47,8 +51,8 @@ unit_Roundtrip = do
       -- because during printing we lose extra instructions.
       assertEqual ("After printing and parsing " <> filePath <>
                    " is printed differently")
-        (printUntypedContract contract1)
-        (printUntypedContract contract2)
+        (printUntypedContract True contract1) -- using single line output here
+        (printUntypedContract True contract2)
     michelsonRoundtripPrintTest :: FilePath -> Assertion
     michelsonRoundtripPrintTest filePath = do
       contract1 <- importUntypedContract filePath
@@ -67,7 +71,7 @@ unit_let_macro = do
 
 printAndParse :: FilePath -> U.Contract -> IO U.Contract
 printAndParse fp contract1 =
-  case parseExpandContract (Just fp) (toText $ printUntypedContract contract1) of
+  case parseExpandContract (Just fp) (toText $ printUntypedContract True contract1) of
     Left err ->
       assertFailure ("Failed to parse printed " <> fp <> ": " <> pretty err)
     Right contract2 -> pure contract2

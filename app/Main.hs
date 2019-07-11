@@ -5,7 +5,7 @@ module Main
 import qualified Control.Exception as E
 import Data.Version (showVersion)
 import Fmt (pretty)
-import Named ((:?), argF, (!))
+import Named ((:?), (:!), argF, arg, (!))
 import Options.Applicative
   (auto, command, eitherReader, execParser, footerDoc, fullDesc, header, help, helper, info,
   infoOption, long, maybeReader, metavar, option, progDesc, readerError, short, showDefault,
@@ -40,7 +40,7 @@ import Util.Named
 
 data CmdLnArgs
   = Parse (Maybe FilePath) Bool
-  | Print ("input" :? FilePath) ("output" :? FilePath)
+  | Print ("input" :? FilePath) ("output" :? FilePath) ("singleLine" :! Bool)
   | TypeCheck !TypeCheckOptions
   | Run !RunOptions
   | Originate !OriginateOptions
@@ -112,7 +112,9 @@ argParser = subparser $
 
     printSubCmd =
       mkCommandParser "print"
-      (Print <$> (#input <.?> contractFileOption) <*> (#output <.?> outputOption))
+      (Print <$> (#input <.?> contractFileOption)
+             <*> (#output <.?> outputOption)
+             <*> (#singleLine <.!> onelineOption))
       ("Parse a Morley contract and print corresponding Michelson " <>
        "contract that can be parsed by the OCaml reference client")
 
@@ -277,6 +279,11 @@ addressOption defAddress name hInfo =
       either (Left . mappend "Failed to parse address: " . pretty) Right $
       parseAddress $ toText addr
 
+onelineOption :: Opt.Parser Bool
+onelineOption = switch (
+  long "oneline" <>
+  help "Force single line output")
+
 outputOption :: Opt.Parser (Maybe FilePath)
 outputOption = optional . strOption $
   short 'o' <>
@@ -372,10 +379,12 @@ main = displayUncaughtException $ withEncoding stdin utf8 $ do
         if hasExpandMacros
           then pPrint $ expandContract contract
           else pPrint contract
-      Print (argF #input -> mInputFile) (argF #output -> mOutputFile) -> do
+      Print (argF #input -> mInputFile)
+            (argF #output -> mOutputFile)
+            (arg #singleLine -> forceSingleLine) -> do
         contract <- prepareContract mInputFile
         let write = maybe putStrLn writeFileUtf8 mOutputFile
-        write $ printUntypedContract contract
+        write $ printUntypedContract forceSingleLine contract
       TypeCheck TypeCheckOptions{..} -> do
         morleyContract <- prepareContract tcoContractFile
         either throwM (const pass) =<< typeCheckWithDb tcoDBPath morleyContract
