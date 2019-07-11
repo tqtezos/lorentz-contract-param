@@ -5,6 +5,7 @@ module Lorentz.Contracts.Upgradeable.EntryPointWise
   , mkEpwContract
   , epwFallbackFail
   , (/==>)
+  , removeEndpoint
   ) where
 
 import Lorentz
@@ -156,3 +157,15 @@ instance
 
 instance CodeMigrations '[] where
   mkMigrations _ = []
+
+-- | Removes an endpoint from the #code submap
+removeEndpoint
+  :: forall store name s.
+  ( KnownSymbol name
+  , GetUStoreKey store "code" ~ MText
+  )
+  => Label name
+  -> UStore store ': s :-> UStore store ': s
+removeEndpoint _ = do
+  push $ fieldNameToMText @name
+  ustoreDelete #code

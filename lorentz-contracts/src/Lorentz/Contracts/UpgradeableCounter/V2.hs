@@ -67,7 +67,15 @@ runView = do
 migrations :: [MigrationScript]
 migrations =
   migrateStorage :
+  removeOldEndpoints :
   (epwCodeMigrations epwContract)
+
+removeOldEndpoints :: MigrationScript
+removeOldEndpoints = do
+  coerce_ @UStore_ @UStoreV1
+  removeEndpoint #add
+  removeEndpoint #mul
+  coerce_ @UStoreV1 @UStore_
 
 -- | This function migrates the storage from UStoreV1 to UStoreV2 through an
 --   untyped representation (UStore_). Currently it is not type-safe. See
