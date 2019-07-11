@@ -26,6 +26,9 @@ module Lorentz.UParam
   , uparamFromAdt
   , UParamLinearize
   , UParamLinearized
+
+    -- * Internals used for entrypoint-wise migrations
+  , unwrapUParam
   ) where
 
 import qualified Data.Kind as Kind

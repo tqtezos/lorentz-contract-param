@@ -31,6 +31,7 @@ module Lorentz.UStore
     -- ** Type-lookup-by-name
   , GetUStoreKey
   , GetUStoreValue
+  , GetUStoreField
 
     -- ** Instructions
   , ustoreMem
