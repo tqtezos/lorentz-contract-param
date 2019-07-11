@@ -11,6 +11,7 @@ module Lorentz.Base
   , compileLorentzContract
   , interpretLorentzInstr
   , printLorentzContract
+  , printLorentzValue
 
   , ContractOut
   , Contract
@@ -26,8 +27,9 @@ import Data.Vinyl.Core (Rec)
 import Lorentz.Constraints
 import Lorentz.Value
 import Michelson.Interpret
-import Michelson.Printer (printTypedContract)
-import Michelson.Typed (Instr(..), IsoValuesStack(..), T(..), ToT, ToTs, Value'(..))
+import Michelson.Printer (printTypedContract, printTypedValue)
+import Michelson.Typed
+  (HasNoOp, Instr(..), IsoValuesStack(..), T(..), ToT, ToTs, Value'(..))
 
 -- | Alias for instruction which hides inner types representation via 'T'.
 newtype (inp :: [Kind.Type]) :-> (out :: [Kind.Type]) =
@@ -96,3 +98,6 @@ instance IsoValue (Lambda inp out) where
   type ToT (Lambda inp out) = 'TLambda (ToT inp) (ToT out)
   toVal = VLam . unI
   fromVal (VLam l) = I l
+
+printLorentzValue :: (IsoValue v, SingI (ToT v), HasNoOp (ToT v)) => v -> LText
+printLorentzValue = printTypedValue . toVal
