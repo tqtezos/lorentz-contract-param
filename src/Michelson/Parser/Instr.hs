@@ -41,7 +41,7 @@ primInstr contractParser opParser = choice
 
 -- | Parse a sequence of instructions.
 ops' :: Parser ParsedOp -> Parser [ParsedOp]
-ops' opParser = braces $ sepEndBy opParser semicolon
+ops' opParser = (braces $ sepEndBy opParser semicolon) <|> (pure <$> opParser)
 
 -- Control Structures
 
