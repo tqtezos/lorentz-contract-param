@@ -82,7 +82,7 @@ unpackUValueUnsafe
 unpackUValueUnsafe = unpack @val # ifSome nop (failUsing failErr)
   where
     failErr = mconcat
-      [ [mt|Failed to unpack UStore value under field: |]
+      [ [mt|UStore: failed to unpack |]
       , fieldNameToMText @field
       ]
 
@@ -185,7 +185,7 @@ ustoreToField _ =
   where
     ensureFieldIsPresent =
       ifSome nop $ failUsing $ mconcat
-        [ [mt|Plain field was no present in UStore, under field :|]
+        [ [mt|UStore: no field |]
         , fieldNameToMText @name
         ]
 
