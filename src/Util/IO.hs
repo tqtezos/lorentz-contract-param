@@ -1,6 +1,7 @@
 module Util.IO
   ( readFileUtf8
   , writeFileUtf8
+  , appendFileUtf8
   , withEncoding
   , hSetTranslit
   ) where
@@ -16,6 +17,10 @@ readFileUtf8 name =
 writeFileUtf8 :: Print text => FilePath -> text -> IO ()
 writeFileUtf8 name txt =
   withFile name WriteMode $ \h -> hSetEncoding h utf8 >> hPutStr h txt
+
+appendFileUtf8 :: Print text => FilePath -> text -> IO ()
+appendFileUtf8 name txt =
+  withFile name AppendMode $ \h -> hSetEncoding h utf8 >> hPutStr h txt
 
 withEncoding :: Handle -> TextEncoding -> IO () -> IO ()
 withEncoding handle encoding action = do
