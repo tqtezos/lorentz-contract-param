@@ -28,8 +28,7 @@ import Lorentz.Constraints
 import Lorentz.Value
 import Michelson.Interpret
 import Michelson.Printer (printTypedContract, printTypedValue)
-import Michelson.Typed
-  (HasNoOp, Instr(..), IsoValuesStack(..), T(..), ToT, ToTs, Value'(..))
+import Michelson.Typed (HasNoOp, Instr(..), IsoValuesStack(..), T(..), ToT, ToTs, Value'(..))
 
 -- | Alias for instruction which hides inner types representation via 'T'.
 newtype (inp :: [Kind.Type]) :-> (out :: [Kind.Type]) =
@@ -83,8 +82,9 @@ printLorentzContract
       ( SingI (ToT cp), SingI (ToT st)
       , NoOperation cp, NoOperation st, NoBigMap cp, CanHaveBigMap st
       )
-  => Contract cp st -> LText
-printLorentzContract = printTypedContract . compileLorentzContract
+  => Bool -> Contract cp st -> LText
+printLorentzContract forceSingleLine =
+  printTypedContract forceSingleLine . compileLorentzContract
 
 type (&) (a :: Kind.Type) (b :: [Kind.Type]) = a ': b
 infixr 2 &
@@ -99,5 +99,5 @@ instance IsoValue (Lambda inp out) where
   toVal = VLam . unI
   fromVal (VLam l) = I l
 
-printLorentzValue :: (IsoValue v, SingI (ToT v), HasNoOp (ToT v)) => v -> LText
-printLorentzValue = printTypedValue . toVal
+printLorentzValue :: (IsoValue v, SingI (ToT v), HasNoOp (ToT v)) => Bool -> v -> LText
+printLorentzValue forceSingleLine = printTypedValue forceSingleLine . toVal

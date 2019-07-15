@@ -31,13 +31,13 @@ main = do
     run = \case
       List ->
         fmt availableContracts
-      Print name ->
+      Print name forceOneLine ->
         case Map.lookup name contracts of
           Nothing ->
             die $ "No contract with name '" +| name |+ "' found\n" +|
                   availableContracts
           Just (L.SomeContract c) ->
-            TL.putStrLn $ L.printLorentzContract c
+            TL.putStrLn $ L.printLorentzContract forceOneLine c
 
     availableContracts =
       nameF "Available contracts" (blockListF $ keys contracts)

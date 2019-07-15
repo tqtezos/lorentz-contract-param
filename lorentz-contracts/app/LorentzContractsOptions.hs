@@ -10,7 +10,7 @@ import Paths_lorentz_contracts (version)
 
 data CmdLnArgs
   = List
-  | Print Text
+  | Print Text Bool
 
 argParser :: Opt.Parser CmdLnArgs
 argParser = Opt.subparser $ mconcat
@@ -30,7 +30,7 @@ argParser = Opt.subparser $ mconcat
 
     printSubCmd =
       mkCommandParser "print"
-      (Print <$> printOptions)
+      (Print <$> printOptions <*> onelineOption)
       "Dump a contract in form of Michelson code"
 
     printOptions = Opt.strOption $ mconcat
@@ -39,6 +39,11 @@ argParser = Opt.subparser $ mconcat
       , Opt.metavar "IDENTIFIER"
       , Opt.help "Name of a contract returned by `list` command."
       ]
+
+    onelineOption :: Opt.Parser Bool
+    onelineOption = Opt.switch (
+      Opt.long "oneline" <>
+      Opt.help "Force single line output")
 
 programInfo :: Opt.ParserInfo CmdLnArgs
 programInfo = Opt.info (Opt.helper <*> versionOption <*> argParser) $

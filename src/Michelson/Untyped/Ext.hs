@@ -43,7 +43,7 @@ data ExtInstrAbstract op =
 instance RenderDoc op => RenderDoc (ExtInstrAbstract op) where
   renderDoc =
     \case
-      FN _ _ ops -> renderOpsList True ops
+      FN _ _ ops -> renderOpsList False ops
       _ -> mempty
   isRenderable =
     \case
