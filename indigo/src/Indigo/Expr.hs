@@ -25,6 +25,7 @@ import qualified Lorentz.Instr as L
 import qualified Lorentz.Macro as L
 import qualified Michelson.Typed.Arith as M
 import Michelson.Typed.Haskell.Instr.Product (GetFieldType, InstrGetFieldC, InstrSetFieldC)
+import Michelson.Typed.Haskell.Value (IsComparable)
 
 type ValidValue t = (KnownValue t, NoOperation t, NoBigMap t, IsoValue t)
 type IsExpr op n = (ToExpr op, ExprType op ~ n)
@@ -110,6 +111,7 @@ data Expr a where
     => Label name
     -> exKey -> exVal -> exStore -> Expr (UStore store)
 
+
   ToField :: (InstrGetFieldC dt name, IsExpr exDt dt)
        => exDt -> Label name -> Expr (GetFieldType dt name)
   SetField :: (InstrSetFieldC dt name, IsExpr exDt dt, IsExpr exFld (GetFieldType dt name))
@@ -121,6 +123,28 @@ data Expr a where
     => Rec Expr (ConstructorFieldTypes dt) -> Expr dt
 
   Sender :: Expr Address
+
+  SetContains
+    :: ( IsExpr exKey key
+       , IsExpr exSet (Set key)
+       , IsComparable key
+       )
+    => exKey -> exSet -> Expr Bool
+  SetInsert
+    :: ( IsExpr exKey key
+       , IsExpr exSet (Set key)
+       , IsComparable key
+       )
+    => exKey -> exSet -> Expr (Set key)
+  SetRemove
+    :: ( IsExpr exKey key
+       , IsExpr exSet (Set key)
+       , IsComparable key
+       )
+    => exKey -> exSet -> Expr (Set key)
+  SetSize
+    :: ( IsExpr exSet (Set key) )
+    => exSet -> Expr Natural
 
 infixl 8 .!
 (.!) :: (InstrGetFieldC dt name, IsExpr exDt dt) => exDt -> Label name -> Expr (GetFieldType dt name)
@@ -189,6 +213,10 @@ compileExpr (Construct fields) = IndigoM $ \md ->
   let cd = construct $ rmap (\e -> fieldCtor $ gcCode $ snd $ runIndigoM (compileExpr e) md) fields in
   ((), GenCode (pushNoRefMd md) cd)
 compileExpr Sender = IndigoM $ \md -> ((), GenCode (pushNoRefMd md) sender)
+compileExpr (SetContains key set') = binaryOp key set' mem
+compileExpr (SetInsert key set') = binaryOp key set' (dip (push True) # update)
+compileExpr (SetRemove key set') = binaryOp key set' (dip (push False) # update)
+compileExpr (SetSize set') = unaryOp set' size
 
 binaryOp :: forall n m ex1 ex2 res inp . (AreExprs ex1 ex2 n m)
   => ex1 -> ex2 -> n & m & inp :-> res & inp -> IndigoM inp (res & inp) ()
