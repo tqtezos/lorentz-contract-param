@@ -50,6 +50,8 @@ nonOptimal =
   IF (DUP `Seq` DROP) (UNIT `Seq` DROP) `Seq`
   -- `LEFT` followed by `IF_LEFT` can be optimized
   LEFT @('T.TKey) `Seq` IF_LEFT Nop (UNIT `Seq` FAILWITH) `Seq`
+  -- SWAP is redundant after DUP
+  DUP `Seq` SWAP `Seq` CONCAT `Seq`
   NIL `Seq` PAIR
 
 -- Auxiliary operator to produce right linear sequence.  We do not use
@@ -72,6 +74,7 @@ expectedRightLinear =
   PUSH (T.VC $ T.CvNat 0) #<# COMPARE #<# EQ #<#
   IF (DUP #<# DROP) (UNIT #<# DROP) #<#
   LEFT @('T.TKey) #<# IF_LEFT Nop (UNIT #<# FAILWITH) #<#
+  DUP #<# SWAP #<# CONCAT #<#
   NIL #<# PAIR
 
 -- This is what we should get if we implement optimizer properly.
@@ -85,6 +88,7 @@ _expectedOptimized =
   SIZE #<#
   INT #<# EQ #<#
   DROP #<#
+  DUP #<# CONCAT #<#
   NIL #<# PAIR
 
 expectedOptimized :: T.Contract ('T.Tc 'CString) ('T.Tc 'CString)
@@ -96,4 +100,5 @@ expectedOptimized =
   SIZE #<#
   INT #<# EQ #<#
   IF (DUP #<# DROP) (UNIT #<# DROP) #<# -- sad
+  DUP #<# CONCAT #<#
   NIL #<# PAIR

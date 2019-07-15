@@ -86,6 +86,7 @@ linearizeRight =
 defaultRules :: Rules inp out
 defaultRules =
   [ swapSwap
+  , dupSwap
   , pushDrop
   , dupDrop
   , unitDrop
@@ -144,6 +145,12 @@ type Rules inp out = [Instr inp out -> (Instr inp out, Bool)]
 swapSwap :: Rule
 swapSwap = \case
   Seq SWAP (Seq SWAP i) -> (i, True)
+  i -> (i, False)
+
+-- Doing SWAP after DUP is redundant because two topmost values must be equal.
+dupSwap :: Rule
+dupSwap = \case
+  Seq DUP (Seq SWAP i) -> (Seq DUP i, True)
   i -> (i, False)
 
 pushDrop :: Rule
