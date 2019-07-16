@@ -56,6 +56,9 @@ unit_Value = do
     (Right . Mo.ValueMap $ NE.fromList
       [Mo.Elt (Mo.ValueInt 1) (Mo.ValueInt 2), Mo.Elt (Mo.ValueInt 3) (Mo.ValueInt 4)]
     )
+  P.parseNoEnv P.value "" "{DIP DROP;}" `shouldBe`
+    Right (Mo.ValueLambda (Mo.Prim (Mo.DIP [Mo.Prim Mo.DROP (srcPos 0 5)]) (srcPos 0 1) :| []))
+  P.parseNoEnv P.value "" "{DIP DROP;somecontent}" `shouldSatisfy` isLeft
 
 unit_string_literal :: Expectation
 unit_string_literal = do

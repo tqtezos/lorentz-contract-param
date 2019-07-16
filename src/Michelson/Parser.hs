@@ -29,7 +29,7 @@ module Michelson.Parser
 import Prelude hiding (try)
 
 import Control.Applicative.Permutations (intercalateEffect, toPermutation)
-import Text.Megaparsec (Parsec, choice, eitherP, getSourcePos, parse, try)
+import Text.Megaparsec (Parsec, choice, eitherP, getSourcePos, lookAhead, parse, try)
 import Text.Megaparsec.Pos (SourcePos(..), unPos)
 
 import Michelson.ErrorPos (SrcPos(..), mkPos)
@@ -114,7 +114,10 @@ prim = primInstr contract parsedOp
 --
 -- This function is part of the module API, its semantics should not change.
 codeEntry :: Parser [ParsedOp]
-codeEntry = ops
+codeEntry = bracewrappedOps
+
+bracewrappedOps :: Parser [ParsedOp]
+bracewrappedOps = lookAhead (symbol "{") *> ops
 
 parsedOp :: Parser ParsedOp
 parsedOp = do
@@ -126,7 +129,7 @@ parsedOp = do
     , flip Prim pos <$> prim
     , flip Mac pos <$> macro parsedOp
     , primOrMac
-    , flip Seq pos <$> ops
+    , flip Seq pos <$> bracewrappedOps
     ]
   where
     lmacWithPos :: Parser LetMacro -> Parser ParsedOp
