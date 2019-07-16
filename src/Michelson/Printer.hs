@@ -3,6 +3,7 @@ module Michelson.Printer
   , printDoc
   , printUntypedContract
   , printTypedContract
+  , printSomeContract
   , printTypedValue
   ) where
 
@@ -10,6 +11,7 @@ import Data.Singletons (SingI)
 import qualified Data.Text.Lazy as TL
 
 import Michelson.Printer.Util (RenderDoc(..), printDoc)
+import Michelson.TypeCheck.Types (SomeContract(..))
 import qualified Michelson.Typed as T
 import qualified Michelson.Untyped as U
 
@@ -25,3 +27,7 @@ printTypedContract forceSingleLine = printUntypedContract forceSingleLine . T.co
 
 printTypedValue :: (SingI t, T.HasNoOp t) => Bool -> T.Value t -> TL.Text
 printTypedValue forceSingleLine = printDoc forceSingleLine . renderDoc . T.untypeValue
+
+printSomeContract :: Bool -> SomeContract -> TL.Text
+printSomeContract forceSingleLine (SomeContract c _ _) =
+  printTypedContract forceSingleLine c

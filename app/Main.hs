@@ -5,7 +5,7 @@ module Main
 import qualified Control.Exception as E
 import Data.Version (showVersion)
 import Fmt (pretty)
-import Named ((:?), (:!), argF, arg, (!))
+import Named ((:!), (:?), arg, argF, (!))
 import Options.Applicative
   (auto, command, eitherReader, execParser, footerDoc, fullDesc, header, help, helper, info,
   infoOption, long, maybeReader, metavar, option, progDesc, readerError, short, showDefault,
@@ -19,12 +19,14 @@ import Text.Pretty.Simple (pPrint)
 import qualified Text.Show
 
 import Michelson.Macro (expandContract, expandValue)
+import Michelson.Optimizer (optimize)
 import qualified Michelson.Parser as P
-import Michelson.Printer (printUntypedContract)
+import Michelson.Printer (printSomeContract, printUntypedContract)
 import Michelson.Runtime
   (TxData(..), originateContract, prepareContract, readAndParseContract, runContract, transfer,
   typeCheckWithDb)
 import Michelson.Runtime.GState (genesisAddress, genesisKeyHash)
+import Michelson.TypeCheck.Types (mapSomeContract)
 import Michelson.Untyped hiding (OriginationOperation(..))
 import qualified Michelson.Untyped as U
 import Tezos.Address (Address, parseAddress)
@@ -41,10 +43,18 @@ import Util.Named
 data CmdLnArgs
   = Parse (Maybe FilePath) Bool
   | Print ("input" :? FilePath) ("output" :? FilePath) ("singleLine" :! Bool)
+  | Optimize !OptimizeOptions
   | TypeCheck !TypeCheckOptions
   | Run !RunOptions
   | Originate !OriginateOptions
   | Transfer !TransferOptions
+
+data OptimizeOptions = OptimizeOptions
+  { optoContractFile :: !(Maybe FilePath)
+  , optoDBPath :: !FilePath
+  , optoOutput :: !(Maybe FilePath)
+  , optoSingleLine :: !Bool
+  }
 
 data TypeCheckOptions = TypeCheckOptions
   { tcoContractFile :: !(Maybe FilePath)
@@ -93,7 +103,8 @@ argParser = subparser $
   typecheckSubCmd <>
   runSubCmd <>
   originateSubCmd <>
-  transferSubCmd
+  transferSubCmd <>
+  optimizeSubCmd
   where
     mkCommandParser commandName parser desc =
       command commandName $
@@ -134,6 +145,11 @@ argParser = subparser $
       (Transfer <$> transferOptions)
       "Transfer tokens to given address"
 
+    optimizeSubCmd =
+      mkCommandParser "optimize"
+      (Optimize <$> optimizeOptions)
+      "Optimize the contract."
+
     verboseFlag :: Opt.Parser Bool
     verboseFlag = switch $
       short 'v' <>
@@ -165,6 +181,13 @@ argParser = subparser $
 
     defaultBalance :: Mutez
     defaultBalance = unsafeMkMutez 4000000
+
+    optimizeOptions :: Opt.Parser OptimizeOptions
+    optimizeOptions = OptimizeOptions
+      <$> contractFileOption
+      <*> dbPathOption
+      <*> outputOption
+      <*> onelineOption
 
     runOptions :: Opt.Parser RunOptions
     runOptions =
@@ -207,6 +230,7 @@ argParser = subparser $
       toVerbose <- verboseFlag
       toDryRun <- dryRunFlag
       pure TransferOptions {..}
+
 
 contractFileOption :: Opt.Parser (Maybe FilePath)
 contractFileOption = optional $ strOption $
@@ -385,6 +409,13 @@ main = displayUncaughtException $ withEncoding stdin utf8 $ do
         contract <- prepareContract mInputFile
         let write = maybe putStrLn writeFileUtf8 mOutputFile
         write $ printUntypedContract forceSingleLine contract
+      Optimize OptimizeOptions{..} -> do
+        untypedContract <- prepareContract optoContractFile
+        checkedContract <- either throwM pure =<<
+          typeCheckWithDb optoDBPath untypedContract
+        let optimizedContract = mapSomeContract optimize checkedContract
+        let write = maybe putStrLn writeFileUtf8 optoOutput
+        write $ printSomeContract optoSingleLine optimizedContract
       TypeCheck TypeCheckOptions{..} -> do
         morleyContract <- prepareContract tcoContractFile
         either throwM (const pass) =<< typeCheckWithDb tcoDBPath morleyContract
@@ -411,6 +442,7 @@ main = displayUncaughtException $ withEncoding stdin utf8 $ do
         transfer toNow toMaxSteps toDBPath toDestination toTxData
           ! #verbose toVerbose
           ! #dryRun toDryRun
+
 
 usageDoc :: Maybe Doc
 usageDoc = Just $ mconcat

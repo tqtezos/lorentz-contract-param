@@ -155,8 +155,8 @@ data Instr (inp :: [T]) (out :: [T]) where
     :: UnaryArithOp Not n
     => Instr ('Tc n ': s) ('Tc (UnaryArithRes Not n) ': s)
   COMPARE
-    :: (ArithOp Compare n m, Typeable n, Typeable m)
-    => Instr ('Tc n ': 'Tc m ': s) ('Tc (ArithRes Compare n m) ': s)
+    :: (ArithOp Compare n n, Typeable n)
+    => Instr ('Tc n ': 'Tc n ': s) ('Tc (ArithRes Compare n n) ': s)
   EQ
     :: UnaryArithOp Eq' n
     => Instr ('Tc n ': s) ('Tc (UnaryArithRes Eq' n) ': s)

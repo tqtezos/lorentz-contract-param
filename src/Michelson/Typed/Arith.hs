@@ -8,6 +8,7 @@ module Michelson.Typed.Arith
   , UnaryArithOp (..)
   , ArithError (..)
   , ArithErrorType (..)
+  , CompareOp (..)
   , Add
   , Sub
   , Mul
@@ -51,6 +52,11 @@ class ArithOp aop (n :: CT) (m :: CT) where
 
   -- | Evaluate arithmetic operation on given operands.
   evalOp :: proxy aop -> CValue n -> CValue m -> Either (ArithError (CValue n) (CValue m)) (CValue (ArithRes aop n m))
+
+-- | Class for comparison operations, special case of 'ArithOp'.
+class CompareOp n where
+  -- | Evaluate compare operation.
+  compareOp :: CValue n -> CValue n -> Integer
 
 -- | Denotes the error type occured in the arithmetic operation.
 data ArithErrorType
@@ -227,42 +233,36 @@ instance UnaryArithOp Not 'CBool where
   type UnaryArithRes Not 'CBool = 'CBool
   evalUnaryArithOp _ (CvBool i) = CvBool (not i)
 
-instance ArithOp Compare 'CBool 'CBool where
-  type ArithRes Compare 'CBool 'CBool = 'CInt
-  evalOp _ (CvBool i) (CvBool j) =
-    Right $ CvInt $ toInteger $ fromEnum (compare i j) - 1
-instance ArithOp Compare 'CAddress 'CAddress where
-  type ArithRes Compare 'CAddress 'CAddress = 'CInt
-  evalOp _ (CvAddress i) (CvAddress j) =
-    Right $ CvInt $ toInteger $ fromEnum (compare i j) - 1
-instance ArithOp Compare 'CNat 'CNat where
-  type ArithRes Compare 'CNat 'CNat = 'CInt
-  evalOp _ (CvNat i) (CvNat j) =
-    Right $ CvInt $ toInteger $ fromEnum (compare i j) - 1
-instance ArithOp Compare 'CInt 'CInt where
-  type ArithRes Compare 'CInt 'CInt = 'CInt
-  evalOp _ (CvInt i) (CvInt j) =
-    Right $ CvInt $ toInteger $ fromEnum (compare i j) - 1
-instance ArithOp Compare 'CString 'CString where
-  type ArithRes Compare 'CString 'CString = 'CInt
-  evalOp _ (CvString i) (CvString j) =
-    Right $ CvInt $ toInteger $ fromEnum (compare i j) - 1
-instance ArithOp Compare 'CBytes 'CBytes where
-  type ArithRes Compare 'CBytes 'CBytes = 'CInt
-  evalOp _ (CvBytes i) (CvBytes j) =
-    Right $ CvInt $ toInteger $ fromEnum (compare i j) - 1
-instance ArithOp Compare 'CTimestamp 'CTimestamp where
-  type ArithRes Compare 'CTimestamp 'CTimestamp = 'CInt
-  evalOp _ (CvTimestamp i) (CvTimestamp j) =
-    Right $ CvInt $ toInteger $ fromEnum (compare i j) - 1
-instance ArithOp Compare 'CMutez 'CMutez where
-  type ArithRes Compare 'CMutez 'CMutez = 'CInt
-  evalOp _ (CvMutez i) (CvMutez j) = Right $
-    CvInt $ toInteger $ fromEnum (compare i j) - 1
-instance ArithOp Compare 'CKeyHash 'CKeyHash where
-  type ArithRes Compare 'CKeyHash 'CKeyHash = 'CInt
-  evalOp _ (CvKeyHash i) (CvKeyHash j) =
-    Right $ CvInt $ toInteger $ fromEnum (compare i j) - 1
+instance (n ~ m, CompareOp n) => ArithOp Compare n m where
+  type ArithRes Compare n m = 'CInt
+  evalOp _ = Right . CvInt ... compareOp
+instance CompareOp 'CBool where
+  compareOp (CvBool i) (CvBool j) =
+    toInteger $ fromEnum (compare i j) - 1
+instance CompareOp 'CAddress where
+  compareOp (CvAddress i) (CvAddress j) =
+    toInteger $ fromEnum (compare i j) - 1
+instance CompareOp 'CNat where
+  compareOp (CvNat i) (CvNat j) =
+    toInteger $ fromEnum (compare i j) - 1
+instance CompareOp 'CInt where
+  compareOp (CvInt i) (CvInt j) =
+    toInteger $ fromEnum (compare i j) - 1
+instance CompareOp 'CString where
+  compareOp (CvString i) (CvString j) =
+    toInteger $ fromEnum (compare i j) - 1
+instance CompareOp 'CBytes where
+  compareOp (CvBytes i) (CvBytes j) =
+    toInteger $ fromEnum (compare i j) - 1
+instance CompareOp 'CTimestamp where
+  compareOp (CvTimestamp i) (CvTimestamp j) =
+    toInteger $ fromEnum (compare i j) - 1
+instance CompareOp 'CMutez where
+  compareOp (CvMutez i) (CvMutez j) =
+    toInteger $ fromEnum (compare i j) - 1
+instance CompareOp 'CKeyHash where
+  compareOp (CvKeyHash i) (CvKeyHash j) =
+    toInteger $ fromEnum (compare i j) - 1
 
 instance UnaryArithOp Eq' 'CInt where
   type UnaryArithRes Eq' 'CInt = 'CBool
