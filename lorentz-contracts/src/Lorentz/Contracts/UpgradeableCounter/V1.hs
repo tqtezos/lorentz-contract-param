@@ -10,8 +10,6 @@ module Lorentz.Contracts.UpgradeableCounter.V1
 import Lorentz
 import Prelude (foldl')
 
-import Data.Vinyl.Core (Rec(..))
-
 import Lorentz.Contracts.Upgradeable.EntryPointWise
 import Lorentz.Contracts.Upgradeable.Common
 
@@ -60,12 +58,11 @@ runGetCounterValue = do
     dip drop
 
 epwContract :: EpwContract Interface UStoreTemplate
-epwContract = mkEpwContract
-  (  #add /==> runAdd
-  :& #mul /==> runMul
-  :& #getCounterValue /==> runGetCounterValue
-  :& RNil
-  )  epwFallbackFail
+epwContract = mkEpwContractT
+  ( #add /==> runAdd
+  , #mul /==> runMul
+  , #getCounterValue /==> runGetCounterValue
+  ) epwFallbackFail
 
 -- | Migrations represent entrypoint-wise upgrades. Each migration puts
 --   an implementation of a method to UStore. The contract code itself

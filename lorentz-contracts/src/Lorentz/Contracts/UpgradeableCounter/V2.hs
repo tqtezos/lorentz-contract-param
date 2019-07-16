@@ -32,12 +32,11 @@ type Interface =
   ]
 
 epwContract :: EpwContract Interface UStoreTemplate
-epwContract = mkEpwContract
-  (  #inc /==> runInc
-  :& #dec /==> runDec
-  :& #getCounterValue /==> runView
-  :& RNil
-  )  epwFallbackFail
+epwContract = mkEpwContractT
+  ( #inc /==> runInc
+  , #dec /==> runDec
+  , #getCounterValue /==> runView
+  ) epwFallbackFail
 
 addInt :: Integer -> Lambda ((), UStoreV2) ([Operation], UStoreV2)
 addInt x = do
