@@ -4,10 +4,10 @@ module Test.Lorentz.Contracts.UpgradeableCounter
 
 import Lorentz (View(..))
 
-import Test.Hspec (Spec, describe, it)
-import Data.Vinyl.Derived (Label)
 import Data.Coerce (coerce)
+import Data.Vinyl.Derived (Label)
 import GHC.TypeLits (KnownSymbol)
+import Test.Hspec (Spec, describe, it)
 
 import Lorentz.Constraints
 import Lorentz.Contracts.Consumer (contractConsumer)
@@ -104,7 +104,7 @@ spec_UpgradeableCounter :: Spec
 spec_UpgradeableCounter = do
   describe "v1" $ do
     it "Initially contains zero" $ do
-      integrationalTestProperty $ do
+      integrationalTestExpectation $ do
         contract <- originateUpgradeableCounterV1
         consumer <- lOriginateEmpty contractConsumer "consumer"
         getCounterValueV1 contract consumer
@@ -112,7 +112,7 @@ spec_UpgradeableCounter = do
           lExpectViewConsumerStorage consumer [0]
 
     it "Updates counter after each operation" $ do
-      integrationalTestProperty $ do
+      integrationalTestExpectation $ do
         contract <- originateUpgradeableCounterV1
         consumer <- lOriginateEmpty contractConsumer "consumer"
 
@@ -127,7 +127,7 @@ spec_UpgradeableCounter = do
 
   describe "v2" $ do
     it "Upgrades to v2" $ do
-      integrationalTestProperty $ do
+      integrationalTestExpectation $ do
         contract <- originateUpgradeableCounterV1
         consumer <- lOriginateEmpty contractConsumer "consumer"
 
@@ -139,7 +139,7 @@ spec_UpgradeableCounter = do
           lExpectViewConsumerStorage consumer [1, 2]
 
     it "Preserves the counter after the upgrade" $ do
-      integrationalTestProperty $ do
+      integrationalTestExpectation $ do
         contract <- originateUpgradeableCounterV1
         consumer <- lOriginateEmpty contractConsumer "consumer"
 
@@ -151,7 +151,7 @@ spec_UpgradeableCounter = do
           lExpectViewConsumerStorage consumer [42]
 
     it "Exposes new methods" $ do
-      integrationalTestProperty $ do
+      integrationalTestExpectation $ do
         contract <- originateUpgradeableCounterV1
         consumer <- lOriginateEmpty contractConsumer "consumer"
 
@@ -166,7 +166,7 @@ spec_UpgradeableCounter = do
           lExpectViewConsumerStorage consumer [2, 1]
 
     it "Allows to decrement below zero" $ do
-      integrationalTestProperty $ do
+      integrationalTestExpectation $ do
         contract <- originateUpgradeableCounterV1
         consumer <- lOriginateEmpty contractConsumer "consumer"
 
@@ -183,21 +183,21 @@ spec_UpgradeableCounter = do
 
   describe "Illegal migrations" $ do
     it "Cannot migrate to the same version" $ do
-      integrationalTestProperty $ do
+      integrationalTestExpectation $ do
         contract <- originateUpgradeableCounterV1
         _ <- withSender admin $ upgradeToV1 contract
         validate . Left $
           lExpectError (== VersionMismatch (#expected .! 2, #actual .! 1))
 
     it "Cannot migrate to the wrong version" $ do
-      integrationalTestProperty $ do
+      integrationalTestExpectation $ do
         contract <- originateUpgradeableCounter
         _ <- withSender admin $ upgradeToV2 contract
         validate . Left $
           lExpectError (== VersionMismatch (#expected .! 1, #actual .! 2))
 
     it "Cannot migrate if sender is not admin" $ do
-      integrationalTestProperty $ do
+      integrationalTestExpectation $ do
         contract <- originateUpgradeableCounter
         _ <- withSender adversary $ upgradeToV1 contract
         validate . Left $
@@ -205,14 +205,14 @@ spec_UpgradeableCounter = do
 
   describe "Administrator change" $ do
     it "Admin can set a new administrator" $ do
-      integrationalTestProperty $ do
+      integrationalTestExpectation $ do
         contract <- originateUpgradeableCounter
         withSender admin . lCall contract $ SetAdministrator admin2
         withSender admin2 $ upgradeToV1 contract
         validate $ Right expectAnySuccess
 
     it "Non-admin cannot set a new administrator" $ do
-      integrationalTestProperty $ do
+      integrationalTestExpectation $ do
         contract <- originateUpgradeableCounter
         withSender adversary . lCall contract $ SetAdministrator admin2
         validate . Left $

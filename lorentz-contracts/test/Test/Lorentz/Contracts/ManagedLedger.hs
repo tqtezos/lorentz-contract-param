@@ -58,7 +58,7 @@ spec_ManagedLedger :: Spec
 spec_ManagedLedger = do
   describe "Transfers authorized by admin" $ do
     it "Can mint money" $
-      integrationalTestProperty $ do
+      integrationalTestExpectation $ do
         ml <- originateEmptyManagedLedger
         consumer <- lOriginateEmpty contractConsumer "consumer"
 
@@ -74,7 +74,7 @@ spec_ManagedLedger = do
           lExpectViewConsumerStorage consumer [10]
 
     it "Balance is initially empty" $
-      integrationalTestProperty $ do
+      integrationalTestExpectation $ do
         ml <- originateEmptyManagedLedger
         consumer <- lOriginateEmpty contractConsumer "consumer"
 
@@ -84,7 +84,7 @@ spec_ManagedLedger = do
           lExpectViewConsumerStorage consumer [0]
 
     it "Can transfer money between two mortals" $
-      integrationalTestProperty $ do
+      integrationalTestExpectation $ do
         ml <- originateEmptyManagedLedger
         consumer <- lOriginateEmpty contractConsumer "consumer"
 
@@ -108,7 +108,7 @@ spec_ManagedLedger = do
           lExpectViewConsumerStorage consumer [2, 8]
 
     it "Can burn money" $
-      integrationalTestProperty $ do
+      integrationalTestExpectation $ do
         ml <- originateEmptyManagedLedger
         consumer <- lOriginateEmpty contractConsumer "consumer"
 
@@ -138,7 +138,7 @@ spec_ManagedLedger = do
 
   describe "Transfers authorized by users" $ do
     it "Can transfer own money" $
-      integrationalTestProperty $ do
+      integrationalTestExpectation $ do
         ml <- originateManagedLedger 10
         consumer <- lOriginateEmpty contractConsumer "consumer"
 
@@ -156,7 +156,7 @@ spec_ManagedLedger = do
           lExpectViewConsumerStorage consumer [15]
 
     it "Cannot transfer foreign money" $
-      integrationalTestProperty $ do
+      integrationalTestExpectation $ do
         ml <- originateManagedLedger 10
 
         withSender wallet2 $ do
@@ -171,7 +171,7 @@ spec_ManagedLedger = do
           lExpectError (== NotEnoughAllowance (#required .! 5, #present .! 0))
 
     it "Cannot transfer too much money" $
-      integrationalTestProperty $ do
+      integrationalTestExpectation $ do
         ml <- originateManagedLedger 10
 
         withSender wallet1 $ do
@@ -186,7 +186,7 @@ spec_ManagedLedger = do
           lExpectError (== NotEnoughBalance (#required .! 11, #present .! 10))
 
     it "Transferring 0 tokens does not create entry in the ledger" $
-      integrationalTestProperty $ do
+      integrationalTestExpectation $ do
         ml <- originateManagedLedger 10
 
         withSender wallet1 $ do
@@ -207,7 +207,7 @@ spec_ManagedLedger = do
 
   describe "Allowance" $ do
     it "Can get allowance" $
-      integrationalTestProperty $ do
+      integrationalTestExpectation $ do
         ml <- originateManagedLedger 10
         consumer <- lOriginateEmpty contractConsumer "consumer"
 
@@ -236,7 +236,7 @@ spec_ManagedLedger = do
           lExpectViewConsumerStorage consumer [5, 0]
 
     it "Can spend foreign money with allowance" $
-      integrationalTestProperty $ do
+      integrationalTestExpectation $ do
         ml <- originateManagedLedger 10
         consumer <- lOriginateEmpty contractConsumer "consumer"
 
@@ -260,7 +260,7 @@ spec_ManagedLedger = do
           lExpectViewConsumerStorage consumer [15]
 
     it "Cannot spend more than allowed amount of money" $
-      integrationalTestProperty $ do
+      integrationalTestExpectation $ do
         ml <- originateManagedLedger 10
 
         withSender wallet1 $ do
@@ -281,7 +281,7 @@ spec_ManagedLedger = do
           lExpectError (== NotEnoughAllowance (#required .! 3, #present .! 2))
 
     it "Can close allowance suggestion" $
-      integrationalTestProperty $ do
+      integrationalTestExpectation $ do
         ml <- originateManagedLedger 10
 
         withSender wallet1 $ do
@@ -307,7 +307,7 @@ spec_ManagedLedger = do
           lExpectError (== NotEnoughAllowance (#required .! 1, #present .! 0))
 
     it "Can transfer approved money to a foreign address" $
-      integrationalTestProperty $ do
+      integrationalTestExpectation $ do
         ml <- originateManagedLedger 10
         consumer <- lOriginateEmpty contractConsumer "consumer"
 
@@ -333,7 +333,7 @@ spec_ManagedLedger = do
           lExpectViewConsumerStorage consumer [9, 10, 1]
 
     it "Cannot set allowance from non-zero to non-zero" $
-      integrationalTestProperty $ do
+      integrationalTestExpectation $ do
         ml <- originateManagedLedger 10
 
         withSender wallet1 $ do
@@ -353,7 +353,7 @@ spec_ManagedLedger = do
 
   describe "setPause" $ do
     it "Pause prohibits transfers" $
-      integrationalTestProperty $ do
+      integrationalTestExpectation $ do
         ml <- originateManagedLedger 10
 
         withSender admin $ do
@@ -370,7 +370,7 @@ spec_ManagedLedger = do
           lExpectError (== OperationsArePaused)
 
     it "Pause prohibits approvals" $
-      integrationalTestProperty $ do
+      integrationalTestExpectation $ do
         ml <- originateManagedLedger 10
 
         withSender admin $ do
@@ -386,7 +386,7 @@ spec_ManagedLedger = do
           lExpectError (== OperationsArePaused)
 
     it "Admin cannot do transfers even during pause" $
-      integrationalTestProperty $ do
+      integrationalTestExpectation $ do
         ml <- originateManagedLedger 10
 
         withSender admin $ do
@@ -404,7 +404,7 @@ spec_ManagedLedger = do
 
   describe "setAdministrator" $ do
     it "Admin can delegate his rights" $
-      integrationalTestProperty $ do
+      integrationalTestExpectation $ do
         ml <- originateManagedLedger 10
 
         withSender admin $ do
@@ -415,7 +415,7 @@ spec_ManagedLedger = do
         validate . Right $ expectAnySuccess
 
     it "Only admin can set a new admin" $
-      integrationalTestProperty $ do
+      integrationalTestExpectation $ do
         ml <- originateManagedLedger 10
 
         withSender wallet1 $ do
@@ -426,7 +426,7 @@ spec_ManagedLedger = do
 
   describe "Total supply" $ do
     it "Is correct after multiple transfers" $
-      integrationalTestProperty $ do
+      integrationalTestExpectation $ do
         ml <- originateEmptyManagedLedger
         consumer <- lOriginateEmpty contractConsumer "consumer"
 
