@@ -53,7 +53,7 @@ import Fmt (Buildable, listF, (+|), (|+))
 import Named ((:!), arg)
 
 import qualified Lorentz as L
-import Michelson.Interpret (InterpretUntypedError(..), MichelsonFailed(..))
+import Michelson.Interpret (InterpretError(..), MichelsonFailed(..))
 import Michelson.Runtime
 import Michelson.Runtime.GState
 import Michelson.Test.Integrational (IntegrationalScenarioM, SuccessValidator)

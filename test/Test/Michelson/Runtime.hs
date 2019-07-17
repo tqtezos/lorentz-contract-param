@@ -12,7 +12,7 @@ import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase)
 
 import Michelson.ErrorPos (InstrCallStack(..), Pos(..), SrcPos(..))
-import Michelson.Interpret (ContractEnv(..), InterpretUntypedResult(..), interpretUntyped)
+import Michelson.Interpret (ContractEnv(..), InterpretResult(..), interpretUntyped)
 import Michelson.Runtime
 import Michelson.Runtime.GState (GState(..), initGState)
 import Michelson.Test.Dummy (dummyContractEnv, dummyMaxSteps, dummyNow, dummyOrigination)
@@ -71,8 +71,8 @@ updatesStorageValue ca = either (assertFailure . pretty) handleResult $ do
       ]
   (addr,) <$> interpreterPure dummyNow dummyMaxSteps initGState interpreterOps
   where
-    toNewStorage :: InterpretUntypedResult -> Value
-    toNewStorage InterpretUntypedResult {..} = untypeValue iurNewStorage
+    toNewStorage :: InterpretResult -> Value
+    toNewStorage InterpretResult {..} = untypeValue iurNewStorage
 
     handleResult :: (Address, InterpreterRes) -> Assertion
     handleResult (addr, ir) = do

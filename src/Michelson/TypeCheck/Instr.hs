@@ -29,6 +29,8 @@ module Michelson.TypeCheck.Instr
     , typeCheckValue
     , typeVerifyValue
     , typeCheckList
+    , typeCheckStorageOrParameter
+    , StorageOrParameter (..)
     ) where
 
 import Prelude hiding (EQ, GT, LT)
@@ -50,9 +52,9 @@ import Michelson.TypeCheck.Value
 
 import Michelson.Typed
   (Abs, And, CT(..), Contract, ContractOut1, Eq', Ge, Gt, Instr(..), IterOp(..), Le, Lsl, Lsr, Lt,
-  MapOp(..), Neg, Neq, Not, Notes(..), Notes'(..), Or, Sing(..), T(..), Value, Value'(..), Xor,
-  bigMapAbsense, bigMapConstrained, converge, convergeAnns, extractNotes, fromUType, mkNotes,
-  notesCase, opAbsense, orAnn, withSomeSingCT, withSomeSingT)
+  MapOp(..), Neg, Neq, Not, Notes(..), Notes'(..), Or, Sing(..), SomeValue, SomeValue'(..), T(..),
+  Value, Value'(..), Xor, bigMapAbsense, bigMapConstrained, converge, convergeAnns, extractNotes,
+  fromUType, mkNotes, notesCase, opAbsense, orAnn, withSomeSingCT, withSomeSingT)
 
 import qualified Michelson.Untyped as U
 import Michelson.Untyped.Annotation (VarAnn)
@@ -161,6 +163,18 @@ typeVerifyValue
 typeVerifyValue uval =
   typeCheckValue uval (sing @t, NStar) <&> \case
     val :::: _ -> gcast val ?: error "Typechecker produced value of wrong type"
+
+typeCheckStorageOrParameter
+  :: StorageOrParameter
+  -> U.Value -> TcOriginatedContracts -> U.Contract -> Either TCError SomeValue
+typeCheckStorageOrParameter storOrParam valueU originatedContracts U.Contract{..} =
+  runTypeCheck para originatedContracts $ usingReaderT (def :: InstrCallStack) $
+  typeCheckStorageImpl
+  where
+    typeCheckStorageImpl =
+      let paraOrStor = bool para stor (storOrParam == Storage) in
+      withSomeSingT (fromUType paraOrStor) $ \(_ :: Sing t) -> do
+          SomeValue <$> typeVerifyValue @t valueU
 
 -- | Function @typeCheckInstr@ converts a single Michelson instruction
 -- given in representation from @Michelson.Type@ module to representation

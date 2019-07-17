@@ -51,7 +51,7 @@ import Fmt (Buildable(..), blockListF, pretty, (+|), (|+))
 import Test.Hspec (Expectation, expectationFailure)
 import Test.QuickCheck (Property)
 
-import Michelson.Interpret (InterpretUntypedError(..), MichelsonFailed(..), RemainingSteps)
+import Michelson.Interpret (InterpretError(..), MichelsonFailed(..), RemainingSteps)
 import Michelson.Runtime
   (InterpreterError, InterpreterError'(..), InterpreterOp(..), InterpreterRes(..), interpreterPure)
 import Michelson.Runtime.GState
@@ -307,13 +307,13 @@ expectStorageUpdate addr predicate is _ updates =
   case List.find checkAddr (reverse updates) of
     Nothing -> Left $
       IncorrectStorageUpdate (addrToAddrName addr is) "storage wasn't updated"
-    Just (GSSetStorageValue _ val) ->
+    Just (GSSetStorageValue _ val _) ->
       first (IncorrectStorageUpdate (addrToAddrName addr is) . pretty) $
       predicate val
     -- 'checkAddr' ensures that only 'GSSetStorageValue' can be found
     Just _ -> error "expectStorageUpdate: internal error"
   where
-    checkAddr (GSSetStorageValue addr' _) = addr' == addr
+    checkAddr (GSSetStorageValue addr' _ _) = addr' == addr
     checkAddr _ = False
 
 -- | Like 'expectStorageUpdate', but expects a constant.
@@ -443,3 +443,5 @@ validateResult validator result iState =
         IENotEnoughFunds (addrToAddrName addr is) amount
       IEFailedToApplyUpdates err -> IEFailedToApplyUpdates err
       IEIllTypedContract err -> IEIllTypedContract err
+      IEIllTypedStorage err -> IEIllTypedStorage err
+      IEIllTypedParameter err -> IEIllTypedParameter err

@@ -160,6 +160,7 @@ deriving instance Eq (Value' instr t)
 data SomeValue' instr where
   SomeValue :: (Typeable t, SingI t) => Value' instr t -> SomeValue' instr
 
+deriving instance Show (SomeValue' instr)
 -- TODO: actually we should handle big maps with something close
 -- to following:
 --
