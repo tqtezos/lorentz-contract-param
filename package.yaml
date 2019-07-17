@@ -47,6 +47,7 @@ library:
     - syb
     - tasty
     - tasty-ant-xml
+    - tasty-hunit
     - template-haskell
     - text
     - time

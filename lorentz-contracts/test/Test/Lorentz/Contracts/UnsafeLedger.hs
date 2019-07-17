@@ -1,36 +1,42 @@
 module Test.Lorentz.Contracts.UnsafeLedger
-  ( spec_UnsafeLedger
+  ( test_UnsafeLedger
   ) where
 
 import qualified Data.Map as M
-import Test.Hspec (Expectation, Spec, describe, expectationFailure, it, shouldBe, shouldSatisfy)
+import Test.Hspec.Expectations (Expectation, shouldSatisfy)
+import Test.HUnit (Assertion, assertFailure, (@?=))
+import Test.Tasty (TestTree, testGroup)
+import Test.Tasty.HUnit (testCase)
 
 import Lorentz (Address, View(..), compileLorentzContract)
 import Lorentz.Contracts.UnsafeLedger
 import Michelson.Interpret (ceAmount)
 import Michelson.Runtime.GState (genesisAddress)
-import Michelson.Test (contractProp, dummyContractEnv, specWithTypedContract)
+import Michelson.Test (concatTestTrees, contractProp, dummyContractEnv, testTreesWithTypedContract)
 import Michelson.Test.Unit
 import qualified Michelson.Typed as T
 import Tezos.Address
 import Tezos.Core (Mutez)
 
 -- | All tests for UnsafeLedger (FA1).
-spec_UnsafeLedger :: Spec
-spec_UnsafeLedger = do
-  let
-    spec fa1 = do
-      describe "Transfer" $ do
-        transfer fa1
+test_UnsafeLedger :: IO [TestTree]
+test_UnsafeLedger = concatTestTrees
+  [ one . testGroup "Morley version" <$>
+    testTreesWithTypedContract "../contracts/FA1/FA1.mtz" testImpl
+  , one . testGroup "Lorentz version" <$>
+    testImpl (compileLorentzContract unsafeLedgerContract)
+  ]
+  where
+    testImpl fa1 = pure
+      [ testGroup "Transfer" $ do
+          transfer fa1
 
-      describe "GetTotalSupply" $ do
-        getTotalSupply fa1
+      , testGroup "GetTotalSupply" $ do
+          getTotalSupply fa1
 
-      describe "GetBalance" $ do
-        getBalance fa1
-  specWithTypedContract "../contracts/FA1/FA1.mtz" spec
-  describe "Test Lorentz version" $
-    spec (compileLorentzContract unsafeLedgerContract)
+      , testGroup "GetBalance" $ do
+          getBalance fa1
+      ]
 
 type TStorage = T.ToT Storage
 type TContract = T.Contract (T.ToT Parameter) TStorage
@@ -57,38 +63,39 @@ storage = Storage
 makeTestCase
   :: TContract
   -> String
-  -> ContractPropValidator TStorage Expectation
+  -> ContractPropValidator TStorage Assertion
   -> Parameter
-  -> Spec
+  -> TestTree
 makeTestCase contract name validator param =
-  it name $ do
+  testCase name $ do
     contractProp contract validator dummyContractEnv param storage
 
 -- | Testing various properties of `GetBalance`.
 getBalance
   :: TContract
-  -> Spec
-getBalance contract = do
-  testCase
-    "just gets balance for recorded address"
-    gettingExistingBalance
-    $ GetBalance (View bar (T.ContractAddr feather))
+  -> [TestTree]
+getBalance contract =
+  [ makeTestCase'
+      "just gets balance for recorded address"
+      gettingExistingBalance
+      $ GetBalance (View bar (T.ContractAddr feather))
 
-  testCase
-    "just gets balance for missing address"
-    gettingNonExistingBalance
-    $ GetBalance (View foo (T.ContractAddr feather))
+  , makeTestCase'
+      "just gets balance for missing address"
+      gettingNonExistingBalance
+      $ GetBalance (View foo (T.ContractAddr feather))
+  ]
   where
-    testCase = makeTestCase contract
+    makeTestCase' = makeTestCase contract
 
 -- | Testing properties of `GetBalance` when dest address is present.
 gettingExistingBalance
-  :: ContractPropValidator TStorage Expectation
+  :: ContractPropValidator TStorage Assertion
 gettingExistingBalance (Left _, _) = do
-  expectationFailure "shouldn't end with an error"
+  assertFailure "shouldn't end with an error"
 gettingExistingBalance (Right (ops, store), _) = do
-  store `shouldBe` T.toVal storage
-  ops   `shouldBe`
+  store @?= T.toVal storage
+  ops   @?=
     [ T.OpTransferTokens $
         T.TransferTokens
           { ttContractParameter = T.toVal @Natural 300
@@ -99,12 +106,12 @@ gettingExistingBalance (Right (ops, store), _) = do
 
 -- | Testing properties of `GetBalance` when dest address is NOT present.
 gettingNonExistingBalance
-  :: ContractPropValidator TStorage Expectation
+  :: ContractPropValidator TStorage Assertion
 gettingNonExistingBalance (Left _, _) = do
-  expectationFailure "shouldn't end with an error"
+  assertFailure "shouldn't end with an error"
 gettingNonExistingBalance (Right (ops, store), _) = do
-  store `shouldBe` T.toVal storage
-  ops `shouldBe`
+  store @?= T.toVal storage
+  ops @?=
     [ T.OpTransferTokens $
         T.TransferTokens
           { ttContractParameter = T.toVal @Natural 0
@@ -114,22 +121,21 @@ gettingNonExistingBalance (Right (ops, store), _) = do
     ]
 
 -- | Testing properties of `GetTotalSupply`.
-getTotalSupply :: TContract -> Spec
-getTotalSupply contract = do
-  testCase "getting" gettingTotalSupply
-    $ GetTotalSupply (View () (T.ContractAddr feather))
-  where
-    testCase = makeTestCase contract
+getTotalSupply :: TContract -> [TestTree]
+getTotalSupply contract =
+  [ makeTestCase contract "getting" gettingTotalSupply
+      $ GetTotalSupply (View () (T.ContractAddr feather))
+  ]
 
 -- | Checking that `GetTotalSupply` doesn't change the storage
 --   and returns total supply to the provided address.
 gettingTotalSupply
-  :: ContractPropValidator TStorage Expectation
+  :: ContractPropValidator TStorage Assertion
 gettingTotalSupply (Left _, _) = do
-  expectationFailure "shouldn't end with an error"
+  assertFailure "shouldn't end with an error"
 gettingTotalSupply (Right (ops, store), _) = do
-  store `shouldBe` T.toVal storage
-  ops `shouldBe`
+  store @?= T.toVal storage
+  ops @?=
     [ T.OpTransferTokens $
         T.TransferTokens
           { ttContractParameter = T.toVal @Natural 500
@@ -139,16 +145,21 @@ gettingTotalSupply (Right (ops, store), _) = do
     ]
 
 -- | Testing properties of `Transfer`.
-transfer :: TContract -> Spec
-transfer contract = do
-  testCase "paying"          success        $ Transfer (#to foo,    #val 10)
-  testCase "paying 0"        payNothing     $ Transfer (#to foo,    #val 0)
-  testCase "paying to self"  nothingChanges $ Transfer (#to source, #val 10)
-  testCase "paying more than you have" overdraft $ Transfer (#to foo, #val 500)
-  testCase "paying to self more than you have" selfOverdraft
+transfer :: TContract -> [TestTree]
+transfer contract =
+  [ makeTestCase' "paying"          success
+    $ Transfer (#to foo,    #val 10)
+  , makeTestCase' "paying 0"        payNothing
+    $ Transfer (#to foo,    #val 0)
+  , makeTestCase' "paying to self"  nothingChanges
+    $ Transfer (#to source, #val 10)
+  , makeTestCase' "paying more than you have" overdraft
+    $ Transfer (#to foo, #val 500)
+  , makeTestCase' "paying to self more than you have" selfOverdraft
     $ Transfer (#to source, #val 500)
+  ]
   where
-    testCase = makeTestCase contract
+    makeTestCase' = makeTestCase contract
 
 -- | Checking that paying more that you have fails.
 overdraft
@@ -158,12 +169,12 @@ overdraft (result, _) = do
 
 -- | Checking that no changes to storage were made.
 nothingChanges
-  :: ContractPropValidator TStorage Expectation
+  :: ContractPropValidator TStorage Assertion
 nothingChanges (Left _, _) = do
-  expectationFailure "shouldn't end with an error"
+  assertFailure "shouldn't end with an error"
 nothingChanges (Right (ops, store), _) = do
-  ops   `shouldBe` []
-  store `shouldBe` T.toVal storage
+  ops   @?= []
+  store @?= T.toVal storage
 
 -- | Checking that you can't pay to youself more than you have.
 selfOverdraft
@@ -173,12 +184,12 @@ selfOverdraft (result, _) = do
 
 -- | Checking that test payment was successful.
 success
-  :: ContractPropValidator TStorage Expectation
+  :: ContractPropValidator TStorage Assertion
 success (Left _, _) = do
-  expectationFailure "shouldn't end with an error"
+  assertFailure "shouldn't end with an error"
 success (Right (ops, store), _) = do
-  ops `shouldBe` []
-  store `shouldBe` T.toVal
+  ops @?= []
+  store @?= T.toVal
     ( T.BigMap $ M.fromList
       [ (source, 190 :: Natural)
       , (foo,    10)
@@ -189,12 +200,12 @@ success (Right (ops, store), _) = do
 
 -- | Checking that paying of 0 creates a record of 0.
 payNothing
-  :: ContractPropValidator TStorage Expectation
+  :: ContractPropValidator TStorage Assertion
 payNothing (Left _, _) = do
-  expectationFailure "shouldn't end with an error"
+  assertFailure "shouldn't end with an error"
 payNothing (Right (ops, store), _) = do
-  ops `shouldBe` []
-  store `shouldBe` T.toVal
+  ops @?= []
+  store @?= T.toVal
     ( T.BigMap $ M.fromList
       [ (source, 200 :: Natural)
       , (foo,    0)

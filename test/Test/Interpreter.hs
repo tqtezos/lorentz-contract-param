@@ -1,197 +1,271 @@
 {-# LANGUAGE DeriveAnyClass, DerivingStrategies #-}
 
 module Test.Interpreter
-  ( spec_Interpreter
+  ( test_basic5
+  , test_increment
+  , test_fail
+  , test_mutez_add_overflow
+  , test_mutez_sub_overflow
+  , test_basic1
+  , test_lsl
+  , test_lsr
+  , test_FAILWITH
+  , test_STEPS_TO_QUOTA
+  , test_gas_exhaustion
+  , test_add1_list
+  , test_mkStackRef
+  , test_Sum_types
+  , test_Product_types
+  , test_split_bytes
+  , test_split_string_simple
+  , test_complex_strings
   ) where
 
 import Data.Singletons (SingI)
-import Fmt (pretty, (+|), (|+))
-import Test.Hspec (Expectation, Spec, describe, expectationFailure, it, shouldBe, shouldSatisfy)
-import Test.Hspec.QuickCheck (prop)
+import Fmt (Buildable, pretty, (+|), (|+))
+import Test.Hspec.Expectations (Expectation, expectationFailure, shouldBe, shouldSatisfy)
+import Test.HUnit (Assertion, assertFailure, (@?=))
 import Test.QuickCheck (Property, label, (.&&.), (===))
+import Test.Tasty (TestTree, testGroup)
+import Test.Tasty.HUnit (testCase)
+import Test.Tasty.QuickCheck (testProperty)
 
 import Lorentz (( # ))
 import qualified Lorentz as L
 import Michelson.Interpret
   (ContractEnv(..), ContractReturn, MichelsonFailed(..), RemainingSteps, interpret)
-import Michelson.Test (ContractPropValidator, contractProp, specWithTypedContract)
+import Michelson.Test
+  (ContractPropValidator, concatTestTrees, contractProp, testTreesWithTypedContract)
 import Michelson.Test.Dummy (dummyContractEnv)
 import Michelson.Test.Util (failedProp)
-import Michelson.Typed (CT(..), CValue(..), IsoValue(..), T(..))
 import Michelson.Text
+import Michelson.Typed (CT(..), CValue(..), IsoValue(..), T(..))
 import qualified Michelson.Typed as T
-import Test.Interpreter.CallSelf (selfCallerSpec)
-import Test.Interpreter.Compare (compareSpec)
-import Test.Interpreter.Conditionals (conditionalsSpec)
-import Test.Interpreter.ContractOp (contractOpSpec)
-import Test.Interpreter.EnvironmentSpec (environmentSpec)
-import Test.Interpreter.StringCaller (stringCallerSpec)
 
-spec_Interpreter :: Spec
-spec_Interpreter = do
-  let contractResShouldBe (res, _) expected =
-        case res of
-          Left err -> expectationFailure $ "Unexpected failure: " <> pretty err
-          Right (_ops, v) -> v `shouldBe` expected
+contractResShouldBe ::
+     (Buildable err)
+  => (Either err (ops, T.Value storage), is)
+  -> T.Value storage
+  -> Assertion
+contractResShouldBe (res, _) expected =
+  case res of
+    Left err -> expectationFailure $ "Unexpected failure: " <> pretty err
+    Right (_ops, v) -> v @?= expected
 
-  specWithTypedContract "contracts/basic5.tz" $ \contract ->
-    it "Basic test" $
+test_basic5 :: IO [TestTree]
+test_basic5 =
+  testTreesWithTypedContract "contracts/basic5.tz" $ \contract -> pure
+  [ testCase "Basic test" $
       interpret contract T.VUnit (toVal [1 :: Integer]) dummyContractEnv
         `contractResShouldBe` (toVal [13 :: Integer, 100])
+  ]
 
-  specWithTypedContract "contracts/increment.tz" $ \contract ->
-    it "Basic test" $
+test_increment :: IO [TestTree]
+test_increment =
+  testTreesWithTypedContract "contracts/increment.tz" $ \contract -> pure
+  [ testCase "Basic test" $
       interpret contract T.VUnit (toVal @Integer 23) dummyContractEnv
         `contractResShouldBe` (toVal @Integer 24)
+  ]
 
-  specWithTypedContract "contracts/tezos_examples/fail.tz" $ \contract ->
-    it "Fail test" $
+test_fail :: IO [TestTree]
+test_fail =
+  testTreesWithTypedContract "contracts/tezos_examples/fail.tz" $ \contract -> pure
+  [ testCase "Fail test" $
       interpret contract T.VUnit T.VUnit dummyContractEnv
         `shouldSatisfy` (isLeft . fst)
+  ]
 
-  specWithTypedContract "contracts/mutez_add_overflow.tz" $ \contract ->
-    it "Mutez add overflow test" $
+test_mutez_add_overflow :: IO [TestTree]
+test_mutez_add_overflow =
+  testTreesWithTypedContract "contracts/mutez_add_overflow.tz" $ \contract -> pure
+  [ testCase "Mutez add overflow test" $
       interpret contract T.VUnit T.VUnit dummyContractEnv
         `shouldSatisfy` (isLeft . fst)
+  ]
 
-  specWithTypedContract "contracts/mutez_sub_underflow.tz" $ \contract ->
-    it "Mutez sub underflow test" $
+test_mutez_sub_overflow :: IO [TestTree]
+test_mutez_sub_overflow =
+  testTreesWithTypedContract "contracts/mutez_sub_underflow.tz" $ \contract -> pure
+  [ testCase "Mutez sub underflow test" $
       interpret contract T.VUnit T.VUnit dummyContractEnv
         `shouldSatisfy` (isLeft . fst)
+  ]
 
-  specWithTypedContract "contracts/basic1.tz" $ \contract -> do
-    prop "Random check" $ \input ->
+test_basic1 :: IO [TestTree]
+test_basic1 =
+  testTreesWithTypedContract "contracts/basic1.tz" $ \contract -> pure
+  [ testProperty "Random check" $ \input ->
       contractProp @_ @[Integer] contract (validateBasic1 input)
       dummyContractEnv () input
+  ]
 
-  specWithTypedContract "contracts/lsl.tz" $ \contract -> do
-    it "LSL shouldn't overflow test" $
+test_lsl :: IO [TestTree]
+test_lsl =
+  testTreesWithTypedContract "contracts/lsl.tz" $ \contract -> pure
+  [ testCase "LSL shouldn't overflow test" $
       interpret contract (toVal @Natural 5) (toVal @Natural 2) dummyContractEnv
         `contractResShouldBe` (toVal @Natural 20)
-    it "LSL should overflow test" $
+  , testCase "LSL should overflow test" $
       interpret contract (toVal @Natural 5) (toVal @Natural 257) dummyContractEnv
         `shouldSatisfy` (isLeft . fst)
+  ]
 
-  specWithTypedContract "contracts/lsr.tz" $ \contract -> do
-    it "LSR shouldn't underflow test" $
+test_lsr :: IO [TestTree]
+test_lsr =
+  testTreesWithTypedContract "contracts/lsr.tz" $ \contract -> pure
+  [ testCase "LSR shouldn't underflow test" $
       interpret contract (toVal @Natural 30) (toVal @Natural 3) dummyContractEnv
         `contractResShouldBe` (toVal @Natural 3)
-    it "LSR should underflow test" $
+  , testCase "LSR should underflow test" $
       interpret contract (toVal @Natural 1000) (toVal @Natural 257) dummyContractEnv
         `shouldSatisfy` (isLeft . fst)
+  ]
 
-  describe "FAILWITH" $ do
-    specWithTypedContract "contracts/failwith_message.tz" $ \contract ->
-      it "Failwith message test" $ do
+test_FAILWITH :: IO [TestTree]
+test_FAILWITH = concatTestTrees
+  [ testTreesWithTypedContract "contracts/failwith_message.tz" $ \contract ->
+    pure
+    [ testCase "Failwith message test" $ do
         let msg = [mt|An error occurred.|] :: MText
-        contractProp contract (validateMichelsonFailsWith msg) dummyContractEnv msg ()
+        contractProp contract (validateMichelsonFailsWith msg) dummyContractEnv
+          msg ()
+    ]
+  , testTreesWithTypedContract "contracts/failwith_message2.tz" $ \contract ->
+    pure
+    [ testCase "Conditional failwith message test" $ do
+        let msg = [mt|An error occurred.|]
+        contractProp contract (validateMichelsonFailsWith msg) dummyContractEnv
+          (True, msg) ()
 
-    specWithTypedContract "contracts/failwith_message2.tz" $ \contract -> do
-        it "Conditional failwith message test" $ do
-          let msg = [mt|An error occurred.|]
-          contractProp contract (validateMichelsonFailsWith msg) dummyContractEnv (True, msg) ()
+    , testCase "Conditional success test" $ do
+        let param = (False, [mt|Err|] :: MText)
+        contractProp contract validateSuccess dummyContractEnv param ()
+    ]
+  ]
 
-        it "Conditional success test" $ do
-          let param = (False, [mt|Err|] :: MText)
-          contractProp contract validateSuccess dummyContractEnv param ()
-
-  compareSpec
-  conditionalsSpec
-  stringCallerSpec
-  selfCallerSpec
-  environmentSpec
-  contractOpSpec
-
-  specWithTypedContract "contracts/steps_to_quota_test1.tz" $ \contract -> do
-    it "Amount of steps should reduce" $ do
+test_STEPS_TO_QUOTA :: IO [TestTree]
+test_STEPS_TO_QUOTA = concatTestTrees
+  [ testTreesWithTypedContract "contracts/steps_to_quota_test1.tz" $ \contract ->
+    pure
+    [ testCase "Amount of steps should decrease (1)" $ do
       validateStepsToQuotaTest
         (interpret contract T.VUnit (T.VC (CvNat 0)) dummyContractEnv) 4
-
-  specWithTypedContract "contracts/steps_to_quota_test2.tz" $ \contract -> do
-    it "Amount of steps should reduce" $ do
+    ]
+  , testTreesWithTypedContract "contracts/steps_to_quota_test2.tz" $ \contract ->
+    pure
+    [ testCase "Amount of steps should decrease (2)" $ do
       validateStepsToQuotaTest
         (interpret contract T.VUnit (T.VC (CvNat 0)) dummyContractEnv) 8
+    ]
+  ]
 
-  specWithTypedContract "contracts/gas_exhaustion.tz" $ \contract -> do
-    it "Contract should fail due to gas exhaustion" $ do
+test_gas_exhaustion :: IO [TestTree]
+test_gas_exhaustion =
+  testTreesWithTypedContract "contracts/gas_exhaustion.tz" $ \contract -> pure
+  [ testCase "Contract should fail due to gas exhaustion" $ do
       let dummyStr = toVal [mt|x|]
       case fst $ interpret contract dummyStr dummyStr dummyContractEnv of
-        Right _ -> expectationFailure "expecting contract to fail"
+        Right _ -> assertFailure "expecting contract to fail"
         Left MichelsonGasExhaustion -> pass
-        Left _ -> expectationFailure "expecting another failure reason"
+        Left _ -> assertFailure "expecting another failure reason"
+  ]
 
-  specWithTypedContract "contracts/tezos_examples/add1_list.tz" $ \contract -> do
-    let
-      validate ::
-        [Integer] -> ContractPropValidator (ToT [Integer]) Property
-      validate param (res, _) =
-        case res of
-          Left failed -> failedProp $
-            "add1_list unexpectedly failed: " <> pretty failed
-          Right (fromVal . snd -> finalStorage) ->
-            map succ param === finalStorage
-    prop "Random check" $ \param ->
+test_add1_list :: IO [TestTree]
+test_add1_list =
+  testTreesWithTypedContract "contracts/tezos_examples/add1_list.tz" $ \contract ->
+  let
+    validate ::
+      [Integer] -> ContractPropValidator (ToT [Integer]) Property
+    validate param (res, _) =
+      case res of
+        Left failed -> failedProp $
+          "add1_list unexpectedly failed: " <> pretty failed
+        Right (fromVal . snd -> finalStorage) ->
+          map succ param === finalStorage
+  in pure
+  [ testProperty "Random check" $ \param ->
       contractProp contract (validate param) dummyContractEnv param param
+  ]
 
-  it "mkStackRef does not segfault" $ do
+test_mkStackRef :: TestTree
+test_mkStackRef =
+  testCase "does not segfault" $ do
     let contract = L.drop # L.push () # L.dup # L.printComment (L.stackRef @1)
                           # L.drop # L.nil @T.Operation # L.pair
-    contractProp (L.compileLorentzContract @() contract) (isRight . fst) dummyContractEnv () ()
+    contractProp (L.compileLorentzContract @() contract)
+      (flip shouldSatisfy isRight . fst) dummyContractEnv () ()
 
-  specWithTypedContract "contracts/union.mtz" $ \contract -> do
-    describe "Union corresponds to Haskell types properly" $ do
-      let caseTest param =
-            contractProp contract validateSuccess dummyContractEnv param ()
+test_Sum_types :: IO [TestTree]
+test_Sum_types = concatTestTrees
+  [ testTreesWithTypedContract "contracts/union.mtz" $ \contract -> pure
+    [ testGroup "union.mtz: union corresponds to Haskell types properly" $
+        let caseTest param =
+              contractProp contract validateSuccess dummyContractEnv param ()
+        in
+        [ testCase "Case 1" $ caseTest (Case1 3)
+        , testCase "Case 2" $ caseTest (Case2 [mt|a|])
+        , testCase "Case 3" $ caseTest (Case3 $ Just [mt|b|])
+        , testCase "Case 4" $ caseTest (Case4 $ Left [mt|b|])
+        , testCase "Case 5" $ caseTest (Case5 [[mt|q|]])
+        ]
+    ]
+  , testTreesWithTypedContract "contracts/case.mtz" $ \contract -> pure
+    [ testGroup "CASE instruction" $
+        let caseTest param expectedStorage =
+              contractProp contract (validateStorageIs @MText expectedStorage)
+                dummyContractEnv param [mt||]
+        in
+        [ testCase "Case 1" $ caseTest (Case1 5) [mt|int|]
+        , testCase "Case 2" $ caseTest (Case2 [mt|a|]) [mt|string|]
+        , testCase "Case 3" $ caseTest (Case3 $ Just [mt|aa|]) [mt|aa|]
+        , testCase "Case 4" $ caseTest (Case4 $ Right [mt|b|]) [mt|or string string|]
+        , testCase "Case 5" $ caseTest (Case5 $ [[mt|a|], [mt|b|]]) [mt|ab|]
+        ]
+    ]
+  , testTreesWithTypedContract "contracts/tag.mtz" $ \contract -> pure
+    [ testCase "TAG instruction" $
+        let expected = mconcat [[mt|unit|], [mt|o|], [mt|ab|], [mt|nat|], [mt|int|]]
+        in contractProp contract (validateStorageIs expected) dummyContractEnv () [mt||]
+    ]
+  ]
 
-      it "Case 1" $ caseTest (Case1 3)
-      it "Case 2" $ caseTest (Case2 [mt|a|])
-      it "Case 3" $ caseTest (Case3 $ Just [mt|b|])
-      it "Case 4" $ caseTest (Case4 $ Left [mt|b|])
-      it "Case 5" $ caseTest (Case5 [[mt|q|]])
-
-  specWithTypedContract "contracts/case.mtz" $ \contract -> do
-    describe "CASE instruction" $ do
-      let caseTest param expectedStorage =
-            contractProp contract (validateStorageIs @MText expectedStorage)
-              dummyContractEnv param [mt||]
-
-      it "Case 1" $ caseTest (Case1 5) [mt|int|]
-      it "Case 2" $ caseTest (Case2 [mt|a|]) [mt|string|]
-      it "Case 3" $ caseTest (Case3 $ Just [mt|aa|]) [mt|aa|]
-      it "Case 4" $ caseTest (Case4 $ Right [mt|b|]) [mt|or string string|]
-      it "Case 5" $ caseTest (Case5 $ [[mt|a|], [mt|b|]]) [mt|ab|]
-
-  specWithTypedContract "contracts/tag.mtz" $ \contract -> do
-    it "TAG instruction" $
-      let expected = mconcat [[mt|unit|], [mt|o|], [mt|ab|], [mt|nat|], [mt|int|]]
-      in contractProp contract (validateStorageIs expected) dummyContractEnv
-         () [mt||]
-
-  specWithTypedContract "contracts/access.mtz" $ \contract -> do
-    it "ACCESS instruction" $
-      contractProp @Tuple1 contract validateSuccess dummyContractEnv
-        (1, [mt|a|], Just [mt|a|], Right [mt|a|], [[mt|a|]]) ()
-
-  specWithTypedContract "contracts/set.mtz" $ \contract -> do
-    it "SET instruction" $
+test_Product_types :: IO [TestTree]
+test_Product_types = concatTestTrees
+  [ testTreesWithTypedContract "contracts/access.mtz" $ \contract -> pure
+    [ testCase "ACCESS instruction" $
+        contractProp @Tuple1 contract validateSuccess dummyContractEnv
+          (1, [mt|a|], Just [mt|a|], Right [mt|a|], [[mt|a|]]) ()
+    ]
+  , testTreesWithTypedContract "contracts/set.mtz" $ \contract -> pure
+    [ testCase "SET instruction" $
       let expected = (2, [mt|za|], Just [mt|wa|], Right [mt|ya|], [[mt|ab|]]) :: Tuple1
       in contractProp @_ @Tuple1 contract (validateStorageIs expected)
         dummyContractEnv () (1, [mt|a|], Just [mt|a|], Right [mt|a|], [[mt|a|], [mt|b|]])
-
-  specWithTypedContract "contracts/construct.mtz" $ \contract -> do
-    it "CONSTRUCT instruction" $
+    ]
+  , testTreesWithTypedContract "contracts/construct.mtz" $ \contract -> pure
+    [ testCase "CONSTRUCT instruction" $
       let expected = (1, [mt|a|], Just [mt|b|], Left [mt|q|], []) :: Tuple1
       in contractProp @_ @Tuple1 contract (validateStorageIs expected)
         dummyContractEnv () (0, [mt||], Nothing, Right [mt||], [])
+    ]
+  ]
 
-  specWithTypedContract "contracts/tezos_examples/split_bytes.tz" $ \contract -> do
-    it "splits given byte sequence into parts" $
+test_split_bytes :: IO [TestTree]
+test_split_bytes =
+  testTreesWithTypedContract "contracts/tezos_examples/split_bytes.tz" $ \contract ->
+  pure
+  [ testCase "splits given byte sequence into parts" $
       let expected = ["\11", "\12", "\13"] :: [ByteString]
       in contractProp contract (validateStorageIs expected) dummyContractEnv
          ("\11\12\13" :: ByteString) ([] :: [ByteString])
+  ]
 
-  specWithTypedContract "contracts/split_string_simple.tz" $ \contract -> do
-    it "applies SLICE instruction" $ do
+test_split_string_simple :: IO [TestTree]
+test_split_string_simple =
+  testTreesWithTypedContract "contracts/split_string_simple.tz" $ \contract ->
+  pure
+  [ testCase "applies SLICE instruction" $ do
       let
         oneTest :: Natural -> Natural -> MText -> Maybe MText -> Expectation
         oneTest o l str expected =
@@ -209,12 +283,17 @@ spec_Interpreter = do
       oneTest 2 2 [mt|abc|] Nothing
       oneTest 1 1 [mt|a""|] (Just [mt|"|])
       oneTest 1 2 [mt|a\n|] Nothing
+  ]
 
-  specWithTypedContract "contracts/complex_strings.tz" $ \contract ->
-    prop "Complex string" $
+test_complex_strings :: IO [TestTree]
+test_complex_strings =
+  testTreesWithTypedContract "contracts/complex_strings.tz" $ \contract ->
+  pure
+  [ testCase "ComplexString" $
       contractProp contract
       (validateStorageIs [mt|text: "aa" \\\n|])
       dummyContractEnv [mt|text: |] [mt||]
+  ]
 
 data Union1
   = Case1 Integer
@@ -249,7 +328,7 @@ validateBasic1 input (Right (ops, res), _) =
 validateBasic1 _ (Left e, _) = failedProp $ show e
 
 validateStepsToQuotaTest ::
-     ContractReturn ('Tc 'CNat) -> RemainingSteps -> Expectation
+  ContractReturn ('Tc 'CNat) -> RemainingSteps -> Expectation
 validateStepsToQuotaTest res numOfSteps =
   case fst res of
     Right ([], T.VC (CvNat x)) ->

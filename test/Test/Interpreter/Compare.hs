@@ -1,15 +1,15 @@
 -- | Module, containing spec to test compare.tz contract.
 module Test.Interpreter.Compare
-  ( compareSpec
+  ( test_compare
   ) where
 
-import Test.Hspec (Spec, it, parallel)
-import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck (Property, (===))
 import Test.QuickCheck.Property (withMaxSuccess)
+import Test.Tasty (TestTree)
+import Test.Tasty.QuickCheck (testProperty)
 
 import Michelson.Interpret (InterpreterState, MichelsonFailed)
-import Michelson.Test (contractProp, specWithTypedContract)
+import Michelson.Test (contractProp, testTreesWithTypedContract)
 import Michelson.Test.Dummy
 import Michelson.Test.Util (failedProp)
 import Michelson.Typed (ToT, fromVal)
@@ -23,19 +23,19 @@ type ContractResult x
      , InterpreterState)
 
 -- | Spec to test compare.tz contract.
-compareSpec :: Spec
-compareSpec = parallel $ do
-
-  specWithTypedContract "contracts/tezos_examples/compare.tz" $ \contract -> do
+test_compare :: IO [TestTree]
+test_compare =
+  testTreesWithTypedContract "contracts/tezos_examples/compare.tz" $ \contract ->
     let
       contractProp' inputParam =
         contractProp contract (validate (mkExpected inputParam))
         dummyContractEnv inputParam initStorage
-
-    it "success test" $
-      contractProp' (unsafeMkMutez 10, unsafeMkMutez 11)
-
-    prop "Random check" $ withMaxSuccess 200 contractProp'
+    in pure
+    [ testProperty "success test" $
+        contractProp' (unsafeMkMutez 10, unsafeMkMutez 11)
+    , testProperty "Random check" $
+        withMaxSuccess 200 contractProp'
+    ]
   where
     initStorage :: [Bool]
     initStorage = []

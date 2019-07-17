@@ -3,48 +3,50 @@
 -- their behavior.
 
 module Test.Interpreter.StringCaller
-  ( stringCallerSpec
+  ( test_stringCaller
   ) where
 
-import Test.Hspec (Spec, it, parallel)
-import Test.Hspec.QuickCheck (modifyMaxSuccess, prop)
+import Test.QuickCheck (withMaxSuccess)
 import Test.QuickCheck.Instances.Text ()
+import Test.Tasty (TestTree)
+import Test.Tasty.QuickCheck (testProperty)
+import Test.Tasty.HUnit (testCase)
 
 import Michelson.Runtime.GState
-import Michelson.Test (specWithContract)
+import Michelson.Test (testTreesWithContract)
 import Michelson.Test.Integrational
-import Michelson.Typed
 import Michelson.Text
+import Michelson.Typed
 import qualified Michelson.Typed as T
 import qualified Michelson.Untyped as U
 import Tezos.Address
 import Tezos.Core
 
-stringCallerSpec :: Spec
-stringCallerSpec =
-  parallel $
-  specWithContract "contracts/string_caller.tz" $ \stringCaller ->
-  specWithContract "contracts/fail_or_store_and_transfer.tz" $ \failOrStoreAndTransfer ->
-  specImpl stringCaller failOrStoreAndTransfer
+test_stringCaller :: IO [TestTree]
+test_stringCaller =
+  testTreesWithContract "contracts/string_caller.tz" $ \stringCaller ->
+  testTreesWithContract "contracts/fail_or_store_and_transfer.tz" $ \failOrStoreAndTransfer ->
+  pure $ testImpl stringCaller failOrStoreAndTransfer
 
-specImpl ::
+testImpl ::
      (U.Contract, T.Contract ('Tc 'CString) ('Tc 'CAddress))
   -> (U.Contract, T.Contract ('Tc 'CString) ('Tc 'CString))
-  -> Spec
-specImpl (uStringCaller, _stringCaller) (uFailOrStore, _failOrStoreAndTransfer) = do
+  -> [TestTree]
+testImpl (uStringCaller, _stringCaller) (uFailOrStore, _failOrStoreAndTransfer) =
   let scenario = integrationalScenario uStringCaller uFailOrStore
-  let prefix =
+      prefix =
         "stringCaller calls failOrStoreAndTransfer and updates its storage with "
-  let suffix =
+      suffix =
         " and properly updates balances. But fails if failOrStoreAndTransfer's"
         <> " balance is ≥ 1000 and NOW is ≥ 500"
-  it (prefix <> "a constant" <> suffix) $
+  in
+  [ testCase (prefix <> "a constant" <> suffix) $
     integrationalTestExpectation (scenario constStr)
-
   -- The test is trivial, so it's kinda useless to run it many times
-  modifyMaxSuccess (const 2) $
-    prop (prefix <> "an arbitrary value" <> suffix) $
+  , testProperty (prefix <> "an arbitrary value" <> suffix) $
+    withMaxSuccess 2 $
       \str -> integrationalTestProperty (scenario str)
+  ]
   where
     constStr = [mt|caller|]
 
