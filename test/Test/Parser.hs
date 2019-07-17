@@ -6,6 +6,7 @@ module Test.Parser
   , unit_MAP
   , unit_PAIR
   , unit_pair_type
+  , unit_tuple_type
   , unit_or_type
   , unit_lambda_type
   , unit_list_type
@@ -112,6 +113,11 @@ unit_pair_type = do
     unitPair :: Mo.Type
     unitPair =
       Mo.Type (Mo.TPair noAnn noAnn (Mo.Type Mo.TUnit noAnn) (Mo.Type Mo.TUnit noAnn)) noAnn
+
+unit_tuple_type :: Expectation
+unit_tuple_type = do
+  P.parseNoEnv P.type_ "" "(int, int, bool, unit, nat)"
+    `shouldBe` Right (typair (typair tyint tyint) (typair tybool (typair tyunit tynat)))
 
 unit_or_type :: Expectation
 unit_or_type = do
