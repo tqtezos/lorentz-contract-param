@@ -1,5 +1,7 @@
 parameter key_hash;
-storage (pair timestamp (pair mutez key_hash));
+storage (pair timestamp
+              (pair mutez
+                    key_hash));
 code { PUSH (lambda int int) { PUSH (lambda int int) { UNIT; DROP }; DROP };
        DROP;
        DUP;

@@ -1,5 +1,6 @@
 module Michelson.Printer.Util
   ( RenderDoc(..)
+  , Prettier(..)
   , printDoc
   , renderOps
   , renderOpsList
@@ -28,6 +29,11 @@ class RenderDoc a where
   -- ignore them complete (to avoid putting redundant separators).
   isRenderable :: a -> Bool
   isRenderable _ = True
+
+-- | A new type that can wrap values so that the RenderDoc
+-- instances of the combined value can have a different
+-- behavior for the pretty printer.
+newtype Prettier a = Prettier a
 
 -- | Convert 'Doc' to 'Text' with a line width of 80.
 printDoc :: Bool -> Doc -> LT.Text
