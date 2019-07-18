@@ -91,7 +91,7 @@ gettingExistingBalance (Right (ops, store), _) = do
   ops   `shouldBe`
     [ T.OpTransferTokens $
         T.TransferTokens
-          { ttContractParameter = T.toVal (Just (300 :: Natural))
+          { ttContractParameter = T.toVal @Natural 300
           , ttAmount   = transferredAmount
           , ttContract = T.VContract feather
         }
@@ -107,7 +107,7 @@ gettingNonExistingBalance (Right (ops, store), _) = do
   ops `shouldBe`
     [ T.OpTransferTokens $
         T.TransferTokens
-          { ttContractParameter = T.toVal (Nothing @Natural)
+          { ttContractParameter = T.toVal @Natural 0
           , ttAmount   = transferredAmount
           , ttContract = T.VContract feather
           }
@@ -132,7 +132,7 @@ gettingTotalSupply (Right (ops, store), _) = do
   ops `shouldBe`
     [ T.OpTransferTokens $
         T.TransferTokens
-          { ttContractParameter = T.toVal (500 :: Natural)
+          { ttContractParameter = T.toVal @Natural 500
           , ttAmount            = transferredAmount
           , ttContract          = T.VContract feather
         }
