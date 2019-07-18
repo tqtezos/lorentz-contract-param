@@ -10,7 +10,7 @@ morley:
 test:
 	$(MAKE_PACKAGE) test
 test-dumb-term:
-	$(MAKE_PACKAGE) test-dump-term
+	$(MAKE_PACKAGE) test-dumb-term
 test-hide-successes:
 	$(MAKE_PACKAGE) test-hide-successes
 haddock:
