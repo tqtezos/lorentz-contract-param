@@ -13,7 +13,7 @@ import Data.Data (Data(..))
 import Formatting.Buildable (Buildable(build))
 import Text.PrettyPrint.Leijen.Text (nest, semi, (<$$>), (<+>))
 
-import Michelson.Printer.Util (RenderDoc(..), buildRenderDoc, renderOpsList)
+import Michelson.Printer.Util (Prettier(..), RenderDoc(..), buildRenderDoc, renderOpsList)
 import Michelson.Untyped.Type (Type)
 
 type Parameter = Type
@@ -26,8 +26,8 @@ data Contract' op = Contract
 
 instance (RenderDoc op) => RenderDoc (Contract' op) where
   renderDoc (Contract parameter storage code) =
-    "parameter" <+> renderDoc parameter  <> semi <$$>
-    "storage"   <+> renderDoc storage    <> semi <$$>
+    "parameter" <+> renderDoc (Prettier parameter)  <> semi <$$>
+    "storage"   <+> renderDoc (Prettier storage)    <> semi <$$>
     "code"      <+> nest (length ("code {" :: Text)) (renderOpsList False code <> semi)
 
 instance RenderDoc op => Buildable (Contract' op) where

@@ -45,9 +45,10 @@ module Michelson.Untyped.Type
 import Data.Aeson.TH (defaultOptions, deriveJSON)
 import Data.Data (Data(..))
 import Formatting.Buildable (Buildable(build))
-import Text.PrettyPrint.Leijen.Text (Doc, parens, (<+>))
+import Prelude hiding ((<$>))
+import Text.PrettyPrint.Leijen.Text (Doc, align, parens, softbreak, (<$>), (<+>))
 
-import Michelson.Printer.Util (RenderDoc(..), buildRenderDoc, wrapInParens)
+import Michelson.Printer.Util (Prettier(..), RenderDoc(..), buildRenderDoc, wrapInParens)
 import Michelson.Untyped.Annotation (Annotation(..), FieldAnn, TypeAnn)
 
 -- Annotated type
@@ -62,13 +63,19 @@ data Type
 instance RenderDoc Comparable where
   renderDoc (Comparable ct ta) = renderDoc ct <+> renderDoc ta
 
+instance RenderDoc (Prettier Type) where
+  renderDoc (Prettier w) = case w of
+    (Type t ta) -> renderType t False (Just ta) Nothing
+    TypeParameter -> "Parameter"
+    TypeStorage -> "Storage"
+
 instance RenderDoc Type where
-  renderDoc (Type t ta) = renderType t (Just ta) Nothing
+  renderDoc (Type t ta) = renderType t True (Just ta) Nothing
   renderDoc TypeParameter = "Parameter"
   renderDoc TypeStorage = "Storage"
 
 instance RenderDoc T where
-  renderDoc t = renderType t Nothing Nothing
+  renderDoc t = renderType t True Nothing Nothing
 
 -- Ordering between different kinds of annotations is not significant,
 -- but ordering among annotations of the same kind is. Annotations
@@ -77,14 +84,18 @@ instance RenderDoc T where
 -- these are equivalent
 -- PAIR :t @my_pair %x %y
 -- PAIR %x %y :t @my_pair
-renderType :: T -> Maybe TypeAnn -> Maybe FieldAnn -> Doc
-renderType t mta mfa =
+renderType :: T -> Bool -> Maybe TypeAnn -> Maybe FieldAnn -> Doc
+renderType t forceSingleLine mta mfa =
   let rta = case mta of Just ta -> renderDoc ta; Nothing -> ""
       rfa = case mfa of Just fa -> renderDoc fa; Nothing -> ""
       renderer type_ mfa' =
         case type_ of
-          Type tt ta -> renderType tt (Just ta) mfa'
+          Type tt ta -> renderType tt forceSingleLine (Just ta) mfa'
           tt -> renderDoc tt
+      renderBranches d1 d2 =
+        if forceSingleLine
+        then (d1 <+> d2)
+        else align $ softbreak <> (d1 <$> d2)
   in
   case t of
     Tc ct             -> wrapInParens $ renderDoc ct :| [rta, rfa]
@@ -94,39 +105,46 @@ renderType t mta mfa =
     TOperation        -> wrapInParens $ "operation" :| [rta, rfa]
     TOption fa1 (Type t1 ta1) ->
       parens ("option" <+> rta <+> rfa
-              <+> renderType t1 (Just ta1) (Just fa1))
+              <+> renderType t1 forceSingleLine (Just ta1) (Just fa1))
     TOption _fa1 t1 ->
       parens ("option" <+> rta <+> rfa <+> renderDoc t1)
-    TList (Type t1 ta1)       -> parens ("list" <+> rta <+> rfa <+> renderType t1 (Just ta1) Nothing)
-    TList t1                  -> parens ("list" <+> rta <+> rfa <+> renderDoc t1)
-    TSet (Comparable ct1 ta1) -> parens ("set" <+> rta <+> rfa <+> renderType (Tc ct1) (Just ta1) Nothing)
-    TContract (Type t1 ta1)   -> parens ("contract" <+> rta <+> rfa <+> renderType t1 (Just ta1) Nothing)
-    TContract t1              -> parens ("contract" <+> rta <+> rfa <+> renderDoc t1)
+    TList (Type t1 ta1)       ->
+      parens ("list" <+> rta <+> rfa <+> renderType t1 forceSingleLine (Just ta1) Nothing)
+    TList t1                  ->
+      parens ("list" <+> rta <+> rfa <+> renderDoc t1)
+    TSet (Comparable ct1 ta1) ->
+      parens ("set" <+> rta <+> rfa <+> renderType (Tc ct1) forceSingleLine (Just ta1) Nothing)
+    TContract (Type t1 ta1)   ->
+      parens ("contract" <+> rta <+> rfa <+> renderType t1 forceSingleLine (Just ta1) Nothing)
+    TContract t1              ->
+      parens ("contract" <+> rta <+> rfa <+> renderDoc t1)
 
     TPair fa1 fa2 t1 t2 ->
-      parens ("pair" <+> rta <+> rfa
-              <+> renderer t1 (Just fa1)
-              <+> renderer t2 (Just fa2))
+      parens ("pair" <+> rta <+> rfa <+>
+               (renderBranches
+                 (renderer t1 (Just fa1)) (renderer t2 (Just fa2))))
 
     TOr fa1 fa2 t1 t2 ->
-      parens ("or" <+> rta <+> rfa
-              <+> renderer t1 (Just fa1)
-              <+> renderer t2 (Just fa2))
+      parens ("or" <+> rta <+> rfa <+>
+               (renderBranches
+                  (renderer t1 (Just fa1)) (renderer t2 (Just fa2))))
 
     TLambda t1 t2 ->
-      parens ("lambda" <+> rta <+> rfa
-             <+> renderer t1 Nothing
-             <+> renderer t2 Nothing)
+      parens ("lambda" <+> rta <+> rfa <+>
+               (renderBranches
+                 (renderer t1 Nothing) (renderer t2 Nothing)))
 
     TMap (Comparable ct1 ta1) t2 ->
-      parens ("map" <+> rta <+> rfa
-              <+> (renderType (Tc ct1) (Just ta1) Nothing)
-              <+> renderer t2 Nothing)
+      parens ("map" <+> rta <+> rfa <+>
+               (renderBranches
+                  (renderType (Tc ct1) forceSingleLine (Just ta1) Nothing)
+                  (renderer t2 Nothing)))
 
     TBigMap (Comparable ct1 ta1) t2 ->
-      parens ("big_map" <+> rta <+> rfa
-              <+> (renderType (Tc ct1) (Just ta1) Nothing)
-              <+> renderer t2 Nothing)
+      parens ("big_map" <+> rta <+> rfa <+>
+               (renderBranches
+                  (renderType (Tc ct1) forceSingleLine (Just ta1) Nothing)
+                  (renderer t2 Nothing)))
 
 instance RenderDoc CT where
   renderDoc = \case
