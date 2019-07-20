@@ -13,10 +13,12 @@ import qualified Data.Vector as V
 -- Along with the original list you have to provide constructor for intermediate
 -- nodes - it accepts zero-based index of the leftmost element of the right tree
 -- and merged trees themselves.
-mkGenericTree :: (Int -> a -> a -> a) -> NonEmpty a -> a
+mkGenericTree :: (Natural -> a -> a -> a) -> NonEmpty a -> a
 mkGenericTree mkNode = mkGenericTreeVec id mkNode . V.fromList . toList
 
-mkGenericTreeVec :: HasCallStack => (a -> b) -> (Int -> b -> b -> b) -> V.Vector a -> b
+mkGenericTreeVec
+  :: HasCallStack
+  => (a -> b) -> (Natural -> b -> b -> b) -> V.Vector a -> b
 mkGenericTreeVec mkLeaf mkNode vector
   | V.null vector = error "Empty vector"
   | otherwise = mkTreeDo 0 vector
@@ -27,4 +29,4 @@ mkGenericTreeVec mkLeaf mkNode vector
           let mid = V.length es `div` 2
               mid' = idxBase + mid
               (h, t) = V.splitAt mid es
-          in mkNode mid' (mkTreeDo idxBase h) (mkTreeDo mid' t)
+          in mkNode (fromIntegral mid') (mkTreeDo idxBase h) (mkTreeDo mid' t)

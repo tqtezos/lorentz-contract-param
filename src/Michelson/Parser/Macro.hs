@@ -10,24 +10,29 @@ module Michelson.Parser.Macro
 
 import Prelude hiding (try)
 
-import Fmt ((+|), (+||), (|+), (||+))
-import Text.Megaparsec (notFollowedBy, try)
+import Text.Megaparsec (customFailure, notFollowedBy, try)
 import Text.Megaparsec.Char.Lexer (decimal)
 
 import Michelson.Macro (CadrStruct(..), Macro(..), PairStruct(..), ParsedOp(..))
 import qualified Michelson.Macro as Macro
 import Michelson.Parser.Annotations
+import Michelson.Parser.Error
+import Michelson.Parser.Helpers
 import Michelson.Parser.Instr
 import Michelson.Parser.Lexer
 import Michelson.Parser.Type
 import Michelson.Parser.Types (Parser)
 import Michelson.Untyped (T(..), Type(..), noAnn)
 import Util.Alternative (someNE)
+import Util.Positive
 
 macro :: Parser ParsedOp -> Parser Macro
 macro opParser =
       do symbol' "CASE"; is <- someNE ops; return $ CASE is
   <|> do symbol' "TAG"; tagMac
+  <|> do symbol' "ACCESS"; accessMac
+  <|> do symbol' "SET "; setMac
+  <|> do symbol' "CONSTRUCT"; is <- someNE ops; return $ CONSTRUCT is
   <|> do symbol' "VIEW"; a <- ops; return $ VIEW a
   <|> do symbol' "VOID"; a <- ops; return $ VOID a
   <|> do symbol' "CMP"; a <- cmpOp; CMP a <$> noteVDef
@@ -113,12 +118,29 @@ tagMac = do
   mSpace
   ty <- type_
   let utys = unrollUnion ty []
-  when (idx >= fromIntegral (length utys)) $
-    fail $ "TAG: too large index: " +|| idx ||+ " \
-           \exceedes size of union " +| toList utys |+ ""
+  when (fromIntegral idx >= length utys) $
+    customFailure $ WrongTagArgs idx (lengthNE utys)
   return $ TAG idx utys
   where
   unrollUnion ty =
     case ty of
       Type (TOr _ _ l r) _ -> unrollUnion l . toList . unrollUnion r
       _ -> (ty :|)
+
+accessMac :: Parser Macro
+accessMac = do
+  idx <- decimal
+  mSpace
+  size <- positive
+  when (idx >= unPositive size) $
+    customFailure $ WrongAccessArgs idx size
+  return $ ACCESS idx size
+
+setMac :: Parser Macro
+setMac = do
+  idx <- decimal
+  mSpace
+  size <- positive
+  when (idx >= unPositive size) $
+    customFailure $ WrongSetArgs idx size
+  return $ SET idx size

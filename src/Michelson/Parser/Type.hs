@@ -126,20 +126,14 @@ t_pair implicit fp = core <|> tuple
       symbol' "Pair"
       t_pair_like TPair implicit fp
     tuple = try $ do
-      symbol "("
-      (l, r, a, b) <- typePair
-      symbol ")"
+      (_, Type ty _) <- parens tupleInner
       (f, t) <- fieldType fp
-      return (f, Type (TPair l r a b) t)
-    tupleInner = try $ do
-      (l, r, a, b) <- typePair
-      return (noAnn, Type (TPair l r a b) noAnn)
+      return (f, Type ty t)
+    tupleInner = do
+      fs <- sepBy2 implicitF comma
+      let mergeTwo _ (l, a) (r, b) = (noAnn, Type (TPair l r a b) noAnn)
+      return $ mkGenericTree mergeTwo fs
     implicitF = field implicit <|> (,) <$> noteFDef <*> implicit
-    typePair = do
-      (l, a) <- implicitF
-      comma
-      (r, b) <- tupleInner <|> implicitF
-      return (l, r, a, b)
 
 t_or :: (Default a) => Parser Type -> Parser a -> Parser (a, Type)
 t_or implicit fp = core <|> bar
@@ -148,9 +142,7 @@ t_or implicit fp = core <|> bar
       symbol' "Or"
       t_pair_like TOr implicit fp
     bar = try $ do
-      symbol "("
-      (_, Type ty _) <- barInner
-      symbol ")"
+      (_, Type ty _) <- parens barInner
       (f, t) <- fieldType fp
       return (f, Type ty t)
     barInner = do

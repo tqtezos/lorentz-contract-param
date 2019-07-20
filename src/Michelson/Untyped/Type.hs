@@ -27,6 +27,15 @@ module Michelson.Untyped.Type
   , tkeyHash
   , ttimestamp
   , taddress
+  , toption
+  , tpair
+  , tor
+  , tyint
+  , tynat
+  , tyunit
+  , tybool
+  , typair
+  , tyor
   , isAtomicType
   , isKey
   , isSignature
@@ -49,7 +58,7 @@ import Prelude hiding ((<$>))
 import Text.PrettyPrint.Leijen.Text (Doc, align, parens, softbreak, (<$>), (<+>))
 
 import Michelson.Printer.Util (Prettier(..), RenderDoc(..), buildRenderDoc, wrapInParens)
-import Michelson.Untyped.Annotation (Annotation(..), FieldAnn, TypeAnn)
+import Michelson.Untyped.Annotation (Annotation(..), FieldAnn, TypeAnn, noAnn)
 
 -- Annotated type
 data Type
@@ -265,6 +274,33 @@ ttimestamp = Tc CTimestamp
 
 taddress :: T
 taddress = Tc CAddress
+
+toption :: Type -> T
+toption t = TOption noAnn t
+
+tpair :: Type -> Type -> T
+tpair l r = TPair noAnn noAnn l r
+
+tor :: Type -> Type -> T
+tor l r = TOr noAnn noAnn l r
+
+tyint :: Type
+tyint = Type tint noAnn
+
+tynat :: Type
+tynat = Type tnat noAnn
+
+tyunit :: Type
+tyunit = Type TUnit noAnn
+
+tybool :: Type
+tybool = Type tbool noAnn
+
+typair :: Type -> Type -> Type
+typair l r = Type (tpair l r) noAnn
+
+tyor :: Type -> Type -> Type
+tyor l r = Type (tor l r) noAnn
 
 isAtomicType :: Type -> Bool
 isAtomicType t@(Type _ (Annotation "")) =

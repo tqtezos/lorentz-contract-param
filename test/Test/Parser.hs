@@ -6,6 +6,7 @@ module Test.Parser
   , unit_MAP
   , unit_PAIR
   , unit_pair_type
+  , unit_tuple_type
   , unit_or_type
   , unit_lambda_type
   , unit_list_type
@@ -20,13 +21,15 @@ module Test.Parser
 import qualified Data.List.NonEmpty as NE
 import Test.Hspec.Expectations (Expectation, expectationFailure, shouldBe, shouldSatisfy)
 import Text.Megaparsec (parse)
-import Text.Megaparsec.Error (ErrorFancy(ErrorCustom), ParseError(FancyError), bundleErrors)
+import Text.Megaparsec.Error
+  (ErrorFancy(ErrorCustom), ParseError(FancyError), bundleErrors, errorBundlePretty)
 
 import Michelson.ErrorPos (srcPos)
 import Michelson.Macro as Mo
 import Michelson.Parser as P
 import Michelson.Untyped as Mo
 import Util.IO
+import Util.Positive
 
 import Test.Util.Contracts (getIllTypedContracts, getWellTypedContracts)
 
@@ -38,7 +41,9 @@ unit_Parse_contracts = do
     checkFile :: FilePath -> Expectation
     checkFile file = do
       code <- readFileUtf8 file
-      parse P.program file code `shouldSatisfy` isRight
+      case parse P.program file code of
+        Left err -> expectationFailure $ errorBundlePretty err
+        Right _ -> pass
 
 unit_Value :: Expectation
 unit_Value = do
@@ -108,6 +113,11 @@ unit_pair_type = do
     unitPair :: Mo.Type
     unitPair =
       Mo.Type (Mo.TPair noAnn noAnn (Mo.Type Mo.TUnit noAnn) (Mo.Type Mo.TUnit noAnn)) noAnn
+
+unit_tuple_type :: Expectation
+unit_tuple_type = do
+  P.parseNoEnv P.type_ "" "(int, int, bool, unit, nat)"
+    `shouldBe` Right (typair (typair tyint tyint) (typair tybool (typair tyunit tynat)))
 
 unit_or_type :: Expectation
 unit_or_type = do
@@ -198,6 +208,12 @@ unit_ParserException = do
     (StringLiteralException (InvalidChar '\n'))
   handleCustomError "\"aaa\r\"" P.stringLiteral
     (StringLiteralException (InvalidChar '\r'))
+  handleCustomError "{ TAG 2 (int | string) }" P.codeEntry
+    (WrongTagArgs 2 (PositiveUnsafe 2))
+  handleCustomError "{ ACCESS 2 2 }" P.codeEntry
+    (WrongAccessArgs 2 (PositiveUnsafe 2))
+  handleCustomError "{ SET 2 2 }" P.codeEntry
+    (WrongSetArgs 2 (PositiveUnsafe 2))
   where
     handleCustomError
       :: HasCallStack => Text -> Parser a -> CustomParserException -> Expectation
@@ -205,10 +221,12 @@ unit_ParserException = do
       case P.parseNoEnv parser "" text of
         Right _ -> expectationFailure "expecting parser to fail"
         Left bundle -> case toList $ bundleErrors bundle of
-          [FancyError _ errorSet] -> case toList errorSet of
-            [(ErrorCustom e)] -> e `shouldBe` customException
-            _ -> expectationFailure "expecting single ErrorCustom"
-          _ -> expectationFailure "expecting single ErrorCustom"
+          [FancyError _ (toList -> [ErrorCustom e])] ->
+            e `shouldBe` customException
+          _ ->
+            expectationFailure $
+              "expecting single ErrorCustom, but got " <>
+              errorBundlePretty bundle
 
 unit_letType :: Expectation
 unit_letType = do

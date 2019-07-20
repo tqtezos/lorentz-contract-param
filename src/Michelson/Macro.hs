@@ -46,6 +46,7 @@ import Michelson.ErrorPos
 import Michelson.Printer (RenderDoc(..))
 import Michelson.Untyped
 import Util.Generic
+import Util.Positive
 
 -- | A programmer-defined macro
 data LetMacro = LetMacro
@@ -108,6 +109,9 @@ type ParsedValue = Value' ParsedOp
 data Macro
   = CASE (NonEmpty [ParsedOp])
   | TAG Natural (NonEmpty Type)
+  | ACCESS Natural Positive
+  | SET Natural Positive
+  | CONSTRUCT (NonEmpty [ParsedOp])
   | VIEW [ParsedOp]
   | VOID [ParsedOp]
   | CMP ParsedInstr VarAnn
@@ -135,6 +139,9 @@ data Macro
 instance Buildable Macro where
   build (TAG idx ty) = "<TAG: #"+||idx||+" from "+|toList ty|+""
   build (CASE parsedInstrs) = "<CASE: "+|toList parsedInstrs|+">"
+  build (ACCESS idx size) = "<ACCESS: #"+||idx||+"/"+|size|+""
+  build (SET idx size) = "<SET: #"+||idx||+"/"+|size|+""
+  build (CONSTRUCT parsedInstrs) = "<CONSTRUCT: "+|toList parsedInstrs|+">"
   build (VIEW code) = "<VIEW: "+|code|+">"
   build (VOID code) = "<VOID: "+|code|+">"
   build (CMP parsedInstr carAnn) = "<CMP: "+|parsedInstr|+", "+|carAnn|+">"
@@ -229,9 +236,11 @@ expandMacro p@InstrCallStack{icsCallStack=cs,icsSrcPos=macroPos} = \case
                         , PrimEx $ EXEC noAnn
                         , PrimEx FAILWITH
                         ]
-  CASE is            -> mkGenericTree (\_ l r -> one . PrimEx $ IF_LEFT l r)
-                                      (map (expand cs) <$> is)
-  TAG idx uty        -> expandTag (fromIntegral idx) uty
+  CASE ops           -> expandCase (map (expand cs) <$> ops)
+  TAG idx uty        -> expandTag idx uty
+  ACCESS idx size    -> expandAccess idx size
+  SET idx size       -> expandSet idx size
+  CONSTRUCT ops      -> expandConstruct (map (expand cs) <$> ops)
   CMP i v            -> [PrimEx (COMPARE v), xo i]
   IFX i bt bf        -> [xo i, PrimEx $ IF (xp bt) (xp bf)]
   IFCMP i v bt bf    -> PrimEx <$> [COMPARE v, expand cs <$> i, IF (xp bt) (xp bf)]
@@ -342,7 +351,10 @@ expandMapCadr ics@InstrCallStack{icsCallStack=cls} cs v f ops = case cs of
   A:css -> PrimEx <$> [DUP noAnn, DIP (PrimEx carNoAnn : expandMacro ics (MAP_CADR css noAnn f ops)), cdrNoAnn, SWAP, pairNoAnn v]
   D:css -> PrimEx <$> [DUP noAnn, DIP (PrimEx cdrNoAnn : expandMacro ics (MAP_CADR css noAnn f ops)), carNoAnn, pairNoAnn v]
 
-expandTag :: Int -> NonEmpty Type -> [ExpandedOp]
+expandCase :: NonEmpty [ExpandedOp] -> [ExpandedOp]
+expandCase = mkGenericTree (\_ l r -> one . PrimEx $ IF_LEFT l r)
+
+expandTag :: Natural -> NonEmpty Type -> [ExpandedOp]
 expandTag idx unionTy =
   reverse . fst $ mkGenericTree merge (([], ) <$> unionTy)
   where
@@ -351,6 +363,51 @@ expandTag idx unionTy =
       in if idx < i
           then (PrimEx (LEFT noAnn noAnn noAnn noAnn rt) : li, ty)
           else (PrimEx (RIGHT noAnn noAnn noAnn noAnn lt) : ri, ty)
+
+expandAccess :: Natural -> Positive -> [ExpandedOp]
+expandAccess idx size =
+  mkGenericTree merge (replicateNE size [])
+  where
+    merge i li ri =
+      if idx < i
+        then PrimEx (CAR noAnn noAnn) : li
+        else PrimEx (CDR noAnn noAnn) : ri
+
+expandSet :: Natural -> Positive -> [ExpandedOp]
+expandSet idx size =
+  PrimEx <$>
+  appEndo (mkGenericTree merge (replicateNE size base)) []
+  where
+    base = pre $ DIP [PrimEx DROP]
+    merge i li ri = mconcat $
+      if idx < i
+        then [ pre $ DIP
+                 (map PrimEx [DUP n, DIP [PrimEx $ CDR n n], CAR n n])
+             , li
+             , pre $ PAIR n n n n
+             ]
+        else [ pre $ DIP
+                 (map PrimEx [DUP n, DIP [PrimEx $ CAR n n], CDR n n])
+             , ri
+             , pre $ SWAP
+             , pre $ PAIR n n n n
+             ]
+    pre e = Endo (e :)
+    n = noAnn
+
+expandConstruct :: NonEmpty [ExpandedOp] -> [ExpandedOp]
+expandConstruct ctors =
+  appEndo (mkGenericTree merge $ map toBase ctors) []
+  where
+    toBase ops = Endo (ops ++)
+    merge _ li ri =
+      mconcat
+        [ li
+        , pre . PrimEx $ DIP (appEndo ri [])
+        , pre . PrimEx $ PAIR noAnn noAnn noAnn noAnn
+        ]
+    pre e = Endo (e :)
+
 
 mapLeaves :: [(VarAnn, FieldAnn)] -> PairStruct -> PairStruct
 mapLeaves fs p = evalState (leavesST p) fs

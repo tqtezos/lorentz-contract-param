@@ -11,7 +11,7 @@ module Michelson.Parser.Instr
 
 import Prelude hiding (EQ, GT, LT, many, note, some, try)
 
-import Text.Megaparsec (choice, sepEndBy, try)
+import Text.Megaparsec (choice, notFollowedBy, sepEndBy, try)
 
 import Michelson.Let (LetValue(..))
 import Michelson.Macro (ParsedInstr, ParsedOp(..))
@@ -211,7 +211,11 @@ nilOp :: Parser ParsedInstr
 nilOp = do symbol' "NIL"; (t, v) <- notesTV; NIL t v <$> type_
 
 consOp :: Parser ParsedInstr
-consOp = do void $ symbol' "CONS"; CONS <$> noteVDef
+consOp = do
+  try . lexeme $ do
+    void $ string' "CONS"
+    notFollowedBy (string' "T")
+  CONS <$> noteVDef
 
 ifConsOp :: Parser ParsedOp -> Parser ParsedInstr
 ifConsOp opParser =

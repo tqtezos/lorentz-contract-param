@@ -10,15 +10,22 @@ module Michelson.Parser.Error
   ) where
 
 import Data.Data (Data(..))
-import Fmt (Buildable(build))
+import Fmt (Buildable(build), (+|), (|+))
 import Text.Megaparsec (ParseErrorBundle, ShowErrorComponent(..), errorBundlePretty)
 import qualified Text.Show (show)
+
+import Util.Instances ()
+import Util.Named ()
+import Util.Positive
 
 data CustomParserException
   = UnknownTypeException
   | StringLiteralException StringLiteralParserException
   | OddNumberBytesException
   | ProhibitedLetType Text
+  | WrongTagArgs Natural Positive
+  | WrongAccessArgs Natural Positive
+  | WrongSetArgs Natural Positive
   deriving stock (Eq, Data, Ord, Show)
 
 instance ShowErrorComponent CustomParserException where
@@ -27,6 +34,15 @@ instance ShowErrorComponent CustomParserException where
   showErrorComponent OddNumberBytesException = "odd number bytes"
   showErrorComponent (ProhibitedLetType t) =
     "prohibited name for type alias in let macros: " <> toString t
+  showErrorComponent (WrongTagArgs idx size) =
+    "TAG: too large index: " +| idx |+ " \
+           \exceedes union size " +| size |+ ""
+  showErrorComponent (WrongAccessArgs idx size) =
+    "ACCESS: too large index: " +| idx |+ " \
+           \exceedes tuple size " +| size |+ ""
+  showErrorComponent (WrongSetArgs idx size) =
+    "SET: too large index: " +| idx |+ " \
+           \exceedes tuple size " +| size |+ ""
 
 data StringLiteralParserException
   = InvalidEscapeSequence Char
