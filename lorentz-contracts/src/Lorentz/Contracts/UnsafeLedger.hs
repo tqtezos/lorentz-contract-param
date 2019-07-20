@@ -11,7 +11,7 @@ import Lorentz
 data Parameter
   = Transfer TransferParams
   | GetTotalSupply (View () Natural)
-  | GetBalance     (View Address (Maybe Natural))
+  | GetBalance     (View Address Natural)
   deriving stock Generic
   deriving anyclass IsoValue
 
@@ -27,9 +27,18 @@ unsafeLedgerContract :: Contract Parameter Storage
 unsafeLedgerContract = do
   unpair
   caseT @Parameter
-    ( #cTransfer /-> do debitSource; creditTo; nil; pair;
-    , #cGetTotalSupply /-> view_ (do cdr; toField #totalSupply)
-    , #cGetBalance /-> view_ (do unpair; dip ( toField #ledger ); get)
+    ( #cTransfer /-> do
+        debitSource; creditTo
+        nil; pair;
+
+    , #cGetTotalSupply /-> view_ $ do
+        cdr; toField #totalSupply
+
+    , #cGetBalance /-> view_ $ do
+        unpair
+        dip ( toField #ledger )
+        get
+        ifSome nop (push 0)
     )
 
 debitSource :: '[TransferParams, Storage]

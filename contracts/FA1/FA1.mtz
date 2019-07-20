@@ -3,7 +3,7 @@ let {
   type Param =
     ( (Address, Nat)              %transfer
     | View () Nat                 %getTotalSupply
-    | View Address (Option Nat)   %getBalance
+    | View Address Nat            %getBalance
     );
 
   type Store = (BigMap Address Nat, Nat);
@@ -46,9 +46,9 @@ let {
   getTotalSupply :: '[ View () Nat, Store ] -> '[(List Operation, Store)]
   = { view {cddr} };
 
-  getBalance :: '[ View Address (Option Nat), Store ]
+  getBalance :: '[ View Address Nat, Store ]
              -> '[(List Operation, Store)]
-  = { view { unpair; dip {car}; get} };
+  = { view { unpair; dip {car}; get; if_some {} {push nat 0} } };
 
 };
 parameter Param;
