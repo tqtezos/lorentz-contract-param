@@ -22,7 +22,7 @@ module Test.Interpreter
   ) where
 
 import Data.Singletons (SingI)
-import Fmt (Buildable, pretty, (+|), (|+))
+import Fmt (pretty, (+|), (|+))
 import Test.Hspec.Expectations (Expectation, expectationFailure, shouldBe, shouldSatisfy)
 import Test.HUnit (Assertion, assertFailure, (@?=))
 import Test.QuickCheck (Property, label, (.&&.), (===))
@@ -42,30 +42,20 @@ import Michelson.Text
 import Michelson.Typed (CT(..), CValue(..), IsoValue(..), T(..))
 import qualified Michelson.Typed as T
 
-contractResShouldBe ::
-     (Buildable err)
-  => (Either err (ops, T.Value storage), is)
-  -> T.Value storage
-  -> Assertion
-contractResShouldBe (res, _) expected =
-  case res of
-    Left err -> expectationFailure $ "Unexpected failure: " <> pretty err
-    Right (_ops, v) -> v @?= expected
-
 test_basic5 :: IO [TestTree]
 test_basic5 =
   testTreesWithTypedContract "contracts/basic5.tz" $ \contract -> pure
   [ testCase "Basic test" $
-      interpret contract T.VUnit (toVal [1 :: Integer]) dummyContractEnv
-        `contractResShouldBe` (toVal [13 :: Integer, 100])
+      contractProp @() @[Integer] contract (validateStorageIs [13 :: Integer, 100])
+        dummyContractEnv () [1]
   ]
 
 test_increment :: IO [TestTree]
 test_increment =
   testTreesWithTypedContract "contracts/increment.tz" $ \contract -> pure
   [ testCase "Basic test" $
-      interpret contract T.VUnit (toVal @Integer 23) dummyContractEnv
-        `contractResShouldBe` (toVal @Integer 24)
+      contractProp @() @Integer contract (validateStorageIs @Integer 24)
+        dummyContractEnv () 23
   ]
 
 test_fail :: IO [TestTree]
@@ -104,8 +94,8 @@ test_lsl :: IO [TestTree]
 test_lsl =
   testTreesWithTypedContract "contracts/lsl.tz" $ \contract -> pure
   [ testCase "LSL shouldn't overflow test" $
-      interpret contract (toVal @Natural 5) (toVal @Natural 2) dummyContractEnv
-        `contractResShouldBe` (toVal @Natural 20)
+      contractProp @Natural @Natural contract (validateStorageIs @Natural 20)
+        dummyContractEnv 5 2
   , testCase "LSL should overflow test" $
       interpret contract (toVal @Natural 5) (toVal @Natural 257) dummyContractEnv
         `shouldSatisfy` (isLeft . fst)
@@ -115,8 +105,8 @@ test_lsr :: IO [TestTree]
 test_lsr =
   testTreesWithTypedContract "contracts/lsr.tz" $ \contract -> pure
   [ testCase "LSR shouldn't underflow test" $
-      interpret contract (toVal @Natural 30) (toVal @Natural 3) dummyContractEnv
-        `contractResShouldBe` (toVal @Natural 3)
+      contractProp @Natural @Natural contract (validateStorageIs @Natural 3)
+        dummyContractEnv 30 3
   , testCase "LSR should underflow test" $
       interpret contract (toVal @Natural 1000) (toVal @Natural 257) dummyContractEnv
         `shouldSatisfy` (isLeft . fst)
@@ -311,13 +301,13 @@ validateSuccess (res, _) = res `shouldSatisfy` isRight
 
 validateStorageIs
   :: IsoValue st
-  => st -> ContractPropValidator (ToT st) Expectation
+  => st -> ContractPropValidator (ToT st) Assertion
 validateStorageIs expected (res, _) =
   case res of
     Left err ->
-      expectationFailure $ "Unexpected interpretation failure: " +| err |+ ""
+      assertFailure $ "Unexpected interpretation failure: " +| err |+ ""
     Right (_ops, got) ->
-      got `shouldBe` toVal expected
+      got @?= toVal expected
 
 validateBasic1
   :: [Integer] -> ContractPropValidator ('TList ('Tc 'CInt)) Property
