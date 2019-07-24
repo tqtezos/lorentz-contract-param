@@ -4,6 +4,7 @@ module Util.Type
   , Guard
   , AllUnique
   , RequireAllUnique
+  , ReifyList (..)
   ) where
 
 import Data.Type.Bool (Not, type (&&), If)
@@ -30,3 +31,14 @@ type family RequireAllUnique (desc :: Symbol) (l :: [k]) :: Constraint where
                    'ShowType x)
        )
        (RequireAllUnique desc xs)
+
+-- | Bring type-level list at term-level using given function
+-- to demote its individual elements.
+class ReifyList (c :: k -> Constraint) (l :: [k]) where
+  reifyList :: (forall a. c a => Proxy a -> r) -> [r]
+
+instance ReifyList c '[] where
+  reifyList _ = []
+
+instance (c x, ReifyList c xs) => ReifyList c (x ': xs) where
+  reifyList reifyElem = reifyElem (Proxy @x) : reifyList @_ @c @xs reifyElem

@@ -37,23 +37,27 @@ BAD:
   data BadSumTypeV2 = A Natural | B | C MText
 -}
 
-{-# LANGUAGE DeriveAnyClass, DerivingStrategies #-}
+{-# LANGUAGE DeriveAnyClass, DerivingStrategies, InstanceSigs #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 module Lorentz.Extensible
   ( Extensible (..)
   , ExtConversionError (..)
   , ExtVal
+  , ExtensibleHasDoc (..)
   , toExtVal
   , fromExtVal
   , wrapExt
+  , WrapExtC
   ) where
 
+import Data.Char (isSpace)
 import qualified Data.Kind as Kind
+import qualified Data.Text as T
 import Data.Typeable (Proxy(..))
 import Data.Vinyl.Derived (Label)
 import Data.Vinyl.TypeLevel (type (++))
-import Fmt (Buildable(build), (+||), (||+))
+import Fmt (Buildable(build), Builder, (+||), (|+), (||+))
 import GHC.Generics ((:+:)(..))
 import qualified GHC.Generics as G
 import GHC.TypeLits (AppendSymbol, Nat, Symbol)
@@ -63,9 +67,11 @@ import Lorentz.Base
 import Lorentz.Coercions
 import Lorentz.Constraints
 import Lorentz.Instr
-import Michelson.Typed
 import Michelson.Interpret.Pack
 import Michelson.Interpret.Unpack
+import Michelson.Typed
+import Util.Markdown
+import Util.Type
 import Util.TypeLits
 
 newtype Extensible x = Extensible (Natural, ByteString)
@@ -87,15 +93,29 @@ toExtVal = gToExtVal . G.from
 fromExtVal :: ExtVal a => UnpackEnv -> Extensible a -> Either ExtConversionError a
 fromExtVal env val = fmap G.to $ gFromExtVal env val
 
+-- | Meme helper
+class WrapExt (cf :: CtorField) where
+  packForWrap :: AppendCtorField cf s :-> ByteString : s
+
+instance (IsoValue param, KnownValue param, NoOperation param, NoBigMap param) =>
+         WrapExt ('OneField param) where
+  packForWrap = pack
+
+instance WrapExt 'NoFields where
+  packForWrap = unit # pack
+
 -- | Wraps an argument on top of the stack into an Extensible representation
 wrapExt
-  :: forall t (n :: Nat) name param s.
-  ( Ctor n name param ~ LookupCtor name (GetCtors t)
+  :: forall t (n :: Nat) name field s.
+     (WrapExtC t n name field s)
+  => Label ("c" `AppendSymbol` name) -> AppendCtorField field s :-> Extensible t ': s
+wrapExt _ = packForWrap @field # push (natVal (Proxy @n)) # pair # coerce_
+
+type WrapExtC t n name field s =
+  ( 'Ctor n name field ~ LookupCtor name (EnumerateCtors (GetCtors t))
+  , WrapExt field
   , KnownNat n
-  , IsoValue param, KnownValue param, NoOperation param, NoBigMap param
   )
-  => Label ("c" `AppendSymbol` name) -> param ': s :-> Extensible t ': s
-wrapExt _ = pack # push (natVal (Proxy @n)) # pair # coerce_
 
 -- | Errors related to fromExtVal conversion
 data ExtConversionError
@@ -114,30 +134,36 @@ instance Buildable ExtConversionError where
         "Could not convert Extensible value into its Haskell representation: \
         \failed to unpack constructor argument"
 
-data Position (n :: Nat)
-data Ctor (n :: Nat) (name :: Symbol) (param :: Kind.Type)
-type CtorKind = (Symbol, Kind.Type)
+data Position = Position Nat
+data Ctor = Ctor { _n :: Nat, _name :: Symbol, _param :: CtorField }
+type CtorKind = (Symbol, CtorField)
 
 -- | Finds the constructor's position and argument type by its name
-type LookupCtor (name :: Symbol) (entries :: [CtorKind])
-  = LookupCtorImpl (Position 0) name entries
-
-type family LookupCtorImpl (pos :: Kind.Type) (name :: Symbol) (entries :: [CtorKind])
-             :: Kind.Type where
-  LookupCtorImpl (Position n) name ('(name, param) ': _) = Ctor n name param
-  LookupCtorImpl (Position n) name (_ ': entries) =
-    LookupCtorImpl (Position (n + 1)) name entries
-  LookupCtorImpl _ name '[] =
+type family LookupCtor (name :: Symbol) (entries :: [Ctor])
+             :: Ctor where
+  LookupCtor name ('Ctor pos name param ': _) = 'Ctor pos name param
+  LookupCtor name (_ ': entries) =
+    LookupCtor name entries
+  LookupCtor name '[] =
     TypeError ('Text "Constructor " ':<>: 'ShowType name ':<>:
                'Text " is not in the sum type constructor list")
+
+-- | Transform list of 'CtorKind's to list of 'Ctor's, assigning numbers
+-- to elements starting from 0.
+type EnumerateCtors ctors = EnumerateCtorsImpl ('Position 0) ctors
+
+type family EnumerateCtorsImpl (pos :: Position) (ctors :: [CtorKind]) :: [Ctor] where
+  EnumerateCtorsImpl _ '[] = '[]
+  EnumerateCtorsImpl ('Position i) ('(name, param) ': cs) =
+    'Ctor i name param ': EnumerateCtorsImpl ('Position (i + 1)) cs
 
 -- | Having a sum-type, yields a type-level list of its constructors
 type family GGetCtors (x :: Kind.Type -> Kind.Type) :: [CtorKind] where
   GGetCtors (G.D1 _ x) = GGetCtors x
   GGetCtors (G.C1 ('G.MetaCons name _1 _2) (G.S1 _3 (G.Rec0 param)))
-    = '[ '(name, param) ]
+    = '[ '(name, 'OneField param) ]
   GGetCtors (G.C1 ('G.MetaCons name _1 _2) G.U1)
-    = '[ '(name, ()) ]
+    = '[ '(name, 'NoFields) ]
   GGetCtors (x :+: y) = GGetCtors x ++ GGetCtors y
 
 -- | Generic implementation of toExtVal and fromExtVal
@@ -149,7 +175,7 @@ instance GExtVal t x => GExtVal t (G.D1 i x) where
   gToExtVal = gToExtVal @t . G.unM1
   gFromExtVal env val = fmap G.M1 (gFromExtVal @t env val)
 
-instance ( Ctor n name () ~ LookupCtor name (GetCtors t)
+instance ( 'Ctor n name 'NoFields ~ LookupCtor name (EnumerateCtors (GetCtors t))
          , KnownNat n
          )
          => GExtVal t (G.C1 ('G.MetaCons name _1 _2) G.U1) where
@@ -163,7 +189,7 @@ instance ( Ctor n name () ~ LookupCtor name (GetCtors t)
     | otherwise = Left $ ConstructorIndexNotFound idx
 
 instance ( IsoValue param, KnownValue param, NoOperation param, NoBigMap param
-         , Ctor n name param ~ LookupCtor name (GetCtors t)
+         , 'Ctor n name ('OneField param) ~ LookupCtor name (EnumerateCtors (GetCtors t))
          , KnownNat n
          )
          => GExtVal t (G.C1 ('G.MetaCons name _1 _2) (G.S1 _3 (G.Rec0 param))) where
@@ -187,3 +213,57 @@ instance (GExtVal t x, GExtVal t y) => GExtVal t (x :+: y) where
     let l = fmap G.L1 (gFromExtVal @t env val)
         r = fmap G.R1 (gFromExtVal @t env val)
     in l <> r
+
+-- | Information to be provided for documenting some @'Extensible' x@.
+class ExtensibleHasDoc x where
+  -- | Implementation for 'typeDocName' of the corresponding @Extensible@.
+  extensibleDocName :: Proxy x -> Text
+
+  -- | Implementation for 'typeDocDependencies' of the corresponding @Extensible@.
+  extensibleDocDependencies :: Proxy x -> [SomeTypeWithDoc]
+  default extensibleDocDependencies
+    :: (Generic x, GTypeHasDoc (G.Rep x))
+    => Proxy x -> [SomeTypeWithDoc]
+  extensibleDocDependencies = genericTypeDocDependencies
+
+  -- | Overall description of this type.
+  extensibleDocMdDescription :: Builder
+
+-- | Helper which documents single constructor.
+class DocumentCtor (ctor :: Ctor) where
+  documentCtor :: Proxy ctor -> Builder
+instance ( KnownNat pos, KnownSymbol name, TypeHasDoc param
+         , param ~ ExtractCtorField field
+         ) =>
+         DocumentCtor ('Ctor pos name field) where
+  documentCtor _ =
+    natVal (Proxy @pos) |+ ": " <> mdBold (build $ symbolValT' @name) <>
+    " " <> typeDocMdReference (Proxy @param) (WithinParens True)
+
+instance ( ExtensibleHasDoc x
+         , ReifyList DocumentCtor (EnumerateCtors (GetCtors x))
+         ) => TypeHasDoc (Extensible x) where
+  typeDocName _ = extensibleDocName (Proxy @x)
+  typeDocMdReference p (WithinParens wp) =
+    let name = typeDocName p
+        safeName = case T.find isSpace name of
+          Nothing -> name
+          Just _
+            | wp -> "(" <> name <> ")"
+            | otherwise -> name
+    in customTypeDocMdReference (safeName, DType p) [] (WithinParens False)
+  typeDocDependencies _ = extensibleDocDependencies (Proxy @x)
+  typeDocHaskellRep = homomorphicTypeDocHaskellRep
+  typeDocMichelsonRep = homomorphicTypeDocMichelsonRep
+  typeDocMdDescription = mconcat
+    [ extensibleDocMdDescription @x
+    , "\n\n"
+    , "For extensibility purposes this type is represented as `(idx, pack param)`, \
+      \where `idx` is a natural number which designates constructor used to \
+      \make up given value, and `param` is the argument carried in that \
+      \constructor.\n\n"
+    , "Value must be one of:\n\n"
+    , mconcat $
+        Prelude.map (<> "\n\n") $
+        reifyList @Ctor @DocumentCtor @(EnumerateCtors (GetCtors x)) documentCtor
+    ]
