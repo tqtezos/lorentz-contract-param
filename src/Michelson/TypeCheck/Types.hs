@@ -7,6 +7,7 @@ module Michelson.TypeCheck.Types
     , SomeNotedValue (..)
     , SomeContract (..)
     , SomeCValue (..)
+    , StorageOrParameter (..)
     , BoundVars (..)
     , TcExtFrames
     , mapSomeContract
@@ -141,6 +142,11 @@ data SomeNotedValue where
            -> (Sing t, Notes t)
            -> SomeNotedValue
 
+instance Show SomeNotedValue where
+  show (val :::: (sing, notes)) =
+    show val <> " :: " <> "(" <> show (fromSingT sing)
+    <> ", " <> show notes <> ")"
+
 -- | Data type, holding strictly-typed Michelson value along with its
 -- type singleton.
 data SomeCValue where
@@ -173,3 +179,7 @@ noBoundVars = BoundVars Map.empty Nothing
 
 -- | State for type checking @nop@
 type TcExtFrames = [BoundVars]
+
+-- | Datatype used in `typeCheckStorageOrParameter` instead of simple `Bool`
+-- for more convenience.
+data StorageOrParameter = Storage | Parameter deriving Eq

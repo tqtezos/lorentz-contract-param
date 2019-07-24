@@ -4,6 +4,8 @@ module Michelson.Runtime.GState
        (
          -- * Auxiliary types
          ContractState (..)
+       , getTypedContract
+       , getTypedStorage
        , AddressState (..)
        , asBalance
 
@@ -33,6 +35,7 @@ module Michelson.Runtime.GState
        ) where
 
 import Control.Lens (at)
+import Data.Aeson (FromJSON(..), ToJSON(..), object, withObject, (.=), (.:))
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Encode.Pretty as Aeson
 import Data.Aeson.Options (defaultOptions)
@@ -40,11 +43,14 @@ import Data.Aeson.TH (deriveJSON)
 import qualified Data.ByteString.Lazy as LBS
 import Data.List.NonEmpty ((!!))
 import qualified Data.Map.Strict as Map
-import Fmt (genericF, (+|), (|+))
+import Fmt ((+|), (|+), (||+))
 import Formatting.Buildable (Buildable(build))
 import System.IO.Error (IOError, isDoesNotExistError)
 
-import Michelson.TypeCheck (TcOriginatedContracts)
+import Michelson.TypeCheck
+  (SomeContract(..), StorageOrParameter(..), TCError, TcOriginatedContracts,
+  typeCheckContract, typeCheckStorageOrParameter)
+import Michelson.Typed (SomeValue)
 import Michelson.Untyped (Contract, Type, Value, para)
 import Tezos.Address (Address(..))
 import Tezos.Core (Mutez, divModMutezInt)
@@ -58,12 +64,46 @@ data ContractState = ContractState
   -- ^ Storage value associated with this contract.
   , csContract :: !Contract
   -- ^ Contract itself (untyped).
-  } deriving (Show, Generic, Eq)
+  , csTypedContract :: !(Maybe SomeContract)
+  , csTypedStorage :: !(Maybe SomeValue)
+  -- ^ We keep typed representation of contract code
+  -- and storage in form, that hides their actual type
+  -- in order to simplify the rest of the code
+  -- (e.g. avoid type parameters for `ContractState` and so on).
+  -- They are made optional in order to perform safe parsing
+  -- from JSON (we simply return `Nothing` in this parser and use
+  -- `getTypedStorage` or `getTypedContract` that optionally typecheck
+  -- storage or contract code).
+  }
+
+deriving instance Show ContractState
+
+instance ToJSON ContractState where
+  toJSON ContractState{..} = object
+    [ "csBalance" .= csBalance
+    , "csStorage" .= csStorage
+    , "csContract" .= csContract
+    ]
+
+-- These instance is a bit hacky because it is quite painful to
+-- write proper JSON instances for typed `Instr` and `Value` so
+-- we typecheck untyped representation instead of parsing.
+instance FromJSON ContractState where
+  parseJSON = withObject "contractstate" $ \o -> do
+    csBalance <- o .: "csBalance"
+    csStorage <- o .: "csStorage"
+    csContract <- o .: "csContract"
+    let csTypedContract = Nothing
+    let csTypedStorage = Nothing
+    return ContractState {..}
 
 instance Buildable ContractState where
-  build = genericF
-
-deriveJSON defaultOptions ''ContractState
+  build ContractState{..} =
+    "Contractstate:\n csBalance: " +| csBalance |+
+    "\n  csStorage: " +| csStorage |+
+    "\n  csContract: " +| csContract |+
+    "\n  csTypedContract: " +| csTypedContract ||+
+    "\n  csTypedStorage: " +| csTypedStorage ||+ ""
 
 -- | State of an arbitrary address.
 data AddressState
@@ -72,7 +112,7 @@ data AddressState
   | ASContract !ContractState
   -- ^ For contracts with code we store more state represented by
   -- 'ContractState'.
-  deriving (Show, Generic, Eq)
+  deriving (Show, Generic)
 
 instance Buildable AddressState where
   build =
@@ -97,6 +137,14 @@ data GState = GState
   } deriving Show
 
 deriveJSON defaultOptions ''GState
+
+getTypedContract :: GState -> ContractState -> Either TCError SomeContract
+getTypedContract gs ContractState{..} =
+  typeCheckContract (extractAllContracts gs) csContract
+
+getTypedStorage :: GState -> ContractState -> Either TCError SomeValue
+getTypedStorage gs ContractState{..} =
+  typeCheckStorageOrParameter Storage csStorage (extractAllContracts gs) csContract
 
 -- | Number of genesis addresses.
 genesisAddressesNum :: Word
@@ -186,16 +234,17 @@ data GStateUpdate
                  !AddressState
   | GSSetStorageValue !Address
                       !Value
+                      !SomeValue
   | GSSetBalance !Address
                  !Mutez
-  deriving (Show, Eq)
+  deriving Show
 
 instance Buildable GStateUpdate where
   build =
     \case
       GSAddAddress addr st ->
         "Add address " +| addr |+ " with state " +| st |+ ""
-      GSSetStorageValue addr val ->
+      GSSetStorageValue addr val _ ->
         "Set storage value of address " +| addr |+ " to " +| val |+ ""
       GSSetBalance addr balance ->
         "Set balance of address " +| addr |+ " to " +| balance |+ ""
@@ -219,7 +268,8 @@ applyUpdate =
   \case
     GSAddAddress addr st ->
       maybeToRight (GStateAddressExists addr) . addAddress addr st
-    GSSetStorageValue addr newValue -> setStorageValue addr newValue
+    GSSetStorageValue addr newValue newTypedValue ->
+      setStorageValue addr newValue newTypedValue
     GSSetBalance addr newBalance -> setBalance addr newBalance
 
 -- | Apply a list of 'GStateUpdate's to 'GState'.
@@ -236,11 +286,14 @@ addAddress addr st gs
 
 -- | Updare storage value associated with given address.
 setStorageValue ::
-     Address -> Value -> GState -> Either GStateUpdateError GState
-setStorageValue addr newValue = updateAddressState addr modifier
+     Address -> Value -> SomeValue -> GState -> Either GStateUpdateError GState
+setStorageValue addr newValue newTypedValue = updateAddressState addr modifier
   where
     modifier (ASSimple _) = Left (GStateNotContract addr)
-    modifier (ASContract cs) = Right $ ASContract $ cs { csStorage = newValue }
+    modifier (ASContract cs) = Right $ ASContract $
+      cs { csStorage = newValue
+         , csTypedStorage = Just newTypedValue
+         }
 
 -- | Updare storage value associated with given address.
 setBalance :: Address -> Mutez -> GState -> Either GStateUpdateError GState

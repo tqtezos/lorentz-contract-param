@@ -17,9 +17,11 @@ module Michelson.Interpret
   , interpretInstr
   , ContractReturn
 
+
+  , interpretSome
   , interpretUntyped
-  , InterpretUntypedError (..)
-  , InterpretUntypedResult (..)
+  , InterpretError (..)
+  , InterpretResult (..)
   , runInstr
   , runInstrNoGas
   , runUnpack
@@ -44,8 +46,8 @@ import Michelson.TypeCheck
   TCTypeError(..), compareTypes, eqType, runTypeCheck, typeCheckContract, typeCheckValue)
 import Michelson.Typed
   (CValue(..), Contract, CreateAccount(..), CreateContract(..), HasNoBigMap, HasNoOp, Instr(..),
-  OpPresence(..), Operation'(..), Operation, SetDelegate(..), Sing(..), T(..), TransferTokens(..), Value'(..),
-  extractNotes, fromUType, withSomeSingT)
+  OpPresence(..), Operation'(..), Operation, SetDelegate(..), Sing(..), SomeValue, SomeValue'(..),
+  T(..), TransferTokens(..), Value'(..), extractNotes, fromUType, withSomeSingT)
 import qualified Michelson.Typed as T
 import Michelson.Typed.Arith
 import Michelson.Typed.Convert (convertContract, untypeValue)
@@ -113,7 +115,7 @@ instance Buildable MichelsonFailed where
           OpPresent -> "<value with operations>"
           OpAbsent -> build (untypeValue v)
 
-data InterpretUntypedError
+data InterpretError
   = RuntimeFailure (MichelsonFailed, MorleyLogs)
   | IllTypedContract TCError
   | IllTypedParam TCError
@@ -122,13 +124,13 @@ data InterpretUntypedError
   | UnexpectedStorageType TCTypeError
   deriving (Generic)
 
-deriving instance Show InterpretUntypedError
+deriving instance Show InterpretError
 
-instance Buildable InterpretUntypedError where
+instance Buildable InterpretError where
   build = genericF
 
-data InterpretUntypedResult where
-  InterpretUntypedResult
+data InterpretResult where
+  InterpretResult
     :: ( Typeable st
        , SingI st
        , HasNoOp st
@@ -137,9 +139,20 @@ data InterpretUntypedResult where
        , iurNewStorage :: T.Value st
        , iurNewState   :: InterpreterState
        }
-    -> InterpretUntypedResult
+    -> InterpretResult
 
-deriving instance Show InterpretUntypedResult
+deriving instance Show InterpretResult
+
+constructIR ::
+  (Typeable st, SingI st, HasNoOp st) =>
+  (([Operation], Value' Instr st), InterpreterState) ->
+  InterpretResult
+constructIR ((ops, val), st) =
+  InterpretResult
+  { iurOps = ops
+  , iurNewStorage = val
+  , iurNewState = st
+  }
 
 -- | Morley interpreter state
 newtype MorleyLogs = MorleyLogs
@@ -151,12 +164,14 @@ noMorleyLogs :: MorleyLogs
 noMorleyLogs = MorleyLogs []
 
 -- | Interpret a contract without performing any side effects.
+-- This function uses untyped representation of contract, parameter and storage.
+-- Mostly used for testing.
 interpretUntyped
   :: U.Contract
   -> U.Value
   -> U.Value
   -> ContractEnv
-  -> Either InterpretUntypedError InterpretUntypedResult
+  -> Either InterpretError InterpretResult
 interpretUntyped U.Contract{..} paramU initStU env = do
   (SomeContract (instr :: Contract cp st) _ _)
       <- first IllTypedContract $ typeCheckContract (ceContracts env)
@@ -173,21 +188,34 @@ interpretUntyped U.Contract{..} paramU initStU env = do
                typeCheckValue initStU (sgs, nts)
       Refl <- first UnexpectedStorageType $ eqType @st @st1
       Refl <- first UnexpectedParamType   $ eqType @cp @cp1
-      bimap RuntimeFailure constructIUR $
+      bimap RuntimeFailure constructIR $
         toRes $ interpret instr paramV initStV env
   where
     toRes (ei, s) = bimap (,isMorleyLogs s) (,s) ei
 
-    constructIUR ::
-      (Typeable st, SingI st, HasNoOp st) =>
-      (([Operation], Value' Instr st), InterpreterState) ->
-      InterpretUntypedResult
-    constructIUR ((ops, val), st) =
-      InterpretUntypedResult
-      { iurOps = ops
-      , iurNewStorage = val
-      , iurNewState = st
-      }
+-- | Interpret a contract without performing any side effects using typed
+-- representation of contract, parameter and storage.
+interpretSome
+  :: SomeContract
+  -> SomeValue
+  -> SomeValue
+  -> ContractEnv
+  -> Either InterpretError InterpretResult
+interpretSome
+  (SomeContract (code :: Contract cp st) _ _)
+  (SomeValue (param :: T.Value cp1))
+  (SomeValue (store :: T.Value st1))
+  env = do
+  Refl <- first UnexpectedStorageType $ eqType @st @st1
+  Refl <- first UnexpectedParamType $ eqType @cp @cp1
+  -- If one of these error happened, then probably there is a bug
+  -- in implementation. These checks are required because we pass
+  -- code, parameter and storage in representation, that hides their
+  -- actual type, it is done to simplify runtime engine implementation.
+  bimap RuntimeFailure constructIR $
+    toRes $ interpret code param store env
+  where
+    toRes (ei, s) = bimap (,isMorleyLogs s) (,s) ei
 
 type ContractReturn st =
   (Either MichelsonFailed ([Operation], T.Value st), InterpreterState)

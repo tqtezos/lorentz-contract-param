@@ -1,5 +1,6 @@
 module Michelson.TypeCheck
   ( typeCheckContract
+  , typeCheckStorageOrParameter
   , typeCheckValue
   , typeVerifyValue
   , typeCheckList

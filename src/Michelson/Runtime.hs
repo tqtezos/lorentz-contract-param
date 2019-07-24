@@ -39,15 +39,16 @@ import Named ((:!), (:?), arg, argDef, defaults, (!))
 import Text.Megaparsec (parse)
 
 import Michelson.Interpret
-  (ContractEnv(..), InterpretUntypedError(..), InterpretUntypedResult(..), InterpreterState(..),
-  MorleyLogs(..), RemainingSteps(..), interpretUntyped)
+  (ContractEnv(..), InterpretError(..), InterpretResult(..), InterpreterState(..),
+  MorleyLogs(..), RemainingSteps(..), interpretSome)
 import Michelson.Macro (ParsedOp, expandContract)
 import qualified Michelson.Parser as P
 import Michelson.Runtime.GState
 import Michelson.Runtime.TxData
-import Michelson.TypeCheck (SomeContract, TCError, typeCheckContract)
+import Michelson.TypeCheck
+  (SomeContract, StorageOrParameter (..), TCError, typeCheckContract, typeCheckStorageOrParameter)
 import Michelson.Typed
-  (CreateContract(..), Operation'(..), TransferTokens(..), convertContract, untypeValue)
+  (CreateContract(..), Operation'(..), SomeValue'(..), TransferTokens(..), convertContract, untypeValue)
 import qualified Michelson.Typed as T
 import Michelson.Untyped (Contract, OriginationOperation(..), mkContractAddress)
 import qualified Michelson.Untyped as U
@@ -84,7 +85,7 @@ data InterpreterRes = InterpreterRes
   -- ^ List of operations to be added to the operations queue.
   , _irUpdates :: ![GStateUpdate]
   -- ^ Updates applied to 'GState'.
-  , _irInterpretResults :: [(Address, InterpretUntypedResult)]
+  , _irInterpretResults :: [(Address, InterpretResult)]
   -- ^ During execution a contract can print logs and in the end it returns
   -- a pair. All logs and returned values are kept until all called contracts
   -- are executed. In the end they are printed.
@@ -115,7 +116,7 @@ data InterpreterError' a
   = IEUnknownContract !a
   -- ^ The interpreted contract hasn't been originated.
   | IEInterpreterFailed !a
-                        !InterpretUntypedError
+                        !InterpretError
   -- ^ Interpretation of Michelson contract failed.
   | IEAlreadyOriginated !a
                         !ContractState
@@ -130,6 +131,10 @@ data InterpreterError' a
   -- ^ Failed to apply updates to GState.
   | IEIllTypedContract !TCError
   -- ^ A contract is ill-typed.
+  | IEIllTypedStorage !TCError
+  -- ^ Contract storage is ill-typed
+  | IEIllTypedParameter !TCError
+  -- ^ Contract parameter is ill-typed
   deriving (Show)
 
 instance (Buildable a) => Buildable (InterpreterError' a) where
@@ -147,7 +152,9 @@ instance (Buildable a) => Buildable (InterpreterError' a) where
         "The sender (" +| addr |+
         ") doesn't  have enough funds (has only " +| amount |+ ")"
       IEFailedToApplyUpdates err -> "Failed to update GState: " +| err |+ ""
-      IEIllTypedContract err -> "The contract is ill-typed " +| err |+ ""
+      IEIllTypedContract err -> "The contract is ill-typed: " +| err |+ ""
+      IEIllTypedStorage err -> "The contract storage is ill-typed: " +| err |+ ""
+      IEIllTypedParameter err -> "The contract parameter is ill-typed: " +| err |+ ""
 
 type InterpreterError = InterpreterError' Address
 
@@ -275,8 +282,8 @@ interpreter maybeNow maxSteps dbPath operations
     writeGState dbPath _irGState
   where
     printInterpretResult
-      :: (Address, InterpretUntypedResult) -> IO ()
-    printInterpretResult (addr, InterpretUntypedResult {..}) = do
+      :: (Address, InterpretResult) -> IO ()
+    printInterpretResult (addr, InterpretResult {..}) = do
       putTextLn $ "Executed contract " <> pretty addr
       case iurOps of
         [] -> putTextLn "It didn't return any operations"
@@ -349,8 +356,11 @@ interpretOneOp
   -> InterpreterOp
   -> Either InterpreterError InterpreterRes
 interpretOneOp _ remainingSteps _ gs (OriginateOp origination) = do
-  void $ first IEIllTypedContract $
+  typedContract <- first IEIllTypedContract $
     typeCheckContract (extractAllContracts gs) (ooContract origination)
+  typedStorage <- first IEIllTypedStorage $
+    typeCheckStorageOrParameter Storage (ooStorage origination)
+    (extractAllContracts gs) (ooContract origination)
   let originatorAddress = KeyAddress (ooManager origination)
   originatorBalance <- case gsAddresses gs ^. at (originatorAddress) of
     Nothing -> Left (IEUnknownManager originatorAddress)
@@ -363,11 +373,12 @@ interpretOneOp _ remainingSteps _ gs (OriginateOp origination) = do
         Right (oldBalance `unsafeSubMutez` ooBalance origination)
   let
     updates =
-      [ GSAddAddress address (ASContract contractState)
+      [ GSAddAddress address (ASContract $ mkContractState typedContract typedStorage)
       , GSSetBalance originatorAddress originatorBalance
       ]
   case applyUpdates updates gs of
-    Left _ -> Left (IEAlreadyOriginated address contractState)
+    Left _ ->
+      Left (IEAlreadyOriginated address $ mkContractState typedContract typedStorage)
     Right newGS -> Right $
       InterpreterRes
       { _irGState = newGS
@@ -378,10 +389,12 @@ interpretOneOp _ remainingSteps _ gs (OriginateOp origination) = do
       , _irRemainingSteps = remainingSteps
       }
   where
-    contractState = ContractState
+    mkContractState typedContract typedStorage = ContractState
       { csBalance = ooBalance origination
       , csStorage = ooStorage origination
       , csContract = ooContract origination
+      , csTypedContract = Just typedContract
+      , csTypedStorage = Just typedStorage
       }
     address = mkContractAddress origination
 interpretOneOp now remainingSteps mSourceAddr gs (TransferOp addr txData) = do
@@ -427,21 +440,25 @@ interpretOneOp now remainingSteps mSourceAddr gs (TransferOp addr txData) = do
             , ceSender = senderAddr
             , ceAmount = tdAmount txData
             }
-        iur@InterpretUntypedResult
+        typedParameter <- first IEIllTypedParameter $
+           typeCheckStorageOrParameter Parameter (tdParameter txData) existingContracts contract
+        typedStorage <- first IEIllTypedStorage $ getTypedStorage gs cs
+        typedContract <- first IEIllTypedContract $ getTypedContract gs cs
+        iur@InterpretResult
           { iurOps = sideEffects
           , iurNewStorage = newValue
           , iurNewState = InterpreterState _ newRemainingSteps
           }
           <- first (IEInterpreterFailed addr) $
-                interpretUntyped contract (tdParameter txData)
-                                 (csStorage cs) contractEnv
+                interpretSome typedContract typedParameter
+                typedStorage contractEnv
         let
           newValueU = untypeValue newValue
           -- can't overflow if global state is correct (because we can't
           -- create money out of nowhere)
           newBalance = csBalance cs `unsafeAddMutez` tdAmount txData
           updBalance = GSSetBalance addr newBalance
-          updStorage = GSSetStorageValue addr newValueU
+          updStorage = GSSetStorageValue addr newValueU (SomeValue newValue)
           updates =
             [ updBalance
             , updStorage
