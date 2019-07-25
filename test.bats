@@ -88,3 +88,7 @@ setup () {
   $morley print --contract contracts/tezos_examples/first.tz -o output.mtz
   rm output.mtz
 }
+
+@test "invoking morley to analyze tezos_examples/forward.tz" {
+  $morley analyze --contract contracts/tezos_examples/forward.tz | grep '"buyer": 2'
+}

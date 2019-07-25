@@ -12,6 +12,7 @@ module Lorentz.Base
   , interpretLorentzInstr
   , printLorentzContract
   , printLorentzValue
+  , analyzeLorentz
 
   , ContractOut
   , Contract
@@ -26,6 +27,7 @@ import Data.Vinyl.Core (Rec)
 
 import Lorentz.Constraints
 import Lorentz.Value
+import Michelson.Analyzer (AnalyzerRes, analyze)
 import Michelson.Interpret
 import Michelson.Printer (printTypedContract, printTypedValue)
 import Michelson.Typed (HasNoOp, Instr(..), IsoValuesStack(..), T(..), ToT, ToTs, Value'(..))
@@ -101,3 +103,7 @@ instance IsoValue (Lambda inp out) where
 
 printLorentzValue :: (IsoValue v, SingI (ToT v), HasNoOp (ToT v)) => Bool -> v -> LText
 printLorentzValue forceSingleLine = printTypedValue forceSingleLine . toVal
+
+-- | Lorentz version of analyzer.
+analyzeLorentz :: inp :-> out -> AnalyzerRes
+analyzeLorentz = analyze . compileLorentz

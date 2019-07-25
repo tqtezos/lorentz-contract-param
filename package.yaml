@@ -55,6 +55,7 @@ library:
     - timerep
     # ↓ We don't use it, but otherwise Hackage fails
     - transformers-compat == 0.6.5
+    - unordered-containers
     - vector
     - vinyl
     - wl-pprint-text
@@ -108,4 +109,5 @@ tests:
       - tasty-hspec
       - tasty-quickcheck
       - text
+      - unordered-containers
       - vinyl
