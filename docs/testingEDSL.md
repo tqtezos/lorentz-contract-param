@@ -4,7 +4,7 @@ One possible way to test your Michelson contracts is to write tests in Haskell u
 This document explains how to do it.
 The advantages of this approach are the following:
 1. You can use the full power of Haskell libraries, such as [`QuickCheck`](https://hackage.haskell.org/package/QuickCheck), [`hspec`](https://hackage.haskell.org/package/hspec), etc.
-2. Haskell has a lot of tooling built around it: code formatters, linters, editor plugins, etc.
+2. Haskell has a lot of tools built around it: code formatters, linters, editor plugins, etc.
 It makes writing code in Haskell quite pleasant and convenient.
 3. Haskell syntax is quite concise and expressive, so tests written in Haskell are easy to read even for a person with little knowledge of the language.
 
@@ -15,7 +15,7 @@ It makes writing code in Haskell quite pleasant and convenient.
 - [Write Your First Tests](#write-your-first-tests)
   * [Hello Tezos](#hello-tezos)
   * [Property Testing](#property-testing)
-- [Integrational Testing](#integrational-testing)
+- [Integration Testing](#integration-testing)
   * [Arbitrary Blockchain State](#arbitrary-blockchain-state)
 - [Managing Multiple Tests](#managing-multiple-tests)
 - [Summary](#summary)
@@ -34,12 +34,12 @@ There are two types of tests one can write:
 * Unit tests.
 They consider only one contract and do not consider the fact that a contract can originate or call other contracts.
 They also ignore modifications of the global blockchain state that a contract can make.
-* Integrational tests.
+* Integration tests.
 These tests, on the other hand, let you perform operations on multiple contracts and check predicates about the global blockchain state.
-For example, one can originate two contracts which call each other, and the testing engine will execute them properly.
+For example, one can originate two contracts which call each other, and a test engine will execute them properly.
 
 At present, slightly different interfaces are used for these types of tests, but internally they use the same interpreter implementation to run contracts.
-Both types of tests can work with static data or with randomly generated data (in this case we call them _property-based_ tests).
+Both types of tests can work with static data or with randomly generated data (in this case, we call them _property-based_ tests).
 
 ## Write Your First Tests
 
@@ -114,23 +114,23 @@ It starts with a shebang line to execute `stack` and arguments that will be pass
 We are using the following packages:
 * `base`, `text` are the most basic Haskell packages which are used almost everywhere.
 * `fmt` is used for pretty printing.
-* `hspec` is a generic Haskell testing framework that we use to setup testing infrastructure.
+* `hspec` is a generic Haskell testing framework we use to setup the testing infrastructure.
 * `morley` is the Morley library itself.
 
 Then we enable `OverloadedStrings` to be able to write `Text` constants and `QuasiQuotes` to create Michelson strings using `mt`.
 Then we import some modules.
-All test logic is in `spec` which has type `Spec`.
-You can treat it as a specification of a contract we want to test.
+All the test logic is in `spec` of type `Spec`.
+You can treat it as the specification of the contract we want to test.
 The test itself does the following:
 1. It imports the contract from `contracts/helloTezos.tz` using `specWithTypedContract` which takes a callback as its argument.
 This callback's argument is the Haskell representation of the imported contract.
 It uses _typed_ representation of the contract as described in [another document](./michelsonTypes.md).
 2. Then it uses `hspec`'s `it` function to create a spec item.
 It takes a textual description and an example.
-In our case, the only behavior we want to describe is that the contract puts a certain string to its storage, so it's our description.
+In our case, we want to describe how a contract puts a certain string to its storage, so this is our description.
 3. The example is defined using the `contractProp` function from `Morley.Test`.
 It takes a contract, a validation function, environment, contract's parameter, and initial storage.
-Environment essentially contains blockchain state which is irrelevant for this test, so we just use a dummy value (`dummyContractEnv`).
+Environment contains a blockchain state which is irrelevant for this test, so we just use a dummy value (`dummyContractEnv`).
 The contract's parameter is `unit` and the storage type is `string`.
 We pass `()` and empty string as parameter and storage respectively, and they get automatically converted to Michelson values.
 4. The most interesting part is the validation function.
@@ -140,7 +140,7 @@ The second value is the final interpreter state, which is not essential for us n
 If the contract fails, we use `hspec`'s `expectationFailure` because the contract's failure is not what we expect.
 Otherwise, we check that resulting storage value is `"Hello Tezos!"`.
 
-Notice that we use `toVal` to convert `[mt|Hello Tezos!|]`, which has type `MText`, to a Michelson value.
+Note that we use `toVal` to convert `[mt|Hello Tezos!|]`, which has type `MText`, to a Michelson value.
 It's a polymorphic function which converts various Haskell values to Michelson values.
 Michelson value type is a GADT defined in `Michelson.Typed`.
 It's not necessary to understand its internals in order to use this EDSL, but it might be useful to know how it works under the hood.
@@ -150,7 +150,7 @@ Now we can launch our test:
 
 Alternatively you can do `chmod +x HelloTezosSpec.hs` and run `./HelloTezosSpec.hs`.
 
-Please note that it may take a while to download all the dependencies and compile them.
+It may take a while to download all the dependencies and compile them.
 In the end, you should see the following output:
 
 ```
@@ -253,7 +253,7 @@ spec = do
       failedProp "Invalid result of the script"
 ```
 
-It starts with the same lines, except that a module name is different and now we are using the `QuickCheck` library as well.
+It starts with the same lines, except that a module name is different and now we use the `QuickCheck` library along with previously used libraries.
 We also define type aliases for Haskell types corresponding to the contract's parameter and storage types.
 
 Now let's look at the body of the spec.
@@ -263,19 +263,19 @@ This `inputParam` will be generated by `QuickCheck` using the `Arbitrary` instan
 This instance is located in the `Morley.Test.Gen` module.
 * Inside this lambda we are using `contractProp`.
 It's the same function that we used in the first example.
-Notice that it can be used not only within `it`, but also within `prop`.
+Note that it can be used not only within `it`, but also within `prop`.
 * We pass the same set of arguments to this function.
 Initial storage doesn't matter, as well as the environment.
 A parameter, on the other hand, is essential for this script.
-We pass generated `inputParam` as contract's parameter to `contractProp`.
+We pass the generated `inputParam` as contract's parameter to `contractProp`.
 We also pass it to the validation function.
 * Let's take a closer look at the validation function.
 It takes a parameter that was passed to the contract and the result of the contract's execution.
 This time we've provided its type explicitly.
 `ContractResult` is a type alias defined in `Michelson.Interpret`: `(Either MichelsonFailed ([Operation Instr], Val Instr st), InterpreterState s)`.
 Don't be scared when you see the `ToT Storage` thing, `ToT` is a type family which maps plain Haskell types to the Haskell representation of Michelson types.
-The validation function expects that the contract execution will succeed returning an empty list of operations and the final storage will be the same as the result of `mkExpected` applied to the parameter.
-If it differs, the test fails.
+The validation function expects the contract execution to succeed returning an empty list of operations and the final storage to be the same as the result of `mkExpected` applied to the parameter.
+Otherwise, the test fails.
 
 You can run this test the same way as `HelloTezos.hs` and you should see the following output:
 ```
@@ -287,10 +287,10 @@ Finished in 0.0018 seconds
 1 example, 0 failures
 ```
 
-## Integrational Testing
+## Integration Testing
 
-Now let's get familiar with another machinery for writing tests: integrational testing EDSL.
-In our first example we will use two contracts `stringCaller.tz` and `failOrStoreAndTransfer.tz`:
+Now let's get familiar with another machinery for writing tests: integration testing EDSL.
+In our first example we will use two contracts – `stringCaller.tz` and `failOrStoreAndTransfer.tz`:
 
 ```
 # stringCaller.tz
@@ -363,7 +363,7 @@ spec =
 ```
 
 The difference from the previous tests is that it uses `specWithContract` instead of `specWithTypedContract`.
-It provides two representations of the same contract: a typed and untyped one.
+It provides two representations of the same contract: a typed and an untyped one.
 You can read more about it in [a document about Michelson types](./michelsonTypes.md).
 We import two contracts and pass them to `specImpl`:
 
@@ -539,18 +539,18 @@ After that `stringCaller` should fail because the current timestamp is greater t
   validate (Left $ expectMichelsonFailed (const True) stringCallerAddress)
 ```
 
-This is the end of this test, but in principle we can continue performing operations and validating their effects.
+This is the end of this test, but in principle, we can continue performing operations and validating their effects.
 Note that operations are executed only when we call `validate`.
 It allows us to batch operations and execute them together.
-There is one restriction: each scenario must end with `validate`, because that's the only way to execute an operation.
+There is one restriction: each scenario must end with `validate` because that's the only way to execute an operation.
 
 As usual, you can run this test using `stack StringCallerSpec.hs`.
 
 ### Arbitrary Blockchain State
 
-In our last example, we'll demonstrate how to test a contract against arbitrary blockchain state.
-It should be noted that the amount of blockchain state that a contract can use is quite limited, so there is not much data that can be generated.
-Also, it's not very useful to generate completely arbitrary state, because most of it will most likely be irrelevant to a contract.
+In our last example, we'll demonstrate how to test a contract against an arbitrary blockchain state.
+Blockchain state amount a contract can use is quite limited, so there is not much data can be generated.
+Also, it's not very useful to generate a completely arbitrary state because most of it will most likely be irrelevant to a contract.
 We'll use a contract which behavior heavily depends on the blockchain state.
 Let's call it `environment.tz`:
 
@@ -596,17 +596,17 @@ code {
        PAIR; };
 ```
 
-Its behavior depends on the following values:
+Its behavior depends on:
 1. Its balance.
 2. Current timestamp
-3. Whether address passed to it as parameter is originated with parameter type `address`.
+3. Whether the address passed to it as parameter is originated with the parameter type `address`.
 4. Amount transferred to this contract.
 5. Gas limit at the beginning of this contract's execution.
 
 Now let's look at the test contained in `EnvironmentSpec.hs`.
-Again let's omit all the initial boilerplate.
+Again let's omit the initial boilerplate.
 `spec` is defined simply as `specWithContract "contracts/environment.tz" specImpl`.
-Then we define a data type that we call `Fixture`:
+Then we define a data type we call `Fixture`:
 
 ```haskell
 data Fixture = Fixture
@@ -618,11 +618,11 @@ data Fixture = Fixture
   } deriving (Show)
 ```
 
-This data type contains all data that is a part of the blockchain state and is relevant for our contract.
-`fPassOriginatedAddress` determines whether we will pass an originated address with parameter `address` to this contract as parameter.
+This data type contains the data that is a part of the blockchain state and is relevant for our contract.
+`fPassOriginatedAddress` determines whether we pass an originated address with parameter `address` to this contract as parameter.
 In our case, we will originate `environment.tz` itself and will pass its address to itself if `fPassOriginatedAddress` is `True`.
-All this data will be generated by QuickCheck.
-We define `Arbitrary` instance which specifies how exactly this data will be generated:
+This data will be generated by QuickCheck.
+We define an `Arbitrary` instance which specifies how exactly this data will be generated:
 
 ```haskell
 instance Arbitrary Fixture where
@@ -635,7 +635,7 @@ instance Arbitrary Fixture where
     return Fixture {..}
 ```
 
-For most of values we use QuickCheck's `choose` function which picks an arbitrary value in some range.
+For most of values we use a QuickCheck's `choose` function which picks an arbitrary value in some range.
 For boolean `fPassOriginatedAddress` we just use `arbitrary` which will generate `True` or `False`.
 In principle, we can define as complex generators as we want.
 Then we define two functions which represent contract's behavior:
@@ -679,7 +679,7 @@ specImpl (uEnvironment, _environment)  = do
 
 `scenario` takes `Fixture` as an argument, so we pass a function that takes `Fixture` argument to `prop description`.
 In this case, `Fixture` will be generated by QuickCheck using `Arbitrary` instance.
-All logic is defined in `integrationalScenario` again, so let's see it:
+The logic is defined in `integrationalScenario` again, so let's see it:
 
 ```haskell
 integrationalScenario :: Untyped.Contract -> Fixture -> IntegrationalScenario
@@ -719,7 +719,7 @@ integrationalScenario contract fixture = do
 Essentially we do the following:
 1. Setup desirable blockchain state for testing: set current timestamp and gas limit, originate our contract.
 2. Then we create transaction data based on the fixture.
-If `fPassOriginatedAddress` we pass the address of `environment.tz`, otherwise we pass genesis address which is just some hardcoded `tz1` address.
+If `fPassOriginatedAddress` is `True` we pass the address of `environment.tz`, otherwise we pass genesis address which is just some hardcoded `tz1` address.
 3. Then we construct a validator which expects failure if `shouldExpectFailed fixture` is `True` and expects success otherwise.
 In the success scenario `environmentAddress` should have storage value equal to `shouldReturn fixture`.
 
@@ -738,21 +738,21 @@ Now we can run all tests using `stack test`.
 ## Summary
 
 In this document, we have demonstrated how one can write tests for their Michelson contracts in Haskell.
-We have started with a simple unit test, then demonstrated a slightly more complex property-based unit test, and then two integrational tests.
+We have started with a simple unit test, then demonstrated a slightly more complex property-based unit test, and then two integration tests.
 
-* Both unit and integrational tests start with `specWithContract` or `specWithTypedContract` to import a contract from a file.
+* Both unit and integration tests start with `specWithContract` or `specWithTypedContract` to import a contract from a file.
 It's used to create `hspec`'s `Spec`.
-It can be used many times to import multiple contracts in integrational tests.
-* After that we use `it` for tests with static data and `prop` for property-based tests.
+It can be used many times to import multiple contracts in integration tests.
+* After that, we use `it` for tests with static data and `prop` for property-based tests.
 * In unit tests, we use `contractProp` to which we pass a contract, environment, parameter, and storage.
 All of this data can be static or arbitrary.
 More importantly, it also takes a validator for the contract's result.
-* In integrational tests, we use `integrationalTestExpectation` or `integrationalTestProperty`.
+* In integration tests, we use `integrationalTestExpectation` or `integrationalTestProperty`.
 Both of them take `IntegrationalScenario` as argument.
 In this scenario, we can use commands like `transfer` and `originate` and validate various assertions about the current blockchain state.
 
 An interested reader can find more examples in our test suite that we use to test `morley` itself.
 Specifically, tests for contracts are located in `Test.Interepter.*` modules of the `morley-test` test suite.
 
-In the end, we want to notice that it's only an alpha version of our EDSL.
-We have many ideas about making it better, and probably it will substantially change in the future.
+In the end, we want to point out that this is only an alpha version of our EDSL.
+We have many ideas about making it better, and probably it will be substantially changed in the future.
