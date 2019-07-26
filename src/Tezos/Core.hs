@@ -25,6 +25,7 @@ module Tezos.Core
   , timestampPlusSeconds
   , formatTimestamp
   , parseTimestamp
+  , timestampQuote
   , getCurrentTime
   , farFuture
   , farPast
@@ -37,6 +38,8 @@ import Data.Time.Clock.POSIX (POSIXTime, getPOSIXTime, posixSecondsToUTCTime, ut
 import Data.Time.LocalTime (utc, utcToZonedTime, zonedTimeToUTC)
 import Data.Time.RFC3339 (formatTimeRFC3339, parseTimeRFC3339)
 import Formatting.Buildable (Buildable(build))
+import qualified Language.Haskell.TH.Quote as TH
+import Language.Haskell.TH.Syntax (liftData)
 
 ----------------------------------------------------------------------------
 -- Mutez
@@ -156,6 +159,8 @@ timestampPlusSeconds ts sec = timestampFromSeconds (timestampToSeconds ts + sec)
 
 -- | Display timestamp in human-readable way as used by Michelson.
 -- Uses UTC timezone, though maybe we should take it as an argument.
+--
+-- NB: this will render timestamp with up to seconds precision.
 formatTimestamp :: Timestamp -> Text
 formatTimestamp =
   formatTimeRFC3339 . utcToZonedTime utc . posixSecondsToUTCTime . unTimestamp
@@ -166,6 +171,25 @@ instance Buildable Timestamp where
 -- | Parse textual representation of 'Timestamp'.
 parseTimestamp :: Text -> Maybe Timestamp
 parseTimestamp = fmap (timestampFromUTCTime . zonedTimeToUTC) . parseTimeRFC3339
+
+-- | Quote a value of type 'Timestamp' in @yyyy-mm-ddThh:mm:ss[.sss]Z@ format.
+--
+-- >>> formatTimestamp [timestampQuote| 2019-02-21T16:54:12.2344523Z |]
+-- "2019-02-21T16:54:12Z"
+--
+-- Inspired by 'time-quote' library.
+timestampQuote :: TH.QuasiQuoter
+timestampQuote =
+  TH.QuasiQuoter
+  { quoteExp = \str ->
+      case parseTimestamp (toText str) of
+        Nothing -> fail "Invalid timestamp, \
+                        \example of valid value: `2019-02-21T16:54:12.2344523Z`"
+        Just ts -> liftData ts
+  , quotePat = \_ -> fail "timestampQuote: cannot quote pattern!"
+  , quoteType = \_ -> fail "timestampQuote: cannot quote type!"
+  , quoteDec = \_ -> fail "timestampQuote: cannot quote declaration!"
+  }
 
 -- | Return current time as 'Timestamp'.
 getCurrentTime :: IO Timestamp
