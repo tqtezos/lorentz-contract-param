@@ -33,7 +33,7 @@ data Fixture = Fixture
 
 instance Arbitrary Fixture where
   arbitrary = do
-    fNow <- timestampFromSeconds @Int <$> choose (100000, 111111)
+    fNow <- timestampFromSeconds <$> choose (100000, 111111)
     fMaxSteps <- RemainingSteps <$> choose (1015, 1028)
     fPassOriginatedAddress <- arbitrary
     fBalance <- unsafeMkMutez <$> choose (1, 1234)
@@ -44,7 +44,7 @@ shouldExpectFailed :: Fixture -> Bool
 shouldExpectFailed fixture =
   or
     [ fBalance fixture > unsafeMkMutez 1000
-    , fNow fixture < timestampFromSeconds @Int 100500
+    , fNow fixture < timestampFromSeconds 100500
     , fPassOriginatedAddress fixture
     , fAmount fixture < unsafeMkMutez 15
     ]

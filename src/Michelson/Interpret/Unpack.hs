@@ -280,7 +280,7 @@ decodeCValue = case sing @ct of
       T.CvKeyHash . KeyHash <$> getByteStringCopy 20
   SCTimestamp -> do
     expectTag "Timestamp" 0x00
-    T.CvTimestamp . timestampFromSeconds @Integer <$> decodeInt
+    T.CvTimestamp . timestampFromSeconds <$> decodeInt
   SCAddress ->
     T.CvAddress <$> decodeAddress
 

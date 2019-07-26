@@ -263,7 +263,7 @@ timestampTest = do
     , (1552564995, "0500838cd2c80b")
     ]
   where
-    convertTimestamps = map . first $ timestampFromSeconds @Int
+    convertTimestamps = map . first $ timestampFromSeconds
 
 addressTest :: Spec
 addressTest = do

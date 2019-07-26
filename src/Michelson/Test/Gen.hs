@@ -72,5 +72,5 @@ instance Arbitrary Mutez where
 
 instance Arbitrary Timestamp where
   arbitrary =
-    timestampFromSeconds @Int <$>
+    timestampFromSeconds <$>
     choose (timestampToSeconds minTimestamp, timestampToSeconds maxTimestamp)
