@@ -26,6 +26,8 @@ module Tezos.Core
   , formatTimestamp
   , parseTimestamp
   , getCurrentTime
+  , farFuture
+  , farPast
   ) where
 
 import Data.Aeson.TH (defaultOptions, deriveJSON)
@@ -168,6 +170,14 @@ parseTimestamp = fmap (timestampFromUTCTime . zonedTimeToUTC) . parseTimeRFC3339
 -- | Return current time as 'Timestamp'.
 getCurrentTime :: IO Timestamp
 getCurrentTime = Timestamp <$> getPOSIXTime
+
+-- | Timestamp which is always greater than result of 'getCurrentTime'.
+farFuture :: Timestamp
+farFuture = timestampFromSeconds 1e12  -- 33658-09-27T01:46:40Z
+
+-- | Timestamp which is always less than result of 'getCurrentTime'.
+farPast :: Timestamp
+farPast = timestampFromSeconds 0
 
 ----------------------------------------------------------------------------
 -- JSON
