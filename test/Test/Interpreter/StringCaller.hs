@@ -63,7 +63,7 @@ integrationalScenario stringCaller failOrStoreAndTransfer str = do
     initStringCallerBalance
 
   -- NOW = 500, so stringCaller shouldn't fail
-  setNow (timestampFromSeconds @Int 500)
+  setNow (timestampFromSeconds 500)
 
   -- Transfer 100 tokens to stringCaller, it should transfer 300 tokens
   -- to failOrStoreAndTransfer
@@ -135,7 +135,7 @@ integrationalScenario stringCaller failOrStoreAndTransfer str = do
   void $ validate (Right expectAnySuccess)
 
   -- Now let's set NOW to 600 and expect stringCaller to fail
-  setNow (timestampFromSeconds @Int 600)
+  setNow (timestampFromSeconds 600)
   transferToStringCaller
   validate (Left $ expectMichelsonFailed (const True) stringCallerAddress)
 

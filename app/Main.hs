@@ -245,7 +245,7 @@ nowOption = optional $ option parser $
   help "Timestamp that you want the runtime interpreter to use (default is now)"
   where
     parser =
-      (timestampFromSeconds @Integer <$> auto) <|>
+      (timestampFromSeconds <$> auto) <|>
       maybeReader (parseTimestamp . toText)
 
 maxStepsOption :: Opt.Parser Word64

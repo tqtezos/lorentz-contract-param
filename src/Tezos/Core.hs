@@ -140,7 +140,7 @@ timestampToSeconds :: Integral a => Timestamp -> a
 timestampToSeconds = round . unTimestamp
 {-# INLINE timestampToSeconds #-}
 
-timestampFromSeconds :: Integral a => a -> Timestamp
+timestampFromSeconds :: Integer -> Timestamp
 timestampFromSeconds = Timestamp . fromIntegral
 {-# INLINE timestampFromSeconds #-}
 
