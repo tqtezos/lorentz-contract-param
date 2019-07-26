@@ -6,6 +6,8 @@ module Lorentz.Value
   , IsoValue (..)
   , IsoCValue (..)
   , CValue (..)
+
+    -- * Primitive types
   , Integer
   , Natural
   , MText
@@ -24,8 +26,14 @@ module Lorentz.Value
   , Maybe (..)
   , List
   , M.ContractAddr (..)
+
+    -- * Constructors
   , toMutez
   , mt
+  , timestampFromSeconds
+  , timestampFromUTCTime
+
+    -- * Misc
   , Default (..)
   ) where
 
@@ -36,7 +44,7 @@ import Michelson.Typed (IsoCValue(..), IsoValue(..), Value)
 import qualified Michelson.Typed as M
 import Michelson.Typed.CValue (CValue(..))
 import Tezos.Address (Address)
-import Tezos.Core (Mutez, Timestamp, toMutez)
+import Tezos.Core (Mutez, Timestamp, timestampFromSeconds, timestampFromUTCTime, toMutez)
 import Tezos.Crypto (KeyHash, PublicKey, Signature)
 
 type List = []
