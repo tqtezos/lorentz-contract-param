@@ -2,18 +2,21 @@
 --
 -- This spec is an example of using testing capabilities of morley.
 module Test.Lorentz.Contracts.Auction
-  ( spec_Auction
+  ( test_Auction
   ) where
 
-import Test.Hspec (Spec, it, parallel, shouldSatisfy)
-import Test.Hspec.QuickCheck (prop)
+import Test.Hspec.Expectations (shouldSatisfy)
 import Test.QuickCheck (Property, arbitrary, choose, counterexample, (.&&.), (===))
 import Test.QuickCheck.Property (expectFailure, forAll, withMaxSuccess)
+import Test.Tasty (TestTree, testGroup)
+import Test.Tasty.HUnit (testCase)
+import Test.Tasty.QuickCheck (testProperty)
 
 import Lorentz (compileLorentz)
 import Lorentz.Contracts.Auction (auctionContract)
 import Michelson.Interpret (ContractEnv(..))
-import Michelson.Test (ContractPropValidator, contractProp, midTimestamp, specWithTypedContract)
+import Michelson.Test
+  (ContractPropValidator, concatTestTrees, contractProp, midTimestamp, testTreesWithTypedContract)
 import Michelson.Test.Dummy
 import Michelson.Test.Util (failedProp)
 import Michelson.Typed (CValue(..), Operation'(..), ToT, TransferTokens(..))
@@ -28,40 +31,46 @@ type Param = KeyHash
 
 -- | Spec to test auction.tz contract.
 --
--- This spec serves as an example on how to test contract with both unit tests
+-- This test serves as an example on how to test contract with both unit tests
 -- and QuickCheck.
-spec_Auction :: Spec
-spec_Auction = parallel $ do
-  specWithTypedContract "../contracts/tezos_examples/auction.tz" auctionSpec'
-  auctionSpec' (compileLorentz auctionContract)
+test_Auction :: IO [TestTree]
+test_Auction = concatTestTrees
+  [ one . testGroup "Michelson version" <$>
+    testTreesWithTypedContract "../contracts/tezos_examples/auction.tz" auctionTest
+  , one . testGroup "Lorentz version" <$>
+    auctionTest (compileLorentz auctionContract)
   -- Test slightly modified version of auction.tz, it must fail.
   -- This block is given purely for demonstration of that tests are smart
   -- enough to filter common mistakes.
-  specWithTypedContract "../contracts/auction_buggy.tz" $ \contract -> do
-    prop "Random check (dense end of auction)" $
-      expectFailure $ qcProp contract denseTime arbitrary
+  , testTreesWithTypedContract "../contracts/auction_buggy.tz" $ \contract ->
+    pure
+    [ testProperty "Random check (dense end of auction)" $
+        expectFailure $ qcProp contract denseTime arbitrary
 
-    prop "Random check (dense amount)" $
-      expectFailure $ qcProp contract arbitrary denseAmount
-
+    , testProperty "Random check (dense amount)" $
+        expectFailure $ qcProp contract arbitrary denseAmount
+    ]
+  ]
   where
     -- Test auction.tz, everything should be fine
-    auctionSpec' contract = do
-      it "Bid after end of auction triggers failure" $
-        contractProp contract
-          (flip shouldSatisfy (isLeft . fst))
-          (env { ceAmount = unsafeMkMutez 1200 })
-          keyHash2
-          (aBitBeforeMidTimestamp, (unsafeMkMutez 1000, keyHash1))
+    auctionTest contract =
+      pure
+      [ testCase "Bid after end of auction triggers failure" $
+          contractProp contract
+            (flip shouldSatisfy (isLeft . fst))
+            (env { ceAmount = unsafeMkMutez 1200 })
+            keyHash2
+            (aBitBeforeMidTimestamp, (unsafeMkMutez 1000, keyHash1))
 
-      prop "Random check (sparse distribution)" $ withMaxSuccess 200 $
-        qcProp contract arbitrary arbitrary
+      , testProperty "Random check (sparse distribution)" $ withMaxSuccess 200 $
+          qcProp contract arbitrary arbitrary
 
-      prop "Random check (dense end of auction)" $
-        qcProp contract denseTime arbitrary
+      , testProperty "Random check (dense end of auction)" $
+          qcProp contract denseTime arbitrary
 
-      prop "Random check (dense amount)" $
-        qcProp contract arbitrary denseAmount
+      , testProperty "Random check (dense amount)" $
+          qcProp contract arbitrary denseAmount
+      ]
 
     qcProp contract eoaGen amountGen =
       forAll ((,) <$> eoaGen <*> ((,) <$> amountGen <*> arbitrary)) $

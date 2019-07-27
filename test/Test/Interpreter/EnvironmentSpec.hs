@@ -1,17 +1,17 @@
 -- | Tests for the 'environment.tz' contract
 
 module Test.Interpreter.EnvironmentSpec
-  ( environmentSpec
+  ( test_environment
   ) where
 
-import Test.Hspec (Spec)
-import Test.Hspec.QuickCheck (modifyMaxSuccess, prop)
-import Test.QuickCheck (Arbitrary(..), choose)
+import Test.QuickCheck (Arbitrary(..), choose, withMaxSuccess)
 import Test.QuickCheck.Instances.Text ()
+import Test.Tasty (TestTree)
+import Test.Tasty.QuickCheck (testProperty)
 
 import Michelson.Interpret (RemainingSteps(..))
 import Michelson.Runtime.GState
-import Michelson.Test (specWithContract)
+import Michelson.Test (testTreesWithContract)
 import Michelson.Test.Integrational
 import Michelson.Typed
 import qualified Michelson.Typed as T
@@ -19,9 +19,9 @@ import qualified Michelson.Untyped as U
 import Tezos.Address
 import Tezos.Core
 
-environmentSpec :: Spec
-environmentSpec =
-  specWithContract "contracts/environment.tz" specImpl
+test_environment :: IO [TestTree]
+test_environment =
+  testTreesWithContract "contracts/environment.tz" (pure . one . testImpl)
 
 data Fixture = Fixture
   { fNow :: !Timestamp
@@ -56,15 +56,15 @@ shouldReturn fixture
   where
     consumedGas = 19
 
-specImpl ::
+testImpl ::
     (U.Contract, T.Contract ('Tc 'CAddress) ('Tc 'CBool))
-  -> Spec
-specImpl (uEnvironment, _environment)  = do
-  let scenario = integrationalScenario uEnvironment
-  modifyMaxSuccess (min 50) $
-    prop description $
-      integrationalTestExpectation . scenario
+  -> TestTree
+testImpl (uEnvironment, _environment)  = do
+  testProperty description $
+    withMaxSuccess 50 $
+      integrationalTestProperty . scenario
   where
+    scenario = integrationalScenario uEnvironment
     description =
       "This contract fails under conditions described in a comment at the " <>
       "beginning of this contract and returns whether remaining gas is " <>

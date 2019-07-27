@@ -1,16 +1,18 @@
 -- | Tests for the contract that calls self several times.
 
 module Test.Interpreter.CallSelf
-  ( selfCallerSpec
+  ( test_self_caller
   ) where
 
-import Test.Hspec (Expectation, Spec, it, parallel, shouldBe)
-import Test.Hspec.QuickCheck (modifyMaxSuccess, prop)
-import Test.QuickCheck (Gen, choose, forAll)
+import Test.HUnit (Assertion, (@?=))
+import Test.QuickCheck (Gen, choose, forAll, withMaxSuccess)
+import Test.Tasty (TestTree)
+import Test.Tasty.HUnit (testCase)
+import Test.Tasty.QuickCheck (testProperty)
 
 import Michelson.Interpret (ContractEnv(..), InterpreterState(..), RemainingSteps(..))
 import Michelson.Runtime.GState
-import Michelson.Test (ContractPropValidator, contractProp, specWithContract)
+import Michelson.Test (ContractPropValidator, contractProp, testTreesWithContract)
 import Michelson.Test.Dummy
 import Michelson.Test.Integrational
 import Michelson.Typed
@@ -18,11 +20,10 @@ import qualified Michelson.Untyped as U
 import Tezos.Address (Address)
 import Tezos.Core (unsafeMkMutez)
 
-selfCallerSpec :: Spec
-selfCallerSpec =
-  parallel $
-  specWithContract "contracts/call_self_several_times.tz" $ \selfCaller ->
-  specImpl selfCaller
+test_self_caller :: IO [TestTree]
+test_self_caller =
+  testTreesWithContract "contracts/call_self_several_times.tz" $ \selfCaller ->
+  pure (testImpl selfCaller)
 
 data Fixture = Fixture
   { fMaxSteps :: RemainingSteps
@@ -52,31 +53,33 @@ genFixture =
 type Parameter = 'Tc 'CInt
 type Storage = 'Tc 'CNat
 
-specImpl ::
+testImpl ::
      (U.Contract, Contract Parameter Storage)
-  -> Spec
-specImpl (uSelfCaller, selfCaller) = modifyMaxSuccess (min 10) $ do
-  it ("With parameter 1 single execution consumes " <>
+  -> [TestTree]
+testImpl (uSelfCaller, selfCaller) =
+  [ testCase ("With parameter 1 single execution consumes " <>
       show @_ @Int gasForLastExecution <> " gas") $
     contractProp selfCaller (unitValidator gasForLastExecution) unitContractEnv
     (1 :: Integer) (0 :: Natural)
 
-  it ("With parameter 2 single execution consumes " <>
+  , testCase ("With parameter 2 single execution consumes " <>
       show @_ @Int gasForOneExecution <> " gas") $
     contractProp selfCaller (unitValidator gasForOneExecution) unitContractEnv
     (2 :: Integer) (0 :: Natural)
 
-  prop propertyDescription $
+  , testProperty propertyDescription $
+    withMaxSuccess 10 $
     forAll genFixture $ \fixture ->
       integrationalTestProperty (integrationalScenario uSelfCaller fixture)
+  ]
   where
     -- Environment for unit test
     unitContractEnv = dummyContractEnv
     -- Validator for unit test
     unitValidator ::
-      RemainingSteps -> ContractPropValidator Storage Expectation
+      RemainingSteps -> ContractPropValidator Storage Assertion
     unitValidator gasDiff (_, isRemainingSteps -> remSteps) =
-      remSteps `shouldBe` ceMaxSteps unitContractEnv - gasDiff
+      remSteps @?= ceMaxSteps unitContractEnv - gasDiff
 
     propertyDescription =
       "calls itself as many times as you pass to it as a parameter, " <>

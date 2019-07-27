@@ -1,16 +1,16 @@
 -- | Module, containing spec to test conditionals.tz contract.
 module Test.Interpreter.Conditionals
-  ( conditionalsSpec
+  ( test_conditionals
   ) where
 
-import Test.Hspec (Spec, it, parallel)
-import Test.Hspec.QuickCheck (prop)
+import Test.Tasty (TestTree)
+import Test.Tasty.QuickCheck (testProperty)
 import Test.QuickCheck (Property, (===))
 import Test.QuickCheck.Instances.Text ()
 import Test.QuickCheck.Property (withMaxSuccess)
 
 import Michelson.Interpret (InterpreterState, MichelsonFailed)
-import Michelson.Test (contractProp, specWithTypedContract)
+import Michelson.Test (contractProp, testTreesWithTypedContract)
 import Michelson.Test.Dummy (dummyContractEnv)
 import Michelson.Test.Util (failedProp, qcIsLeft, qcIsRight)
 import Michelson.Typed (CValue(..), ToT)
@@ -24,19 +24,19 @@ type ContractResult x
      , InterpreterState)
 
 -- | Spec to test conditionals.tz contract.
-conditionalsSpec :: Spec
-conditionalsSpec = parallel $ do
-
-  specWithTypedContract "contracts/tezos_examples/conditionals.tz" $ \contract -> do
+test_conditionals :: IO [TestTree]
+test_conditionals =
+  testTreesWithTypedContract "contracts/tezos_examples/conditionals.tz" $ \contract ->
     let
       contractProp' inputParam =
         contractProp contract (validate inputParam) dummyContractEnv inputParam
         [mt|storage|]
-
-    it "success 1 test" $
-      contractProp' $ Left [mt|abc|]
-
-    prop "Random check" $ withMaxSuccess 200 contractProp'
+    in pure
+    [ testProperty "success 1 test" $
+        contractProp' $ Left [mt|abc|]
+    , testProperty "Random check" $
+        withMaxSuccess 200 contractProp'
+    ]
   where
     validate
       :: Show x

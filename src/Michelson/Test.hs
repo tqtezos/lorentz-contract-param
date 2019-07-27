@@ -8,6 +8,10 @@ module Michelson.Test
   , specWithContractL
   , specWithTypedContract
   , specWithUntypedContract
+  , testTreesWithContract
+  , testTreesWithContractL
+  , testTreesWithTypedContract
+  , concatTestTrees
   , importUntypedContract
 
   -- * Unit testing

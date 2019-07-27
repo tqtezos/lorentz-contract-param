@@ -1,16 +1,16 @@
 module Test.Ext
-  ( spec_Ext_Intepreter
+  ( test_PRINT_and_TEST_ASSERT
   , test_STACKTYPE
   ) where
 
 import Data.Default (def)
-import Test.Hspec (Spec, describe, it, shouldSatisfy)
+import Test.Hspec.Expectations (shouldSatisfy)
 import Test.HUnit (Assertion, assertFailure)
 import Test.Tasty (TestTree)
 import Test.Tasty.HUnit (testCase)
 
 import Michelson.Interpret (InterpreterState(..), MorleyLogs(..), interpret)
-import Michelson.Test (specWithTypedContract)
+import Michelson.Test (concatTestTrees, testTreesWithTypedContract)
 import Michelson.Test.Dummy (dummyContractEnv)
 import Michelson.TypeCheck (HST(..), SomeHST(..), runTypeCheck, typeCheckExt, typeCheckList)
 import Michelson.Typed (CValue(..), extractNotes, fromUType, withSomeSingT)
@@ -19,20 +19,22 @@ import Michelson.Untyped
   (CT(..), ExpandedExtInstr, ExtInstrAbstract(..), StackTypePattern(..), T(..), TyVar(..),
   Type(..), ann, noAnn)
 
-spec_Ext_Intepreter :: Spec
-spec_Ext_Intepreter = describe "PRINT/TEST_ASSERT tests" $ do
-  specWithTypedContract "contracts/testassert_square.mtz" $
-    testAssertSquareSpec
-  specWithTypedContract "contracts/testassert_square2.mtz" $
-    testAssertSquareSpec
+test_PRINT_and_TEST_ASSERT :: IO [TestTree]
+test_PRINT_and_TEST_ASSERT = concatTestTrees
+  [ testTreesWithTypedContract "contracts/testassert_square.mtz" $
+    testAssertSquareImpl
+  , testTreesWithTypedContract "contracts/testassert_square2.mtz" $
+    testAssertSquareImpl
+  ]
   where
-    testAssertSquareSpec c = do
-      it "TEST_ASSERT assertion passed" $ do
+    testAssertSquareImpl c = pure
+      [ testCase "TEST_ASSERT assertion passed" $ do
         runTest True c 100 100
         runTest True c 1 1
-      it "TEST_ASSERT assertion failed" $ do
+      , testCase "TEST_ASSERT assertion failed" $ do
         runTest False c 0 100
         runTest False c -1 -2
+      ]
 
     runTest corr contract x y = do
       let x' = T.VC $ T.CvInt x :: T.Value ('T.Tc 'T.CInt)

@@ -1,34 +1,34 @@
 -- | Module, containing spec to test contract_op.tz contract.
 module Test.Interpreter.ContractOp
-  ( contractOpSpec
+  ( test_contract_op
   ) where
 
 import qualified Data.Map as M
-import Test.Hspec (Spec, describe, it, parallel)
 import Test.QuickCheck (Property, (===))
+import Test.Tasty (TestTree)
+import Test.Tasty.QuickCheck (testProperty)
 
 import Michelson.Interpret (ContractEnv(..), ContractReturn)
-import Michelson.Test (contractProp, dummyContractEnv, failedProp, specWithTypedContract)
+import Michelson.Test (contractProp, dummyContractEnv, failedProp, testTreesWithTypedContract)
 import Michelson.Typed (Contract, ToT, fromVal)
 import Michelson.Untyped (CT(..), T(..), Type(..), noAnn)
 import Tezos.Address (Address, unsafeParseAddress)
 
 -- | Spec to test compare.tz contract.
-contractOpSpec :: Spec
-contractOpSpec = parallel $ describe "CONTRACT instruction tests" $ do
-  specWithTypedContract "contracts/contract_op.tz" $ \contract -> do
-    it "contract not found" $
+test_contract_op :: IO [TestTree]
+test_contract_op =
+  testTreesWithTypedContract "contracts/contract_op.tz" $ \contract -> pure
+  [ testProperty "contract not found" $
       contractProp' False [] contract
-
-    it "contract found, expected parameter is int :q, actual is int :q" $
+  , testProperty "contract found, expected parameter is int :q, actual is int :q" $
       contractProp' True [(addr, intQ)] contract
-    it "contract found, expected parameter int :q, actual int" $
+  , testProperty "contract found, expected parameter int :q, actual int" $
       contractProp' True [(addr, int)] contract
-
-    it "contract found, but expected parameter is int :p, actual is int :q" $
+  , testProperty "contract found, but expected parameter is int :p, actual is int :q" $
       contractProp' False [(addr, intP)] contract
-    it "contract found, but expected parameter is int :p, actual is string" $
+  , testProperty "contract found, but expected parameter is int :p, actual is string" $
       contractProp' False [(addr, string)] contract
+  ]
   where
     intQ = Type (Tc CInt) "q"
     int = Type (Tc CInt) noAnn

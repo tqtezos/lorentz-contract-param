@@ -45,10 +45,13 @@ tests:
       - fmt
       - hspec
       - hspec-expectations
+      - HUnit
       - lorentz-contracts
       - morley
       - morley-prelude
       - QuickCheck
       - tasty
       - tasty-hspec
+      - tasty-hunit
+      - tasty-quickcheck
       - vinyl
