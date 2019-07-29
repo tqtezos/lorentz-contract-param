@@ -4,15 +4,18 @@ module Lorentz.Contracts.Upgradeable.Common.Contract
   , Error(..)
   , upgradeableContract
   , mkEmptyStorage
+  , pbsContainedInRun
   ) where
 
 import Lorentz
 
-import Fmt (Buildable (..), (+|), (|+))
+import Fmt (Buildable (..), (+|), (|+), fmt)
+import qualified Data.Text as T
 import qualified Data.Map as M
 
 import qualified Michelson.Typed as T
 import Util.Instances ()
+import Util.Markdown
 
 import Lorentz.Contracts.Upgradeable.Common.Base
 
@@ -33,6 +36,17 @@ data Parameter interface
   | EpwFinishUpgrade
   deriving stock Generic
   deriving anyclass IsoValue
+
+instance TypeHasDoc (Parameter interface) where
+  typeDocName _ = "Global.Parameter"
+  typeDocMdDescription =
+    "Top-level parameter of upgradeable contract.\n\
+    \Use `Run` entrypoint in order to access contract logic, other entrypoints \
+    \are intended solely for migrations purposes."
+  typeDocMdReference tp =
+    customTypeDocMdReference ("Global.Parameter", DType tp) []
+  typeDocHaskellRep = homomorphicTypeDocHaskellRep
+  typeDocMichelsonRep = homomorphicTypeDocMichelsonRep
 
 type UpgradeParameters =
   ( "newVersion" :! Natural
@@ -87,6 +101,35 @@ instance Buildable Error where
 userFail :: forall name fieldTy s s'. FailUsingArg Error name fieldTy s s'
 userFail = failUsingArg @Error @name
 
+-- | Entry point of upgradeable contract.
+data UpgradeableEntryPointKind
+
+instance DocItem (DEntryPoint UpgradeableEntryPointKind) where
+  type DocItemPosition (DEntryPoint UpgradeableEntryPointKind) = 1001
+  docItemSectionName = Just "Top-level entry points of upgradeable contract"
+  docItemSectionDescription = Just
+    "These are top-level service entry points of the contract.\n\
+    \For entry points containing the logic of the contract see sections below.\n\
+    \<Description of Run and migrations-related entry points>"
+  docItemToMarkdown = diEntryPointToMarkdown
+
+-- | Mentions that parameter should be wrapped into 'Run' entry point.
+pbsContainedInRun :: ParamBuildingStep
+pbsContainedInRun = ParamBuildingStep
+  { pbsEnglish = "Wrap into " <> mdTicked "Run" <> " constructor."
+  , pbsHaskell = \p -> "Run (" <> p <> ")"
+  , pbsMichelson = \p ->
+      let uparam = UParamUnsafe ([mt|s|], "a")
+      in build $
+         T.replace (fmt . build . T.untypeValue $ toVal uparam)
+                   ("(" <> fmt p <> ")")
+                   (fmt . build . T.untypeValue . toVal $ Run uparam)
+         --- ^ Kinda hacky way to show how 'Run' is represented in Michelson.
+         --- It should be safe though (no extra parts of text should be replaced)
+         --- because we expect haystack to be of form
+         --- @{Left|Right}+ (Pair text bytes)@
+  }
+
 emptyCode :: ContractCode
 emptyCode = unpair # drop # nil # pair
 
@@ -106,8 +149,11 @@ upgradeableContract
      Contract (Parameter interface) Storage
 upgradeableContract = do
   unpair
-  caseT @(Parameter interface)
+  entryCase @(Parameter interface) (Proxy @UpgradeableEntryPointKind)
     ( #cRun /-> do
+        doc $ DDescription
+          "This entry point is used to call all entry points carrying actual \
+          \logic of the contract."
         dip $ do
           ensureNotPaused
           getField #dataMap

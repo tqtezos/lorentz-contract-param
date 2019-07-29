@@ -288,3 +288,14 @@ instance
   type GUParamLinearized (G.C1 i (x :*: y)) =
     TypeError ('Text "Bad linearized ADT")
   adtToRec = error "impossible"
+
+----------------------------------------------------------------------------
+-- Documentation
+----------------------------------------------------------------------------
+
+instance TypeHasDoc (UParam interface) where
+  typeDocName _ = "Upgradable parameter"
+  typeDocMdReference p = customTypeDocMdReference ("UParam", DType p) []
+  typeDocMdDescription = "<UParam description>"
+  typeDocHaskellRep = homomorphicTypeDocHaskellRep
+  typeDocMichelsonRep = homomorphicTypeDocMichelsonRep

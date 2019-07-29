@@ -2,10 +2,15 @@
 module Util.Generic
   ( mkGenericTree
   , mkGenericTreeVec
+
+  , GenericTypeName
   ) where
 
 import Control.Exception (assert)
+import qualified Data.Kind as Kind
 import qualified Data.Vector as V
+import qualified GHC.Generics as G
+import GHC.TypeLits (Symbol)
 
 -- | Rebuild a list into a binary tree of exactly the same form which
 -- 'Data.Generic' uses to represent datatypes.
@@ -30,3 +35,11 @@ mkGenericTreeVec mkLeaf mkNode vector
               mid' = idxBase + mid
               (h, t) = V.splitAt mid es
           in mkNode (fromIntegral mid') (mkTreeDo idxBase h) (mkTreeDo mid' t)
+
+-- | Extract datatype name via its Generic representation.
+--
+-- For polymorphic types this throws away all type arguments.
+type GenericTypeName a = GTypeName (G.Rep a)
+
+type family GTypeName (x :: Kind.Type -> Kind.Type) :: Symbol where
+  GTypeName (G.D1 ('G.MetaData tyName _ _ _) _) = tyName

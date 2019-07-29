@@ -96,6 +96,7 @@ import GHC.TypeNats (type (+), type (-))
 import qualified GHC.TypeNats as GHC (Nat)
 
 import Lorentz.Arith
+import Lorentz.Doc
 import Lorentz.Base
 import Lorentz.Coercions
 import Lorentz.Constraints
@@ -476,6 +477,20 @@ data View (a :: Kind.Type) (r :: Kind.Type) = View
   } deriving stock Generic
     deriving anyclass IsoValue
 
+instance Each [Typeable, TypeHasDoc] [a, r] => TypeHasDoc (View a r) where
+  typeDocMdDescription =
+    "`View a r` accepts an argument of type `a` and callback contract \
+    \which accepts `r` and returns result via calling that contract.\n\
+    \Read more in [A1 conventions document](https://gitlab.com/tzip/tzip/blob/master/A/A1.md#view-entry-points)."
+  typeDocMdReference = poly2TypeDocMdReference
+  typeDocDependencies p =
+    genericTypeDocDependencies p <>
+    [SomeTypeWithDoc (Proxy @()), SomeTypeWithDoc (Proxy @Integer)]
+  typeDocHaskellRep =
+    haskellRepNoFields $ concreteTypeDocHaskellRep @(View () Integer)
+  typeDocMichelsonRep =
+    concreteTypeDocMichelsonRep @(View () Integer)
+
 view_ ::
      (KnownValue r, NoOperation r, NoBigMap r)
   => (forall s0. (a, storage) & s0 :-> r : s0)
@@ -493,6 +508,29 @@ data Void_ (a :: Kind.Type) (b :: Kind.Type) = Void_
     -- ^ Type of result reported via 'failWith'.
   } deriving stock Generic
     deriving anyclass IsoValue
+
+instance Each [Typeable, TypeHasDoc] [a, r] => TypeHasDoc (Void_ a r) where
+  typeDocName _ = "Void"
+  typeDocMdDescription =
+    "`Void a r` accepts an argument of type `a` and returns a value of type `r` \
+    \via `FAILWITH` instruction.\n\
+    \Read more in [A1 conventions document](https://gitlab.com/tzip/tzip/blob/master/A/A1.md#void-entry-points)."
+  typeDocMdReference tp =
+    -- Avoiding trailing underscore
+    customTypeDocMdReference
+      ("Void", DType tp)
+      [ DType (Proxy @a)
+      , DType (Proxy @r)
+      ]
+  typeDocDependencies p =
+    genericTypeDocDependencies p <>
+    [SomeTypeWithDoc (Proxy @()), SomeTypeWithDoc (Proxy @Integer)]
+  typeDocHaskellRep p = do
+    (_, rhs) <- haskellRepNoFields (concreteTypeDocHaskellRep @(Void_ () Integer)) p
+    return (Just "Void () Integer", rhs)
+  typeDocMichelsonRep p =
+    let (_, rhs) = concreteTypeDocMichelsonRep @(Void_ () Integer) p
+    in (Just "Void () Integer", rhs)
 
 -- | Newtype over void result type used in tests to
 -- distinguish successful void result from other errors.

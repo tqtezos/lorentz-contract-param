@@ -2,11 +2,13 @@ module Lorentz.Contracts.Upgradeable.EntryPointWise
   ( EntryPointImpl
   , EpwFallback
   , EpwContract (..)
+  , EpwCaseClause (..)
   , mkEpwContract
   , mkEpwContractT
   , epwFallbackFail
   , (/==>)
   , removeEndpoint
+  , EpwDocumented (..)
   ) where
 
 import Lorentz
@@ -14,9 +16,11 @@ import Prelude (fmap)
 
 import Data.Vinyl.Core (Rec)
 import Data.Vinyl.Derived (Label(..))
+import Fmt (build)
 
 import Lorentz.Contracts.Upgradeable.Common
 import Lorentz.UStore.Common
+import Util.Markdown
 import Util.TypeLits
 import Util.TypeTuple
 
@@ -187,3 +191,33 @@ removeEndpoint
 removeEndpoint _ = do
   push $ fieldNameToMText @name
   ustoreDelete #code
+
+-- | Helper for documenting entrypoints with EPW interface.
+class EpwDocumented (entries :: [EntryPointKind]) where
+  -- | Make up documentation for given entry points.
+  --
+  -- As result you get a fake contract from which you can later build desired
+  -- documentation. Although, you may want to add contract name and
+  -- description first.
+  epwDocument
+    :: Rec (EpwCaseClause store) entries
+    -> Lambda () ()
+
+instance EpwDocumented '[] where
+  epwDocument RNil = nop
+
+instance (NoOperation a, NoBigMap a, KnownSymbol name, EpwDocumented es) =>
+         EpwDocumented ('(name, a) ': es) where
+  epwDocument (EpwCaseClause code :& es) =
+    let documentedCode = clarifyParamBuildingSteps pstep code
+    in push True # if_ (fakeCoerce # documentedCode # fakeCoerce) (epwDocument es)
+    where
+      ctor = build $ symbolValT' @name
+      pstep = ParamBuildingStep
+        { pbsEnglish =
+            "Wrap into *UParam* as " <> mdTicked ctor <> " entry point."
+        , pbsHaskell =
+            \a -> "mkUParam #" <> ctor <> " (" <> a <> ")"
+        , pbsMichelson =
+            \a -> "Pair \"" <> ctor <> "\" (pack (" <> a <> "))"
+        }

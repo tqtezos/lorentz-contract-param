@@ -18,7 +18,9 @@ module Lorentz.ADT
   , wrap_
   , case_
   , caseT
+  , CaseTC
   , CaseArrow (..)
+  , CaseClauseL (..)
   , InstrConstructC
   , ConstructorFieldTypes
 
@@ -211,10 +213,13 @@ case_ = I . instrCase @dt . rmap coerceCaseClause
 -- extend number of generated instances.
 caseT
   :: forall dt out inp clauses.
-     ( InstrCaseC dt inp out
-     , RMap (CaseClauses dt)
-     , RecFromTuple clauses
-     , clauses ~ Rec (CaseClauseL inp out) (CaseClauses dt)
-     )
+     CaseTC dt out inp clauses
   => IsoRecTuple clauses -> dt & inp :-> out
 caseT = case_ @dt . recFromTuple
+
+type CaseTC dt out inp clauses =
+  ( InstrCaseC dt inp out
+  , RMap (CaseClauses dt)
+  , RecFromTuple clauses
+  , clauses ~ Rec (CaseClauseL inp out) (CaseClauses dt)
+  )

@@ -2,6 +2,7 @@
 module Lorentz.Coercions
   ( Coercible_
   , coerce_
+  , fakeCoerce
 
   , coerceUnwrap
   , coerceWrap
@@ -17,6 +18,7 @@ import Data.Vinyl.Derived (Label)
 import Named (NamedF)
 
 import Lorentz.Base
+import Lorentz.Instr
 import Michelson.Typed
 
 -- | Whether two types have the same Michelson representation.
@@ -25,6 +27,10 @@ type Coercible_ a b = ToT a ~ ToT b
 -- | Convert between values of types that have the same representation.
 coerce_ :: Coercible_ a b => a & s :-> b & s
 coerce_ = I Nop
+
+-- | Convert between two stacks via failing.
+fakeCoerce :: s1 :-> s2
+fakeCoerce = unit # failWith
 
 -- | Specialized version of 'coerce_' to wrap into a haskell newtype.
 coerceWrap

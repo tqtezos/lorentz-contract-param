@@ -7,6 +7,8 @@ import Lorentz.Arith as Exports
 import Lorentz.Base as Exports
 import Lorentz.Coercions as Exports
 import Lorentz.Constraints as Exports
+import Lorentz.Doc as Exports
+import Lorentz.EntryPoints as Exports
 import Lorentz.Errors as Exports
 import Lorentz.Ext as Exports
 import Lorentz.Instr as Exports
