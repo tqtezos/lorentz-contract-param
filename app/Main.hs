@@ -18,6 +18,7 @@ import System.IO (utf8)
 import Text.Pretty.Simple (pPrint)
 import qualified Text.Show
 
+import Michelson.Analyzer (analyze)
 import Michelson.Macro (expandContract, expandValue)
 import Michelson.Optimizer (optimize)
 import qualified Michelson.Parser as P
@@ -26,7 +27,7 @@ import Michelson.Runtime
   (TxData(..), originateContract, prepareContract, readAndParseContract, runContract, transfer,
   typeCheckWithDb)
 import Michelson.Runtime.GState (genesisAddress, genesisKeyHash)
-import Michelson.TypeCheck.Types (mapSomeContract)
+import Michelson.TypeCheck.Types (SomeContract(..), mapSomeContract)
 import Michelson.Untyped hiding (OriginationOperation(..))
 import qualified Michelson.Untyped as U
 import Tezos.Address (Address, parseAddress)
@@ -44,6 +45,7 @@ data CmdLnArgs
   = Parse (Maybe FilePath) Bool
   | Print ("input" :? FilePath) ("output" :? FilePath) ("singleLine" :! Bool)
   | Optimize !OptimizeOptions
+  | Analyze !AnalyzeOptions
   | TypeCheck !TypeCheckOptions
   | Run !RunOptions
   | Originate !OriginateOptions
@@ -54,6 +56,11 @@ data OptimizeOptions = OptimizeOptions
   , optoDBPath :: !FilePath
   , optoOutput :: !(Maybe FilePath)
   , optoSingleLine :: !Bool
+  }
+
+data AnalyzeOptions = AnalyzeOptions
+  { aoContractFile :: !(Maybe FilePath)
+  , aoDBPath :: !FilePath
   }
 
 data TypeCheckOptions = TypeCheckOptions
@@ -104,7 +111,8 @@ argParser = subparser $
   runSubCmd <>
   originateSubCmd <>
   transferSubCmd <>
-  optimizeSubCmd
+  optimizeSubCmd <>
+  analyzeSubCmd
   where
     mkCommandParser commandName parser desc =
       command commandName $
@@ -150,6 +158,11 @@ argParser = subparser $
       (Optimize <$> optimizeOptions)
       "Optimize the contract."
 
+    analyzeSubCmd =
+      mkCommandParser "analyze"
+      (Analyze <$> analyzeOptions)
+      "Analyze the contract."
+
     verboseFlag :: Opt.Parser Bool
     verboseFlag = switch $
       short 'v' <>
@@ -188,6 +201,11 @@ argParser = subparser $
       <*> dbPathOption
       <*> outputOption
       <*> onelineOption
+
+    analyzeOptions :: Opt.Parser AnalyzeOptions
+    analyzeOptions = AnalyzeOptions
+      <$> contractFileOption
+      <*> dbPathOption
 
     runOptions :: Opt.Parser RunOptions
     runOptions =
@@ -416,6 +434,11 @@ main = displayUncaughtException $ withEncoding stdin utf8 $ do
         let optimizedContract = mapSomeContract optimize checkedContract
         let write = maybe putStrLn writeFileUtf8 optoOutput
         write $ printSomeContract optoSingleLine optimizedContract
+      Analyze AnalyzeOptions{..} -> do
+        untypedContract <- prepareContract aoContractFile
+        (SomeContract instr _ _) <- either throwM pure =<<
+          typeCheckWithDb aoDBPath untypedContract
+        putTextLn $ pretty $ analyze instr
       TypeCheck TypeCheckOptions{..} -> do
         morleyContract <- prepareContract tcoContractFile
         either throwM (const pass) =<< typeCheckWithDb tcoDBPath morleyContract

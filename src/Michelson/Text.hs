@@ -66,7 +66,7 @@ import Util.TypeLits
 -- to make it compliant with Michelson constraints.
 newtype MText = MTextUnsafe { unMText :: Text }
   deriving stock (Show, Eq, Ord, Data)
-  deriving newtype (Semigroup, Monoid, Container, Buildable)
+  deriving newtype (Semigroup, Monoid, Container, Buildable, Hashable)
 
 -- | Constraint on literals appearing in Michelson contract code.
 isMChar :: Char -> Bool
