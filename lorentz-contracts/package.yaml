@@ -50,6 +50,7 @@ tests:
       - morley
       - morley-prelude
       - QuickCheck
+      - singletons
       - tasty
       - tasty-hspec
       - tasty-hunit

@@ -10,6 +10,8 @@ module Lorentz.Prelude
   , Monoid (..)
   , Generic
   , Text
+  , Either (..)
+  , Maybe (..)
   , Proxy (..)
   , fromString
   , undefined

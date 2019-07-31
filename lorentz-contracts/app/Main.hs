@@ -9,7 +9,9 @@ import qualified Options.Applicative as Opt
 
 import qualified Lorentz.Base as L
 import Lorentz.Contracts.Auction
-import Lorentz.Contracts.ManagedLedger
+import Lorentz.Contracts.ManagedLedger.Athens (managedLedgerAthensContract)
+import Lorentz.Contracts.ManagedLedger.Babylon (managedLedgerContract)
+import Lorentz.Contracts.ManagedLedger.Proxy (managedLedgerProxyContract)
 import Lorentz.Contracts.UnsafeLedger
 import Lorentz.Contracts.Walker
 import qualified Lorentz.Doc as L
@@ -20,6 +22,8 @@ import Util.IO
 contracts :: Map Text L.SomeContract
 contracts = Map.fromList
   [ ("ManagedLedger", L.SomeContract managedLedgerContract)
+  , ("ManagedLedgerAthens", L.SomeContract managedLedgerAthensContract)
+  , ("ManagedLedgerProxy", L.SomeContract managedLedgerProxyContract)
   , ("UnsafeLedger", L.SomeContract unsafeLedgerContract)
   , ("Walker", L.SomeContract walkerContract)
   , ("Auction", L.SomeContract auctionContract)
