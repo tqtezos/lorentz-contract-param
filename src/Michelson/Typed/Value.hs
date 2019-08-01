@@ -161,6 +161,9 @@ data SomeValue' instr where
   SomeValue :: (Typeable t, SingI t) => Value' instr t -> SomeValue' instr
 
 deriving instance Show (SomeValue' instr)
+instance Eq (SomeValue' instr) where
+  SomeValue v1 == SomeValue v2 = v1 `eqParam1` v2
+
 -- TODO: actually we should handle big maps with something close
 -- to following:
 --

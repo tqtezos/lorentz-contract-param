@@ -42,6 +42,8 @@ module Michelson.Test
   , composeValidators
   , composeValidatorsList
   , expectAnySuccess
+  , expectNoUpdates
+  , expectNoStorageUpdates
   , expectStorageUpdate
   , expectStorageUpdateConst
   , expectBalance

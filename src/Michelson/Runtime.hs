@@ -39,16 +39,17 @@ import Named ((:!), (:?), arg, argDef, defaults, (!))
 import Text.Megaparsec (parse)
 
 import Michelson.Interpret
-  (ContractEnv(..), InterpretError(..), InterpretResult(..), InterpreterState(..),
-  MorleyLogs(..), RemainingSteps(..), interpretSome)
+  (ContractEnv(..), InterpretError(..), InterpretResult(..), InterpreterState(..), MorleyLogs(..),
+  RemainingSteps(..), interpretSome)
 import Michelson.Macro (ParsedOp, expandContract)
 import qualified Michelson.Parser as P
 import Michelson.Runtime.GState
 import Michelson.Runtime.TxData
 import Michelson.TypeCheck
-  (SomeContract, StorageOrParameter (..), TCError, typeCheckContract, typeCheckStorageOrParameter)
+  (SomeContract, StorageOrParameter(..), TCError, typeCheckContract, typeCheckStorageOrParameter)
 import Michelson.Typed
-  (CreateContract(..), Operation'(..), SomeValue'(..), TransferTokens(..), convertContract, untypeValue)
+  (CreateContract(..), Operation'(..), SomeValue'(..), TransferTokens(..), convertContract,
+  untypeValue)
 import qualified Michelson.Typed as T
 import Michelson.Untyped (Contract, OriginationOperation(..), mkContractAddress)
 import qualified Michelson.Untyped as U
@@ -457,9 +458,13 @@ interpretOneOp now remainingSteps mSourceAddr gs (TransferOp addr txData) = do
           -- can't overflow if global state is correct (because we can't
           -- create money out of nowhere)
           newBalance = csBalance cs `unsafeAddMutez` tdAmount txData
-          updBalance = GSSetBalance addr newBalance
-          updStorage = GSSetStorageValue addr newValueU (SomeValue newValue)
-          updates =
+          updBalance
+            | newBalance == csBalance cs = Nothing
+            | otherwise = Just $ GSSetBalance addr newBalance
+          updStorage
+            | SomeValue newValue == typedStorage = Nothing
+            | otherwise = Just $ GSSetStorageValue addr newValueU (SomeValue newValue)
+          updates = catMaybes
             [ updBalance
             , updStorage
             ]
