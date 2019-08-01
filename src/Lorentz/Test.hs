@@ -36,6 +36,8 @@ module Lorentz.Test
   , composeValidators
   , composeValidatorsList
   , expectAnySuccess
+  , expectNoUpdates
+  , expectNoStorageUpdates
   , lExpectStorageUpdate
   , lExpectBalance
   , lExpectStorageConst

@@ -35,6 +35,8 @@ module Michelson.Test.Integrational
   , composeValidators
   , composeValidatorsList
   , expectAnySuccess
+  , expectNoUpdates
+  , expectNoStorageUpdates
   , expectStorageUpdate
   , expectStorageUpdateConst
   , expectBalance
@@ -47,7 +49,7 @@ import Control.Lens (assign, at, makeLenses, makeLensesFor, (%=), (.=), (<>=), (
 import Control.Monad.Except (Except, runExcept, throwError, withExcept)
 import qualified Data.List as List
 import Data.Map as Map (empty, insert, lookup)
-import Fmt (Buildable(..), blockListF, pretty, (+|), (|+))
+import Fmt (Buildable(..), blockListF, listF, pretty, (+|), (|+))
 import Test.Hspec (Expectation, expectationFailure)
 import Test.QuickCheck (Property)
 
@@ -134,6 +136,7 @@ data ValidationError
   | IncorrectStorageUpdate AddressName Text
   | InvalidStorage AddressName ExpectedStorage Text
   | InvalidBalance AddressName ExpectedBalance Text
+  | UnexpectedUpdates (NonEmpty GStateUpdate)
   | CustomError Text
   deriving (Show)
 
@@ -153,6 +156,8 @@ instance Buildable ValidationError where
     "Expected " +| addr |+ " to have storage " +| expected |+ ", but " +| msg |+ ""
   build (InvalidBalance addr (ExpectedBalance expected) msg) =
     "Expected " +| addr |+ " to have balance " +| expected |+ ", but " +| msg |+ ""
+  build (UnexpectedUpdates updates) =
+    "Did not expect certain updates, but there are some: " +| listF updates |+ ""
   build (CustomError msg) = pretty msg
 
 instance Exception ValidationError where
@@ -293,6 +298,21 @@ infixr 0 ?-
 -- | 'SuccessValidator' that always passes.
 expectAnySuccess :: SuccessValidator
 expectAnySuccess _ _ _ = pass
+
+-- | Check that there were no updates.
+expectNoUpdates :: SuccessValidator
+expectNoUpdates _ _ updates =
+  maybe pass (throwError . UnexpectedUpdates) . nonEmpty $ updates
+
+-- | Check that there were no storage updates.
+expectNoStorageUpdates :: SuccessValidator
+expectNoStorageUpdates _ _ updates =
+  maybe pass (throwError . UnexpectedUpdates) . nonEmpty $
+  filter isStorageUpdate updates
+  where
+    isStorageUpdate = \case
+      GSSetStorageValue {} -> True
+      _ -> False
 
 -- | Check that storage value is updated for given address. Takes a
 -- predicate that is used to check the value.

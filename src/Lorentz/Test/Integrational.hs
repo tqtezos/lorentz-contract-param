@@ -36,6 +36,8 @@ module Lorentz.Test.Integrational
   , I.composeValidators
   , I.composeValidatorsList
   , I.expectAnySuccess
+  , I.expectNoUpdates
+  , I.expectNoStorageUpdates
   , lExpectStorageUpdate
   , lExpectBalance
   , lExpectStorageConst
