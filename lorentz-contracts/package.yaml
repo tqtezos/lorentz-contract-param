@@ -35,6 +35,23 @@ executables:
       - optparse-applicative
       - text
 
+  lorentz-contract-param:
+    <<: *exec-common
+
+    main: Main.hs
+    source-dirs: param-app
+
+    dependencies:
+      - containers
+      - fmt
+      - lorentz-contracts
+      - morley
+      - morley-prelude
+      - optparse-applicative
+      - text
+      - named
+      - singletons
+
 tests:
   lorentz-contracts-test:
     <<: *test-common
