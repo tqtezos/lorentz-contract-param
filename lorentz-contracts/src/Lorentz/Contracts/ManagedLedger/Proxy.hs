@@ -3,6 +3,9 @@
 
 module Lorentz.Contracts.ManagedLedger.Proxy
   ( Parameter (..)
+  , Parameter0(..)
+  , Parameter1(..)
+  , Parameter2(..)
   , SaneParameter (..)
   , fromSaneParameter
 
