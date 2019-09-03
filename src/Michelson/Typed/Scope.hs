@@ -4,6 +4,9 @@
 
 module Michelson.Typed.Scope
   ( AllowBigMap
+  , ContainsBigMap
+  , BadBigMapPair
+  , FailOnBigMapFound
   , HasNoBigMap
   , HasNoOp
   , ForbidBigMap

@@ -1,0 +1,22 @@
+parameter nat;
+storage (pair (big_map bool
+                       unit)
+              nat);
+code { DUP;
+       CAR;
+       DIP { CDR };
+       SWAP;
+       DUP;
+       CAR;
+       DIP { CDR };
+       DIP { SWAP;
+             PAIR;
+             CAR;
+             NIL operation;
+             PAIR;
+             DUP;
+             CAR;
+             DIP { CDR } };
+       SWAP;
+       DIP { PAIR };
+       PAIR };

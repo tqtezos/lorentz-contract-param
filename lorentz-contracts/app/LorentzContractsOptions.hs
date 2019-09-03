@@ -4,18 +4,20 @@ module LorentzContractsOptions
   ) where
 
 import Data.Version (showVersion)
-import qualified Options.Applicative as Opt
 import Options.Applicative.Help.Pretty (Doc, linebreak)
 import Paths_lorentz_contracts (version)
+import qualified Options.Applicative as Opt
 
 data CmdLnArgs
   = List
-  | Print Text (Maybe FilePath) Bool
+  | Parse Text Text
+  | Print Text (Maybe FilePath) (Maybe FilePath) Bool
   | Document Text (Maybe FilePath)
 
 argParser :: Opt.Parser CmdLnArgs
 argParser = Opt.subparser $ mconcat
   [ listSubCmd
+  , parseSubCmd
   , printSubCmd
   , documentSubCmd
   ]
@@ -30,15 +32,27 @@ argParser = Opt.subparser $ mconcat
       (pure List)
       "Show all available contracts"
 
+    parseSubCmd =
+      mkCommandParser "parse"
+      (Parse <$> parseOption <*> parseOption)
+      "Parse two Michelson contracts and compare"
+
     printSubCmd =
       mkCommandParser "print"
-      (Print <$> printOptions <*> outputOptions <*> onelineOption)
+      (Print <$> printOptions <*> outputOptions <*> baseContractOptions <*> onelineOption)
       "Dump a contract in form of Michelson code"
 
     documentSubCmd =
       mkCommandParser "document"
       (Document <$> printOptions <*> outputOptions)
       "Dump contract documentation in Markdown"
+
+    parseOption = Opt.strOption $ mconcat
+      [ Opt.short 'i'
+      , Opt.long "input"
+      , Opt.metavar "FILEPATH"
+      , Opt.help "File to use as input."
+      ]
 
     printOptions = Opt.strOption $ mconcat
       [ Opt.short 'n'
@@ -52,6 +66,13 @@ argParser = Opt.subparser $ mconcat
       , Opt.long "output"
       , Opt.metavar "FILEPATH"
       , Opt.help "File to use as output. If not specified, stdout is used."
+      ]
+
+    baseContractOptions = optional . Opt.strOption $ mconcat
+      [ Opt.short 'i'
+      , Opt.long "input-contract"
+      , Opt.metavar "FILEPATH"
+      , Opt.help "File to use as base contract. Ignored unless using WrappedMultisig."
       ]
 
     onelineOption :: Opt.Parser Bool
@@ -77,3 +98,4 @@ usageDoc = Just $ mconcat
    , "EXAMPLE:", linebreak
    , "  lorentz-contracts print --help", linebreak
    ]
+

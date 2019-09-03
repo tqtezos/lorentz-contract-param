@@ -51,24 +51,29 @@ newtype InternalByteString = InternalByteString ByteString
 unInternalByteString :: InternalByteString -> ByteString
 unInternalByteString (InternalByteString bs) = bs
 
+-- | `Some` was being output with redundant parens that were rejected by the
+-- @tezos-client@. Below is an attempt to elide parenthases until the last
+-- possible moment, stripping them when unneeded by the wrapping constructor.
 instance RenderDoc op => RenderDoc (Value' op) where
   renderDoc =
-    \case
-      ValueNil       -> "{ }"
-      ValueInt x     -> text . show $ x
-      ValueString x  -> dquotes (textStrict $ writeMText x)
-      ValueBytes xs  -> "0x" <> (textStrict . encodeHex . unInternalByteString $ xs)
-      ValueUnit      -> "Unit"
-      ValueTrue      -> "True"
-      ValueFalse     -> "False"
-      ValuePair l r  -> parens $ ("Pair"  <+> renderDoc l <+> renderDoc r)
-      ValueLeft l    -> parens $ ("Left"  <+> renderDoc l)
-      ValueRight r   -> parens $ ("Right" <+> renderDoc r)
-      ValueSome x    -> parens $ ("Some"  <+> renderDoc x)
-      ValueNone      -> "None"
-      ValueSeq xs    -> braces $ mconcat $ (intersperse semi (renderDoc <$> toList xs))
-      ValueMap xs    -> braces $ mconcat $ (intersperse semi (renderDoc <$> toList xs))
-      ValueLambda xs -> renderOps True xs
+    uncurry (\hasParens doc' -> bool id parens hasParens doc') . renderParensDoc
+    where
+      renderParensDoc = \case
+        ValueNil       -> (False,) $ "{ }"
+        ValueInt x     -> (False,) $ text . show $ x
+        ValueString x  -> (False,) $ dquotes (textStrict $ writeMText x)
+        ValueBytes xs  -> (False,) $ "0x" <> (textStrict . encodeHex . unInternalByteString $ xs)
+        ValueUnit      -> (False,) $ "Unit"
+        ValueTrue      -> (False,) $ "True"
+        ValueFalse     -> (False,) $ "False"
+        ValuePair l r  -> (True,)  $ ("Pair"  <+> renderDoc l <+> renderDoc r)
+        ValueLeft l    -> (True,)  $ ("Left"  <+> renderDoc l)
+        ValueRight r   -> (True,)  $ ("Right" <+> renderDoc r)
+        ValueSome x    -> (True,)  $ ("Some"  <+> renderDoc x)
+        ValueNone      -> (False,) $ "None"
+        ValueSeq xs    -> (False,) $ braces $ mconcat $ (intersperse semi (snd . renderParensDoc <$> toList xs))
+        ValueMap xs    -> (False,) $ braces $ mconcat $ (intersperse semi (renderDoc <$> toList xs))
+        ValueLambda xs -> (False,) $ renderOps True xs
 
 instance RenderDoc op => RenderDoc (Elt op) where
   renderDoc (Elt k v) = "Elt" <+> renderDoc k <+> renderDoc v

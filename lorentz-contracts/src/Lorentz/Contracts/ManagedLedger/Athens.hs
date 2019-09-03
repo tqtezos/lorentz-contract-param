@@ -5,6 +5,7 @@ module Lorentz.Contracts.ManagedLedger.Athens
   ( Parameter (..)
 
   , Storage
+  , StorageFields(..)
   , mkStorage
   , managedLedgerAthensContract
   , AthensError (..)
@@ -17,6 +18,7 @@ import Lorentz.Contracts.ManagedLedger.Types
 import Lorentz.Contracts.ManagedLedger.Impl
 
 {-# ANN module ("HLint: ignore Reduce duplication" :: Text) #-}
+
 
 ----------------------------------------------------------------------------
 -- Parameter
