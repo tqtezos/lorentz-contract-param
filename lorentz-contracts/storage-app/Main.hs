@@ -6,15 +6,21 @@ module Main
   ) where
 
 import Options.Applicative.Help.Pretty (Doc, linebreak)
+import qualified Data.Text as T
+import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.IO as TL
 import qualified Options.Applicative as Opt
 
 import Lorentz
 import Lorentz.Contracts.GenericMultisig.Wrapper
+import Lorentz.Contracts.Util ()
+import Michelson.Macro
+import Michelson.Parser
+import Michelson.Runtime
+import Michelson.TypeCheck
+import Util.IO
 import qualified Lorentz.Contracts.ManagedLedger.Athens as Athens
 import qualified Lorentz.Contracts.ManagedLedger.Types as Athens
-import Lorentz.Contracts.Util ()
-import Util.IO
 
 import Data.Version (showVersion)
 import Paths_lorentz_contracts (version)
@@ -97,7 +103,8 @@ argParser = Opt.subparser $ mconcat
          parseString "contractInitialStorage" <*>
          parseNatural "threshold" <*>
          parseSignerKeys)
-        "Make initial storage for some wrapped Michelson contract"
+        ("Make initial storage for some wrapped Michelson contract.\n" ++
+         "Omit the 'contractFilePath' option to pass the contract through STDIN.")
 
     parseNatural name = Opt.option Opt.auto $ mconcat
       [ Opt.long name
@@ -117,7 +124,7 @@ argParser = Opt.subparser $ mconcat
       , Opt.help $ "Bool representing whether the contract is initially " ++ name ++ "."
       ]
 
-    parseString name = Opt.option Opt.auto $ mconcat
+    parseString name = Opt.strOption $ mconcat
       [ Opt.long name
       , Opt.metavar "STRING"
       , Opt.help $ "String representing the contract's initial " ++ name ++ "."
@@ -162,8 +169,8 @@ main = do
     run =
       \case
         ManagedLedgerAthens {..} ->
-          TL.putStrLn . printLorentzValue forceSingleLine .
-          Athens.Storage' mempty $ Athens.StorageFields admin paused totalSupply (Left proxyAdmin)
+          TL.putStrLn . printLorentzValue forceSingleLine . Athens.Storage' mempty $
+          Athens.StorageFields admin paused totalSupply (Left proxyAdmin)
         WrappedMultisigContractNat {..} ->
           TL.putStrLn . printLorentzValue forceSingleLine $
           initStorageWrappedMultisigContractNat initialNat threshold signerKeys
@@ -177,11 +184,16 @@ main = do
             threshold
             signerKeys
         WrappedMultisigContractGeneric {..} -> do
-          -- uContract <- expandContract <$> readAndParseContract contractFilePath
-          -- case typeCheckContract mempty uContract of
-          --   Left err -> die $ show err
-          --   Right typeCheckedContract ->
-          --     _
-          putStrLn
-            ("WrappedMultisigContractGeneric not currently supported" :: String)
+          uContract <- expandContract <$> readAndParseContract contractFilePath
+          case typeCheckContract mempty uContract of
+            Left err -> die $ show err
+            Right typeCheckedContract ->
+              let storageParser =
+                    snd
+                      (someBigMapContractStorageParams typeCheckedContract)
+                      threshold
+                      signerKeys
+               in TL.putStrLn .
+                  either (TL.pack . show) id . parseNoEnv storageParser contractName $
+                  T.pack contractInitialStorage
 

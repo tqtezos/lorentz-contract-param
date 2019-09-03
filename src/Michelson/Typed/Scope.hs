@@ -7,6 +7,7 @@ module Michelson.Typed.Scope
   , ContainsBigMap
   , BadBigMapPair
   , FailOnBigMapFound
+  , FailOnOperationFound
   , HasNoBigMap
   , HasNoOp
   , ForbidBigMap

@@ -43,7 +43,11 @@ import Lorentz.Contracts.Util ()
 import Lorentz.Contracts.VarStorage
 import Lorentz.Contracts.Walker
 import Michelson.Interpret.Pack
+import Michelson.Macro
+import Michelson.Parser
 import Michelson.Printer.Util
+import Michelson.Runtime
+import Michelson.TypeCheck
 import Michelson.Typed
 import Tezos.Crypto (SecretKey)
 import Util.IO
@@ -275,6 +279,14 @@ data CmdLnArgs
       , baseContractParam :: SomeContractParam
       , signerKeys :: [PublicKey]
       }
+  | MultisigSomeOperationParams
+      { contractName :: String
+      , contractFilePath :: Maybe String
+      , contractAddress :: Address
+      , counter :: Natural
+      , untypedBaseContractParam :: String
+      , signerKeys :: [PublicKey]
+      }
   | MultisigFiles
       { multisigFiles :: NonEmpty FilePath
       }
@@ -374,6 +386,26 @@ parseSignerKeys name =
     , Opt.help $ "Public keys of multisig " ++ name ++ "."
     ]
 
+
+parseFilePath :: String -> String -> Opt.Parser FilePath
+parseFilePath name description =
+  Opt.strOption $
+  mconcat
+    [ Opt.long name
+    , Opt.metavar "FilePath"
+    , Opt.help description
+    ]
+
+-- | Parse the signer keys
+parseContractName :: Opt.Parser String
+parseContractName =
+  Opt.strOption $
+  mconcat
+    [ Opt.long "contractName"
+    , Opt.metavar "STRING"
+    , Opt.help "Contract name"
+    ]
+
 runReadM :: Opt.ReadM a -> String -> Either String a
 runReadM =
   fmap (first show . runIdentity . runExceptT) . runReaderT . Opt.unReadM
@@ -420,6 +452,14 @@ parseList :: Opt.ReadM a -> Opt.ReadM [a]
 parseList =
   liftM2 (<|>) parseHaskellList parseBashList
 
+parseChangeKeys :: String -> Opt.Parser CmdLnArgs
+parseChangeKeys contractName =
+  MultisigChangeKeysParams contractName <$>
+  parseAddress "contractAddress" <*>
+  parseNatural "counter" <*>
+  parseNatural "threshold" <*>
+  parseSignerKeys "signerKeys" <*>
+  parseSignerKeys "newSignerKeys"
 
 -- | Argument parser for `SomeOperationParam`
 genericContractParam ::
@@ -472,7 +512,7 @@ genericMultisigParam contractName parseBaseContractParams =
       "Default parameter: use to transfer ꜩ (tez) to the contract"
   , mkCommandParser
       (contractName ++ "-change-keys")
-      parseChangeKeys
+      (parseChangeKeys contractName)
       "Change keys: update the key list and/or the threshold (i.e. quorum)"
   ] ++
   fmap
@@ -483,15 +523,6 @@ genericMultisigParam contractName parseBaseContractParams =
          (contractName ++ " parameter: " ++ operationName))
     parseBaseContractParams
   where
-    parseChangeKeys :: Opt.Parser CmdLnArgs
-    parseChangeKeys =
-      MultisigChangeKeysParams contractName <$>
-      parseAddress "contractAddress" <*>
-      parseNatural "counter" <*>
-      parseNatural "threshold" <*>
-      parseSignerKeys "signerKeys" <*>
-      parseSignerKeys "newSignerKeys"
-
     parseOperation ::
          ( IsoValue a
          , SingI (ToT a)
@@ -507,7 +538,6 @@ genericMultisigParam contractName parseBaseContractParams =
       parseNatural "counter" <*>
       fmap toSomeContractParam parseBaseContractParam <*>
       parseSignerKeys "signerKeys"
-
 
 contractNatSubCmds :: [(String, Opt.Parser Natural)]
 contractNatSubCmds = [("new-nat", parseNatural "nat")]
@@ -596,6 +626,53 @@ managedLedgerAthensSubCmd =
     "ManagedLedgerAthens"
     contractAthensSubCmds
 
+
+wrappedMultisigDefaultSubCmd :: [Opt.Mod Opt.CommandFields CmdLnArgs]
+wrappedMultisigDefaultSubCmd =
+  [ mkCommandParser
+      "WrappedMultisig-default"
+      (pure MultisigDefaultParam)
+      "Default parameter: use to transfer ꜩ (tez) to the contract"
+  ]
+
+wrappedMultisigChangeKeysSubCmd :: [Opt.Mod Opt.CommandFields CmdLnArgs]
+wrappedMultisigChangeKeysSubCmd =
+  [ mkCommandParser
+      "WrappedMultisig-change-keys"
+      (parseChangeKeys "WrappedMultisig")
+      "Change keys: update the key list and/or the threshold (i.e. quorum)"
+  ]
+
+-- | Command to generate a parameter file for a multisig-wrapped contract
+-- given the source of an arbitrary contract
+multisigSomeOperationParamsSubCmd :: [Opt.Mod Opt.CommandFields CmdLnArgs]
+multisigSomeOperationParamsSubCmd =
+  [ mkCommandParser
+      "MultisigSomeOperationParams"
+      parseSomeOperation
+      ("Generate a multisig parameter file for an arbitrary multisig-wrapped contract.\n" ++
+       "Omit the 'contractFilePath' option to pass the contract through STDIN.")
+  ]
+  where
+    parseSomeOperation :: Opt.Parser CmdLnArgs
+    parseSomeOperation =
+      MultisigSomeOperationParams <$>
+        parseContractName <*>
+        Opt.optional (parseFilePath "contractFilePath" "File path to the base contract source") <*>
+        parseAddress "contractAddress" <*>
+        parseNatural "counter" <*>
+        parseContractParam <*>
+        parseSignerKeys "signerKeys"
+
+    parseContractParam :: Opt.Parser String
+    parseContractParam =
+      Opt.strOption $
+      mconcat
+        [ Opt.long "contractParam"
+        , Opt.metavar "MICHELSON_VALUE"
+        , Opt.help "Contract parameter"
+        ]
+
 -- | Command to sign a `MultisigSignersFile`
 multisigSignFileSubCmd :: [Opt.Mod Opt.CommandFields CmdLnArgs]
 multisigSignFileSubCmd =
@@ -607,7 +684,7 @@ multisigSignFileSubCmd =
   where
     parseMultisigSignFile :: Opt.Parser CmdLnArgs
     parseMultisigSignFile =
-      MultisigSignFile <$> parseSecretKey <*> parseFilePath
+      MultisigSignFile <$> parseSecretKey <*> parseFilePath "signerFile" "File path to multisig parameter JSON file"
 
     parseSecretKey :: Opt.Parser SecretKey
     parseSecretKey =
@@ -617,15 +694,6 @@ multisigSignFileSubCmd =
           , Opt.metavar "SecretKey"
           , Opt.help "Private key to sign multisig parameter JSON file"
           ]
-
-    parseFilePath :: Opt.Parser FilePath
-    parseFilePath =
-      Opt.strOption $ -- Opt.option Opt.auto $ -- strOption may be less sensitive to ""'s
-      mconcat
-        [ Opt.long "signerFile"
-        , Opt.metavar "FilePath"
-        , Opt.help "File path to multisig parameter JSON file"
-        ]
 
 
 -- | Command to collect, combine, and render a non-empty list
@@ -665,9 +733,15 @@ argParser =
   , contractReadAndRenderParam "Walker" walkerContract
   , contractReadAndRenderParam "WrappedMultisigContractNat" G.wrappedMultisigContractNat
   ] ++
-    contractNatSubCmd ++ managedLedgerAthensSubCmd ++
-  wrappedMultisigContractNatSubCmd ++
-  wrappedMultisigContractAthensSubCmd ++ multisigSignFileSubCmd ++ multisigSignersFileSubCmd
+    contractNatSubCmd ++
+    managedLedgerAthensSubCmd ++
+    wrappedMultisigContractNatSubCmd ++
+    wrappedMultisigContractAthensSubCmd ++
+    wrappedMultisigDefaultSubCmd ++
+    wrappedMultisigChangeKeysSubCmd ++
+    multisigSomeOperationParamsSubCmd ++
+    multisigSignFileSubCmd ++
+    multisigSignersFileSubCmd
 
 programInfo :: Opt.ParserInfo CmdLnArgs
 programInfo =
@@ -729,6 +803,25 @@ main = do
           writeMultisigSignersFile $
           makeMultisigSignersFile contractName contractAddress counter signerKeys $
           Right baseContractParam
+        MultisigSomeOperationParams {..} -> do
+          uContract <- expandContract <$> readAndParseContract contractFilePath
+          case typeCheckContract mempty uContract of
+            Left err -> die $ show err
+            Right typeCheckedContract -> do
+              let paramParser =
+                    fst
+                      $ G.someBigMapContractStorageParams typeCheckedContract
+              someBaseContractParam <-
+                either (die . show) return . parseNoEnv paramParser contractName $
+                T.pack untypedBaseContractParam
+              writeMultisigSignersFile .
+                makeMultisigSignersFile
+                  contractName
+                  contractAddress
+                  counter
+                  signerKeys .
+                Right $
+                someBaseContractParam
         MultisigSignFile {..} -> do
           multisigSignersFile@MultisigSignersFile {..} <-
             readMultisigSignersFile multisigFile

@@ -2,7 +2,7 @@
 
 <<: *meta
 name:                lorentz-contracts
-version:             0.2.0.1.1
+version:             0.2.0.1.2
 synopsis:            Set of Michelson contracts implemented in Lorentz eDSL.
 description:
   Various contracts including simple examples.
