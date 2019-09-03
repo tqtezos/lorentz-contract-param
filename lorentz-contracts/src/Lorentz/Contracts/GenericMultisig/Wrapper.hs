@@ -2,6 +2,7 @@
 module Lorentz.Contracts.GenericMultisig.Wrapper where
 
 import Data.Singletons
+import qualified Data.Text.Lazy as L
 import Data.Constraint hiding (trans)
 
 import Lorentz
@@ -11,14 +12,21 @@ import Lorentz.Contracts.VarStorage
 import Lorentz.Contracts.Util ()
 import Michelson.Typed.Scope
 import Michelson.Typed.Sing
+import Michelson.TypeCheck.TypeCheck
+import Michelson.TypeCheck.Instr
 import Michelson.Typed.T
+import Michelson.Typed.Value
+import Michelson.Parser
+import Michelson.Macro
 import qualified Lorentz.Contracts.ManagedLedger.Athens as A
 import qualified Michelson.TypeCheck.Types as Ty
 import qualified Michelson.Typed.Instr as Instr
+import Lorentz.Contracts.SomeContractParam
 
 import Data.Type.Equality
+import Text.Show
 import Data.Typeable
-import Prelude (Void, absurd)
+import Prelude ((<$>), (>>=), Void, absurd, fail, either, flip, runReaderT, fst)
 
 -- | Proof that `True` is not `False`
 tfToVoid :: 'True :~: 'False -> Void
@@ -237,6 +245,105 @@ wrapSomeTypeCheckedContract ::
   -> (SomeContract, SomeContract)
 wrapSomeTypeCheckedContract (Ty.SomeContract baseContract _ _) =
   wrapSomeBigMapContract $ makeI baseContract
+
+
+-- | @(a `SomeContractParam` parser, a storage value parser)@
+type StorageParamsParser = (Parser SomeContractParam, Natural -> [PublicKey] -> Parser L.Text)
+
+-- | Parse and typecheck a Michelson value
+parseValue ::
+     forall t. (Typeable t, SingI t)
+  => Parser (Value t)
+parseValue =
+  (>>= either (fail . show) return) $
+  runTypeCheckTest . flip runReaderT def . typeVerifyValue . expandValue <$>
+  value
+
+-- | Make `StorageParamsParser` for some `Contract`,
+-- assuming a `BigMap` occurs in the storage type
+explicitlyStorePairStorageParams ::
+     forall a b.
+     ( KnownValue a
+     , HasNoOp (ToT a)
+     , HasNoBigMap (ToT a)
+     , KnownValue b
+     , HasNoOp (ToT b)
+     , ContainsBigMap (ToT b) ~ 'True
+     , BigMapConstraint (ToT b)
+     )
+  => Contract a b
+  -> StorageParamsParser
+explicitlyStorePairStorageParams baseContract =
+  ( do
+    toSomeContractParam <$> parseValue @(ToT a)
+  , \threshold publicKeys -> do
+    parsedValue <- parseValue @(ToT b)
+    case constrainedBigMap (sing @(ToT b)) of
+      Dict ->
+        case parsedValue of
+          VPair (bigMap', withoutBigMap') ->
+            case fst $ wrapSomeBigMapContract baseContract of
+              SomeContract wrappedBaseContract -> do
+                let contractStorage =
+                      ( bigMap'
+                      , ( (wrappedBaseContract, withoutBigMap')
+                        , ((0 :: Natural), (threshold, publicKeys))))
+                return $ printLorentzValue True contractStorage
+  )
+
+-- | Make `StorageParamsParser` for some `Contract`, ignoring any `BigMap`
+ignoreBigMapStorageParams ::
+     forall a b.
+     ( KnownValue a
+     , HasNoOp (ToT a)
+     , HasNoBigMap (ToT a)
+     , KnownValue b
+     , HasNoOp (ToT b)
+     , BigMapConstraint (ToT b)
+     )
+  => Contract a b
+  -> StorageParamsParser
+ignoreBigMapStorageParams baseContract =
+  ( do
+    toSomeContractParam <$> parseValue @(ToT a)
+  , \threshold publicKeys -> do
+    parsedValue <- parseValue @(ToT b)
+    case fst $ wrapSomeBigMapContract baseContract of
+      SomeContract wrappedBaseContract -> do
+        let contractStorage =
+              ( (mempty :: BigMap Bool ())
+              , ( (wrappedBaseContract, parsedValue)
+                , ((0 :: Natural), (threshold, publicKeys))))
+        return $ printLorentzValue True contractStorage
+  )
+
+-- | Make `StorageParamsParser` for a `Contract`
+wrappedBigMapContractStorageParams ::
+     forall a b.
+     ( KnownValue a
+     , HasNoOp (ToT a)
+     , HasNoBigMap (ToT a)
+     , KnownValue b
+     , HasNoOp (ToT b)
+     , BigMapConstraint (ToT b)
+     )
+  => Contract a b
+  -> StorageParamsParser
+wrappedBigMapContractStorageParams baseContract =
+  case checkBigMapPresence (sing @(ToT b)) of
+    BigMapPresent ->
+      case constrainedBigMap (sing @(ToT b)) of
+        Dict ->
+          explicitlyStorePairStorageParams baseContract
+    BigMapAbsent ->
+      ignoreBigMapStorageParams baseContract
+
+-- | Make wrapped storage and parameter parsers for `Ty.SomeContract`
+someBigMapContractStorageParams ::
+     Ty.SomeContract
+  -> StorageParamsParser
+someBigMapContractStorageParams (Ty.SomeContract baseContract _ _) =
+  wrappedBigMapContractStorageParams $ makeI baseContract
 
 
 -- | A simple contract to store `Natural`'s
