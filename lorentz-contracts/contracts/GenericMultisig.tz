@@ -1,0 +1,87 @@
+parameter (or unit (pair (pair nat (or (lambda unit (list operation)) (pair nat (list key)))) (list (option signature))));
+storage (pair nat (pair nat (list key)));
+code { DUP;
+       CAR;
+       DIP { CDR };
+       IF_LEFT { DROP;
+                 NIL operation;
+                 PAIR }
+               { PUSH mutez 0;
+                 AMOUNT;
+                 COMPARE;
+                 EQ;
+                 IF {  }
+                    { PUSH string "Some tokens were sent to this contract outside of the default entry point.";
+                      FAILWITH };
+                 SWAP;
+                 DUP;
+                 DIP { SWAP };
+                 DIP { DUP;
+                       CAR;
+                       DIP { CDR };
+                       DUP;
+                       SELF;
+                       ADDRESS;
+                       PAIR;
+                       PACK;
+                       DIP { DUP;
+                             CAR;
+                             DIP { CDR };
+                             DIP { SWAP } };
+                       SWAP };
+                 DUP;
+                 CAR;
+                 DIP { CDR };
+                 DIP { SWAP };
+                 COMPARE;
+                 EQ;
+                 IF {  }
+                    { PUSH string "Counters do not match.";
+                      FAILWITH };
+                 DIP { SWAP };
+                 DUP;
+                 CAR;
+                 DIP { CDR };
+                 DIP { PUSH nat 0;
+                       SWAP;
+                       ITER { DIP { SWAP };
+                              SWAP;
+                              IF_CONS { IF_NONE { SWAP;
+                                                  DROP }
+                                                { SWAP;
+                                                  DIP { SWAP;
+                                                        DIP { DIP { DIP { DUP };
+                                                                    SWAP } };
+                                                        DIP { DIP { DUP };
+                                                              SWAP };
+                                                        SWAP;
+                                                        DIP { CHECK_SIGNATURE };
+                                                        SWAP;
+                                                        IF { DROP }
+                                                           { PUSH (pair string unit) (Pair "InvalidSignature" Unit);
+                                                             FAILWITH } } } }
+                                      { PUSH (pair string unit) (Pair "FewerSignaturesThanKeys" Unit);
+                                        FAILWITH };
+                              SWAP } };
+                 COMPARE;
+                 LE;
+                 IF {  }
+                    { PUSH string "Quorum not present";
+                      FAILWITH };
+                 IF_CONS { PUSH (pair string unit) (Pair "UncheckedSignaturesRemain" Unit);
+                           FAILWITH }
+                         {  };
+                 DROP;
+                 DIP { DUP;
+                       CAR;
+                       DIP { CDR };
+                       PUSH nat 1;
+                       ADD;
+                       PAIR };
+                 IF_LEFT { UNIT;
+                           EXEC }
+                         { DIP { CAR };
+                           SWAP;
+                           PAIR;
+                           NIL operation };
+                 PAIR } };
