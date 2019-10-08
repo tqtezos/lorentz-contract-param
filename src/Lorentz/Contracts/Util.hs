@@ -133,6 +133,7 @@ instance Read a => Read (View a r) where
       View viewArg . ContractAddr <$> readAddressP
 
 instance (Read a, KnownSymbol name) => Read (NamedF Identity a name) where
+  -- show (ArgF a) = symbolVal (Proxy @name) <> " :! " <> show a
   readPrec = readPrec' Proxy
     where
       readPrec' ::
@@ -146,7 +147,7 @@ instance (Read a, KnownSymbol name) => Read (NamedF Identity a name) where
           P.skipSpaces
           P.string ".!"
           P.skipSpaces
-          ArgF . Identity <$> readPrec_to_P readPrec prec'
+          ArgF <$> readPrec_to_P readPrec prec'
 
 instance Read PublicKey where
   readPrec = readP_to_Prec $ \_ ->

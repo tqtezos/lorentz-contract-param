@@ -110,4 +110,9 @@ tests:
       - vinyl
       - lorentz-contract-param
       - quickcheck-instances
+      - named
+      - cryptonite
+      - aeson
+      - text
+      - memory
 
