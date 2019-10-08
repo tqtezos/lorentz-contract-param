@@ -100,7 +100,7 @@ test-shell-script:
     changes: *changes
   script:
     - apk add bats
-    - bats test.bats
+    - bats scripts/test.bats
 
 build-docker-latest:
   image: &kaniko_image

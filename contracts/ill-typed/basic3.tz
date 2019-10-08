@@ -1,6 +1,0 @@
-parameter (pair (int %x) int);
-storage (list (pair (int %z) int));
-code {
-      DUP; CAR; DIP { CDR; };
-      CONS;
-      NIL operation; PAIR; };

@@ -1,5 +1,5 @@
-# Include this file in your module's `package.yaml` to set sensible defaults
-# and get access to useful utilities.
+# Include this file in your module's `package.yaml` to set sensible lorentz
+# defaults and get access to useful utilities.
 
 <<: !include "definitions.yaml"
 

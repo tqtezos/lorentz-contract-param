@@ -2,492 +2,174 @@ module Main
   ( main
   ) where
 
-import qualified Control.Exception as E
-import Data.Version (showVersion)
-import Fmt (pretty)
-import Named ((:!), (:?), arg, argF, (!))
-import Options.Applicative
-  (auto, command, eitherReader, execParser, footerDoc, fullDesc, header, help, helper, info,
-  infoOption, long, maybeReader, metavar, option, progDesc, readerError, short, showDefault,
-  showDefaultWith, strOption, subparser, switch, value)
+import Fmt (Builder, blockListF, fmt, nameF, (+|), (|+))
+import Text.Megaparsec (parse)
+import Text.Megaparsec.Error (errorBundlePretty)
+import qualified Data.Map as Map
+import qualified Data.Text as T
+import qualified Data.Text.IO as T
+
+import Data.Singletons (SingI)
+import qualified Data.Text.Lazy.IO as TL
 import qualified Options.Applicative as Opt
-import Options.Applicative.Help.Pretty (Doc, linebreak)
-import Paths_morley (version)
-import System.Exit (ExitCode)
-import System.IO (utf8)
-import Text.Pretty.Simple (pPrint)
-import qualified Text.Show
 
-import Michelson.Analyzer (analyze)
-import Michelson.Macro (expandContract, expandValue)
-import Michelson.Optimizer (optimize)
-import qualified Michelson.Parser as P
-import Michelson.Printer (printSomeContract, printUntypedContract)
+import qualified Lorentz as L
+import Lorentz.Contracts.Auction
+import Lorentz.Contracts.ManagedLedger.Athens (managedLedgerAthensContract)
+import Lorentz.Contracts.ManagedLedger.Babylon (managedLedgerContract)
+import Lorentz.Contracts.ManagedLedger.Proxy (managedLedgerProxyContract)
+import Lorentz.Contracts.UnsafeLedger
+import Lorentz.Contracts.VarStorage
+import Lorentz.Contracts.Walker
+import qualified Lorentz.Contracts.GenericMultisig.Wrapper as G
+
+import Lorentz.Contracts.Util.Strip
+import LorentzContractsOptions
+import Michelson.Macro
+import Michelson.Parser (program)
 import Michelson.Runtime
-  (TxData(..), originateContract, prepareContract, readAndParseContract, runContract, transfer,
-  typeCheckWithDb)
-import Michelson.Runtime.GState (genesisAddress, genesisKeyHash)
-import Michelson.TypeCheck.Types (SomeContract(..), mapSomeContract)
-import Michelson.Untyped hiding (OriginationOperation(..))
-import qualified Michelson.Untyped as U
-import Tezos.Address (Address, parseAddress)
-import Tezos.Core
-  (Mutez, Timestamp(..), mkMutez, parseTimestamp, timestampFromSeconds, unMutez, unsafeMkMutez)
-import Tezos.Crypto
-import Util.IO (hSetTranslit, withEncoding, writeFileUtf8)
-import Util.Named
+import Michelson.TypeCheck
+import Util.IO
+import qualified Michelson.Typed as T
 
-----------------------------------------------------------------------------
--- Command line options
-----------------------------------------------------------------------------
 
-data CmdLnArgs
-  = Parse (Maybe FilePath) Bool
-  | Print ("input" :? FilePath) ("output" :? FilePath) ("singleLine" :! Bool)
-  | Optimize !OptimizeOptions
-  | Analyze !AnalyzeOptions
-  | TypeCheck !TypeCheckOptions
-  | Run !RunOptions
-  | Originate !OriginateOptions
-  | Transfer !TransferOptions
-
-data OptimizeOptions = OptimizeOptions
-  { optoContractFile :: !(Maybe FilePath)
-  , optoDBPath :: !FilePath
-  , optoOutput :: !(Maybe FilePath)
-  , optoSingleLine :: !Bool
+data ContractInfo =
+  forall cp st.
+    (Each '[SingI] [T.ToT cp, T.ToT st]) =>
+  ContractInfo
+  { ciContract :: L.Contract cp st
+  , ciPrinterOpts :: L.LorentzCompilationWay cp st
+  , ciIsDocumented :: Bool
   }
 
-data AnalyzeOptions = AnalyzeOptions
-  { aoContractFile :: !(Maybe FilePath)
-  , aoDBPath :: !FilePath
-  }
+(?::) :: Text -> a -> (Text, a)
+(?::) = (,)
 
-data TypeCheckOptions = TypeCheckOptions
-  { tcoContractFile :: !(Maybe FilePath)
-  , tcoDBPath       :: !FilePath
-  , tcoVerbose      :: !Bool
-  }
-
-data RunOptions = RunOptions
-  { roContractFile :: !(Maybe FilePath)
-  , roDBPath :: !FilePath
-  , roStorageValue :: !U.Value
-  , roTxData :: !TxData
-  , roVerbose :: !Bool
-  , roNow :: !(Maybe Timestamp)
-  , roMaxSteps :: !Word64
-  , roInitBalance :: !Mutez
-  , roWrite :: !Bool
-  }
-
-data OriginateOptions = OriginateOptions
-  { ooContractFile :: !(Maybe FilePath)
-  , ooDBPath :: !FilePath
-  , ooManager :: !KeyHash
-  , ooDelegate :: !(Maybe KeyHash)
-  , ooSpendable :: !Bool
-  , ooDelegatable :: !Bool
-  , ooStorageValue :: !U.Value
-  , ooBalance :: !Mutez
-  , ooVerbose :: !Bool
-  }
-
-data TransferOptions = TransferOptions
-  { toDBPath :: !FilePath
-  , toDestination :: !Address
-  , toTxData :: !TxData
-  , toNow :: !(Maybe Timestamp)
-  , toMaxSteps :: !Word64
-  , toVerbose :: !Bool
-  , toDryRun :: !Bool
-  }
-
-argParser :: Opt.Parser CmdLnArgs
-argParser = subparser $
-  parseSubCmd <>
-  printSubCmd <>
-  typecheckSubCmd <>
-  runSubCmd <>
-  originateSubCmd <>
-  transferSubCmd <>
-  optimizeSubCmd <>
-  analyzeSubCmd
-  where
-    mkCommandParser commandName parser desc =
-      command commandName $
-      info (helper <*> parser) $
-      progDesc desc
-
-    parseSubCmd =
-      mkCommandParser "parse"
-      (uncurry Parse <$> parseOptions)
-      "Parse passed contract"
-
-    typecheckSubCmd =
-      mkCommandParser "typecheck"
-        (TypeCheck <$> typeCheckOptions) $
-        ("Typecheck passed contract")
-
-    printSubCmd =
-      mkCommandParser "print"
-      (Print <$> (#input <.?> contractFileOption)
-             <*> (#output <.?> outputOption)
-             <*> (#singleLine <.!> onelineOption))
-      ("Parse a Morley contract and print corresponding Michelson " <>
-       "contract that can be parsed by the OCaml reference client")
-
-    runSubCmd =
-      mkCommandParser "run"
-      (Run <$> runOptions) $
-      "Run passed contract. \
-      \It's originated first and then a transaction is sent to it"
-
-    originateSubCmd =
-      mkCommandParser "originate"
-      (Originate <$> originateOptions)
-      "Originate passed contract. Add it to passed DB"
-
-    transferSubCmd =
-      mkCommandParser "transfer"
-      (Transfer <$> transferOptions)
-      "Transfer tokens to given address"
-
-    optimizeSubCmd =
-      mkCommandParser "optimize"
-      (Optimize <$> optimizeOptions)
-      "Optimize the contract."
-
-    analyzeSubCmd =
-      mkCommandParser "analyze"
-      (Analyze <$> analyzeOptions)
-      "Analyze the contract."
-
-    verboseFlag :: Opt.Parser Bool
-    verboseFlag = switch $
-      short 'v' <>
-      long "verbose" <>
-      help "Whether output should be verbose"
-
-    writeFlag :: Opt.Parser Bool
-    writeFlag = switch $
-      long "write" <>
-      help "Whether updated DB should be written to DB file"
-
-    dryRunFlag :: Opt.Parser Bool
-    dryRunFlag = switch $
-      long "dry-run" <>
-      help "Do not write updated DB to DB file"
-
-    typeCheckOptions :: Opt.Parser TypeCheckOptions
-    typeCheckOptions = TypeCheckOptions
-      <$> contractFileOption
-      <*> dbPathOption
-      <*> verboseFlag
-
-    parseOptions :: Opt.Parser (Maybe FilePath, Bool)
-    parseOptions = (,)
-      <$> contractFileOption
-      <*> switch (
-        long "expand-macros" <>
-        help "Whether expand macros after parsing or not")
-
-    defaultBalance :: Mutez
-    defaultBalance = unsafeMkMutez 4000000
-
-    optimizeOptions :: Opt.Parser OptimizeOptions
-    optimizeOptions = OptimizeOptions
-      <$> contractFileOption
-      <*> dbPathOption
-      <*> outputOption
-      <*> onelineOption
-
-    analyzeOptions :: Opt.Parser AnalyzeOptions
-    analyzeOptions = AnalyzeOptions
-      <$> contractFileOption
-      <*> dbPathOption
-
-    runOptions :: Opt.Parser RunOptions
-    runOptions =
-      RunOptions
-        <$> contractFileOption
-        <*> dbPathOption
-        <*> valueOption "storage" "Initial storage of a running contract"
-        <*> txData
-        <*> verboseFlag
-        <*> nowOption
-        <*> maxStepsOption
-        <*> mutezOption (Just defaultBalance)
-            "balance" "Initial balance of this contract"
-        <*> writeFlag
-
-    originateOptions :: Opt.Parser OriginateOptions
-    originateOptions =
-      OriginateOptions
-        <$> contractFileOption
-        <*> dbPathOption
-        <*> keyHashOption (Just genesisKeyHash) "manager" "Contract's manager"
-        <*> optional
-            (keyHashOption Nothing "delegate" "Contract's optional delegate")
-        <*> switch (long "spendable" <>
-                    help "Whether the contract is spendable")
-        <*> switch (long "delegatable" <>
-                    help "Whether the contract is delegatable")
-        <*> valueOption "storage" "Initial storage of an originating contract"
-        <*> mutezOption (Just defaultBalance)
-            "balance" "Initial balance of an originating contract"
-        <*> verboseFlag
-
-    transferOptions :: Opt.Parser TransferOptions
-    transferOptions = do
-      toDBPath <- dbPathOption
-      toDestination <- addressOption Nothing "to" "Destination address"
-      toTxData <- txData
-      toNow <- nowOption
-      toMaxSteps <- maxStepsOption
-      toVerbose <- verboseFlag
-      toDryRun <- dryRunFlag
-      pure TransferOptions {..}
-
-
-contractFileOption :: Opt.Parser (Maybe FilePath)
-contractFileOption = optional $ strOption $
-  long "contract" <>
-  metavar "FILEPATH" <>
-  help "Path to contract file"
-
-nowOption :: Opt.Parser (Maybe Timestamp)
-nowOption = optional $ option parser $
-  long "now" <>
-  metavar "TIMESTAMP" <>
-  help "Timestamp that you want the runtime interpreter to use (default is now)"
-  where
-    parser =
-      (timestampFromSeconds <$> auto) <|>
-      maybeReader (parseTimestamp . toText)
-
-maxStepsOption :: Opt.Parser Word64
-maxStepsOption = option auto $
-  value 100500 <>
-  long "max-steps" <>
-  metavar "INT" <>
-  help "Max steps that you want the runtime interpreter to use" <>
-  showDefault
-
-dbPathOption :: Opt.Parser FilePath
-dbPathOption = strOption $
-  long "db" <>
-  metavar "FILEPATH" <>
-  value "db.json" <>
-  help "Path to DB with data which is used instead of real blockchain data" <>
-  showDefault
-
-keyHashOption :: Maybe KeyHash -> String -> String -> Opt.Parser KeyHash
-keyHashOption defaultValue name hInfo =
-  option (eitherReader (first pretty . parseKeyHash . toText)) $
-  long name <>
-  maybeAddDefault pretty defaultValue <>
-  help hInfo
-
-valueOption :: String -> String -> Opt.Parser U.Value
-valueOption name hInfo = option (eitherReader parseValue) $
-  long name <>
-  help hInfo
-  where
-    parseValue :: String -> Either String U.Value
-    parseValue s =
-      either (Left . mappend "Failed to parse value: " . show)
-             (Right . expandValue)
-      $ P.parseNoEnv P.value "" (toText s)
-
-mutezOption :: Maybe Mutez -> String -> String -> Opt.Parser Mutez
-mutezOption defaultValue name hInfo =
-  option (maybe (readerError "Invalid mutez") pure . mkMutez =<< auto) $
-  long name <>
-  metavar "INT" <>
-  maybeAddDefault (show . unMutez) defaultValue <>
-  help hInfo
-
-addressOption :: Maybe Address -> String -> String -> Opt.Parser Address
-addressOption defAddress name hInfo =
-  option (eitherReader parseAddrDo) $ mconcat
-  [ long name
-  , metavar "ADDRESS"
-  , help hInfo
-  , maybeAddDefault pretty defAddress
+contracts :: Map Text ContractInfo
+contracts = Map.fromList
+  [ "ManagedLedger" ?:: ContractInfo
+    { ciContract = managedLedgerContract
+    , ciPrinterOpts = L.lcwEntryPoints
+    , ciIsDocumented = False
+    }
+  , "ManagedLedgerAthens" ?:: ContractInfo
+    { ciContract = managedLedgerAthensContract
+    , ciPrinterOpts = L.lcwEntryPoints
+    , ciIsDocumented = False
+    }
+  , "ManagedLedgerProxy" ?:: ContractInfo
+    { ciContract = managedLedgerProxyContract
+    , ciPrinterOpts = L.lcwEntryPointsRecursive
+    , ciIsDocumented = False
+    }
+  , "UnsafeLedger" ?:: ContractInfo
+    { ciContract = unsafeLedgerContract
+    , ciPrinterOpts = L.lcwEntryPoints
+    , ciIsDocumented = False
+    }
+  , "Walker" ?:: ContractInfo
+    { ciContract = walkerContract
+    , ciPrinterOpts = L.lcwEntryPoints
+    , ciIsDocumented = False
+    }
+  , "Auction" ?:: ContractInfo
+    { ciContract = auctionContract
+    , ciPrinterOpts = L.lcwDumb
+    , ciIsDocumented = False
+    }
+  , "AddressStorageContract" ?:: ContractInfo
+    { ciContract = (varStorageContract @L.Address)
+    , ciPrinterOpts = L.lcwDumb
+    , ciIsDocumented = False
+    }
+  , "ExplicitBigMapManagedLedgerAthens" ?:: ContractInfo
+    { ciContract = G.explicitBigMapAthens
+    , ciPrinterOpts = L.lcwEntryPoints
+    , ciIsDocumented = False
+    }
+  , "MultisigManagedLedgerAthens" ?:: ContractInfo
+    { ciContract = G.wrappedMultisigContractAthens
+    , ciPrinterOpts = L.lcwEntryPoints
+    , ciIsDocumented = False
+    }
+  , "NatStorageContract" ?:: ContractInfo
+    { ciContract = (varStorageContract @Natural)
+    , ciPrinterOpts = L.lcwDumb
+    , ciIsDocumented = False
+    }
+  , "NatStorageWithBigMapContract" ?:: ContractInfo
+    { ciContract = G.natStorageWithBigMapContract
+    , ciPrinterOpts = L.lcwDumb
+    , ciIsDocumented = False
+    }
+  , "WrappedMultisigContractNat" ?:: ContractInfo
+    { ciContract = G.wrappedMultisigContractNat
+    , ciPrinterOpts = L.lcwDumb
+    , ciIsDocumented = False
+    }
   ]
-  where
-    parseAddrDo addr =
-      either (Left . mappend "Failed to parse address: " . pretty) Right $
-      parseAddress $ toText addr
 
-onelineOption :: Opt.Parser Bool
-onelineOption = switch (
-  long "oneline" <>
-  help "Force single line output")
+wrappedMultisigContractNames :: [Text]
+wrappedMultisigContractNames = ["WrappedMultisigBase", "WrappedMultisig"]
 
-outputOption :: Opt.Parser (Maybe FilePath)
-outputOption = optional . strOption $
-  short 'o' <>
-  long "output" <>
-  metavar "FILEPATH" <>
-  help "Write output to the given file. If not specified, stdout is used."
+getContract :: Text -> IO ContractInfo
+getContract name =
+  case Map.lookup name contracts of
+    Nothing ->
+      die $ "No contract with name '" +| name |+ "' found\n" +|
+            availableContracts
+    Just c -> pure c
 
-txData :: Opt.Parser TxData
-txData =
-  mkTxData
-    <$> addressOption (Just genesisAddress) "sender" "Sender address"
-    <*> valueOption "parameter" "Parameter of passed contract"
-    <*> mutezOption (Just minBound) "amount" "Amout sent by a transaction"
-  where
-    mkTxData :: Address -> Value -> Mutez -> TxData
-    mkTxData addr param amount =
-      TxData
-        { tdSenderAddress = addr
-        , tdParameter = param
-        , tdAmount = amount
-        }
-
--- Maybe add default value and make sure it will be shown in help message.
-maybeAddDefault :: Opt.HasValue f => (a -> String) -> Maybe a -> Opt.Mod f a
-maybeAddDefault printer = maybe mempty addDefault
-  where
-    addDefault v = value v <> showDefaultWith printer
-
-----------------------------------------------------------------------------
--- Better printing of exceptions
-----------------------------------------------------------------------------
-
-newtype DisplayExceptionInShow = DisplayExceptionInShow SomeException
-
-instance Show DisplayExceptionInShow where
-  show (DisplayExceptionInShow se) = displayException se
-
-instance Exception DisplayExceptionInShow
-
--- | Customise default uncaught exception handling. The problem with
--- the default handler is that it uses `show` to display uncaught
--- exceptions, but `displayException` may provide more reasonable
--- output. We do not modify uncaught exception handler, but simply
--- wrap uncaught exceptions (only synchronous ones) into
--- 'DisplayExceptionInShow'.
---
--- Some exceptions (currently we are aware only of 'ExitCode') are
--- handled specially by default exception handler, so we don't wrap
--- them.
-displayUncaughtException :: IO () -> IO ()
-displayUncaughtException = mapIOExceptions wrapUnlessExitCode
-  where
-    -- We can't use `mapException` here, because it only works with
-    -- exceptions inside pure values, not with `IO` exceptions.
-    -- Note: it doesn't catch async exceptions.
-    mapIOExceptions :: (SomeException -> SomeException) -> IO a -> IO a
-    mapIOExceptions f action = action `catchAny` (E.throwIO . f)
-
-    -- We don't wrap `ExitCode` because it seems to be handled specially.
-    -- Application exit code depends on the value stored in `ExitCode`.
-    wrapUnlessExitCode :: SomeException -> SomeException
-    wrapUnlessExitCode e =
-      case fromException @ExitCode e of
-        Just _ -> e
-        Nothing -> toException $ DisplayExceptionInShow e
-
-----------------------------------------------------------------------------
--- Actual main
-----------------------------------------------------------------------------
+availableContracts :: Builder
+availableContracts =
+  nameF
+    "Available contracts"
+    (blockListF $ keys contracts ++ wrappedMultisigContractNames)
 
 main :: IO ()
-main = displayUncaughtException $ withEncoding stdin utf8 $ do
+main = do
   hSetTranslit stdout
   hSetTranslit stderr
-  cmdLnArgs <- execParser programInfo
-  run cmdLnArgs
+  cmdLnArgs <- Opt.execParser programInfo
+  run cmdLnArgs `catchAny` (die . displayException)
   where
-    programInfo = info (helper <*> versionOption <*> argParser) $
-      mconcat
-      [ fullDesc
-      , progDesc "Morley: Haskell implementation of Michelson typechecker and interpreter"
-      , header "Morley tools"
-      , footerDoc $ usageDoc
-      ]
-
-    versionOption = infoOption ("morley-" <> showVersion version)
-      (long "version" <> help "Show version.")
-
     run :: CmdLnArgs -> IO ()
-    run args = case args of
-      Parse mFilename hasExpandMacros -> do
-        contract <- readAndParseContract mFilename
-        if hasExpandMacros
-          then pPrint $ expandContract contract
-          else pPrint contract
-      Print (argF #input -> mInputFile)
-            (argF #output -> mOutputFile)
-            (arg #singleLine -> forceSingleLine) -> do
-        contract <- prepareContract mInputFile
-        let write = maybe putStrLn writeFileUtf8 mOutputFile
-        write $ printUntypedContract forceSingleLine contract
-      Optimize OptimizeOptions{..} -> do
-        untypedContract <- prepareContract optoContractFile
-        checkedContract <- either throwM pure =<<
-          typeCheckWithDb optoDBPath untypedContract
-        let optimizedContract = mapSomeContract optimize checkedContract
-        let write = maybe putStrLn writeFileUtf8 optoOutput
-        write $ printSomeContract optoSingleLine optimizedContract
-      Analyze AnalyzeOptions{..} -> do
-        untypedContract <- prepareContract aoContractFile
-        (SomeContract instr _ _) <- either throwM pure =<<
-          typeCheckWithDb aoDBPath untypedContract
-        putTextLn $ pretty $ analyze instr
-      TypeCheck TypeCheckOptions{..} -> do
-        morleyContract <- prepareContract tcoContractFile
-        either throwM (const pass) =<< typeCheckWithDb tcoDBPath morleyContract
-        putTextLn "Contract is well-typed"
-      Run RunOptions {..} -> do
-        michelsonContract <- prepareContract roContractFile
-        runContract roNow roMaxSteps roInitBalance roDBPath roStorageValue michelsonContract roTxData
-          ! #verbose roVerbose
-          ! #dryRun (not roWrite)
-      Originate OriginateOptions {..} -> do
-        michelsonContract <- prepareContract ooContractFile
-        let origination = U.OriginationOperation
-              { U.ooManager = ooManager
-              , U.ooDelegate = ooDelegate
-              , U.ooSpendable = ooSpendable
-              , U.ooDelegatable = ooDelegatable
-              , U.ooStorage = ooStorageValue
-              , U.ooBalance = ooBalance
-              , U.ooContract = michelsonContract
-              }
-        addr <- originateContract ooDBPath origination ! #verbose ooVerbose
-        putTextLn $ "Originated contract " <> pretty addr
-      Transfer TransferOptions {..} -> do
-        transfer toNow toMaxSteps toDBPath toDestination toTxData
-          ! #verbose toVerbose
-          ! #dryRun toDryRun
+    run =
+      \case
+        List -> fmt availableContracts
+        Parse inputPathX inputPathY -> do
+          inputFileX <- T.readFile $ T.unpack inputPathX
+          case parse program (T.unpack inputPathX) inputFileX of
+            Left err -> putStrLn $ errorBundlePretty err
+            Right parsedX -> do
+              inputFileY <- T.readFile $ T.unpack inputPathY
+              case parse program (T.unpack inputPathY) inputFileY of
+                Left err -> putStrLn $ errorBundlePretty err
+                Right parsedY -> compareContracts parsedX parsedY
+        Print name mOutput mInput forceOneLine ->
+          if name `elem` wrappedMultisigContractNames
+            then do
+              uContract <- expandContract <$> readAndParseContract mInput
+              case typeCheckContract mempty uContract of
+                Left err -> die $ show err
+                Right typeCheckedContract ->
+                  case bool fst snd (name == "WrappedMultisig") $
+                       G.wrapSomeTypeCheckedContract typeCheckedContract of
+                    L.SomeContract wrappedContract ->
+                      maybe TL.putStrLn writeFileUtf8 mOutput $
+                      L.printLorentzContract forceOneLine L.lcwDumb wrappedContract
+            else case Map.lookup name contracts of
+                   Nothing ->
+                     die $
+                     "No contract with name '" +| name |+ "' found\n" +|
+                     availableContracts
+                   Just ContractInfo{..} ->
+                     maybe TL.putStrLn writeFileUtf8 mOutput $
+                     L.printLorentzContract forceOneLine ciPrinterOpts ciContract
+        Document name mOutput -> do
+          ContractInfo{..} <- getContract name
+          if ciIsDocumented
+          then maybe TL.putStrLn writeFileUtf8 mOutput $
+               T.contractDocToMarkdown $ L.buildLorentzDoc ciContract
+          else die "This contract is not documented"
 
-
-usageDoc :: Maybe Doc
-usageDoc = Just $ mconcat
-   [ "You can use help for specific COMMAND", linebreak
-   , "EXAMPLE:", linebreak
-   , "  morley run --help", linebreak
-   , linebreak
-   , "Documentation for morley tools can be found at the following links:", linebreak
-   , "  https://gitlab.com/morley-framework/morley/blob/master/README.md", linebreak
-   , "  https://gitlab.com/morley-framework/morley/tree/master/docs", linebreak
-   , linebreak
-   , "Sample contracts for running can be found at the following link:", linebreak
-   , "  https://gitlab.com/morley-framework/morley/tree/master/contracts", linebreak
-   , linebreak
-   , "USAGE EXAMPLE:", linebreak
-   , "  morley parse --contract add1.tz", linebreak
-   , linebreak
-   , "  This command will parse contract stored in add1.tz", linebreak
-   , "  and return its representation in haskell types", linebreak
-   , linebreak
-   , "  morley originate --contract add1.tz --storage 1 --verbose", linebreak
-   , linebreak
-   , "  This command will originate contract with code stored in add1.tz", linebreak
-   , "  with initial storage value set to 1 and return info about", linebreak
-   , "  originated contract: its balance, storage and contract code"]

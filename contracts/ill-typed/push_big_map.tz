@@ -1,7 +1,0 @@
-parameter unit;
-storage unit;
-code {CDR;
-      DROP;
-      PUSH (big_map int int) {Elt 3 5; Elt 5 7};
-      NIL operation;
-      PAIR};

@@ -1,7 +1,0 @@
-let {
-  bar :: forall a b. '[a, b, ...] -> '[b, ...] = { ADD;};
-};
-
-parameter (int | nat);
-storage unit;
-code { drop; PUSH int 1; PUSH int 2; bar; DROP; bar; unit; nil operation; pair}

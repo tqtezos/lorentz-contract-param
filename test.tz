@@ -1,3 +1,0 @@
-parameter (int | nat);
-storage (\int -> bool);
-code { drop; unit; nil operation; pair}

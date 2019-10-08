@@ -1,6 +1,0 @@
-parameter string;
-storage string;
-code { CDR;
-       PUSH bool True;
-       LOOP { PUSH bool True; };
-       NIL operation; PAIR; };

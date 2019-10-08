@@ -1,113 +1,113 @@
 <<: !include "./hpack/module.yaml"
 
-name:                morley
-version:             0.3.0.1
-synopsis:            Developer tools for the Michelson Language
+<<: *meta
+name:                lorentz-contract-param
+version:             0.2.0.1.3
+synopsis:            Set of Michelson contracts implemented in Lorentz eDSL, with CLI interface
 description:
-  A library to make writing smart contracts in Michelson — the smart contract
-  language of the Tezos blockchain — pleasant and effective.
+  Various contracts including simple examples.
 category:            Language
 extra-source-files:
-  - CHANGES.md
-  - CONTRIBUTING.md
   - README.md
 
 library:
-  <<: *lib-common
+  <<: *lorentz-lib-common
 
   dependencies:
-    - aeson
-    - aeson-options
-    - aeson-pretty
-    - base16-bytestring
-    - base58-bytestring
-    - binary
-    - bytestring
-    - constraints
     - containers
-    - cryptonite
     - data-default
-    - first-class-families
     - fmt
-    - formatting
-    - ghc-prim
-    - hex-text
-    - hspec
-    - lens
-    - megaparsec >= 7.0.0
-    - memory
+    - morley
     - morley-prelude
-    - mtl
     - named
-    - parser-combinators >= 1.0.0
-    - QuickCheck
-    - quickcheck-arbitrary-adt
-    - quickcheck-instances
-    - show-type
     - singletons
-    - syb
-    - tasty
-    - tasty-ant-xml
-    - tasty-hunit
-    - template-haskell
     - text
-    - time
-    - timerep
-    # ↓ We don't use it, but otherwise Hackage fails
-    - transformers-compat == 0.6.5
-    - unordered-containers
-    - vector
     - vinyl
-    - wl-pprint-text
+    - cryptonite
+    - bytestring
+    - aeson
+    - constraints
+    - binary
+    - lorentz-contracts
 
 executables:
-  morley:
+  lorentz-contract:
     <<: *exec-common
 
-    generated-other-modules:
-      - Paths_morley
-
     dependencies:
+      - containers
       - fmt
+      - lorentz-contracts
       - morley
       - morley-prelude
-      - named
       - optparse-applicative
-      - pretty-simple
+      - singletons
+      - text
+      - megaparsec
+      - lorentz-contract-param
 
-tests:
-  morley-test:
-    <<: *test-common
+  lorentz-contract-param:
+    <<: *exec-common
 
-    default-extensions:
-      - DerivingStrategies
+    main: Main.hs
+    source-dirs: param-app
 
     dependencies:
-      - aeson
+      - containers
+      - fmt
+      - lorentz-contracts
+      - morley
+      - morley-prelude
+      - optparse-applicative
+      - text
+      - named
+      - singletons
+      - binary
       - bytestring
       - constraints
+      - aeson
+      - aeson-pretty
+      - lorentz-contract-param
+
+  lorentz-contract-storage:
+    <<: *exec-common
+
+    main: Main.hs
+    source-dirs: storage-app
+
+    dependencies:
+      - containers
+      - fmt
+      - lorentz-contracts
+      - morley
+      - morley-prelude
+      - optparse-applicative
+      - text
+      - named
+      - singletons
+      - lorentz-contract-param
+
+tests:
+  lorentz-contract-param-test:
+    <<: *test-common
+
+    dependencies:
       - containers
       - data-default
-      - directory
-      - filepath
       - fmt
-      - formatting
-      - hex-text
       - hspec
       - hspec-expectations
       - HUnit
-      - lens
-      - megaparsec >= 7.0.0
+      - lorentz-contracts
       - morley
       - morley-prelude
       - QuickCheck
-      - quickcheck-arbitrary-adt
-      - quickcheck-instances
       - singletons
-      - syb
       - tasty
       - tasty-hspec
+      - tasty-hunit
       - tasty-quickcheck
-      - text
-      - unordered-containers
       - vinyl
+      - lorentz-contract-param
+      - quickcheck-instances
+
