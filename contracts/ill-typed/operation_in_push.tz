@@ -1,3 +1,0 @@
-parameter unit;
-storage unit;
-code {DROP; PUSH (list operation) {}; DROP; UNIT; NIL operation; PAIR};

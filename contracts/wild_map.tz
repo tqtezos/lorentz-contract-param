@@ -1,3 +1,0 @@
-parameter unit;
-storage (map nat nat);
-code { DROP; PUSH (map nat nat) {Elt 1 5; Elt 2 2; Elt 3 5}; NIL operation; PAIR }

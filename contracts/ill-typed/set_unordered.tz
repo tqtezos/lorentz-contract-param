@@ -1,3 +1,0 @@
-parameter unit;
-storage (set nat);
-code { DROP; PUSH (set nat) {3;2;1}; NIL operation; PAIR }

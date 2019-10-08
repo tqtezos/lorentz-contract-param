@@ -1,95 +1,25 @@
-# This file defines sensible defaults but does not actually apply
-# any of them, so it can be safely included.
+# This file defines sensible defaults for packages with Lorentz contracts
+# but does not actually apply  any of them, so it can be safely included.
+# Use these along with the main hpack defaults.
+
+<<: !include "morley_definitions.yaml"
 
 _definitions:
   _top-level:
-    - &meta
-        author:              camlCase, Serokell, Tocqueville Group
-        maintainer:          Serokell <hi@serokell.io>
-        copyright:           2018 camlCase, 2019 Tocqueville Group
-        license:             AGPL-3.0-or-later
-        license-file:        LICENSE
-        git:                 git@gitlab.com:morley-framework/morley.git
-        homepage:            https://gitlab.com/morley-framework/morley
-        bug-reports:         https://issues.serokell.io/issues/TM
+    - &lorentz-default-extensions
+        - DeriveAnyClass
+        - DerivingStrategies
+        - NoApplicativeDo
+        - RebindableSyntax
 
-    - &default-extensions
-        - ApplicativeDo
-        - AllowAmbiguousTypes
-        - BangPatterns
-        - ConstraintKinds
-        - DataKinds
-        - DefaultSignatures
-        - DeriveDataTypeable
-        - DeriveFoldable
-        - DeriveFunctor
-        - DeriveGeneric
-        - DeriveTraversable
-        - EmptyCase
-        - FlexibleContexts
-        - FlexibleInstances
-        - GADTs
-        - GeneralizedNewtypeDeriving
-        - LambdaCase
-        - MonadFailDesugaring
-        - MultiParamTypeClasses
-        - MultiWayIf
-        - NamedFieldPuns
-        - NegativeLiterals
-        - NumDecimals
-        - OverloadedLabels
-        - OverloadedStrings
-        - PatternSynonyms
-        - PolyKinds
-        - QuasiQuotes
-        - RankNTypes
-        - RecordWildCards
-        - RecursiveDo
-        - ScopedTypeVariables
-        - StandaloneDeriving
-        - TemplateHaskell
-        - TupleSections
-        - TypeApplications
-        - TypeFamilies
-        - TypeOperators
-        - UndecidableInstances
-        - ViewPatterns
-
-    - &dependencies
-        - base-noprelude >= 4.7 && < 5
-
-    - &ghc-options
-        - -Weverything
-        - -Wno-missing-exported-signatures
-        - -Wno-missing-import-lists
-        - -Wno-missed-specialisations
-        - -Wno-all-missed-specialisations
-        - -Wno-unsafe
-        - -Wno-safe
-        - -Wno-missing-local-signatures
-        - -Wno-monomorphism-restriction
-        - -Wno-implicit-prelude
+    - &lorentz-ghc-options
+        - -Wno-unused-do-bind
 
   _utils:
     # Additional options, they will be merged with the ones above when both
     # are imported.
 
-    - &lib-common
+    - &lorentz-lib-common
         source-dirs: src
-
-    - &exec-common
-        main:        Main.hs
-        source-dirs: app
-
-    - &test-common
-        main:        Main.hs
-        source-dirs: test
-        build-tools: tasty-discover:tasty-discover
-
-        ghc-options:
-          - -threaded
-          - -with-rtsopts=-N
-
-    - &bench-common
-        main:        Main.hs
-        source-dirs: bench
+        default-extensions: *lorentz-default-extensions
+        ghc-options: *lorentz-ghc-options

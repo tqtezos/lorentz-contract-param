@@ -1,5 +1,0 @@
-parameter unit ;
-storage int ;
-code { DROP ; LAMBDA int int { PUSH bool True;
-       IF { PUSH bool True; LOOP { SELF; }; } { SELF; }; DROP };
-       DROP ; PUSH int 5 ; NIL operation ; PAIR };

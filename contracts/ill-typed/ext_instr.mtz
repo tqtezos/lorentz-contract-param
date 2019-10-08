@@ -1,4 +1,0 @@
-parameter unit;
-storage unit;
-code {drop; stacktype '[int]; print "hello"; 
-      push int 3; print "head is: %[0]"; drop; unit; nil operation; pair;};

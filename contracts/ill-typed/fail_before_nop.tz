@@ -1,4 +1,0 @@
-# No dead code is allowed, even if it does nothing.
-parameter unit;
-storage unit;
-code { FAIL; {} };
