@@ -20,7 +20,8 @@ import Michelson.Runtime
 import Michelson.TypeCheck
 import Util.IO
 import qualified Lorentz.Contracts.ManagedLedger.Athens as Athens
-import qualified Lorentz.Contracts.ManagedLedger.Types as Athens
+import qualified Lorentz.Contracts.ManagedLedger.Babylon as Babylon
+import qualified Lorentz.Contracts.ManagedLedger.Types as ManagedLedger
 
 import Data.Version (showVersion)
 import Paths_lorentz_contract_param (version)
@@ -31,6 +32,9 @@ data CmdLnArgs
       , paused      :: Bool
       , totalSupply :: Natural
       , proxyAdmin  :: Address
+      }
+  | ManagedLedgerBabylon
+      { admin       :: Address
       }
   | WrappedMultisigContractNat
       { initialNat :: Natural
@@ -56,6 +60,7 @@ data CmdLnArgs
 argParser :: Opt.Parser CmdLnArgs
 argParser = Opt.subparser $ mconcat
   [ managedLedgerAthensSubCmd
+  , managedLedgerBabylonSubCmd
   , wrappedMultisigContractNatSubCmd
   , wrappedMultisigContractAthensSubCmd
   , wrappedMultisigContractGenericSubCmd
@@ -74,6 +79,15 @@ argParser = Opt.subparser $ mconcat
          parseNatural "totalSupply" <*>
          parseAddress "proxyAdmin")
         "Make initial storage for ManagedLedgerAthens"
+
+    managedLedgerBabylonSubCmd =
+      mkCommandParser
+        "ManagedLedgerBabylon"
+        (ManagedLedgerBabylon <$> parseAddress "admin")
+        -- (ManagedLedgerBabylon <$> parseAddress "admin" <*>
+        --  parseBool "paused" <*>
+        --  parseNatural "totalSupply")
+        "Make initial storage for ManagedLedgerBabylon"
 
     wrappedMultisigContractNatSubCmd =
       mkCommandParser
@@ -169,8 +183,11 @@ main = do
     run =
       \case
         ManagedLedgerAthens {..} ->
-          TL.putStrLn . printLorentzValue forceSingleLine . Athens.Storage' mempty $
+          TL.putStrLn . printLorentzValue forceSingleLine . ManagedLedger.Storage' mempty $
           Athens.StorageFields admin paused totalSupply (Left proxyAdmin)
+        ManagedLedgerBabylon {..} ->
+          TL.putStrLn . printLorentzValue forceSingleLine $
+          Babylon.mkStorage admin mempty
         WrappedMultisigContractNat {..} ->
           TL.putStrLn . printLorentzValue forceSingleLine $
           initStorageWrappedMultisigContractNat initialNat threshold signerKeys

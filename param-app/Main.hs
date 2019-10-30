@@ -57,6 +57,7 @@ import qualified Lorentz.Base as L
 import qualified Lorentz.Contracts.GenericMultisig as G
 import qualified Lorentz.Contracts.GenericMultisig.Wrapper as G
 import qualified Lorentz.Contracts.ManagedLedger.Athens as Athens
+import qualified Lorentz.Contracts.ManagedLedger.Babylon as Babylon
 import qualified Tezos.Crypto as Crypto
 
 
@@ -602,6 +603,46 @@ contractAthensSubCmds =
   , ("setProxy", Athens.SetProxy <$> parseAddress "new-proxy-address")
   ]
 
+contractBabylonSubCmds :: [(String, Opt.Parser Babylon.Parameter)]
+contractBabylonSubCmds =
+  [ ( "transfer"
+    , Babylon.Transfer <$>
+      liftA3
+        (,,)
+        (parseNamed #from parseAddress)
+        (parseNamed #to parseAddress)
+        (parseNamed #value parseNatural))
+  , ( "approve"
+    , Babylon.Approve <$>
+      liftA2
+        (,)
+        (parseNamed #spender parseAddress)
+        (parseNamed #value parseNatural))
+  , ( "getAllowance"
+    , Babylon.GetAllowance <$>
+      parseView
+        (liftA2
+           (,)
+           (parseNamed #owner parseAddress)
+           (parseNamed #spender parseAddress)))
+  , ("getBalance", Babylon.GetBalance <$> parseView (parseAddress "account"))
+  , ("getTotalSupply", Babylon.GetTotalSupply <$> parseView (pure ()))
+  , ("setPause", Babylon.SetPause <$> parseBool "paused")
+  , ( "setAdministrator"
+    , Babylon.SetAdministrator <$> parseAddress "new-administrator-address")
+  , ("getAdministrator", Babylon.GetAdministrator <$> parseView (pure ()))
+  , ( "mint"
+    , Babylon.Mint <$>
+      liftA2 (,) (parseNamed #to parseAddress) (parseNamed #value parseNatural))
+  , ( "burn"
+    , Babylon.Burn <$>
+      liftA2
+        (,)
+        (parseNamed #from parseAddress)
+        (parseNamed #value parseNatural))
+  ]
+
+
 
 wrappedMultisigContractNatSubCmd :: [Opt.Mod Opt.CommandFields CmdLnArgs]
 wrappedMultisigContractNatSubCmd =
@@ -615,6 +656,12 @@ wrappedMultisigContractAthensSubCmd =
     "WrappedMultisigContractAthens"
     contractAthensSubCmds
 
+wrappedMultisigContractBabylonSubCmd :: [Opt.Mod Opt.CommandFields CmdLnArgs]
+wrappedMultisigContractBabylonSubCmd =
+  genericMultisigParam
+    "WrappedMultisigContractBabylon"
+    contractBabylonSubCmds
+
 contractNatSubCmd :: [Opt.Mod Opt.CommandFields CmdLnArgs]
 contractNatSubCmd =
   genericContractParam
@@ -626,6 +673,12 @@ managedLedgerAthensSubCmd =
   genericContractParam
     "ManagedLedgerAthens"
     contractAthensSubCmds
+
+managedLedgerBabylonSubCmd :: [Opt.Mod Opt.CommandFields CmdLnArgs]
+managedLedgerBabylonSubCmd =
+  genericContractParam
+    "ManagedLedgerBabylon"
+    contractBabylonSubCmds
 
 
 wrappedMultisigDefaultSubCmd :: [Opt.Mod Opt.CommandFields CmdLnArgs]
@@ -736,8 +789,10 @@ argParser =
   ] ++
     contractNatSubCmd ++
     managedLedgerAthensSubCmd ++
+    managedLedgerBabylonSubCmd ++
     wrappedMultisigContractNatSubCmd ++
     wrappedMultisigContractAthensSubCmd ++
+    wrappedMultisigContractBabylonSubCmd ++
     wrappedMultisigDefaultSubCmd ++
     wrappedMultisigChangeKeysSubCmd ++
     multisigSomeOperationParamsSubCmd ++
