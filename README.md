@@ -8,8 +8,8 @@ It also contains CLI interfaces for working with Lorentz contracts:
 - `lorentz-contract-param`: generate Michelson contract parameters
 - `lorentz-contract-storage`: generate Michelson initial storage values
 
-For more information, see the [quick start guide](https://assets.tqtezos.com/contracts/)
-or specifically the [client setup guide](https://assets.tqtezos.com/contracts/quickstart/1-index).
+For more information, see the [quick start guide](https://assets.tqtezos.com/quickstart)
+or specifically the [client setup guide](https://assets.tqtezos.com/quickstart/1-index).
 
 Note: As of `09/27/2019` this package will not compile with the latest
 `stack`: `2.1.3`.  To build, you'll likely need
