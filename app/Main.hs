@@ -21,7 +21,8 @@ import Lorentz.Contracts.ManagedLedger.Proxy (managedLedgerProxyContract)
 import Lorentz.Contracts.UnsafeLedger
 import Lorentz.Contracts.VarStorage
 import Lorentz.Contracts.Walker
-import qualified Lorentz.Contracts.GenericMultisig.Wrapper as G
+import qualified Lorentz.Contracts.GenericMultisig.Wrapper as GW
+import qualified Lorentz.Contracts.GenericMultisig as G
 
 import Lorentz.Contracts.Util.Strip
 import LorentzContractsOptions
@@ -83,12 +84,12 @@ contracts = Map.fromList
     , ciIsDocumented = False
     }
   , "ExplicitBigMapManagedLedgerAthens" ?:: ContractInfo
-    { ciContract = G.explicitBigMapAthens
+    { ciContract = GW.explicitBigMapAthens
     , ciPrinterOpts = L.lcwEntryPoints
     , ciIsDocumented = False
     }
   , "MultisigManagedLedgerAthens" ?:: ContractInfo
-    { ciContract = G.wrappedMultisigContractAthens
+    { ciContract = GW.wrappedMultisigContractAthens
     , ciPrinterOpts = L.lcwEntryPoints
     , ciIsDocumented = False
     }
@@ -98,12 +99,17 @@ contracts = Map.fromList
     , ciIsDocumented = False
     }
   , "NatStorageWithBigMapContract" ?:: ContractInfo
-    { ciContract = G.natStorageWithBigMapContract
+    { ciContract = GW.natStorageWithBigMapContract
     , ciPrinterOpts = L.lcwDumb
     , ciIsDocumented = False
     }
   , "WrappedMultisigContractNat" ?:: ContractInfo
-    { ciContract = G.wrappedMultisigContractNat
+    { ciContract = GW.wrappedMultisigContractNat
+    , ciPrinterOpts = L.lcwDumb
+    , ciIsDocumented = False
+    }
+  , "GenericMultisigContract223" ?:: ContractInfo
+    { ciContract = G.generigMultisigContract223
     , ciPrinterOpts = L.lcwDumb
     , ciIsDocumented = False
     }
@@ -154,7 +160,7 @@ main = do
                 Left err -> die $ show err
                 Right typeCheckedContract ->
                   case bool fst snd (name == "WrappedMultisig") $
-                       G.wrapSomeTypeCheckedContract typeCheckedContract of
+                       GW.wrapSomeTypeCheckedContract typeCheckedContract of
                     L.SomeContract wrappedContract ->
                       maybe TL.putStrLn writeFileUtf8 mOutput $
                       L.printLorentzContract forceOneLine L.lcwDumb wrappedContract

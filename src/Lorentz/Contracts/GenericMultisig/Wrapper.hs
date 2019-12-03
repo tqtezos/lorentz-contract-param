@@ -221,7 +221,7 @@ wrapSomeBigMapContract baseContract =
       case constrainedBigMap (sing @(ToT b)) of
         Dict ->
           ( SomeContract $ explicitlyStorePair' baseContract
-          , SomeContract $ wrappedMultisigContractProxy
+          , SomeContract $ wrappedMultisigContractProxy @PublicKey
               (Proxy @(CValue (CBigMapKey (ToT b))))
               (Proxy @(Value (CBigMapVal (ToT b))))
               (Proxy @a)
@@ -229,7 +229,7 @@ wrapSomeBigMapContract baseContract =
           )
     BigMapAbsent ->
       ( SomeContract $ ignoreBigMap baseContract
-      , SomeContract $ wrappedMultisigContractProxy
+      , SomeContract $ wrappedMultisigContractProxy @PublicKey
               (Proxy @Bool)
               (Proxy @())
               (Proxy @a)
@@ -363,10 +363,10 @@ natStorageWithBigMapContract = ignoreBigMap natStorageContract
 
 -- | Multisig-wrapper specialized for `natStorageWithBigMapContract`
 wrappedMultisigContractNat ::
-     Contract (Parameter Natural) ( BigMap Bool ()
-                                  , ( ( BigMapContract Bool () Natural Natural
-                                      , Natural)
-                                    , Storage))
+     Contract (Parameter PublicKey Natural) ( BigMap Bool ()
+                                      , ( ( BigMapContract Bool () Natural Natural
+                                          , Natural)
+                                        , Storage PublicKey))
 wrappedMultisigContractNat =
   wrappedMultisigContractProxy
     (Proxy :: Proxy Bool)
@@ -381,7 +381,7 @@ initStorageWrappedMultisigContractNat ::
   -> Natural
   -> [PublicKey]
   -> ( BigMap Bool ()
-     , ((BigMapContract Bool () Natural Natural, Natural), Storage))
+     , ((BigMapContract Bool () Natural Natural, Natural), Storage PublicKey))
 initStorageWrappedMultisigContractNat initialNat threshold keys =
   ( mempty
   , ( (natStorageWithBigMapContract, initialNat)
@@ -391,10 +391,10 @@ initStorageWrappedMultisigContractNat initialNat threshold keys =
 
 -- | Multisig-wrapper specialized for `wrappedMultisigContractAthens`
 wrappedMultisigContractAthens ::
-     Contract (Parameter A.Parameter) ( BigMap Address LedgerValue
-                                      , ( ( BigMapContract Address LedgerValue A.Parameter A.StorageFields
-                                          , A.StorageFields)
-                                        , Storage))
+     Contract (Parameter PublicKey A.Parameter) ( BigMap Address LedgerValue
+                                                , ( ( BigMapContract Address LedgerValue A.Parameter A.StorageFields
+                                                    , A.StorageFields)
+                                                  , Storage PublicKey))
 wrappedMultisigContractAthens =
   wrappedMultisigContractProxy
     (Proxy :: Proxy Address)
@@ -416,7 +416,7 @@ initStorageWrappedMultisigContractAthens ::
   -> ( BigMap Address LedgerValue
      , ( ( BigMapContract Address LedgerValue A.Parameter A.StorageFields
          , A.StorageFields)
-       , Storage))
+       , Storage PublicKey))
 initStorageWrappedMultisigContractAthens admin paused totalSupply proxy threshold keys =
   ( mempty
   , ( (explicitBigMapAthens, A.StorageFields admin paused totalSupply proxy)
