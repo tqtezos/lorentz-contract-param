@@ -3,65 +3,35 @@
 module Multisig where
 
 import Control.Applicative
-import Data.Char
 import Data.List
-import Data.Typeable
 import Data.String
-import GHC.TypeLits (KnownSymbol, symbolVal)
+import Data.Typeable
 import Prelude hiding (readEither, unlines, unwords, show, null)
 import Text.Show
 import qualified Prelude as P
 
+import Control.Monad.Except
 import Data.Aeson hiding (Value)
--- import Data.Aeson.TH
--- import Language.Haskell.TH.Ppr
--- import Language.Haskell.TH.Lib
-
 import Data.Aeson.Encode.Pretty (encodePretty)
 import Data.Constraint
 import Data.Singletons (SingI(..))
-import Data.Version (showVersion)
-import Named
-import Options.Applicative.Help.Pretty (Doc, linebreak)
-import Paths_lorentz_contract_param (version)
+import System.Directory
 import qualified Data.Binary as Binary
 import qualified Data.Binary.Put as Binary
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Map as Map
 import qualified Data.Text as T
-import qualified Data.Text.Lazy.IO as TL
-import qualified Options.Applicative as Opt
-import qualified Options.Applicative.Types as Opt
-import Control.Monad.Except
 
 import Lorentz hiding (contractName)
-import Lorentz.Contracts.Auction
-import Lorentz.Contracts.ManagedLedger.Babylon (managedLedgerContract)
-import Lorentz.Contracts.ManagedLedger.Proxy (managedLedgerProxyContract)
 import Lorentz.Contracts.SomeContractParam
-import Lorentz.Contracts.UnsafeLedger
 import Lorentz.Contracts.Util ()
-import Lorentz.Contracts.VarStorage
-import Lorentz.Contracts.Walker
 import Michelson.Interpret.Pack
-import Michelson.Macro
-import Michelson.Parser
 import Michelson.Printer.Util
-import Michelson.Runtime
--- import Michelson.TypeCheck
 import Michelson.Typed
 import Tezos.Crypto (SecretKey)
--- import Util.IO
--- import Util.Named
--- import qualified Lorentz.Base as L
 import qualified Lorentz.Contracts.GenericMultisig as G
--- import qualified Lorentz.Contracts.GenericMultisig.Wrapper as G
--- import qualified Lorentz.Contracts.ManagedLedger.Athens as Athens
--- import qualified Lorentz.Contracts.ManagedLedger.Babylon as Babylon
 import qualified Tezos.Crypto as Crypto
 
-
-import System.Directory
 
 -- | A file with everything needed to sign some multisig contract parameters
 data MultisigSignersFile key where
@@ -201,17 +171,12 @@ writeMultisigSignersFile multisigSignersFile@MultisigSignersFile{..} = do
 -- | Read and parse a `MultisigSignersFile`
 readMultisigSignersFile :: G.IsKey key => FilePath -> ExceptT String IO (MultisigSignersFile key)
 readMultisigSignersFile filePath = do
-  lift $ putStrLn filePath
-  lift $ canonicalizePath filePath >>= putStrLn
+  -- lift $ putStrLn filePath
+  -- lift $ canonicalizePath filePath >>= putStrLn
   fileExists <- lift $ canonicalizePath filePath >>= doesFileExist
   if P.not fileExists
      then throwError "file does not exist"
      else do
-       -- tt <- lift $ TL.readFile filePath
-       -- lift $ putStrLn tt
-       lift $ getCurrentDirectory >>= putStrLn
-       lift $ getCurrentDirectory >>= listDirectory >>= P.mapM_ putStrLn
-       undefined
        lift (BL.readFile filePath) >>= either throwError return . eitherDecode
 
 multisigSignFile :: forall key. G.IsKey key
@@ -234,11 +199,17 @@ multisigSignFile keyProxy secretKey somePublicKey multisigFile =
           lift $ writeMultisigSignersFile $
             signMultisigSignersFile @key publicKey secretKey multisigSignersFile
 
+multisigVerifyFile :: forall key. G.IsKey key
+  => Proxy key
+  -> FilePath
+  -> ExceptT String IO ()
+multisigVerifyFile _ multisigFile = do
+  multisigSignersFile <- readMultisigSignersFile @key multisigFile
+  ExceptT . return $ verifyMultisigSignersFile @key multisigSignersFile
+
 -- | Read a `NonEmpty` list of `MultisigSignersFile`s and concatenate them
 readConcatMultisigSignersFiles :: forall key. G.IsKey key => Proxy key -> NonEmpty FilePath -> ExceptT String IO ()
--- readConcatMultisigSignersFiles keyProxy = do
 readConcatMultisigSignersFiles _ ~(path :| paths) = do
-  readMultisigSignersFile @key "GenericMultisigContract223_0_9YfhzjTTDiXqiNB9KeuQLYUQNX9oCkTAtfEVM7JYZNeHm1vHM.json" >>= lift . print . encode
   multisigSignersFile <- readMultisigSignersFile @key path
   multisigSignersFile `seq` return ()
   multisigSignersFile' <- foldM
@@ -306,6 +277,42 @@ signMultisigSignersFile publicKey secretKey multisigSignersFile@MultisigSignersF
           packValue' .
           toVal $
           -- G.MainParameter . (, signatureList multisigSignersFile) . (counter, ) $
+          (contractAddress, (counter, action'))
+
+-- | Verify the parameter signatures in a `MultisigSignersFile` (partial signatures are ignored)
+verifyMultisigSignersFile :: forall key.  MultisigSignersFile key -> Either String ()
+verifyMultisigSignersFile MultisigSignersFile {..} =
+  case contractParameter of
+    Left changeKeyParams' ->
+      verifyMainParams
+        (G.ChangeKeys changeKeyParams' :: G.GenericMultisigAction key ())
+    Right someContractParam' ->
+      fromSomeContractParam someContractParam' $ \contractParam ->
+        verifyMainParams $ G.Operation contractParam
+  where
+    verifyMainParams ::
+         ( Typeable (ToT a)
+         , SingI (ToT a)
+         , IsoValue a
+         , HasNoOp (ToT a)
+         , HasNoBigMap (ToT a)
+         )
+      => G.GenericMultisigAction key a
+      -> Either String ()
+    verifyMainParams action' =
+      void $
+      flip Map.traverseWithKey signatures $ \publicKey mSignature ->
+        case mSignature of
+          Nothing -> return ()
+          Just eSignature ->
+            case eSignature of
+              Left psig -> Left $ "Partial signature: " ++ show psig
+              Right signature ->
+                G.checkKeySignatureHaskell @key publicKey signature packedValue
+      where
+        packedValue =
+          packValue' .
+          toVal $
           (contractAddress, (counter, action'))
 
 -- | Convert to a `Value`, untype, and render

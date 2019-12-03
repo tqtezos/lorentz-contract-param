@@ -63,7 +63,6 @@ deriving instance Show Opt.ParseError
 instance Show Opt.SomeParser where
   show _ = "SomeParser"
 
-
 data CmdLnArgs where
   DefaultContractParams ::
       { renderedParams :: String
@@ -113,6 +112,9 @@ data CmdLnArgs where
       { secretKey :: SecretKey
       , somePublicKey :: G.SomePublicKey
       , multisigFile :: FilePath
+      } -> CmdLnArgs
+  MultisigVerifyFile ::
+      { multisigFile :: FilePath
       } -> CmdLnArgs
 
 -- | Option parser to read a `L.Contract`'s parameter type
@@ -654,6 +656,18 @@ multisigSignFileSubCmd =
     parseMultisigSignFile =
       MultisigSignFile <$> parseSecretKey <*> parseSomePublicKey <*> parseFilePath "signerFile" "File path to multisig parameter JSON file"
 
+-- | Command to verify a `MultisigSignersFile`
+multisigVerifyFileSubCmd :: [Opt.Mod Opt.CommandFields CmdLnArgs]
+multisigVerifyFileSubCmd =
+  [ mkCommandParser
+      "MultisigVerifyFile"
+      parseMultisigVerifyFile
+      "Verify the contract parameter signatures given a multisig signers file in JSON"
+  ]
+  where
+    parseMultisigVerifyFile :: Opt.Parser CmdLnArgs
+    parseMultisigVerifyFile =
+      MultisigVerifyFile <$> parseFilePath "signerFile" "File path to multisig parameter JSON file"
 
 -- | Command to collect, combine, and render a non-empty list
 -- of `MultisigSignersFile`'s
@@ -702,6 +716,7 @@ argParser =
     wrappedMultisigChangeKeysSubCmd ++
     multisigSomeOperationParamsSubCmd ++
     multisigSignFileSubCmd ++
+    multisigVerifyFileSubCmd ++
     multisigSignersFileSubCmd ++
     genericMultisigOperationParamsSubCmd
 
@@ -802,6 +817,13 @@ main = do
             multisigSignFile (Proxy @PublicKey) secretKey somePublicKey multisigFile <|>
             multisigSignFile (Proxy @(PublicKey, PublicKey)) secretKey somePublicKey multisigFile
           case signingResult of
+            Left err -> P.fail err
+            Right () -> return ()
+        MultisigVerifyFile {..} -> do
+          verificationResult <- runExceptT $
+            multisigVerifyFile (Proxy @PublicKey) multisigFile <|>
+            multisigVerifyFile (Proxy @(PublicKey, PublicKey)) multisigFile
+          case verificationResult of
             Left err -> P.fail err
             Right () -> return ()
         MultisigFiles {..} ->

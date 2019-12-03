@@ -19,31 +19,34 @@
 -- @
 module Lorentz.Contracts.GenericMultisig where
 
-import Lorentz
+import Lorentz hiding (concat)
 import Lorentz.Contracts.Util ()
 import Michelson.Typed.Scope
 import qualified Tezos.Crypto as Crypto
 
 import Fmt (Buildable(..), (+|), (|+))
 import Data.ByteString.Internal (unpackChars)
+import Data.Aeson hiding (String)
 
-import Data.Aeson
+import Data.Bifunctor
+import Data.String
 import Text.Read
 import Text.Show (Show(..))
-
 import Data.Bool
-import Data.List (unwords)
+import Data.List (unwords, concat)
 import Data.Kind
 import Data.Typeable
 import qualified GHC.Base as Base
+import qualified Control.Monad as Monad
 
 -- {-# ANN module ("HLint: ignore Reduce duplication" :: Text) #-}
 
+-- | Some `Public` key
 data SomePublicKey where
   SomePublicKey :: forall key. IsKey key => Proxy key -> Public key -> SomePublicKey
 
--- type Secret key :: Type
--- type Secret PublicKey = Secret
+-- | Keys have "value-like" instances, e.g. `Typeable`, `Ord`, `Show`, `IsoValue`, etc.,
+-- public keys, partial and total signatures, and ways to make and check signatures
 class ( Typeable key
       , Ord (Public key)
       , Read (Public key)
@@ -70,23 +73,36 @@ class ( Typeable key
       , HasNoOp (ToT (Sig key))
       , HasNoBigMap (ToT (Sig key))
       ) => IsKey (key :: Type) where
+  -- | The public key
   type Public key :: Type
+  -- | A partial signature
   type PartialSig key :: Type
+  -- | A complete signature
   type Sig key :: Type
 
+  -- | Check the signature in Michelson
   checkKeySignature :: forall s. (Public key & (Sig key & (ByteString & s))) :-> (Bool & s)
+  -- | Check the signature in Haskell
+  checkKeySignatureHaskell :: Public key -> Sig key -> ByteString -> Either String ()
 
+  -- | An empty `PartialSig`
   partialSig :: PartialSig key
+  -- | Sign a `PartialSig` with the given `Crypto.SecretKey`
   signWithKey :: Crypto.SecretKey -> ByteString -> PartialSig key -> Either Base.String (PartialSig key)
+  -- | Complete a `PartialSig` or return an error explaining how it's incomplete
   completeSig :: PartialSig key -> Either Base.String (Sig key)
 
 
 instance IsKey PublicKey where
   type Public PublicKey = PublicKey
-  -- type Secret PublicKey = Crypto.SecretKey
   type PartialSig PublicKey = Maybe Signature
   type Sig PublicKey = Signature
   checkKeySignature = checkSignature
+  checkKeySignatureHaskell publicKey sig bytes' =
+    bool
+       (Left "Checking the signature failed")
+       (return ()) $
+       Crypto.checkSignature publicKey sig bytes'
 
   partialSig = Nothing
 
@@ -103,6 +119,7 @@ instance IsKey PublicKey where
   completeSig Nothing = Left "incomplete"
   completeSig (Just sig) = Right sig
 
+-- | A pair of partial signatures
 data PartialSigPair a b =
     EmptySigPair
   | PartialSigL (PartialSig a)
@@ -140,7 +157,11 @@ instance (IsKey a, IsKey b) => IsKey (a, b) where
       checkKeySignature @b
     and
 
-  partialSig = EmptySigPair -- PartialSigL $ partialSig @a
+  checkKeySignatureHaskell ~(publicKeyA, publicKeyB) ~(sigA, sigB) bytes' =
+    (first (\str -> concat [show publicKeyA, ": ", str]) $ checkKeySignatureHaskell @a publicKeyA sigA bytes') Monad.>>
+    (first (\str -> concat [show publicKeyB, ": ", str]) $ checkKeySignatureHaskell @b publicKeyB sigB bytes')
+
+  partialSig = EmptySigPair
 
   signWithKey secretKey bytes EmptySigPair =
     case signWithKey @a secretKey bytes $ partialSig @a of
@@ -204,6 +225,7 @@ instance (IsKey a, IsKey b) => IsKey (a, b) where
   completeSig (PartialSigLR _ _) = Left "incomplete: PartialSigLR"
   completeSig (PartialSigRL _ _) = Left "incomplete: PartialSigRL"
   completeSig (SigPair sigA sigB) = Right (sigA, sigB)
+
 
 ----------------------------------------------------------------------------
 -- Parameter
