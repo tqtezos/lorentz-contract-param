@@ -10,11 +10,9 @@ module Main
   ) where
 
 import Control.Applicative
-import Data.Char
 import Data.List
 import Data.Typeable
 import Data.String
-import GHC.TypeLits (KnownSymbol, symbolVal)
 import Prelude hiding (readEither, unlines, unwords, show, null)
 import Text.Show
 import qualified Prelude as P
@@ -24,13 +22,11 @@ import Data.Aeson (eitherDecode)
 import Data.Constraint
 import Data.Singletons (SingI(..))
 import Data.Version (showVersion)
-import Named
 import Options.Applicative.Help.Pretty (Doc, linebreak)
 import Paths_lorentz_contract_param (version)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy.IO as TL
 import qualified Options.Applicative as Opt
-import qualified Options.Applicative.Types as Opt
 
 import Lorentz hiding (contractName)
 import Lorentz.Contracts.Auction
@@ -48,20 +44,14 @@ import Michelson.TypeCheck
 import Michelson.Typed
 import Tezos.Crypto (SecretKey)
 import Util.IO
-import Util.Named
 import qualified Lorentz.Base as L
 import qualified Lorentz.Contracts.GenericMultisig as G
 import qualified Lorentz.Contracts.GenericMultisig.Wrapper as G
 import qualified Lorentz.Contracts.ManagedLedger.Athens as Athens
 import qualified Lorentz.Contracts.ManagedLedger.Babylon as Babylon
+import Lorentz.Contracts.Parse
 
 import Multisig
-
-deriving instance Show Opt.ParseError
-
--- | Dummy `Show` instance: returns the fixed string "SomeParser"
-instance Show Opt.SomeParser where
-  show _ = "SomeParser"
 
 data CmdLnArgs where
   DefaultContractParams ::
@@ -151,180 +141,6 @@ contractReadAndRenderParam contractName contract' =
     (DefaultContractParams . showValue <$>
      contractReadParam contractName contract')
     ("Generate parameters for " ++ contractName)
-
--- | Parse a `Name`d value given its `Name` and a `Opt.Parser`
--- accepting a `String` parameter
-parseNamed ::
-     forall name a. KnownSymbol name
-  => Name name
-  -> (String -> Opt.Parser a)
-  -> Opt.Parser (name :! a)
-parseNamed name' p =
-  (name' .!) <$> p (symbolVal (Proxy @name))
-
--- | Parse a natural number argument, given its field name
-parseNatural :: String -> Opt.Parser Natural
-parseNatural name =
-  Opt.option Opt.auto $
-  mconcat
-    [ Opt.long name
-    , Opt.metavar "NATURAL"
-    , Opt.help $ "Natural number representing " ++ name ++ "."
-    ]
-
--- | Parse an `Address` argument, given its field name
-parseAddress :: String -> Opt.Parser Address
-parseAddress name =
-  Opt.option Opt.auto $
-  mconcat
-    [ Opt.long name
-    , Opt.metavar "ADDRESS"
-    , Opt.help $ "Address of the " ++ name ++ "."
-    ]
-
--- | Parse a `Bool` (optional) argument, given its field name
-parseBool :: String -> Opt.Parser Bool
-parseBool name =
-  Opt.option Opt.auto $
-  mconcat
-    [ Opt.long name
-    , Opt.metavar "BOOL"
-    , Opt.help $
-      "Bool representing whether the contract is initially " ++ name ++ "."
-    ]
-
--- | Parse a `View` by parsing its arguments and @"callback-contract"@ address
-parseView :: Opt.Parser a -> Opt.Parser (View a r)
-parseView parseArg =
-  View <$> parseArg <*> fmap ContractAddr (parseAddress "callback-contract")
-
--- | Parse the signer keys
-parseSignerKeys :: String -> Opt.Parser [PublicKey]
-parseSignerKeys name =
-  Opt.option Opt.auto $
-  mconcat
-    [ Opt.long name
-    , Opt.metavar "List PublicKey"
-    , Opt.help $ "Public keys of multisig " ++ name ++ "."
-    ]
-
-parseSignerKeyPairs :: String -> Opt.Parser [(PublicKey, PublicKey)]
-parseSignerKeyPairs name =
-  -- Opt.option parser' $
-  Opt.option (Opt.eitherReader parser' <|> Opt.auto) $
-  -- Opt.option (Opt.eitherReader (error . T.pack) <|> Opt.auto) $
-  mconcat
-    [ Opt.long name
-    , Opt.metavar "[(PublicKey, PublicKey)]"
-    , Opt.help $ "Public keys of multisig " ++ name ++ "."
-    ]
-  where
-    parser' :: String -> Either String [(PublicKey, PublicKey)]
-    parser' = eitherDecode . fromString
-
-parseFilePath :: String -> String -> Opt.Parser FilePath
-parseFilePath name description =
-  Opt.strOption $
-  mconcat
-    [ Opt.long name
-    , Opt.metavar "FilePath"
-    , Opt.help description
-    ]
-
--- | Parse the signer keys
-parseContractName :: Opt.Parser String
-parseContractName =
-  Opt.strOption $
-  mconcat
-    [ Opt.long "contractName"
-    , Opt.metavar "STRING"
-    , Opt.help "Contract name"
-    ]
-
-runReadM :: Opt.ReadM a -> String -> Either String a
-runReadM =
-  fmap (first show . runIdentity . runExceptT) . runReaderT . Opt.unReadM
-
--- | Parse a Haskell-style list
-parseHaskellList :: forall a. Opt.ReadM a -> Opt.ReadM [a]
-parseHaskellList p =
-  Opt.eitherReader $ \str ->
-    case dropWhile isSpace str of
-      '[':begunList -> parseElems begunList
-      _ -> Left $ "Expected a String beginning with '[', but got: " ++ str
-  where
-    parseElems :: String -> Either String [a]
-    parseElems str =
-      case runReadM p strippedBeforeSeparator of
-        Left err -> Left err
-        Right parseResult ->
-          (parseResult :) <$>
-          case withSeparator of
-            [] -> return []
-            (',':restOfList) -> parseElems restOfList
-            (']':leftoverStr) ->
-              if null $ dropWhile isSpace leftoverStr
-                then return []
-                else Left $
-                     "Expected the list to end after ']', but got: " ++
-                     leftoverStr
-            (c:leftoverStr) ->
-              Left $
-              "Expected ',' or ']', but got: " ++
-              [c] ++ " followed by: " ++ leftoverStr
-      where
-        ~(beforeSeparator, withSeparator) =
-          break (liftM2 (||) (== ',') (== ']')) $ dropWhile isSpace str
-        strippedBeforeSeparator = dropWhileEnd isSpace beforeSeparator
-
--- | Parse a Bash-style list
-parseBashList :: Opt.ReadM a -> Opt.ReadM [a]
-parseBashList p = Opt.eitherReader $ \str ->
-  runReadM p `mapM` Data.String.words str
-
--- | Read a list in a flexible format
-parseList :: Opt.ReadM a -> Opt.ReadM [a]
-parseList =
-  liftM2 (<|>) parseHaskellList parseBashList
-
-parseLambda :: String -> String -> Opt.Parser (Lambda () [Operation])
-parseLambda name description =
-  fmap (\x -> fromVal $
-    either (error . T.pack . show) id $
-    parseNoEnv
-      (G.parseTypeCheckValue @(ToT (Lambda () [Operation])))
-      "GenericMultisigContract223" $
-    T.pack x) .
-  Opt.strOption $
-  mconcat
-    [ Opt.long name
-    , Opt.metavar "Lambda () [Operation]"
-    , Opt.help description
-    ]
-
-parseSecretKey :: Opt.Parser SecretKey
-parseSecretKey =
-  Opt.option Opt.auto $
-    mconcat
-      [ Opt.long "secretKey"
-      , Opt.metavar "SecretKey"
-      , Opt.help "Private key to sign multisig parameter JSON file"
-      ]
-
-parseSomePublicKey :: Opt.Parser G.SomePublicKey
-parseSomePublicKey =
-  Opt.option parser' $
-    mconcat
-      [ Opt.long "publicKey"
-      , Opt.metavar "publicKey"
-      , Opt.help "Public key(s) to sign multisig parameter JSON file"
-      ]
-  where
-    parser' =
-      (G.SomePublicKey (Proxy @PublicKey) <$>
-      (Opt.auto :: Opt.ReadM PublicKey)) <|>
-      (G.SomePublicKey (Proxy @(PublicKey, PublicKey)) <$>
-      (Opt.eitherReader (eitherDecode . fromString) <|> Opt.auto :: Opt.ReadM (PublicKey, PublicKey)))
 
 parseChangeKeys :: String -> Opt.Parser CmdLnArgs
 parseChangeKeys contractName =

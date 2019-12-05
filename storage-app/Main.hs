@@ -6,11 +6,8 @@ module Main
   ) where
 
 import Prelude hiding (readEither, words)
-import Data.List (words)
-import Text.Read (readEither)
 
 import Options.Applicative.Help.Pretty (Doc, linebreak)
-import Data.Aeson (eitherDecode)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.IO as TL
@@ -27,6 +24,7 @@ import Util.IO
 import qualified Lorentz.Contracts.ManagedLedger.Athens as Athens
 import qualified Lorentz.Contracts.ManagedLedger.Babylon as Babylon
 import qualified Lorentz.Contracts.ManagedLedger.Types as ManagedLedger
+import Lorentz.Contracts.Parse
 
 import Data.Version (showVersion)
 import Paths_lorentz_contract_param (version)
@@ -104,7 +102,7 @@ argParser = Opt.subparser $ mconcat
         "WrappedMultisigContractNat"
         (WrappedMultisigContractNat <$> parseNatural "initialNat" <*>
          parseNatural "threshold" <*>
-         parseSignerKeys)
+         parseSignerKeys "signerKeys")
         "Make initial storage for WrappedMultisigContractNat"
 
     wrappedMultisigContractAthensSubCmd =
@@ -115,7 +113,7 @@ argParser = Opt.subparser $ mconcat
          parseNatural "totalSupply" <*>
          parseAddress "proxyAdmin" <*>
          parseNatural "threshold" <*>
-         parseSignerKeys)
+         parseSignerKeys "signerKeys")
         "Make initial storage for WrappedMultisigContractAthens"
 
     wrappedMultisigContractGenericSubCmd =
@@ -126,7 +124,7 @@ argParser = Opt.subparser $ mconcat
          Opt.optional (parseString "contractFilePath") <*>
          parseString "contractInitialStorage" <*>
          parseNatural "threshold" <*>
-         parseSignerKeys)
+         parseSignerKeys "signerKeys")
         ("Make initial storage for some wrapped Michelson contract.\n" ++
          "Omit the 'contractFilePath' option to pass the contract through STDIN.")
 
@@ -135,47 +133,9 @@ argParser = Opt.subparser $ mconcat
         "GenericMultisigContract223"
         (GenericMultisigContract223 <$>
          parseNatural "threshold" <*>
-         parseSignerKeyPairs)
+         parseSignerKeyPairs "signerKeyPairs")
         "Make initial storage for a generic (2/2)/3 multisig Michelson contract"
 
-    parseNatural name = Opt.option Opt.auto $ mconcat
-      [ Opt.long name
-      , Opt.metavar "NATURAL"
-      , Opt.help $ "Natural number representing " ++ name ++ "."
-      ]
-
-    parseAddress name = Opt.option Opt.auto $ mconcat
-      [ Opt.long name
-      , Opt.metavar "ADDRESS"
-      , Opt.help $ "Address of the " ++ name ++ "."
-      ]
-
-    parseBool name = Opt.option Opt.auto $ mconcat
-      [ Opt.long name
-      , Opt.metavar "BOOL"
-      , Opt.help $ "Bool representing whether the contract is initially " ++ name ++ "."
-      ]
-
-    parseString name = Opt.strOption $ mconcat
-      [ Opt.long name
-      , Opt.metavar "STRING"
-      , Opt.help $ "String representing the contract's initial " ++ name ++ "."
-      ]
-
-    parseSignerKeys = Opt.option Opt.auto $ mconcat
-      [ Opt.long "signerKeys"
-      , Opt.metavar "List PublicKey"
-      , Opt.help $ "Public keys of multisig signers."
-      ]
-
-    parseSignerKeyPairs :: Opt.Parser [(PublicKey, PublicKey)]
-    parseSignerKeyPairs =
-      Opt.option (Opt.auto <|> Opt.eitherReader (eitherDecode . fromString)) $
-      mconcat
-        [ Opt.long "signerKeyPairs"
-        , Opt.metavar "[(PublicKey, PublicKey)]"
-        , Opt.help $ "Public keys of multisig signerKeyPairs."
-        ]
 
 programInfo :: Opt.ParserInfo CmdLnArgs
 programInfo = Opt.info (Opt.helper <*> versionOption <*> argParser) $

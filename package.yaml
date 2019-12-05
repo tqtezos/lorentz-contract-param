@@ -29,6 +29,7 @@ library:
     - constraints
     - binary
     - lorentz-contracts
+    - optparse-applicative
 
 executables:
   lorentz-contract:

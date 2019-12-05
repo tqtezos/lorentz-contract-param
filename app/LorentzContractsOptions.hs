@@ -7,6 +7,7 @@ import Data.Version (showVersion)
 import Options.Applicative.Help.Pretty (Doc, linebreak)
 import Paths_lorentz_contract_param (version)
 import qualified Options.Applicative as Opt
+import Lorentz.Contracts.Parse
 
 data CmdLnArgs
   = List
@@ -74,11 +75,6 @@ argParser = Opt.subparser $ mconcat
       , Opt.metavar "FILEPATH"
       , Opt.help "File to use as base contract. Ignored unless using WrappedMultisig."
       ]
-
-    onelineOption :: Opt.Parser Bool
-    onelineOption = Opt.switch (
-      Opt.long "oneline" <>
-      Opt.help "Force single line output")
 
 programInfo :: Opt.ParserInfo CmdLnArgs
 programInfo = Opt.info (Opt.helper <*> versionOption <*> argParser) $
