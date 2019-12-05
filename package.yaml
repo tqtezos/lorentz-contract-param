@@ -68,6 +68,8 @@ executables:
       - aeson
       - aeson-pretty
       - lorentz-contract-param
+      - mtl
+      - directory
 
   lorentz-contract-storage:
     <<: *exec-common
@@ -86,6 +88,8 @@ executables:
       - named
       - singletons
       - lorentz-contract-param
+      - aeson
+      - bytestring
 
 tests:
   lorentz-contract-param-test:

@@ -5,7 +5,12 @@ module Main
   ( main
   ) where
 
+import Prelude hiding (readEither, words)
+import Data.List (words)
+import Text.Read (readEither)
+
 import Options.Applicative.Help.Pretty (Doc, linebreak)
+import Data.Aeson (eitherDecode)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.IO as TL
@@ -56,6 +61,10 @@ data CmdLnArgs
       , threshold   :: Natural
       , signerKeys  :: [PublicKey]
       }
+  | GenericMultisigContract223
+      { threshold   :: Natural
+      , signerKeyPairs  :: [(PublicKey, PublicKey)]
+      }
 
 argParser :: Opt.Parser CmdLnArgs
 argParser = Opt.subparser $ mconcat
@@ -64,6 +73,7 @@ argParser = Opt.subparser $ mconcat
   , wrappedMultisigContractNatSubCmd
   , wrappedMultisigContractAthensSubCmd
   , wrappedMultisigContractGenericSubCmd
+  , genericMultisigContract223SubCmd
   ]
   where
     mkCommandParser commandName parser desc =
@@ -120,6 +130,14 @@ argParser = Opt.subparser $ mconcat
         ("Make initial storage for some wrapped Michelson contract.\n" ++
          "Omit the 'contractFilePath' option to pass the contract through STDIN.")
 
+    genericMultisigContract223SubCmd =
+      mkCommandParser
+        "GenericMultisigContract223"
+        (GenericMultisigContract223 <$>
+         parseNatural "threshold" <*>
+         parseSignerKeyPairs)
+        "Make initial storage for a generic (2/2)/3 multisig Michelson contract"
+
     parseNatural name = Opt.option Opt.auto $ mconcat
       [ Opt.long name
       , Opt.metavar "NATURAL"
@@ -149,6 +167,15 @@ argParser = Opt.subparser $ mconcat
       , Opt.metavar "List PublicKey"
       , Opt.help $ "Public keys of multisig signers."
       ]
+
+    parseSignerKeyPairs :: Opt.Parser [(PublicKey, PublicKey)]
+    parseSignerKeyPairs =
+      Opt.option (Opt.auto <|> Opt.eitherReader (eitherDecode . fromString)) $
+      mconcat
+        [ Opt.long "signerKeyPairs"
+        , Opt.metavar "[(PublicKey, PublicKey)]"
+        , Opt.help $ "Public keys of multisig signerKeyPairs."
+        ]
 
 programInfo :: Opt.ParserInfo CmdLnArgs
 programInfo = Opt.info (Opt.helper <*> versionOption <*> argParser) $
@@ -213,4 +240,12 @@ main = do
                in TL.putStrLn .
                   either (TL.pack . show) id . parseNoEnv storageParser wrappedContractName $
                   T.pack contractInitialStorage
+        GenericMultisigContract223 {..} -> -- do
+          TL.putStrLn .
+          printLorentzValue True $
+          ( 0 :: Natural -- "storedCounter" :!
+          , ( threshold     -- "threshold" :!
+            , signerKeyPairs -- "keys"      :!
+            )
+          )
 

@@ -1,4 +1,5 @@
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DerivingStrategies #-}
 
 {-# OPTIONS -Wno-orphans #-}
@@ -11,24 +12,21 @@ module Main
 import Control.Applicative
 import Data.Char
 import Data.List
+import Data.Typeable
 import Data.String
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import Prelude hiding (readEither, unlines, unwords, show, null)
 import Text.Show
 import qualified Prelude as P
 
-import Data.Aeson hiding (Value)
-import Data.Aeson.Encode.Pretty (encodePretty)
+import qualified Data.ByteString.Lazy as BL
+import Data.Aeson (eitherDecode)
 import Data.Constraint
 import Data.Singletons (SingI(..))
 import Data.Version (showVersion)
 import Named
 import Options.Applicative.Help.Pretty (Doc, linebreak)
 import Paths_lorentz_contract_param (version)
-import qualified Data.Binary as Binary
-import qualified Data.Binary.Put as Binary
-import qualified Data.ByteString.Lazy as BL
-import qualified Data.Map as Map
 import qualified Data.Text as T
 import qualified Data.Text.Lazy.IO as TL
 import qualified Options.Applicative as Opt
@@ -43,10 +41,8 @@ import Lorentz.Contracts.UnsafeLedger
 import Lorentz.Contracts.Util ()
 import Lorentz.Contracts.VarStorage
 import Lorentz.Contracts.Walker
-import Michelson.Interpret.Pack
 import Michelson.Macro
 import Michelson.Parser
-import Michelson.Printer.Util
 import Michelson.Runtime
 import Michelson.TypeCheck
 import Michelson.Typed
@@ -58,8 +54,8 @@ import qualified Lorentz.Contracts.GenericMultisig as G
 import qualified Lorentz.Contracts.GenericMultisig.Wrapper as G
 import qualified Lorentz.Contracts.ManagedLedger.Athens as Athens
 import qualified Lorentz.Contracts.ManagedLedger.Babylon as Babylon
-import qualified Tezos.Crypto as Crypto
 
+import Multisig
 
 deriving instance Show Opt.ParseError
 
@@ -67,235 +63,59 @@ deriving instance Show Opt.ParseError
 instance Show Opt.SomeParser where
   show _ = "SomeParser"
 
--- | A file with everything needed to sign some multisig contract parameters
-data MultisigSignersFile =
-  MultisigSignersFile
-    { contractName :: String
-    , contractAddress :: Address
-    , counter :: Natural
-    , contractParameter :: Either G.ChangeKeyParams SomeContractParam
-    , publicKeys :: [PublicKey]
-    , signatures :: Map PublicKey (Maybe Signature)
-    }
-  deriving (Generic)
-
-instance ToJSON MultisigSignersFile where
-  toEncoding = genericToEncoding defaultOptions
-
-instance FromJSON MultisigSignersFile
-
-instance Semigroup MultisigSignersFile where
-  fileX <> fileY
-    | contractNameX /= contractNameY =
-      error $
-      "MultisigSignersFile: contract names do not match: " <>
-      P.show (contractNameX, contractNameY)
-    | contractAddressX /= contractAddressY =
-      error $
-      "MultisigSignersFile: contract addresses do not match: " <>
-      P.show (contractAddressX, contractAddressY)
-    | counterX /= counterY =
-      error $
-      "MultisigSignersFile: counters do not match: " <>
-      P.show (counterX, counterY)
-    | contractParameterX /= contractParameterY =
-      error $
-      "MultisigSignersFile: contact parameters do not match: " <>
-      P.show (contractParameterX, contractParameterY)
-    | Map.keys signaturesX /= Map.keys signaturesY =
-      error $
-      "MultisigSignersFile: signer keys do not match: " <>
-      P.show (Map.keys signaturesX, Map.keys signaturesY)
-    | publicKeysX /= publicKeysY =
-      error $
-      "MultisigSignersFile: signer public keys do not match: " <>
-      P.show (publicKeysX, publicKeysY)
-    | otherwise =
-      fileX
-        {signatures = Map.unionWithKey appendSignatures signaturesX signaturesY}
-    where
-      contractNameX = (contractName :: MultisigSignersFile -> String) fileX
-      contractNameY = (contractName :: MultisigSignersFile -> String) fileY
-      contractAddressX = (contractAddress :: MultisigSignersFile -> Address) fileX
-      contractAddressY = (contractAddress :: MultisigSignersFile -> Address) fileY
-      counterX = (counter :: MultisigSignersFile -> Natural) fileX
-      counterY = (counter :: MultisigSignersFile -> Natural) fileY
-      contractParameterX = contractParameter fileX
-      contractParameterY = contractParameter fileY
-      publicKeysX = publicKeys fileX
-      publicKeysY = publicKeys fileY
-      signaturesX = signatures fileX
-      signaturesY = signatures fileY
-      appendSignatures publicKey mSignatureX mSignatureY =
-        case mSignatureX of
-          Nothing -> mSignatureY
-          Just signatureX ->
-            case mSignatureY of
-              Nothing -> Just signatureX
-              Just signatureY ->
-                if signatureX == signatureY
-                  then Just signatureX
-                  else error $
-                       "MultisigSignersFile: key: " <>
-                       P.show publicKey <>
-                       " has duplicate signatures: " <>
-                       P.show (signatureX, signatureY)
-
--- | Make a `MultisigSignersFile` from a contract name,
--- the current counter, a list of the signers' keys,
--- and a contract parameter
-makeMultisigSignersFile ::
-     String
-  -> Address
-  -> Natural
-  -> [PublicKey]
-  -> Either (Natural, [PublicKey]) SomeContractParam
-  -> MultisigSignersFile
-makeMultisigSignersFile contractName contractAddress counter signerKeys contractParameter =
-  MultisigSignersFile contractName contractAddress counter contractParameter signerKeys signatures
-  where
-    signatures = Map.fromList . fmap (, Nothing) $ signerKeys
-
--- | Write a `MultisigSignersFile` to the path generated by the contract name,
--- counter, and base-58-encoded `Crypto.sha256` hash of the parameters
-writeMultisigSignersFile ::
-     MultisigSignersFile
-  -> IO ()
-writeMultisigSignersFile multisigSignersFile@MultisigSignersFile{..} = do
-  putStrLn $ "Writing parameter to file: " <> show filePath
-  BL.writeFile filePath $ encodePretty multisigSignersFile
-  where
-    filePath :: String
-    filePath =
-      mconcat [contractName, "_", show counter, "_", paramHash, ".json"]
-
-    paramHash :: String
-    paramHash =
-      T.unpack . Crypto.encodeBase58Check .
-      Crypto.sha256 . BL.toStrict . Binary.runPut . Binary.put . show $
-      toJSON contractParameter
-
-
--- | Read and parse a `MultisigSignersFile`
-readMultisigSignersFile :: FilePath -> IO MultisigSignersFile
-readMultisigSignersFile filePath =
-  BL.readFile filePath >>= either fail return . eitherDecode
-
-signatureList :: MultisigSignersFile -> [Maybe Signature]
-signatureList MultisigSignersFile {..} =
-  (\k ->
-     Map.findWithDefault
-       (error $ "Public key not found: " <> P.show k)
-       k
-       signatures) <$>
-  publicKeys
-
--- | Sign the parameters in a `MultisigSignersFile`
-signMultisigSignersFile ::
-     PublicKey -> SecretKey -> MultisigSignersFile -> MultisigSignersFile
-signMultisigSignersFile publicKey secretKey multisigSignersFile@MultisigSignersFile {..} =
-  case contractParameter of
-    Left changeKeyParams' ->
-      signMainParams
-        (G.ChangeKeys changeKeyParams' :: G.GenericMultisigAction ())
-    Right someContractParam' ->
-      fromSomeContractParam someContractParam' $ \contractParam ->
-        signMainParams $ G.Operation contractParam
-  where
-    signMainParams ::
-         ( Typeable (ToT a)
-         , SingI (ToT a)
-         , IsoValue a
-         , HasNoOp (ToT a)
-         , HasNoBigMap (ToT a)
-         )
-      => G.GenericMultisigAction a
-      -> MultisigSignersFile
-    signMainParams action' =
-      if Crypto.checkSignature publicKey signature packedValue
-         then multisigSignersFile {signatures = Map.insert publicKey (Just signature) signatures}
-         else error "Unable to verify signature"
-      where
-        signature =
-          Crypto.sign secretKey packedValue
-
-        packedValue =
-          packValue' .
-          toVal $
-          -- G.MainParameter . (, signatureList multisigSignersFile) . (counter, ) $
-          (contractAddress, (counter, action'))
-
--- | Convert to a `Value`, untype, and render
-showValue :: (IsoValue t, SingI (ToT t), HasNoOp (ToT t)) => t -> String
-showValue = show . renderDoc doesntNeedParens . untypeValue . toVal
-
--- | Render a `MultisigSignersFile` as a Michelson parameter
-renderMultisigSignersFile :: MultisigSignersFile -> String
-renderMultisigSignersFile multisigSignersFile@MultisigSignersFile {..} =
-  case contractParameter of
-    Left changeKeysParam ->
-      makeMainParameter $
-      (G.ChangeKeys changeKeysParam :: G.GenericMultisigAction ())
-    Right (SomeContractParam xs (_, _) (Dict, Dict)) -> makeMainParameter' xs
-  where
-    sortedSignatures :: [Maybe Signature]
-    sortedSignatures = signatureList multisigSignersFile
-
-    makeMainParameter ::
-         (IsoValue a, Typeable (ToT a), SingI (ToT a), HasNoOp (ToT a))
-      => G.GenericMultisigAction a
-      -> String
-    makeMainParameter param =
-      showValue $ G.MainParameter ((counter, param), sortedSignatures)
-
-    makeMainParameter' ::
-         forall t'. (Typeable t', SingI t', HasNoOp t')
-      => Value t'
-      -> String
-    makeMainParameter' =
-      makeMainParameter @(Value t') . G.Operation .
-        (fromVal :: Value (ToT (Value t')) -> Value t')
-
-
-data CmdLnArgs
-  = DefaultContractParams
+data CmdLnArgs where
+  DefaultContractParams ::
       { renderedParams :: String
-      }
-  | SomeOperationParam
+      } -> CmdLnArgs
+  SomeOperationParam ::
       { contractName :: String
       , contractParam :: SomeContractParam
-      }
-  | MultisigDefaultParam
-  | MultisigChangeKeysParams
-      { contractName :: String
+      } -> CmdLnArgs
+  MultisigDefaultParam :: CmdLnArgs
+  MultisigChangeKeysParams :: forall key. G.IsKey key =>
+      { keyProxy :: Proxy key
+      , contractName :: String
       , contractAddress :: Address
       , counter :: Natural
       , threshold :: Natural
-      , signerKeys :: [PublicKey]
-      , newSignerKeys :: [PublicKey]
-      }
-  | MultisigOperationParams
-      { contractName :: String
+      , signerKeys :: [G.Public key]
+      , newSignerKeys :: [G.Public key]
+      } -> CmdLnArgs
+  GenericMultisigOperationParams :: forall key. G.IsKey key =>
+      { keyProxy :: Proxy key
+      , contractAddress :: Address
+      , counter :: Natural
+      , genericOperation :: Lambda () [Operation]
+      , signerKeys :: [G.Public key]
+      } -> CmdLnArgs
+  MultisigOperationParams :: forall key. G.IsKey key =>
+      { keyProxy :: Proxy key
+      , contractName :: String
       , contractAddress :: Address
       , counter :: Natural
       , baseContractParam :: SomeContractParam
-      , signerKeys :: [PublicKey]
-      }
-  | MultisigSomeOperationParams
-      { contractName :: String
+      , signerKeys :: [G.Public key]
+      } -> CmdLnArgs
+  MultisigSomeOperationParams :: forall key. G.IsKey key =>
+      { keyProxy :: Proxy key
+      , contractName :: String
       , contractFilePath :: Maybe String
       , contractAddress :: Address
       , counter :: Natural
       , untypedBaseContractParam :: String
-      , signerKeys :: [PublicKey]
-      }
-  | MultisigFiles
-      { multisigFiles :: NonEmpty FilePath
-      }
-  | MultisigSignFile
+      , signerKeys :: [G.Public key]
+      } -> CmdLnArgs
+  MultisigFiles ::
+      { multisigFiles :: [FilePath]
+      } -> CmdLnArgs
+  MultisigSignFile ::
       { secretKey :: SecretKey
+      , somePublicKey :: G.SomePublicKey
       , multisigFile :: FilePath
-      }
+      } -> CmdLnArgs
+  MultisigVerifyFile ::
+      { multisigFile :: FilePath
+      } -> CmdLnArgs
 
 -- | Option parser to read a `L.Contract`'s parameter type
 contractReadParam ::
@@ -388,6 +208,19 @@ parseSignerKeys name =
     , Opt.help $ "Public keys of multisig " ++ name ++ "."
     ]
 
+parseSignerKeyPairs :: String -> Opt.Parser [(PublicKey, PublicKey)]
+parseSignerKeyPairs name =
+  -- Opt.option parser' $
+  Opt.option (Opt.eitherReader parser' <|> Opt.auto) $
+  -- Opt.option (Opt.eitherReader (error . T.pack) <|> Opt.auto) $
+  mconcat
+    [ Opt.long name
+    , Opt.metavar "[(PublicKey, PublicKey)]"
+    , Opt.help $ "Public keys of multisig " ++ name ++ "."
+    ]
+  where
+    parser' :: String -> Either String [(PublicKey, PublicKey)]
+    parser' = eitherDecode . fromString
 
 parseFilePath :: String -> String -> Opt.Parser FilePath
 parseFilePath name description =
@@ -454,14 +287,59 @@ parseList :: Opt.ReadM a -> Opt.ReadM [a]
 parseList =
   liftM2 (<|>) parseHaskellList parseBashList
 
+parseLambda :: String -> String -> Opt.Parser (Lambda () [Operation])
+parseLambda name description =
+  fmap (\x -> fromVal $
+    either (error . T.pack . show) id $
+    parseNoEnv
+      (G.parseTypeCheckValue @(ToT (Lambda () [Operation])))
+      "GenericMultisigContract223" $
+    T.pack x) .
+  Opt.strOption $
+  mconcat
+    [ Opt.long name
+    , Opt.metavar "Lambda () [Operation]"
+    , Opt.help description
+    ]
+
+parseSecretKey :: Opt.Parser SecretKey
+parseSecretKey =
+  Opt.option Opt.auto $
+    mconcat
+      [ Opt.long "secretKey"
+      , Opt.metavar "SecretKey"
+      , Opt.help "Private key to sign multisig parameter JSON file"
+      ]
+
+parseSomePublicKey :: Opt.Parser G.SomePublicKey
+parseSomePublicKey =
+  Opt.option parser' $
+    mconcat
+      [ Opt.long "publicKey"
+      , Opt.metavar "publicKey"
+      , Opt.help "Public key(s) to sign multisig parameter JSON file"
+      ]
+  where
+    parser' =
+      (G.SomePublicKey (Proxy @PublicKey) <$>
+      (Opt.auto :: Opt.ReadM PublicKey)) <|>
+      (G.SomePublicKey (Proxy @(PublicKey, PublicKey)) <$>
+      (Opt.eitherReader (eitherDecode . fromString) <|> Opt.auto :: Opt.ReadM (PublicKey, PublicKey)))
+
 parseChangeKeys :: String -> Opt.Parser CmdLnArgs
 parseChangeKeys contractName =
-  MultisigChangeKeysParams contractName <$>
+  (MultisigChangeKeysParams (Proxy @PublicKey) contractName <$>
   parseAddress "contractAddress" <*>
   parseNatural "counter" <*>
   parseNatural "threshold" <*>
   parseSignerKeys "signerKeys" <*>
-  parseSignerKeys "newSignerKeys"
+  parseSignerKeys "newSignerKeys") <|>
+  (MultisigChangeKeysParams (Proxy @(PublicKey, PublicKey)) contractName <$>
+  parseAddress "contractAddress" <*>
+  parseNatural "counter" <*>
+  parseNatural "threshold" <*>
+  parseSignerKeyPairs "signerKeyPairs" <*>
+  parseSignerKeyPairs "newSignerKeyPairs")
 
 -- | Argument parser for `SomeOperationParam`
 genericContractParam ::
@@ -494,6 +372,30 @@ genericContractParam contractName parseBaseContractParams =
       -> Opt.Parser CmdLnArgs
     parseOperation parseBaseContractParam =
       SomeOperationParam contractName <$> fmap toSomeContractParam parseBaseContractParam
+
+
+-- | Given named parsers for a contract's parameters,
+-- generate a parser for the associated multisig contract's parameters
+genericMultisigOperationParamsSubCmd ::
+  [Opt.Mod Opt.CommandFields CmdLnArgs]
+genericMultisigOperationParamsSubCmd =
+  [ mkCommandParser
+      "GenericMultisigContract223-default"
+      (pure MultisigDefaultParam)
+      "Default parameter: use to transfer ꜩ (tez) to the contract"
+  , mkCommandParser
+      "GenericMultisigContract223-change-keys"
+      (parseChangeKeys "GenericMultisigContract223")
+      "Change keys: update the key list and/or the threshold (i.e. quorum)"
+  , mkCommandParser
+      "GenericMultisigContract223-operation"
+      (GenericMultisigOperationParams (Proxy @(PublicKey, PublicKey)) <$>
+      parseAddress "contractAddress" <*>
+      parseNatural "counter" <*>
+      parseLambda "operation" "A generic operation to sign and execute" <*>
+      parseSignerKeyPairs "signerKeyPairs")
+      "Change keys: update the key list and/or the threshold (i.e. quorum)"
+  ]
 
 -- | Given named parsers for a contract's parameters,
 -- generate a parser for the associated multisig contract's parameters
@@ -535,11 +437,16 @@ genericMultisigParam contractName parseBaseContractParams =
       => Opt.Parser a
       -> Opt.Parser CmdLnArgs
     parseOperation parseBaseContractParam =
-      MultisigOperationParams contractName <$>
+      (MultisigOperationParams (Proxy @PublicKey) contractName <$>
       parseAddress "contractAddress" <*>
       parseNatural "counter" <*>
       fmap toSomeContractParam parseBaseContractParam <*>
-      parseSignerKeys "signerKeys"
+      parseSignerKeys "signerKeys") <|>
+      (MultisigOperationParams (Proxy @(PublicKey, PublicKey)) contractName <$>
+      parseAddress "contractAddress" <*>
+      parseNatural "counter" <*>
+      fmap toSomeContractParam parseBaseContractParam <*>
+      parseSignerKeyPairs "signerKeyPairs")
 
 contractNatSubCmds :: [(String, Opt.Parser Natural)]
 contractNatSubCmds = [("new-nat", parseNatural "nat")]
@@ -710,13 +617,22 @@ multisigSomeOperationParamsSubCmd =
   where
     parseSomeOperation :: Opt.Parser CmdLnArgs
     parseSomeOperation =
-      MultisigSomeOperationParams <$>
+      (MultisigSomeOperationParams <$>
+        pure (Proxy @PublicKey) <*>
         parseContractName <*>
         Opt.optional (parseFilePath "contractFilePath" "File path to the base contract source") <*>
         parseAddress "contractAddress" <*>
         parseNatural "counter" <*>
         parseContractParam <*>
-        parseSignerKeys "signerKeys"
+        parseSignerKeys "signerKeys") <|>
+      (MultisigSomeOperationParams <$>
+        pure (Proxy @(PublicKey, PublicKey)) <*>
+        parseContractName <*>
+        Opt.optional (parseFilePath "contractFilePath" "File path to the base contract source") <*>
+        parseAddress "contractAddress" <*>
+        parseNatural "counter" <*>
+        parseContractParam <*>
+        parseSignerKeyPairs "signerKeyPairs")
 
     parseContractParam :: Opt.Parser String
     parseContractParam =
@@ -738,17 +654,20 @@ multisigSignFileSubCmd =
   where
     parseMultisigSignFile :: Opt.Parser CmdLnArgs
     parseMultisigSignFile =
-      MultisigSignFile <$> parseSecretKey <*> parseFilePath "signerFile" "File path to multisig parameter JSON file"
+      MultisigSignFile <$> parseSecretKey <*> parseSomePublicKey <*> parseFilePath "signerFile" "File path to multisig parameter JSON file"
 
-    parseSecretKey :: Opt.Parser SecretKey
-    parseSecretKey =
-      Opt.option Opt.auto $
-        mconcat
-          [ Opt.long "secretKey"
-          , Opt.metavar "SecretKey"
-          , Opt.help "Private key to sign multisig parameter JSON file"
-          ]
-
+-- | Command to verify a `MultisigSignersFile`
+multisigVerifyFileSubCmd :: [Opt.Mod Opt.CommandFields CmdLnArgs]
+multisigVerifyFileSubCmd =
+  [ mkCommandParser
+      "MultisigVerifyFile"
+      parseMultisigVerifyFile
+      "Verify the contract parameter signatures given a multisig signers file in JSON"
+  ]
+  where
+    parseMultisigVerifyFile :: Opt.Parser CmdLnArgs
+    parseMultisigVerifyFile =
+      MultisigVerifyFile <$> parseFilePath "signerFile" "File path to multisig parameter JSON file"
 
 -- | Command to collect, combine, and render a non-empty list
 -- of `MultisigSignersFile`'s
@@ -762,10 +681,10 @@ multisigSignersFileSubCmd =
   where
     parseMultisigSignersFiles :: Opt.Parser CmdLnArgs
     parseMultisigSignersFiles =
-      fmap
-        (maybe (error "Expected a non-empty list of JSON file paths") MultisigFiles .
-         nonEmpty) .
-      Opt.option (parseList Opt.str) $
+      -- fmap
+      --   (maybe (error "Expected a non-empty list of JSON file paths") MultisigFiles .
+      --    nonEmpty) .
+      Opt.option (MultisigFiles <$> parseList Opt.str) $
       mconcat
         [ Opt.long "signerFiles"
         , Opt.metavar "List FilePath"
@@ -797,7 +716,9 @@ argParser =
     wrappedMultisigChangeKeysSubCmd ++
     multisigSomeOperationParamsSubCmd ++
     multisigSignFileSubCmd ++
-    multisigSignersFileSubCmd
+    multisigVerifyFileSubCmd ++
+    multisigSignersFileSubCmd ++
+    genericMultisigOperationParamsSubCmd
 
 programInfo :: Opt.ParserInfo CmdLnArgs
 programInfo =
@@ -850,52 +771,79 @@ main = do
             SomeContractParam xs _ (Dict, _) -> putStrLn $ showValue xs
         MultisigDefaultParam ->
           TL.putStrLn . printLorentzValue forceSingleLine $
-          (G.Default :: G.Parameter ())
+          (G.Default :: G.Parameter PublicKey ())
         MultisigChangeKeysParams {..} ->
-          writeMultisigSignersFile $
-          makeMultisigSignersFile contractName contractAddress counter signerKeys $
-          Left (threshold, newSignerKeys)
+          case keyProxy of
+            (_ :: Proxy key) ->
+              writeMultisigSignersFile $
+              makeMultisigSignersFile @key contractName contractAddress counter signerKeys $
+              Left (threshold, newSignerKeys)
+        GenericMultisigOperationParams {..} ->
+          case keyProxy of
+            (_ :: Proxy key) ->
+              writeMultisigSignersFile $
+              makeMultisigSignersFile @key "GenericMultisigContract223" contractAddress counter signerKeys $
+              Right $
+              toSomeContractParam genericOperation
         MultisigOperationParams {..} ->
-          writeMultisigSignersFile $
-          makeMultisigSignersFile contractName contractAddress counter signerKeys $
-          Right baseContractParam
-        MultisigSomeOperationParams {..} -> do
-          uContract <- expandContract <$> readAndParseContract contractFilePath
-          case typeCheckContract mempty uContract of
-            Left err -> die $ show err
-            Right typeCheckedContract -> do
-              let paramParser =
-                    fst
-                      $ G.someBigMapContractStorageParams typeCheckedContract
-              someBaseContractParam <-
-                either (die . show) return . parseNoEnv paramParser contractName $
-                T.pack untypedBaseContractParam
-              writeMultisigSignersFile .
-                makeMultisigSignersFile
-                  contractName
-                  contractAddress
-                  counter
-                  signerKeys .
-                Right $
-                someBaseContractParam
+          case keyProxy of
+            (_ :: Proxy key) ->
+              writeMultisigSignersFile $
+              makeMultisigSignersFile @key contractName contractAddress counter signerKeys $
+              Right baseContractParam
+        MultisigSomeOperationParams {..} ->
+          case keyProxy of
+            (_ :: Proxy key) -> do
+              uContract <- expandContract <$> readAndParseContract contractFilePath
+              case typeCheckContract mempty uContract of
+                Left err -> die $ show err
+                Right typeCheckedContract -> do
+                  let paramParser =
+                        fst
+                          $ G.someBigMapContractStorageParams typeCheckedContract
+                  someBaseContractParam <-
+                    either (die . show) return . parseNoEnv paramParser contractName $
+                    T.pack untypedBaseContractParam
+                  writeMultisigSignersFile .
+                    makeMultisigSignersFile @key
+                      contractName
+                      contractAddress
+                      counter
+                      signerKeys .
+                    Right $
+                    someBaseContractParam
         MultisigSignFile {..} -> do
-          multisigSignersFile@MultisigSignersFile {..} <-
-            readMultisigSignersFile multisigFile
-          let publicKey = Crypto.toPublic secretKey
-          case signatures Map.!? publicKey of
-            Nothing ->
-              error "The given public key is not authorized to sign this JSON file"
-            Just mSignature ->
-              case mSignature of
-                Nothing ->
-                  writeMultisigSignersFile $
-                  signMultisigSignersFile publicKey secretKey multisigSignersFile
-                Just _ ->
-                  putStrLn
-                    ("File has already been signed with the given key" :: String)
-        MultisigFiles {..} -> do
-          multisigFile <- sconcat <$> mapM readMultisigSignersFile multisigFiles
-          putStrLn $ renderMultisigSignersFile multisigFile
+          signingResult <- runExceptT $
+            multisigSignFile (Proxy @PublicKey) secretKey somePublicKey multisigFile <|>
+            multisigSignFile (Proxy @(PublicKey, PublicKey)) secretKey somePublicKey multisigFile
+          case signingResult of
+            Left err -> P.fail err
+            Right () -> return ()
+        MultisigVerifyFile {..} -> do
+          verificationResult <- runExceptT $
+            multisigVerifyFile (Proxy @PublicKey) multisigFile <|>
+            multisigVerifyFile (Proxy @(PublicKey, PublicKey)) multisigFile
+          case verificationResult of
+            Left err -> P.fail err
+            Right () -> return ()
+        MultisigFiles {..} ->
+          case multisigFiles of
+            [] -> do
+              stdin' <- BL.hGetContents stdin
+              let file1 = renderMultisigSignersFile @PublicKey <$> eitherDecode stdin'
+              let file2 = renderMultisigSignersFile @(PublicKey, PublicKey) <$> eitherDecode stdin'
+              case file1 <|> file2 of
+                Left err -> P.fail err
+                Right result -> putStrLn result
+            (x:xs) -> do
+              let multisigFiles' = x :| xs
+              concatResult <- runExceptT $
+                readConcatMultisigSignersFiles (Proxy @PublicKey) multisigFiles' <|>
+                readConcatMultisigSignersFiles (Proxy @(PublicKey, PublicKey)) multisigFiles'
+              case concatResult of
+                Left err -> P.fail err
+                Right () -> return ()
+
 
 -- lorentz-contract-param WrappedMultisigContractAthens-transfer --counter 0 --from "tz1MhGthgRDEK4J5VVzt7r9sBS8FE462DAtr" --to "tz1MhGthgRDEK4J5VVzt7r9sBS8FE462DAtr" --value 3 --signerKeys "[]"
 --
