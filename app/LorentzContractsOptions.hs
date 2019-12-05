@@ -55,20 +55,6 @@ argParser = Opt.subparser $ mconcat
       , Opt.help "File to use as input."
       ]
 
-    printOptions = Opt.strOption $ mconcat
-      [ Opt.short 'n'
-      , Opt.long "name"
-      , Opt.metavar "IDENTIFIER"
-      , Opt.help "Name of a contract returned by `list` command."
-      ]
-
-    outputOptions = optional . Opt.strOption $ mconcat
-      [ Opt.short 'o'
-      , Opt.long "output"
-      , Opt.metavar "FILEPATH"
-      , Opt.help "File to use as output. If not specified, stdout is used."
-      ]
-
     baseContractOptions = optional . Opt.strOption $ mconcat
       [ Opt.short 'i'
       , Opt.long "input-contract"

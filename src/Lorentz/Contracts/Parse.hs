@@ -227,3 +227,21 @@ parseSomePublicKey =
       (G.SomePublicKey (Proxy @(PublicKey, PublicKey)) <$>
       (Opt.eitherReader (eitherDecode . fromString) <|> Opt.auto :: Opt.ReadM (PublicKey, PublicKey)))
 
+-- | Parse which contract to print
+printOptions :: Opt.Parser Text
+printOptions = Opt.strOption $ mconcat
+  [ Opt.short 'n'
+  , Opt.long "name"
+  , Opt.metavar "IDENTIFIER"
+  , Opt.help "Name of a contract returned by `list` command."
+  ]
+
+-- | Parse the output `FilePath`
+outputOptions :: Opt.Parser (Maybe FilePath)
+outputOptions = optional . Opt.strOption $ mconcat
+  [ Opt.short 'o'
+  , Opt.long "output"
+  , Opt.metavar "FILEPATH"
+  , Opt.help "File to use as output. If not specified, stdout is used."
+  ]
+
