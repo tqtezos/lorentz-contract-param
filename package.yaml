@@ -2,7 +2,7 @@
 
 <<: *meta
 name:                lorentz-contract-param
-version:             1.2.1.0.0
+version:             1.2.2.0.0
 synopsis:            Set of Michelson contracts implemented in Lorentz eDSL, with CLI interface
 description:
   Various contracts including simple examples.
