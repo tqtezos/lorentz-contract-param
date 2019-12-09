@@ -30,6 +30,7 @@ library:
     - binary
     - lorentz-contracts
     - optparse-applicative
+    - megaparsec
 
 executables:
   lorentz-contract:

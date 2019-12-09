@@ -5,6 +5,7 @@ module Lorentz.Contracts.GenericMultisig.Wrapper where
 import Data.Singletons
 import qualified Data.Text.Lazy as L
 import Data.Constraint hiding (trans)
+import Text.Megaparsec (eof)
 
 import Lorentz
 import Lorentz.Contracts.ManagedLedger.Types
@@ -24,6 +25,7 @@ import qualified Michelson.TypeCheck.Types as Ty
 import qualified Michelson.Typed.Instr as Instr
 import Lorentz.Contracts.SomeContractParam
 
+import Control.Applicative
 import Data.Type.Equality
 import Text.Show
 import Data.Typeable
@@ -258,7 +260,7 @@ parseTypeCheckValue ::
 parseTypeCheckValue =
   (>>= either (fail . show) return) $
   runTypeCheckIsolated . flip runReaderT def . typeVerifyValue . expandValue <$>
-  value
+  (value <* eof)
 
 -- | Make `StorageParamsParser` for some `Contract`,
 -- assuming a `BigMap` occurs in the storage type
