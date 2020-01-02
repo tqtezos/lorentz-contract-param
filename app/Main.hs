@@ -1,3 +1,5 @@
+{-# OPTIONS -Wno-orphans #-}
+
 module Main
   ( main
   ) where
@@ -9,37 +11,40 @@ import qualified Data.Map as Map
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
-import Data.Singletons (SingI)
+-- import Data.Singletons (SingI)
 import qualified Data.Text.Lazy.IO as TL
 import qualified Options.Applicative as Opt
 
 import qualified Lorentz as L
-import Lorentz.Contracts.Auction
-import Lorentz.Contracts.ManagedLedger.Athens (managedLedgerAthensContract)
-import Lorentz.Contracts.ManagedLedger.Babylon (managedLedgerContract)
-import Lorentz.Contracts.ManagedLedger.Proxy (managedLedgerProxyContract)
-import Lorentz.Contracts.UnsafeLedger
+import Lorentz.Contracts.ManagedLedger (managedLedgerContract)
 import Lorentz.Contracts.VarStorage
-import Lorentz.Contracts.Walker
 import qualified Lorentz.Contracts.GenericMultisig.Wrapper as GW
 import qualified Lorentz.Contracts.GenericMultisig as G
 
 import Lorentz.Contracts.Util.Strip
 import LorentzContractsOptions
-import Michelson.Macro
+-- import Michelson.Macro
 import Michelson.Parser (program)
-import Michelson.Runtime
-import Michelson.TypeCheck
+-- import Michelson.Runtime
+-- import Michelson.TypeCheck
 import Util.IO
-import qualified Michelson.Typed as T
+-- import qualified Michelson.Typed as T
+
+instance L.ParameterEntryPoints L.Address where
+  parameterEntryPoints = L.pepNone
+
+instance L.ParameterEntryPoints Natural where
+  parameterEntryPoints = L.pepNone
+
+instance (L.NiceParameter a, G.IsKey key) => L.ParameterEntryPoints (G.Parameter key a) where
+  parameterEntryPoints = L.pepNone
+
 
 
 data ContractInfo =
-  forall cp st.
-    (Each '[SingI] [T.ToT cp, T.ToT st]) =>
+  forall cp st. (L.NiceParameter cp, L.NiceStorage st, L.ParameterEntryPoints cp) =>
   ContractInfo
   { ciContract :: L.Contract cp st
-  , ciPrinterOpts :: L.LorentzCompilationWay cp st
   , ciIsDocumented :: Bool
   }
 
@@ -50,67 +55,34 @@ contracts :: Map Text ContractInfo
 contracts = Map.fromList
   [ "ManagedLedger" ?:: ContractInfo
     { ciContract = managedLedgerContract
-    , ciPrinterOpts = L.lcwEntryPoints
-    , ciIsDocumented = False
-    }
-  , "ManagedLedgerAthens" ?:: ContractInfo
-    { ciContract = managedLedgerAthensContract
-    , ciPrinterOpts = L.lcwEntryPoints
-    , ciIsDocumented = False
-    }
-  , "ManagedLedgerProxy" ?:: ContractInfo
-    { ciContract = managedLedgerProxyContract
-    , ciPrinterOpts = L.lcwEntryPointsRecursive
-    , ciIsDocumented = False
-    }
-  , "UnsafeLedger" ?:: ContractInfo
-    { ciContract = unsafeLedgerContract
-    , ciPrinterOpts = L.lcwEntryPoints
-    , ciIsDocumented = False
-    }
-  , "Walker" ?:: ContractInfo
-    { ciContract = walkerContract
-    , ciPrinterOpts = L.lcwEntryPoints
-    , ciIsDocumented = False
-    }
-  , "Auction" ?:: ContractInfo
-    { ciContract = auctionContract
-    , ciPrinterOpts = L.lcwDumb
     , ciIsDocumented = False
     }
   , "AddressStorageContract" ?:: ContractInfo
     { ciContract = (varStorageContract @L.Address)
-    , ciPrinterOpts = L.lcwDumb
     , ciIsDocumented = False
     }
-  , "ExplicitBigMapManagedLedgerAthens" ?:: ContractInfo
-    { ciContract = GW.explicitBigMapAthens
-    , ciPrinterOpts = L.lcwEntryPoints
-    , ciIsDocumented = False
-    }
-  , "MultisigManagedLedgerAthens" ?:: ContractInfo
-    { ciContract = GW.wrappedMultisigContractAthens
-    , ciPrinterOpts = L.lcwEntryPoints
-    , ciIsDocumented = False
-    }
+  -- , "ExplicitBigMapManagedLedgerAthens" ?:: ContractInfo
+  --   { ciContract = GW.explicitBigMapAthens
+  --   , ciIsDocumented = False
+  --   }
+  -- , "MultisigManagedLedgerAthens" ?:: ContractInfo
+  --   { ciContract = GW.wrappedMultisigContractAthens
+  --   , ciIsDocumented = False
+  --   }
   , "NatStorageContract" ?:: ContractInfo
     { ciContract = (varStorageContract @Natural)
-    , ciPrinterOpts = L.lcwDumb
     , ciIsDocumented = False
     }
-  , "NatStorageWithBigMapContract" ?:: ContractInfo
-    { ciContract = GW.natStorageWithBigMapContract
-    , ciPrinterOpts = L.lcwDumb
-    , ciIsDocumented = False
-    }
+  -- , "NatStorageWithBigMapContract" ?:: ContractInfo
+  --   { ciContract = GW.natStorageWithBigMapContract
+  --   , ciIsDocumented = False
+  --   }
   , "WrappedMultisigContractNat" ?:: ContractInfo
     { ciContract = GW.wrappedMultisigContractNat
-    , ciPrinterOpts = L.lcwDumb
     , ciIsDocumented = False
     }
   , "GenericMultisigContract223" ?:: ContractInfo
     { ciContract = G.generigMultisigContract223
-    , ciPrinterOpts = L.lcwDumb
     , ciIsDocumented = False
     }
   ]
@@ -152,18 +124,19 @@ main = do
               case parse program (T.unpack inputPathY) inputFileY of
                 Left err -> putStrLn $ errorBundlePretty err
                 Right parsedY -> compareContracts parsedX parsedY
-        Print name mOutput mInput forceOneLine ->
+        Print name mOutput _mInput forceOneLine ->
           if name `elem` wrappedMultisigContractNames
-            then do
-              uContract <- expandContract <$> readAndParseContract mInput
-              case typeCheckContract mempty uContract of
-                Left err -> die $ show err
-                Right typeCheckedContract ->
-                  case bool fst snd (name == "WrappedMultisig") $
-                       GW.wrapSomeTypeCheckedContract typeCheckedContract of
-                    L.SomeContract wrappedContract ->
-                      maybe TL.putStrLn writeFileUtf8 mOutput $
-                      L.printLorentzContract forceOneLine L.lcwDumb wrappedContract
+            then error "wrappedMultisigContracts disabled"
+            -- do
+            --   uContract <- expandContract <$> readAndParseContract mInput
+            --   case typeCheckContract mempty uContract of
+            --     Left err -> die $ show err
+            --     Right typeCheckedContract ->
+            --       case bool fst snd (name == "WrappedMultisig") $
+            --            GW.wrapSomeTypeCheckedContract typeCheckedContract of
+            --         L.SomeContract wrappedContract ->
+            --           maybe TL.putStrLn writeFileUtf8 mOutput $
+            --           L.printLorentzContract forceOneLine wrappedContract
             else case Map.lookup name contracts of
                    Nothing ->
                      die $
@@ -171,11 +144,11 @@ main = do
                      availableContracts
                    Just ContractInfo{..} ->
                      maybe TL.putStrLn writeFileUtf8 mOutput $
-                     L.printLorentzContract forceOneLine ciPrinterOpts ciContract
+                     L.printLorentzContract forceOneLine ciContract
         Document name mOutput -> do
           ContractInfo{..} <- getContract name
           if ciIsDocumented
           then maybe TL.putStrLn writeFileUtf8 mOutput $
-               T.contractDocToMarkdown $ L.buildLorentzDoc ciContract
+               L.contractDocToMarkdown $ L.buildLorentzDoc ciContract
           else die "This contract is not documented"
 

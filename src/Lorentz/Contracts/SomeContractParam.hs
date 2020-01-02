@@ -72,10 +72,10 @@ toSomeContractParam ::
   -> SomeContractParam
 toSomeContractParam xs =
   let singT = sing
-   in case extractNotes (toUType $ fromSing singT) singT of
-        Left err -> error $ P.show err
-        Right notesT ->
-          SomeContractParam (toVal xs) (singT, notesT) (Dict, Dict)
+   in -- case _ (toUType $ fromSing singT) singT of -- extractNotes
+        -- Left err -> error $ P.show err
+        -- Right notesT ->
+          SomeContractParam (toVal xs) (singT, starNotes) (Dict, Dict) -- notesT
 
 -- | Consume `SomeContractParam`
 fromSomeContractParam ::
@@ -94,10 +94,10 @@ instance FromJSON SomeContractParam where
   parseJSON x = do
     (t, uValue) <- parseJSON x
     withSomeSingT t $ \singT -> do
-      notes' <- either (fail . show) return $ extractNotes (toUType t) singT
+      -- notes' <- either (fail . show) return $ starNotes -- extractNotes (toUType t) singT
       ((::::) xs (sing', notesT)) <-
         either (fail . show) return . runTypeCheckInstr $
-        typeCheckValue uValue (singT, notes')
+        typeCheckValue uValue (singT, starNotes) -- notes')
       case opAbsense sing' of
         Nothing -> error $ "SomeContractParam contains operation: " <> P.show xs
         Just dictHasNoOp ->

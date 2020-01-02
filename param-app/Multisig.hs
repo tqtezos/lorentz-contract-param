@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# OPTIONS -Wno-missing-export-lists #-}
 
 module Multisig where
 
@@ -28,9 +29,10 @@ import Lorentz.Contracts.Util ()
 import Michelson.Interpret.Pack
 import Michelson.Printer.Util
 import Michelson.Typed
-import Tezos.Crypto (SecretKey)
+-- import Tezos.Crypto (SecretKey)
 import qualified Lorentz.Contracts.GenericMultisig as G
 import qualified Tezos.Crypto as Crypto
+import qualified Tezos.Crypto.Ed25519 as Ed25519
 
 
 -- | A file with everything needed to sign some multisig contract parameters
@@ -181,7 +183,7 @@ readMultisigSignersFile filePath = do
 
 multisigSignFile :: forall key. G.IsKey key
   => Proxy key
-  -> SecretKey
+  -> Ed25519.SecretKey
   -> G.SomePublicKey
   -> FilePath
   -> ExceptT String IO ()
@@ -230,7 +232,7 @@ signatureList MultisigSignersFile {..} =
 
 -- | Sign the parameters in a `MultisigSignersFile`
 signMultisigSignersFile :: forall key.
-     G.Public key -> SecretKey -> MultisigSignersFile key -> MultisigSignersFile key
+     G.Public key -> Ed25519.SecretKey -> MultisigSignersFile key -> MultisigSignersFile key
 signMultisigSignersFile publicKey secretKey multisigSignersFile@MultisigSignersFile {..} =
   case contractParameter of
     Left changeKeyParams' ->

@@ -23,6 +23,7 @@ import Lorentz hiding (concat)
 import Lorentz.Contracts.Util ()
 import Michelson.Typed.Scope
 import qualified Tezos.Crypto as Crypto
+import qualified Tezos.Crypto.Ed25519 as Ed25519
 
 import Fmt (Buildable(..), (+|), (|+))
 import Data.ByteString.Internal (unpackChars)
@@ -57,8 +58,10 @@ class ( Typeable key
       , FromJSONKey (Public key)
       , IsoValue (Public key)
       , KnownValue (Public key)
+      , NiceParameter (Public key)
       , HasNoOp (ToT (Public key))
       , HasNoBigMap (ToT (Public key))
+      , HasNoNestedBigMaps (ToT (Public key))
       , Eq (PartialSig key)
       , Show (PartialSig key)
       , ToJSON (PartialSig key)
@@ -70,8 +73,10 @@ class ( Typeable key
       , ToJSON (Sig key)
       , IsoValue (Sig key)
       , KnownValue (Sig key)
+      , NiceParameter (Sig key)
       , HasNoOp (ToT (Sig key))
       , HasNoBigMap (ToT (Sig key))
+      , HasNoNestedBigMaps (ToT (Sig key))
       ) => IsKey (key :: Type) where
   -- | The public key
   type Public key :: Type
@@ -87,8 +92,8 @@ class ( Typeable key
 
   -- | An empty `PartialSig`
   partialSig :: PartialSig key
-  -- | Sign a `PartialSig` with the given `Crypto.SecretKey`
-  signWithKey :: Crypto.SecretKey -> ByteString -> PartialSig key -> Either Base.String (PartialSig key)
+  -- | Sign a `PartialSig` with the given `Ed25519.SecretKey`
+  signWithKey :: Ed25519.SecretKey -> ByteString -> PartialSig key -> Either Base.String (PartialSig key)
   -- | Complete a `PartialSig` or return an error explaining how it's incomplete
   completeSig :: PartialSig key -> Either Base.String (Sig key)
 
@@ -107,12 +112,12 @@ instance IsKey PublicKey where
   partialSig = Nothing
 
   signWithKey secretKey bytes Nothing =
-    let signature = Crypto.sign secretKey bytes
-     in let publicKey = Crypto.toPublic secretKey
+    let signature = Ed25519.sign secretKey bytes -- Crypto.SignatureEd25519 $
+     in let publicKey = Ed25519.toPublic secretKey
          in bool
               (Left $ "Failed to check signature: " Base.++ show signature)
-              (Right $ Just signature)
-              (Crypto.checkSignature publicKey signature bytes)
+              (Right $ Just $ Crypto.SignatureEd25519 signature)
+              (Ed25519.checkSignature publicKey signature bytes)
   signWithKey _ _ (Just sig) =
     Left $ "signWithKey @PublicKey: already signed " Base.++ show sig
 
@@ -373,14 +378,17 @@ instance CustomErrorHasDoc "invalidSignature" where
   customErrDocMdCause =
     "A signature has been provided that does not match both the expected public \
     \key and data to be signed."
+  customErrClass = ErrClassBadArgument
 
 instance CustomErrorHasDoc "fewerSignaturesThanKeys" where
   customErrDocMdCause =
     "Fewer signatures than known public keys are present"
+  customErrClass = ErrClassBadArgument
 
 instance CustomErrorHasDoc "uncheckedSignaturesRemain" where
   customErrDocMdCause =
     "Unchecked signatures remain after validation"
+  customErrClass = ErrClassContractInternal
 
 ----------------------------------------------------------------------------
 -- Implementation
@@ -405,9 +413,10 @@ assertNoTokensSent = do
 
 -- | Pair the payload with the current contract address, to ensure signatures
 -- | can't be replayed accross different contracts if a key is reused.
-preparePayload :: (IsKey key, KnownValue a, NoOperation a, NoBigMap a) =>
-     (((Natural, GenericMultisigAction key a), b) & (c & s)) :-> (c & (Natural & (ByteString & (b & (GenericMultisigAction key a & (c & s))))))
-preparePayload = do
+preparePayload :: forall key a b c s p. (IsKey key, KnownValue a, NoOperation a, NoBigMap a, NiceParameter p)
+  => Proxy p
+  -> (((Natural, GenericMultisigAction key a), b) & (c & s)) :-> (c & (Natural & (ByteString & (b & (GenericMultisigAction key a & (c & s))))))
+preparePayload _ = do
   --   SWAP ; DUP ; DIP { SWAP } ;
   swap >> dup >> dip swap
 
@@ -422,7 +431,7 @@ preparePayload = do
   --   } ;
   dip $ do
     unpair
-    dup >> self >> address >> pair
+    dup >> self @p >> address >> pair
     pack
     dip (unpair @Natural >> dip swap) >> swap
 
@@ -483,7 +492,7 @@ countValidSignatures = do
           (do
             swap
             dip $ do
-              swap >> (dipX @2) (duupX @2)
+              swap >> (dip $ dip $ duupX @2)
               -- duupX @3 >> dip checkSignature >> swap >> if_ drop (failCustom #invalidSignature)
               duupX @3 >> dip (checkKeySignature @key) >> swap >> if_ drop failWith
               push (1 :: Natural) >> add
@@ -529,14 +538,15 @@ incrementAndStoreCounter = do
     pair
 
 multisigSetup ::
-     forall key a. (IsKey key, KnownValue a, NoOperation a, NoBigMap a)
-  => (((Natural, GenericMultisigAction key a), [Maybe (Sig key)]) & (( Natural
+     forall key a p. (IsKey key, KnownValue a, NoOperation a, NoBigMap a, NiceParameter p)
+  => Proxy p
+  -> (((Natural, GenericMultisigAction key a), [Maybe (Sig key)]) & (( Natural
                                                                      , ( Natural
                                                                        , [Public key])) & '[]))
   :-> (GenericMultisigAction key a & (( Natural, ( Natural, [Public key])) & '[]))
-multisigSetup = do
+multisigSetup p = do
   assertNoTokensSent
-  preparePayload
+  preparePayload p
   checkCountersMatch
   countValidSignatures @key
   assertQuorumPresent
@@ -550,18 +560,19 @@ multisigSetup = do
 -- - It stores an additional parameter: @b@
 -- - It accepts a `Lambda` from @(a, b)@ to a list of `Operation`s:
 --   this is a static method of extending the contract
-genericMultisigContractMain :: forall a b key.
-     (IsKey key, KnownValue a, NoOperation a, NoBigMap a, IsoValue a)
-  => (b & (a & '[])) :-> (List Operation & '[])
+genericMultisigContractMain :: forall a b key p.
+     (IsKey key, KnownValue a, NoOperation a, NoBigMap a, NiceParameter p)
+  => Proxy p
+  -> (b & (a & '[])) :-> (List Operation & '[])
   -> '[ MainParams key a, (b, Storage key)] :-> '[ ([Operation], (b, Storage key))]
-genericMultisigContractMain runParam = do
+genericMultisigContractMain p runParam = do
   -- { # Main entry point
   dip unpair
   swap
   -- b on top of stack
 
   dip $ do
-    multisigSetup @key
+    multisigSetup @key p
     -- _
     -- assertNoTokensSent
     -- preparePayload
@@ -593,9 +604,10 @@ genericMultisigContractMain runParam = do
 -- | Given a method to run the parameter type, create a
 -- multisig version of the method.
 genericMultisigContract ::
-     forall a b key. (IsKey key, IsoValue a, KnownValue a, NoOperation a, NoBigMap a)
-  => (b & (a & '[])) :-> ([Operation] & '[]) -> Contract (Parameter key a) (b, Storage key)
-genericMultisigContract runParam = do
+     forall a b key p. (IsKey key, KnownValue a, NoOperation a, NoBigMap a, NiceParameter p)
+  => Proxy p
+  -> (b & (a & '[])) :-> ([Operation] & '[]) -> Contract (Parameter key a) (b, Storage key)
+genericMultisigContract p runParam = do
   unpair
   caseT @(Parameter key a)
     -- { # Default entry point: do nothing
@@ -607,7 +619,7 @@ genericMultisigContract runParam = do
       -- nil @Operation
       -- pair
     , #cMainParameter /->
-      genericMultisigContractMain runParam
+      genericMultisigContractMain p runParam
     )
 
 
@@ -622,12 +634,13 @@ genericMultisigContract runParam = do
 -- - It stores an additional parameter: @b@
 -- - It accepts a `Lambda` from @(a, b)@ to a list of `Operation`s:
 --   this is a static method of extending the contract
-genericMultisigContractSimpleStorageMain :: forall a key.  (IsKey key, IsoValue a, KnownValue a, NoOperation a, NoBigMap a)
-  => (a & '[]) :-> ([Operation] & '[])
+genericMultisigContractSimpleStorageMain :: forall a key p. (IsKey key, KnownValue a, NoOperation a, NoBigMap a, NiceParameter p)
+  => Proxy p
+  -> (a & '[]) :-> ([Operation] & '[])
   -> '[ MainParams key a, Storage key] :-> '[ ([Operation], Storage key)]
-genericMultisigContractSimpleStorageMain runParam = do
+genericMultisigContractSimpleStorageMain p runParam = do
   -- { # Main entry point
-  multisigSetup @key
+  multisigSetup @key p
 
   -- # We have now handled the signature verification part,
   -- # produce the operation requested by the signers.
@@ -649,9 +662,10 @@ genericMultisigContractSimpleStorageMain runParam = do
 -- | Given a method to run the parameter type, create a
 -- multisig version of the method.
 genericMultisigContractSimpleStorage ::
-     forall a key. (IsKey key, IsoValue a, KnownValue a, NoOperation a, NoBigMap a)
-  => (a & '[]) :-> ([Operation] & '[]) -> Contract (Parameter key a) (Storage key)
-genericMultisigContractSimpleStorage runParam = do
+     forall a key p. (IsKey key, KnownValue a, NoOperation a, NoBigMap a, NiceParameter p)
+  => Proxy p
+  -> (a & '[]) :-> ([Operation] & '[]) -> Contract (Parameter key a) (Storage key)
+genericMultisigContractSimpleStorage p runParam = do
   unpair
   caseT @(Parameter key a)
     -- { # Default entry point: do nothing
@@ -660,7 +674,7 @@ genericMultisigContractSimpleStorage runParam = do
     ( #cDefault /->
       genericMultisigContractDefault
     , #cMainParameter /->
-      genericMultisigContractSimpleStorageMain runParam
+      genericMultisigContractSimpleStorageMain p runParam
     )
 
 -- | Generic multisig contract with pairs of keys representing "individual" signers
@@ -669,7 +683,7 @@ generigMultisigContract223 ::
     (Parameter (PublicKey, PublicKey) (Lambda () [Operation]))
     (Storage (PublicKey, PublicKey))
 generigMultisigContract223 =
-  genericMultisigContractSimpleStorage $ do
+  genericMultisigContractSimpleStorage (Proxy @(Parameter (PublicKey, PublicKey) (Lambda () [Operation]))) $ do
     unit
     exec
 
@@ -679,13 +693,14 @@ type BigMapContract k v a b = Contract a (BigMap k v, b)
 
 -- | The main entrypoint for the `genericMultisigContract`
 wrappedMultisigContractMain ::
-     forall k v a b key. (IsKey key, KnownValue a, NoOperation a, NoBigMap a)
-  => '[ MainParams key a, (BigMap k v, ((BigMapContract k v a b, b), Storage key))] :-> '[ ( [Operation]
+     forall k v a b key p. (IsKey key, KnownValue a, NoOperation a, NoBigMap a, NiceParameter p)
+  => Proxy p
+  -> '[ MainParams key a, (BigMap k v, ((BigMapContract k v a b, b), Storage key))] :-> '[ ( [Operation]
                                                                                    , ( BigMap k v
                                                                                      , ( ( BigMapContract k v a b
                                                                                          , b)
                                                                                        , Storage key)))]
-wrappedMultisigContractMain = do
+wrappedMultisigContractMain p = do
   -- { # Main entry point
   -- b on top of stack
   dip $ do
@@ -696,7 +711,11 @@ wrappedMultisigContractMain = do
 
   dip $ do
     assertNoTokensSent
-    preparePayload
+    -- _ p
+    preparePayload @key @a @([Maybe (Sig key)]) @(Natural, (Natural, [Public key])) p
+    -- preparePayload :: forall key a b c s p. (IsKey key, KnownValue a, NoOperation a, NoBigMap a, NiceParameter p)
+    -- -> (((Natural, GenericMultisigAction key a), b) & (c & s)) :-> (c & (Natural & (ByteString & (b & (GenericMultisigAction key a & (c & s))))))
+
     checkCountersMatch
     countValidSignatures @key
     assertQuorumPresent
@@ -751,17 +770,19 @@ wrappedMultisigContractMain = do
 
 -- | The `WrappedMultisig` Contract
 wrappedMultisigContract ::
-     forall k v a b key. (IsKey key, KnownValue a, NoOperation a, NoBigMap a)
+     forall k v a b key. (IsKey key, KnownValue a, NoOperation a, NoBigMap a, NiceParameter a)
   => Contract (Parameter key a) (BigMap k v, ((BigMapContract k v a b, b), Storage key))
 wrappedMultisigContract = do
   unpair
   coerce_ @(Parameter key a) @(Either () (MainParams key a)) -- Otherwise, use `MainParameter`
-  ifLeft (drop >> genericMultisigContractDefault) wrappedMultisigContractMain
+  ifLeft
+    (drop >> genericMultisigContractDefault)
+    (wrappedMultisigContractMain (Proxy @(Parameter key a)))
 
 -- | `wrappedMultisigContract` with proxy parameters to ease specialization
 wrappedMultisigContractProxy ::
      forall key proxyK proxyV proxyA proxyB k v a b.
-     (IsKey key, KnownValue a, NoOperation a, NoBigMap a)
+     (IsKey key, NoOperation a, NoBigMap a, NiceParameter a)
   => proxyK k
   -> proxyV v
   -> proxyA a

@@ -2,7 +2,7 @@
 
 module Lorentz.Contracts.Util.Strip where
 
-import Michelson.Macro (ParsedOp(..), LetMacro(..), Macro(..), PairStruct(..), ParsedInstr)
+import Michelson.Macro (ParsedOp(..), LetMacro(..), Macro(..), PairStruct(..))
 import Prelude
 import Util.Default (Default(..))
 import qualified Michelson.Untyped.Contract as U
@@ -24,7 +24,7 @@ stripComparableAnns (U.Comparable cType' _) = U.Comparable cType' def
 
 -- | Strip annotations from `U.T`
 stripTAnns :: U.T -> U.T
-stripTAnns (U.TOption _ type') = U.TOption def (stripTypeAnns type')
+stripTAnns (U.TOption type') = U.TOption (stripTypeAnns type')
 stripTAnns (U.TList type') = U.TList (stripTypeAnns type')
 stripTAnns (U.TSet comparable') = U.TSet (stripComparableAnns comparable')
 stripTAnns (U.TContract type') = U.TContract (stripTypeAnns type')
@@ -41,19 +41,18 @@ stripTAnns (U.TBigMap comparable' type') =
 stripTAnns t@(U.Tc _) = t
 stripTAnns t@U.TKey = t
 stripTAnns t@U.TUnit = t
+stripTAnns t@U.TChainId = t
 stripTAnns t@U.TSignature = t
 stripTAnns t@U.TOperation = t
 
 -- | Strip annotations from `U.Type`
 stripTypeAnns :: U.Type -> U.Type
 stripTypeAnns (U.Type t tAnn) = U.Type (stripTAnns t) (def `asTypeOf` tAnn)
-stripTypeAnns U.TypeParameter = U.TypeParameter
-stripTypeAnns U.TypeStorage = U.TypeStorage
 
 -- | Strip annotations from `ParsedOp` and join `Seq`'s of `ParsedOp`'s
 stripParsedOpAnns :: ParsedOp -> [ParsedOp]
 stripParsedOpAnns (Prim parsedInstr' _) =
-  [Prim (stripParsedInstrAnns parsedInstr') def]
+  [Prim (stripInstrAbstractAnns parsedInstr') def]
 stripParsedOpAnns (Mac macro' _) = [Mac (stripMacroAnns macro') def]
 stripParsedOpAnns (LMac letMacro' _) = [LMac (stripLetMacroAnns letMacro') def]
 stripParsedOpAnns (Seq parsedOps' _) = parsedOps' >>= stripParsedOpAnns
@@ -65,115 +64,123 @@ stripExtInstrAbstractAnns (U.FN str' stackFn' parsedOps') =
   U.FN str' stackFn' (parsedOps' >>= stripParsedOpAnns)
 stripExtInstrAbstractAnns extInstrAbstract' = extInstrAbstract'
 
--- | Strip annotations from `ParsedInstr`
-stripParsedInstrAnns :: ParsedInstr -> ParsedInstr
-stripParsedInstrAnns (U.ABS _) = U.ABS def
-stripParsedInstrAnns (U.ADD _) = U.ADD def
-stripParsedInstrAnns (U.ADDRESS _) = U.ADDRESS def
-stripParsedInstrAnns (U.AMOUNT _) = U.AMOUNT def
-stripParsedInstrAnns (U.AND _) = U.AND def
-stripParsedInstrAnns (U.BALANCE _) = U.BALANCE def
-stripParsedInstrAnns (U.BLAKE2B _) = U.BLAKE2B def
-stripParsedInstrAnns (U.CAR _ _) = U.CAR def def
-stripParsedInstrAnns (U.CAST _ type') = U.CAST def (stripTypeAnns type')
-stripParsedInstrAnns (U.CDR _ _) = U.CDR def def
-stripParsedInstrAnns (U.CHECK_SIGNATURE _) = U.CHECK_SIGNATURE def
-stripParsedInstrAnns (U.COMPARE _) = U.COMPARE def
-stripParsedInstrAnns (U.CONCAT _) = U.CONCAT def
-stripParsedInstrAnns (U.CONS _) = U.CONS def
-stripParsedInstrAnns (U.CONTRACT _ type') = U.CONTRACT def (stripTypeAnns type')
-stripParsedInstrAnns (U.CREATE_ACCOUNT _ _) = U.CREATE_ACCOUNT def def
-stripParsedInstrAnns (U.CREATE_CONTRACT _ _ contract') =
+-- | Strip annotations from `InstrAbstract`
+stripInstrAbstractAnns :: U.InstrAbstract ParsedOp -> U.InstrAbstract ParsedOp
+stripInstrAbstractAnns (U.ABS _) = U.ABS def
+stripInstrAbstractAnns (U.ADD _) = U.ADD def
+stripInstrAbstractAnns (U.ADDRESS _) = U.ADDRESS def
+stripInstrAbstractAnns (U.CHAIN_ID _) = U.CHAIN_ID def
+stripInstrAbstractAnns (U.AMOUNT _) = U.AMOUNT def
+stripInstrAbstractAnns (U.AND _) = U.AND def
+stripInstrAbstractAnns (U.BALANCE _) = U.BALANCE def
+stripInstrAbstractAnns (U.BLAKE2B _) = U.BLAKE2B def
+stripInstrAbstractAnns (U.CAR _ _) = U.CAR def def
+stripInstrAbstractAnns (U.CAST _ type') = U.CAST def (stripTypeAnns type')
+stripInstrAbstractAnns (U.CDR _ _) = U.CDR def def
+stripInstrAbstractAnns (U.CHECK_SIGNATURE _) = U.CHECK_SIGNATURE def
+stripInstrAbstractAnns (U.COMPARE _) = U.COMPARE def
+stripInstrAbstractAnns (U.CONCAT _) = U.CONCAT def
+stripInstrAbstractAnns (U.CONS _) = U.CONS def
+stripInstrAbstractAnns (U.CONTRACT _ _ type') = U.CONTRACT def def (stripTypeAnns type')
+stripInstrAbstractAnns (U.CREATE_CONTRACT _ _ contract') =
   U.CREATE_CONTRACT def def (stripContractAnns contract')
-stripParsedInstrAnns (U.DIP parsedOps') =
+stripInstrAbstractAnns (U.DIP parsedOps') =
   U.DIP (parsedOps' >>= stripParsedOpAnns)
-stripParsedInstrAnns (U.DUP _) = U.DUP def
-stripParsedInstrAnns (U.EDIV _) = U.EDIV def
-stripParsedInstrAnns (U.EMPTY_MAP _ _ comparable' type') =
+stripInstrAbstractAnns (U.DIPN x parsedOps') =
+  U.DIPN x (parsedOps' >>= stripParsedOpAnns)
+stripInstrAbstractAnns (U.DUP _) = U.DUP def
+stripInstrAbstractAnns (U.DROPN _) = U.DROPN def
+stripInstrAbstractAnns (U.DIG x) = U.DIG x
+stripInstrAbstractAnns (U.DUG x) = U.DUG x
+stripInstrAbstractAnns (U.EDIV _) = U.EDIV def
+stripInstrAbstractAnns (U.EMPTY_MAP _ _ comparable' type') =
   U.EMPTY_MAP def def (stripComparableAnns comparable') (stripTypeAnns type')
-stripParsedInstrAnns (U.EMPTY_SET _ _ comparable') =
+stripInstrAbstractAnns (U.EMPTY_BIG_MAP _ _ comparable' type') =
+  U.EMPTY_BIG_MAP def def (stripComparableAnns comparable') (stripTypeAnns type')
+stripInstrAbstractAnns (U.EMPTY_SET _ _ comparable') =
   U.EMPTY_SET def def (stripComparableAnns comparable')
-stripParsedInstrAnns (U.EQ _) = U.EQ def
-stripParsedInstrAnns (U.EXEC _) = U.EXEC def
-stripParsedInstrAnns (U.EXT extInstrAbstract') =
+stripInstrAbstractAnns (U.EQ _) = U.EQ def
+stripInstrAbstractAnns (U.EXEC _) = U.EXEC def
+stripInstrAbstractAnns (U.APPLY _) = U.APPLY def
+stripInstrAbstractAnns (U.EXT extInstrAbstract') =
   U.EXT $ stripExtInstrAbstractAnns extInstrAbstract'
-stripParsedInstrAnns (U.GE _) = U.GE def
-stripParsedInstrAnns (U.GET _) = U.GET def
-stripParsedInstrAnns (U.GT _) = U.GT def
-stripParsedInstrAnns (U.HASH_KEY _) = U.HASH_KEY def
-stripParsedInstrAnns (U.IF parsedOpsX parsedOpsY) =
+stripInstrAbstractAnns (U.GE _) = U.GE def
+stripInstrAbstractAnns (U.GET _) = U.GET def
+stripInstrAbstractAnns (U.GT _) = U.GT def
+stripInstrAbstractAnns (U.HASH_KEY _) = U.HASH_KEY def
+stripInstrAbstractAnns (U.IF parsedOpsX parsedOpsY) =
   U.IF (parsedOpsX >>= stripParsedOpAnns) (parsedOpsY >>= stripParsedOpAnns)
-stripParsedInstrAnns (U.IF_CONS parsedOpsX parsedOpsY) =
+stripInstrAbstractAnns (U.IF_CONS parsedOpsX parsedOpsY) =
   U.IF_CONS
     (parsedOpsX >>= stripParsedOpAnns)
     (parsedOpsY >>= stripParsedOpAnns)
-stripParsedInstrAnns (U.IF_LEFT parsedOpsX parsedOpsY) =
+stripInstrAbstractAnns (U.IF_LEFT parsedOpsX parsedOpsY) =
   U.IF_LEFT
     (parsedOpsX >>= stripParsedOpAnns)
     (parsedOpsY >>= stripParsedOpAnns)
-stripParsedInstrAnns (U.IF_NONE parsedOpsX parsedOpsY) =
+stripInstrAbstractAnns (U.IF_NONE parsedOpsX parsedOpsY) =
   U.IF_NONE
     (parsedOpsX >>= stripParsedOpAnns)
     (parsedOpsY >>= stripParsedOpAnns)
-stripParsedInstrAnns (U.IMPLICIT_ACCOUNT _) = U.IMPLICIT_ACCOUNT def
-stripParsedInstrAnns (U.INT _) = U.INT def
-stripParsedInstrAnns (U.ISNAT _) = U.ISNAT def
-stripParsedInstrAnns (U.ITER parsedOps') =
+stripInstrAbstractAnns (U.IMPLICIT_ACCOUNT _) = U.IMPLICIT_ACCOUNT def
+stripInstrAbstractAnns (U.INT _) = U.INT def
+stripInstrAbstractAnns (U.ISNAT _) = U.ISNAT def
+stripInstrAbstractAnns (U.ITER parsedOps') =
   U.ITER (parsedOps' >>= stripParsedOpAnns)
-stripParsedInstrAnns (U.LAMBDA _ typeX typeY parsedOps') =
+stripInstrAbstractAnns (U.LAMBDA _ typeX typeY parsedOps') =
   U.LAMBDA
     def
     (stripTypeAnns typeX)
     (stripTypeAnns typeY)
     (parsedOps' >>= stripParsedOpAnns)
-stripParsedInstrAnns (U.LE _) = U.LE def
-stripParsedInstrAnns (U.LEFT _ _ _ _ type') =
+stripInstrAbstractAnns (U.LE _) = U.LE def
+stripInstrAbstractAnns (U.LEFT _ _ _ _ type') =
   U.LEFT def def def def (stripTypeAnns type')
-stripParsedInstrAnns (U.LOOP parsedOps') =
+stripInstrAbstractAnns (U.LOOP parsedOps') =
   U.LOOP (parsedOps' >>= stripParsedOpAnns)
-stripParsedInstrAnns (U.LOOP_LEFT parsedOps') =
+stripInstrAbstractAnns (U.LOOP_LEFT parsedOps') =
   U.LOOP_LEFT (parsedOps' >>= stripParsedOpAnns)
-stripParsedInstrAnns (U.LSL _) = U.LSL def
-stripParsedInstrAnns (U.LSR _) = U.LSR def
-stripParsedInstrAnns (U.LT _) = U.LT def
-stripParsedInstrAnns (U.MAP _ parsedOps') =
+stripInstrAbstractAnns (U.LSL _) = U.LSL def
+stripInstrAbstractAnns (U.LSR _) = U.LSR def
+stripInstrAbstractAnns (U.LT _) = U.LT def
+stripInstrAbstractAnns (U.MAP _ parsedOps') =
   U.MAP def (parsedOps' >>= stripParsedOpAnns)
-stripParsedInstrAnns (U.MEM _) = U.MEM def
-stripParsedInstrAnns (U.MUL _) = U.MUL def
-stripParsedInstrAnns (U.NEQ _) = U.NEQ def
-stripParsedInstrAnns (U.NIL _ _ type') = U.NIL def def (stripTypeAnns type')
-stripParsedInstrAnns (U.NONE _ _ _ type') =
-  U.NONE def def def (stripTypeAnns type')
-stripParsedInstrAnns (U.NOT _) = U.NOT def
-stripParsedInstrAnns (U.NOW _) = U.NOW def
-stripParsedInstrAnns (U.OR _) = U.OR def
-stripParsedInstrAnns (U.PACK _) = U.PACK def
-stripParsedInstrAnns (U.PAIR _ _ _ _) = U.PAIR def def def def
-stripParsedInstrAnns (U.PUSH _ type' value') =
+stripInstrAbstractAnns (U.MEM _) = U.MEM def
+stripInstrAbstractAnns (U.MUL _) = U.MUL def
+stripInstrAbstractAnns (U.NEQ _) = U.NEQ def
+stripInstrAbstractAnns (U.NIL _ _ type') = U.NIL def def (stripTypeAnns type')
+stripInstrAbstractAnns (U.NONE _ _ type') =
+  U.NONE def def (stripTypeAnns type')
+stripInstrAbstractAnns (U.NOT _) = U.NOT def
+stripInstrAbstractAnns (U.NOW _) = U.NOW def
+stripInstrAbstractAnns (U.OR _) = U.OR def
+stripInstrAbstractAnns (U.PACK _) = U.PACK def
+stripInstrAbstractAnns (U.PAIR _ _ _ _) = U.PAIR def def def def
+stripInstrAbstractAnns (U.PUSH _ type' value') =
   U.PUSH def (stripTypeAnns type') value'
-stripParsedInstrAnns (U.RENAME _) = U.RENAME def
-stripParsedInstrAnns (U.RIGHT _ _ _ _ type') =
+stripInstrAbstractAnns (U.RENAME _) = U.RENAME def
+stripInstrAbstractAnns (U.RIGHT _ _ _ _ type') =
   U.RIGHT def def def def (stripTypeAnns type')
-stripParsedInstrAnns (U.SELF _) = U.SELF def
-stripParsedInstrAnns (U.SENDER _) = U.SENDER def
-stripParsedInstrAnns (U.SET_DELEGATE _) = U.SET_DELEGATE def
-stripParsedInstrAnns (U.SHA256 _) = U.SHA256 def
-stripParsedInstrAnns (U.SHA512 _) = U.SHA512 def
-stripParsedInstrAnns (U.SIZE _) = U.SIZE def
-stripParsedInstrAnns (U.SLICE _) = U.SLICE def
-stripParsedInstrAnns (U.SOME _ _ _) = U.SOME def def def
-stripParsedInstrAnns (U.SOURCE _) = U.SOURCE def
-stripParsedInstrAnns (U.STEPS_TO_QUOTA _) = U.STEPS_TO_QUOTA def
-stripParsedInstrAnns (U.SUB _) = U.SUB def
-stripParsedInstrAnns (U.TRANSFER_TOKENS _) = U.TRANSFER_TOKENS def
-stripParsedInstrAnns (U.UNIT _ _) = U.UNIT def def
-stripParsedInstrAnns (U.UNPACK _ type') = U.UNPACK def (stripTypeAnns type')
-stripParsedInstrAnns (U.XOR _) = U.XOR def
-stripParsedInstrAnns U.DROP = U.DROP
-stripParsedInstrAnns U.FAILWITH = U.FAILWITH
-stripParsedInstrAnns U.NEG = U.NEG
-stripParsedInstrAnns U.SWAP = U.SWAP
-stripParsedInstrAnns U.UPDATE = U.UPDATE
+stripInstrAbstractAnns (U.SELF _) = U.SELF def
+stripInstrAbstractAnns (U.SENDER _) = U.SENDER def
+stripInstrAbstractAnns (U.SET_DELEGATE _) = U.SET_DELEGATE def
+stripInstrAbstractAnns (U.SHA256 _) = U.SHA256 def
+stripInstrAbstractAnns (U.SHA512 _) = U.SHA512 def
+stripInstrAbstractAnns (U.SIZE _) = U.SIZE def
+stripInstrAbstractAnns (U.SLICE _) = U.SLICE def
+stripInstrAbstractAnns (U.SOME _ _) = U.SOME def def
+stripInstrAbstractAnns (U.SOURCE _) = U.SOURCE def
+stripInstrAbstractAnns (U.STEPS_TO_QUOTA _) = U.STEPS_TO_QUOTA def
+stripInstrAbstractAnns (U.SUB _) = U.SUB def
+stripInstrAbstractAnns (U.TRANSFER_TOKENS _) = U.TRANSFER_TOKENS def
+stripInstrAbstractAnns (U.UNIT _ _) = U.UNIT def def
+stripInstrAbstractAnns (U.UNPACK _ _ type') = U.UNPACK def def (stripTypeAnns type')
+stripInstrAbstractAnns (U.XOR _) = U.XOR def
+stripInstrAbstractAnns U.DROP = U.DROP
+stripInstrAbstractAnns U.FAILWITH = U.FAILWITH
+stripInstrAbstractAnns (U.NEG _) = U.NEG def
+stripInstrAbstractAnns U.SWAP = U.SWAP
+stripInstrAbstractAnns (U.UPDATE _) = U.UPDATE def
 
 -- | Strip annotations from `PairStruct`
 stripPairStructAnns :: PairStruct -> PairStruct
@@ -191,15 +198,15 @@ stripMacroAnns (CONSTRUCT opSeqs) = CONSTRUCT $ (>>= stripParsedOpAnns) <$> opSe
 stripMacroAnns (VIEW parsedOps') = VIEW $ parsedOps' >>= stripParsedOpAnns
 stripMacroAnns (VOID parsedOps') = VOID $ parsedOps' >>= stripParsedOpAnns
 stripMacroAnns (CMP parsedInstr' _) =
-  CMP (stripParsedInstrAnns parsedInstr') def
+  CMP (stripInstrAbstractAnns parsedInstr') def
 stripMacroAnns (IFX parsedInstr' parsedOpsX parsedOpsY) =
   IFX
-    (stripParsedInstrAnns parsedInstr')
+    (stripInstrAbstractAnns parsedInstr')
     (parsedOpsX >>= stripParsedOpAnns)
     (parsedOpsY >>= stripParsedOpAnns)
 stripMacroAnns (IFCMP parsedInstr' _ parsedOpsX parsedOpsY) =
   IFCMP
-    (stripParsedInstrAnns parsedInstr')
+    (stripInstrAbstractAnns parsedInstr')
     def
     (parsedOpsX >>= stripParsedOpAnns)
     (parsedOpsY >>= stripParsedOpAnns)
@@ -213,9 +220,9 @@ stripMacroAnns (MAP_CADR cadrStructs' _ _ parsedOps') =
 stripMacroAnns (DIIP n parsedOps') = DIIP n (parsedOps' >>= stripParsedOpAnns)
 stripMacroAnns (DUUP n _) = DUUP n def
 stripMacroAnns (ASSERTX parsedInstr') =
-  ASSERTX (stripParsedInstrAnns parsedInstr')
+  ASSERTX (stripInstrAbstractAnns parsedInstr')
 stripMacroAnns (ASSERT_CMP parsedInstr') =
-  ASSERT_CMP (stripParsedInstrAnns parsedInstr')
+  ASSERT_CMP (stripInstrAbstractAnns parsedInstr')
 stripMacroAnns (IF_SOME parsedOpsX parsedOpsY) =
   IF_SOME (parsedOpsX >>= stripParsedOpAnns) (parsedOpsY >>= stripParsedOpAnns)
 stripMacroAnns (IF_RIGHT parsedOpsX parsedOpsY) =

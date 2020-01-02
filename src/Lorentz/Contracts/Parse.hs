@@ -1,3 +1,5 @@
+{-# OPTIONS -Wno-missing-export-lists #-}
+{-# OPTIONS -Wno-orphans #-}
 
 module Lorentz.Contracts.Parse where
 
@@ -20,10 +22,11 @@ import qualified Data.Text as T
 import qualified Options.Applicative.Types as Opt
 
 import Lorentz hiding (contractName)
-import Tezos.Crypto (PublicKey, SecretKey)
+import Tezos.Crypto (PublicKey)
 import Util.Named
 import Lorentz.Contracts.Util ()
 import Michelson.Parser
+-- import qualified Tezos.Crypto.Ed25519 as Ed25519
 
 import qualified Lorentz.Contracts.GenericMultisig as G
 import qualified Lorentz.Contracts.GenericMultisig.Wrapper as G
@@ -90,9 +93,9 @@ parseBool name =
     ]
 
 -- | Parse a `View` by parsing its arguments and @"callback-contract"@ address
-parseView :: Opt.Parser a -> Opt.Parser (View a r)
+parseView :: NiceParameter r => Opt.Parser a -> Opt.Parser (View a r)
 parseView parseArg =
-  View <$> parseArg <*> fmap ContractAddr (parseAddress "callback-contract")
+  View <$> parseArg <*> fmap toContractRef (parseAddress "callback-contract")
 
 -- | Parse the signer keys
 parseSignerKeys :: String -> Opt.Parser [PublicKey]
@@ -201,15 +204,18 @@ parseLambda name description =
     , Opt.help description
     ]
 
--- | Parse a `SecretKey`
-parseSecretKey :: Opt.Parser SecretKey
-parseSecretKey =
-  Opt.option Opt.auto $
-    mconcat
-      [ Opt.long "secretKey"
-      , Opt.metavar "SecretKey"
-      , Opt.help "Private key to sign multisig parameter JSON file"
-      ]
+-- NOTE: It appears that a number of utilities to work with
+-- SecretKey's have been removed from the latest `morley`
+--
+-- -- | Parse a `SecretKey`
+-- parseSecretKey :: Opt.Parser Ed25519.SecretKey
+-- parseSecretKey =
+--   Opt.option Opt.auto $
+--     mconcat
+--       [ Opt.long "secretKey"
+--       , Opt.metavar "SecretKey"
+--       , Opt.help "Private key to sign multisig parameter JSON file"
+--       ]
 
 -- | Parser `G.SomePublicKey`
 parseSomePublicKey :: Opt.Parser G.SomePublicKey

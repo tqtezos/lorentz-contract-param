@@ -2,7 +2,7 @@
 
 <<: *meta
 name:                lorentz-contract-param
-version:             1.2.2.1.0
+version:             2.0.5.0.0
 synopsis:            Set of Michelson contracts implemented in Lorentz eDSL, with CLI interface
 description:
   Various contracts including simple examples.
@@ -19,6 +19,7 @@ library:
     - fmt
     - morley
     - morley-prelude
+    - morley-ledgers
     - named
     - singletons
     - text
@@ -28,7 +29,6 @@ library:
     - aeson
     - constraints
     - binary
-    - lorentz-contracts
     - optparse-applicative
     - megaparsec
 
@@ -39,9 +39,9 @@ executables:
     dependencies:
       - containers
       - fmt
-      - lorentz-contracts
       - morley
       - morley-prelude
+      - morley-ledgers
       - optparse-applicative
       - singletons
       - text
@@ -57,9 +57,9 @@ executables:
     dependencies:
       - containers
       - fmt
-      - lorentz-contracts
       - morley
       - morley-prelude
+      - morley-ledgers
       - optparse-applicative
       - text
       - named
@@ -82,9 +82,9 @@ executables:
     dependencies:
       - containers
       - fmt
-      - lorentz-contracts
       - morley
       - morley-prelude
+      - morley-ledgers
       - optparse-applicative
       - text
       - named
@@ -104,7 +104,6 @@ tests:
       - hspec
       - hspec-expectations
       - HUnit
-      - lorentz-contracts
       - morley
       - morley-prelude
       - QuickCheck
