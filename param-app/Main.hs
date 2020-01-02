@@ -11,44 +11,39 @@ module Main
 
 import Control.Applicative
 import Data.List
+import Data.Coerce
 import Data.Typeable
 import Data.String
 import Prelude hiding (readEither, unlines, unwords, show, null)
-import Text.Show
 import qualified Prelude as P
 
 import qualified Data.ByteString.Lazy as BL
+import Named
 import Data.Aeson (eitherDecode)
 import Data.Constraint
 import Data.Singletons (SingI(..))
 import Data.Version (showVersion)
 import Options.Applicative.Help.Pretty (Doc, linebreak)
 import Paths_lorentz_contract_param (version)
-import qualified Data.Text as T
+-- import qualified Data.Text as T
 import qualified Data.Text.Lazy.IO as TL
 import qualified Options.Applicative as Opt
 
 import Lorentz hiding (contractName)
-import Lorentz.Contracts.Auction
-import Lorentz.Contracts.ManagedLedger.Babylon (managedLedgerContract)
-import Lorentz.Contracts.ManagedLedger.Proxy (managedLedgerProxyContract)
+import Lorentz.Contracts.ManagedLedger (managedLedgerContract)
 import Lorentz.Contracts.SomeContractParam
-import Lorentz.Contracts.UnsafeLedger
 import Lorentz.Contracts.Util ()
 import Lorentz.Contracts.VarStorage
-import Lorentz.Contracts.Walker
-import Michelson.Macro
-import Michelson.Parser
-import Michelson.Runtime
-import Michelson.TypeCheck
+-- import Michelson.Macro
+-- import Michelson.Parser
+-- import Michelson.Runtime
+-- import Michelson.TypeCheck
 import Michelson.Typed
-import Tezos.Crypto (SecretKey)
 import Util.IO
 import qualified Lorentz.Base as L
 import qualified Lorentz.Contracts.GenericMultisig as G
 import qualified Lorentz.Contracts.GenericMultisig.Wrapper as G
-import qualified Lorentz.Contracts.ManagedLedger.Athens as Athens
-import qualified Lorentz.Contracts.ManagedLedger.Babylon as Babylon
+import qualified Lorentz.Contracts.ManagedLedger as ManagedLedger
 import Lorentz.Contracts.Parse
 
 import Multisig
@@ -86,23 +81,23 @@ data CmdLnArgs where
       , baseContractParam :: SomeContractParam
       , signerKeys :: [G.Public key]
       } -> CmdLnArgs
-  MultisigSomeOperationParams :: forall key. G.IsKey key =>
-      { keyProxy :: Proxy key
-      , contractName :: String
-      , contractFilePath :: Maybe String
-      , contractAddress :: Address
-      , counter :: Natural
-      , untypedBaseContractParam :: String
-      , signerKeys :: [G.Public key]
-      } -> CmdLnArgs
+  -- MultisigSomeOperationParams :: forall key. G.IsKey key =>
+  --     { keyProxy :: Proxy key
+  --     , contractName :: String
+  --     , contractFilePath :: Maybe String
+  --     , contractAddress :: Address
+  --     , counter :: Natural
+  --     , untypedBaseContractParam :: String
+  --     , signerKeys :: [G.Public key]
+  --     } -> CmdLnArgs
   MultisigFiles ::
       { multisigFiles :: [FilePath]
       } -> CmdLnArgs
-  MultisigSignFile ::
-      { secretKey :: SecretKey
-      , somePublicKey :: G.SomePublicKey
-      , multisigFile :: FilePath
-      } -> CmdLnArgs
+  -- MultisigSignFile ::
+  --     { secretKey :: SecretKey
+  --     , somePublicKey :: G.SomePublicKey
+  --     , multisigFile :: FilePath
+  --     } -> CmdLnArgs
   MultisigVerifyFile ::
       { multisigFile :: FilePath
       } -> CmdLnArgs
@@ -267,98 +262,98 @@ genericMultisigParam contractName parseBaseContractParams =
 contractNatSubCmds :: [(String, Opt.Parser Natural)]
 contractNatSubCmds = [("new-nat", parseNatural "nat")]
 
-contractAthensSubCmds :: [(String, Opt.Parser Athens.Parameter)]
-contractAthensSubCmds =
-  [ ( "transfer"
-    , Athens.Transfer <$>
-      liftA3
-        (,,)
-        (parseNamed #from parseAddress)
-        (parseNamed #to parseAddress)
-        (parseNamed #value parseNatural))
-  , ( "transferViaProxy"
-    , Athens.TransferViaProxy <$>
-      liftA2
-        (,)
-        (parseNamed #sender parseAddress)
-        (liftA3
-           (,,)
-           (parseNamed #from parseAddress)
-           (parseNamed #to parseAddress)
-           (parseNamed #value parseNatural)))
-  , ( "approve"
-    , Athens.Approve <$>
-      liftA2
-        (,)
-        (parseNamed #spender parseAddress)
-        (parseNamed #value parseNatural))
-  , ( "approveViaProxy"
-    , Athens.ApproveViaProxy <$>
-      liftA2
-        (,)
-        (parseNamed #sender parseAddress)
-        (liftA2
-           (,)
-           (parseNamed #spender parseAddress)
-           (parseNamed #value parseNatural)))
-  , ( "getAllowance"
-    , Athens.GetAllowance <$>
-      parseView
-        (liftA2
-           (,)
-           (parseNamed #owner parseAddress)
-           (parseNamed #spender parseAddress)))
-  , ("getBalance", Athens.GetBalance <$> parseView (parseAddress "account"))
-  , ("getTotalSupply", Athens.GetTotalSupply <$> parseView (pure ()))
-  , ("setPause", Athens.SetPause <$> parseBool "paused")
-  , ( "setAdministrator"
-    , Athens.SetAdministrator <$> parseAddress "new-administrator-address")
-  , ("getAdministrator", Athens.GetAdministrator <$> parseView (pure ()))
-  , ( "mint"
-    , Athens.Mint <$>
-      liftA2 (,) (parseNamed #to parseAddress) (parseNamed #value parseNatural))
-  , ( "burn"
-    , Athens.Burn <$>
-      liftA2
-        (,)
-        (parseNamed #from parseAddress)
-        (parseNamed #value parseNatural))
-  , ("setProxy", Athens.SetProxy <$> parseAddress "new-proxy-address")
-  ]
+-- contractManagedLedgerSubCmds :: [(String, Opt.Parser ManagedLedger.Parameter)]
+-- contractManagedLedgerSubCmds =
+--   [ ( "transfer"
+--     , ManagedLedger.Transfer <$>
+--       liftA3
+--         (,,)
+--         (parseNamed #from parseAddress)
+--         (parseNamed #to parseAddress)
+--         (parseNamed #value parseNatural))
+--   -- , ( "transferViaProxy"
+--   --   , ManagedLedger.TransferViaProxy <$>
+--   --     liftA2
+--   --       (,)
+--   --       (parseNamed #sender parseAddress)
+--   --       (liftA3
+--   --          (,,)
+--   --          (parseNamed #from parseAddress)
+--   --          (parseNamed #to parseAddress)
+--   --          (parseNamed #value parseNatural)))
+--   , ( "approve"
+--     , ManagedLedger.Approve <$>
+--       liftA2
+--         (,)
+--         (parseNamed #spender parseAddress)
+--         (parseNamed #value parseNatural))
+--   -- , ( "approveViaProxy"
+--   --   , ManagedLedger.ApproveViaProxy <$>
+--   --     liftA2
+--   --       (,)
+--   --       (parseNamed #sender parseAddress)
+--   --       (liftA2
+--   --          (,)
+--   --          (parseNamed #spender parseAddress)
+--   --          (parseNamed #value parseNatural)))
+--   , ( "getAllowance"
+--     , ManagedLedger.GetAllowance <$>
+--       parseView
+--         (liftA2
+--            (,)
+--            (parseNamed #owner parseAddress)
+--            (parseNamed #spender parseAddress)))
+--   , ("getBalance", ManagedLedger.GetBalance <$> parseView (parseAddress "account"))
+--   , ("getTotalSupply", ManagedLedger.GetTotalSupply <$> parseView (pure ()))
+--   , ("setPause", ManagedLedger.SetPause <$> parseBool "paused")
+--   , ( "setAdministrator"
+--     , ManagedLedger.SetAdministrator <$> parseAddress "new-administrator-address")
+--   , ("getAdministrator", ManagedLedger.GetAdministrator <$> parseView (pure ()))
+--   , ( "mint"
+--     , ManagedLedger.Mint <$>
+--       liftA2 (,) (parseNamed #to parseAddress) (parseNamed #value parseNatural))
+--   , ( "burn"
+--     , ManagedLedger.Burn <$>
+--       liftA2
+--         (,)
+--         (parseNamed #from parseAddress)
+--         (parseNamed #value parseNatural))
+--   -- , ("setProxy", ManagedLedger.SetProxy <$> parseAddress "new-proxy-address")
+--   ]
 
-contractBabylonSubCmds :: [(String, Opt.Parser Babylon.Parameter)]
-contractBabylonSubCmds =
+contractManagedLedgerSubCmds :: [(String, Opt.Parser ManagedLedger.Parameter)]
+contractManagedLedgerSubCmds =
   [ ( "transfer"
-    , Babylon.Transfer <$>
+    , ManagedLedger.Transfer <$>
       liftA3
         (,,)
         (parseNamed #from parseAddress)
         (parseNamed #to parseAddress)
         (parseNamed #value parseNatural))
   , ( "approve"
-    , Babylon.Approve <$>
+    , ManagedLedger.Approve <$>
       liftA2
         (,)
         (parseNamed #spender parseAddress)
         (parseNamed #value parseNatural))
   , ( "getAllowance"
-    , Babylon.GetAllowance <$>
+    , ManagedLedger.GetAllowance <$>
       parseView
         (liftA2
            (,)
            (parseNamed #owner parseAddress)
            (parseNamed #spender parseAddress)))
-  , ("getBalance", Babylon.GetBalance <$> parseView (parseAddress "account"))
-  , ("getTotalSupply", Babylon.GetTotalSupply <$> parseView (pure ()))
-  , ("setPause", Babylon.SetPause <$> parseBool "paused")
+  , ("getBalance", ManagedLedger.GetBalance <$> parseView (coerce <$> parseAddress "account"))
+  , ("getTotalSupply", ManagedLedger.GetTotalSupply <$> parseView (pure ()))
+  , ("setPause", ManagedLedger.SetPause <$> parseBool "paused")
   , ( "setAdministrator"
-    , Babylon.SetAdministrator <$> parseAddress "new-administrator-address")
-  , ("getAdministrator", Babylon.GetAdministrator <$> parseView (pure ()))
+    , ManagedLedger.SetAdministrator <$> parseAddress "new-administrator-address")
+  , ("getAdministrator", ManagedLedger.GetAdministrator <$> parseView (pure ()))
   , ( "mint"
-    , Babylon.Mint <$>
+    , ManagedLedger.Mint <$>
       liftA2 (,) (parseNamed #to parseAddress) (parseNamed #value parseNatural))
   , ( "burn"
-    , Babylon.Burn <$>
+    , ManagedLedger.Burn <$>
       liftA2
         (,)
         (parseNamed #from parseAddress)
@@ -373,17 +368,17 @@ wrappedMultisigContractNatSubCmd =
     "WrappedMultisigContractNat"
     contractNatSubCmds
 
-wrappedMultisigContractAthensSubCmd :: [Opt.Mod Opt.CommandFields CmdLnArgs]
-wrappedMultisigContractAthensSubCmd =
+wrappedMultisigContractManagedLedgerSubCmd :: [Opt.Mod Opt.CommandFields CmdLnArgs]
+wrappedMultisigContractManagedLedgerSubCmd =
   genericMultisigParam
-    "WrappedMultisigContractAthens"
-    contractAthensSubCmds
+    "WrappedMultisigContractManagedLedger"
+    contractManagedLedgerSubCmds
 
-wrappedMultisigContractBabylonSubCmd :: [Opt.Mod Opt.CommandFields CmdLnArgs]
-wrappedMultisigContractBabylonSubCmd =
-  genericMultisigParam
-    "WrappedMultisigContractBabylon"
-    contractBabylonSubCmds
+-- wrappedMultisigContractManagedLedgerSubCmd :: [Opt.Mod Opt.CommandFields CmdLnArgs]
+-- wrappedMultisigContractManagedLedgerSubCmd =
+--   genericMultisigParam
+--     "WrappedMultisigContractManagedLedger"
+--     contractManagedLedgerSubCmds
 
 contractNatSubCmd :: [Opt.Mod Opt.CommandFields CmdLnArgs]
 contractNatSubCmd =
@@ -391,17 +386,17 @@ contractNatSubCmd =
     "ContractNat"
     contractNatSubCmds
 
-managedLedgerAthensSubCmd :: [Opt.Mod Opt.CommandFields CmdLnArgs]
-managedLedgerAthensSubCmd =
+managedLedgerSubCmd :: [Opt.Mod Opt.CommandFields CmdLnArgs]
+managedLedgerSubCmd =
   genericContractParam
-    "ManagedLedgerAthens"
-    contractAthensSubCmds
+    "ManagedLedgerManagedLedger"
+    contractManagedLedgerSubCmds
 
-managedLedgerBabylonSubCmd :: [Opt.Mod Opt.CommandFields CmdLnArgs]
-managedLedgerBabylonSubCmd =
-  genericContractParam
-    "ManagedLedgerBabylon"
-    contractBabylonSubCmds
+-- managedLedgerManagedLedgerSubCmd :: [Opt.Mod Opt.CommandFields CmdLnArgs]
+-- managedLedgerManagedLedgerSubCmd =
+--   genericContractParam
+--     "ManagedLedgerManagedLedger"
+--     contractManagedLedgerSubCmds
 
 
 wrappedMultisigDefaultSubCmd :: [Opt.Mod Opt.CommandFields CmdLnArgs]
@@ -420,57 +415,57 @@ wrappedMultisigChangeKeysSubCmd =
       "Change keys: update the key list and/or the threshold (i.e. quorum)"
   ]
 
--- | Command to generate a parameter file for a multisig-wrapped contract
--- given the source of an arbitrary contract
-multisigSomeOperationParamsSubCmd :: [Opt.Mod Opt.CommandFields CmdLnArgs]
-multisigSomeOperationParamsSubCmd =
-  [ mkCommandParser
-      "MultisigSomeOperationParams"
-      parseSomeOperation
-      ("Generate a multisig parameter file for an arbitrary multisig-wrapped contract.\n" ++
-       "Omit the 'contractFilePath' option to pass the contract through STDIN.")
-  ]
-  where
-    parseSomeOperation :: Opt.Parser CmdLnArgs
-    parseSomeOperation =
-      (MultisigSomeOperationParams <$>
-        pure (Proxy @PublicKey) <*>
-        parseContractName <*>
-        Opt.optional (parseFilePath "contractFilePath" "File path to the base contract source") <*>
-        parseAddress "contractAddress" <*>
-        parseNatural "counter" <*>
-        parseContractParam <*>
-        parseSignerKeys "signerKeys") <|>
-      (MultisigSomeOperationParams <$>
-        pure (Proxy @(PublicKey, PublicKey)) <*>
-        parseContractName <*>
-        Opt.optional (parseFilePath "contractFilePath" "File path to the base contract source") <*>
-        parseAddress "contractAddress" <*>
-        parseNatural "counter" <*>
-        parseContractParam <*>
-        parseSignerKeyPairs "signerKeyPairs")
+-- -- | Command to generate a parameter file for a multisig-wrapped contract
+-- -- given the source of an arbitrary contract
+-- multisigSomeOperationParamsSubCmd :: [Opt.Mod Opt.CommandFields CmdLnArgs]
+-- multisigSomeOperationParamsSubCmd =
+--   [ mkCommandParser
+--       "MultisigSomeOperationParams"
+--       parseSomeOperation
+--       ("Generate a multisig parameter file for an arbitrary multisig-wrapped contract.\n" ++
+--        "Omit the 'contractFilePath' option to pass the contract through STDIN.")
+--   ]
+--   where
+--     parseSomeOperation :: Opt.Parser CmdLnArgs
+--     parseSomeOperation =
+--       (MultisigSomeOperationParams <$>
+--         pure (Proxy @PublicKey) <*>
+--         parseContractName <*>
+--         Opt.optional (parseFilePath "contractFilePath" "File path to the base contract source") <*>
+--         parseAddress "contractAddress" <*>
+--         parseNatural "counter" <*>
+--         parseContractParam <*>
+--         parseSignerKeys "signerKeys") <|>
+--       (MultisigSomeOperationParams <$>
+--         pure (Proxy @(PublicKey, PublicKey)) <*>
+--         parseContractName <*>
+--         Opt.optional (parseFilePath "contractFilePath" "File path to the base contract source") <*>
+--         parseAddress "contractAddress" <*>
+--         parseNatural "counter" <*>
+--         parseContractParam <*>
+--         parseSignerKeyPairs "signerKeyPairs")
+--
+--     parseContractParam :: Opt.Parser String
+--     parseContractParam =
+--       Opt.strOption $
+--       mconcat
+--         [ Opt.long "contractParam"
+--         , Opt.metavar "MICHELSON_VALUE"
+--         , Opt.help "Contract parameter"
+--         ]
 
-    parseContractParam :: Opt.Parser String
-    parseContractParam =
-      Opt.strOption $
-      mconcat
-        [ Opt.long "contractParam"
-        , Opt.metavar "MICHELSON_VALUE"
-        , Opt.help "Contract parameter"
-        ]
-
--- | Command to sign a `MultisigSignersFile`
-multisigSignFileSubCmd :: [Opt.Mod Opt.CommandFields CmdLnArgs]
-multisigSignFileSubCmd =
-  [ mkCommandParser
-      "MultisigSignFile"
-      parseMultisigSignFile
-      "Sign a contract parameter given a multisig signers file in JSON and a private key"
-  ]
-  where
-    parseMultisigSignFile :: Opt.Parser CmdLnArgs
-    parseMultisigSignFile =
-      MultisigSignFile <$> parseSecretKey <*> parseSomePublicKey <*> parseFilePath "signerFile" "File path to multisig parameter JSON file"
+-- -- | Command to sign a `MultisigSignersFile`
+-- multisigSignFileSubCmd :: [Opt.Mod Opt.CommandFields CmdLnArgs]
+-- multisigSignFileSubCmd =
+--   [ mkCommandParser
+--       "MultisigSignFile"
+--       parseMultisigSignFile
+--       "Sign a contract parameter given a multisig signers file in JSON and a private key"
+--   ]
+--   where
+--     parseMultisigSignFile :: Opt.Parser CmdLnArgs
+--     parseMultisigSignFile =
+--       MultisigSignFile <$> parseSecretKey <*> parseSomePublicKey <*> parseFilePath "signerFile" "File path to multisig parameter JSON file"
 
 -- | Command to verify a `MultisigSignersFile`
 multisigVerifyFileSubCmd :: [Opt.Mod Opt.CommandFields CmdLnArgs]
@@ -510,28 +505,25 @@ multisigSignersFileSubCmd =
 argParser :: Opt.Parser CmdLnArgs
 argParser =
   Opt.subparser . mconcat $
-  -- , contractReadAndRenderParam "ManagedLedgerAthens" managedLedgerAthensContract
-  [ contractReadAndRenderParam "Auction" auctionContract
-  , contractReadAndRenderParam "ExplicitBigMapManagedLedgerAthens" G.explicitBigMapAthens
-  , contractReadAndRenderParam "ManagedLedger" managedLedgerContract
-  , contractReadAndRenderParam "ManagedLedgerProxy" managedLedgerProxyContract
-  , contractReadAndRenderParam "MultisigManagedLedgerAthens" G.wrappedMultisigContractAthens
+  -- , contractReadAndRenderParam "ManagedLedger" managedLedgerContract
+  -- [ contractReadAndRenderParam "Auction" auctionContract
+  -- , contractReadAndRenderParam "ExplicitBigMapManagedLedger" G.explicitBigMapManagedLedger
+  [ contractReadAndRenderParam "ManagedLedger" managedLedgerContract
+  -- , contractReadAndRenderParam "MultisigManagedLedger" G.wrappedMultisigContractManagedLedger
   , contractReadAndRenderParam "NatStorageContract" (varStorageContract @Natural)
-  , contractReadAndRenderParam "NatStorageWithBigMapContract" G.natStorageWithBigMapContract
-  , contractReadAndRenderParam "UnsafeLedger" unsafeLedgerContract
-  , contractReadAndRenderParam "Walker" walkerContract
+  -- , contractReadAndRenderParam "NatStorageWithBigMapContract" G.natStorageWithBigMapContract
   , contractReadAndRenderParam "WrappedMultisigContractNat" G.wrappedMultisigContractNat
   ] ++
     contractNatSubCmd ++
-    managedLedgerAthensSubCmd ++
-    managedLedgerBabylonSubCmd ++
+    managedLedgerSubCmd ++
+    -- managedLedgerManagedLedgerSubCmd ++
     wrappedMultisigContractNatSubCmd ++
-    wrappedMultisigContractAthensSubCmd ++
-    wrappedMultisigContractBabylonSubCmd ++
+    wrappedMultisigContractManagedLedgerSubCmd ++
+    -- wrappedMultisigContractManagedLedgerSubCmd ++
     wrappedMultisigDefaultSubCmd ++
     wrappedMultisigChangeKeysSubCmd ++
-    multisigSomeOperationParamsSubCmd ++
-    multisigSignFileSubCmd ++
+    -- multisigSomeOperationParamsSubCmd ++
+    -- multisigSignFileSubCmd ++
     multisigVerifyFileSubCmd ++
     multisigSignersFileSubCmd ++
     genericMultisigOperationParamsSubCmd
@@ -568,10 +560,6 @@ main = do
   hSetTranslit stdout
   hSetTranslit stderr
 
-  -- print . Crypto.toPublic $ either (error . T.pack . show) id $ Crypto.parseSecretKey "edsk3LmXAMnqNZDzT8drMEJTM7AQ3M1zQLP32cjSiR9jQ9mGAV4g1T"
-  -- print $ either (error . T.pack . show) id $ Crypto.parsePublicKey "edpktkQJBwKE8kVMgppcMkBtThaRx4uJm37qcuEKAL4hC4Hn579YDW"
-  -- undefined
-
   cmdLnArgs <- Opt.execParser programInfo
   run cmdLnArgs `catchAny` (die . displayException)
   where
@@ -607,34 +595,34 @@ main = do
               writeMultisigSignersFile $
               makeMultisigSignersFile @key contractName contractAddress counter signerKeys $
               Right baseContractParam
-        MultisigSomeOperationParams {..} ->
-          case keyProxy of
-            (_ :: Proxy key) -> do
-              uContract <- expandContract <$> readAndParseContract contractFilePath
-              case typeCheckContract mempty uContract of
-                Left err -> die $ show err
-                Right typeCheckedContract -> do
-                  let paramParser =
-                        fst
-                          $ G.someBigMapContractStorageParams typeCheckedContract
-                  someBaseContractParam <-
-                    either (die . show) return . parseNoEnv paramParser contractName $
-                    T.pack untypedBaseContractParam
-                  writeMultisigSignersFile .
-                    makeMultisigSignersFile @key
-                      contractName
-                      contractAddress
-                      counter
-                      signerKeys .
-                    Right $
-                    someBaseContractParam
-        MultisigSignFile {..} -> do
-          signingResult <- runExceptT $
-            multisigSignFile (Proxy @PublicKey) secretKey somePublicKey multisigFile <|>
-            multisigSignFile (Proxy @(PublicKey, PublicKey)) secretKey somePublicKey multisigFile
-          case signingResult of
-            Left err -> P.fail err
-            Right () -> return ()
+        -- MultisigSomeOperationParams {..} ->
+        --   case keyProxy of
+        --     (_ :: Proxy key) -> do
+        --       uContract <- expandContract <$> readAndParseContract contractFilePath
+        --       case typeCheckContract mempty uContract of
+        --         Left err -> die $ show err
+        --         Right typeCheckedContract -> do
+        --           let paramParser =
+        --                 fst
+        --                   $ G.someBigMapContractStorageParams typeCheckedContract
+        --           someBaseContractParam <-
+        --             either (die . show) return . parseNoEnv paramParser contractName $
+        --             T.pack untypedBaseContractParam
+        --           writeMultisigSignersFile .
+        --             makeMultisigSignersFile @key
+        --               contractName
+        --               contractAddress
+        --               counter
+        --               signerKeys .
+        --             Right $
+        --             someBaseContractParam
+        -- MultisigSignFile {..} -> do
+        --   signingResult <- runExceptT $
+        --     multisigSignFile (Proxy @PublicKey) secretKey somePublicKey multisigFile <|>
+        --     multisigSignFile (Proxy @(PublicKey, PublicKey)) secretKey somePublicKey multisigFile
+        --   case signingResult of
+        --     Left err -> P.fail err
+        --     Right () -> return ()
         MultisigVerifyFile {..} -> do
           verificationResult <- runExceptT $
             multisigVerifyFile (Proxy @PublicKey) multisigFile <|>
@@ -659,48 +647,4 @@ main = do
               case concatResult of
                 Left err -> P.fail err
                 Right () -> return ()
-
-
--- lorentz-contract-param WrappedMultisigContractAthens-transfer --counter 0 --from "tz1MhGthgRDEK4J5VVzt7r9sBS8FE462DAtr" --to "tz1MhGthgRDEK4J5VVzt7r9sBS8FE462DAtr" --value 3 --signerKeys "[]"
---
--- exampleSignature :: Signature
--- exampleSignature =
---   either (error . fromString . show) id $
---   mkSignature
---     ("\xe5\x56\x43\x00\xc3\x60\xac\x72\x90\x86\xe2\xcc\x80\x6e\x82\x8a\x84\x87\x7f\x1e\xb8\xe5\xd9\x74\xd8\x73\xe0\x65\x22\x49\x01\x55\x5f\xb8\x82\x15\x90\xa3\x3b\xac\xc6\x1e\x39\x70\x1c\xf9\xb4\x6b\xd2\x5b\xf5\xf0\x59\x5b\xbe\x24\x65\x51\x41\x43\x8e\x7a\x10\x0b" :: ByteString)
---
--- readAndRenderTests :: [(String, String)]
--- readAndRenderTests =
---   fmap ((,) "ManagedLedgerAthens") managedLedgerAthensTests ++
---   fmap ((,) "MultisigManagedLedgerAthens") multisigManagedLedgerAthensTests
---   where
---     managedLedgerAthensTests :: [String]
---     managedLedgerAthensTests =
---       [ "Transfer (\"from\" .! \"tz1MhGthgRDEK4J5VVzt7r9sBS8FE462DAtr\", \"to\" .! \"KT1T32YJo9La2czLFpeXPW9J5fVSCt1MHUtx\", \"value\" .! 0)"
---       , "Approve          (\"spender\" .! \"tz1MhGthgRDEK4J5VVzt7r9sBS8FE462DAtr\", \"value\" .! 3)"
---       , "Mint             (\"to\" .! \"tz1MhGthgRDEK4J5VVzt7r9sBS8FE462DAtr\", \"value\" .! 4)"
---       , "Burn             (\"from\" .! \"tz1MhGthgRDEK4J5VVzt7r9sBS8FE462DAtr\", \"value\" .! 4)"
---       , "SetPause         False"
---       , "ApproveViaProxy  (\"sender\" .! \"tz1MhGthgRDEK4J5VVzt7r9sBS8FE462DAtr\", (\"spender\" .! \"tz1MhGthgRDEK4J5VVzt7r9sBS8FE462DAtr\", \"value\" .! 3))"
---       , "SetAdministrator \"tz1MhGthgRDEK4J5VVzt7r9sBS8FE462DAtr\""
---       , "SetProxy \"KT1T32YJo9La2czLFpeXPW9J5fVSCt1MHUtx\""
---       , "SetProxy \"tz1MhGthgRDEK4J5VVzt7r9sBS8FE462DAtr\""
---       , "GetTotalSupply (View () \"KT1T32YJo9La2czLFpeXPW9J5fVSCt1MHUtx\")"
---       , "GetAdministrator (View () \"KT1T32YJo9La2czLFpeXPW9J5fVSCt1MHUtx\")"
---       , "GetAllowance (View (\"owner\" .! \"tz1MhGthgRDEK4J5VVzt7r9sBS8FE462DAtr\", \"spender\" .! \"tz1MhGthgRDEK4J5VVzt7r9sBS8FE462DAtr\") \"KT1T32YJo9La2czLFpeXPW9J5fVSCt1MHUtx\")"
---       , "GetBalance (View \"tz1MhGthgRDEK4J5VVzt7r9sBS8FE462DAtr\" \"KT1T32YJo9La2czLFpeXPW9J5fVSCt1MHUtx\")"
---       ]
---
---     multisigManagedLedgerAthensTests :: [String]
---     multisigManagedLedgerAthensTests =
---       [ "Default"
---       , "MainParameter ((0, ChangeKeys (1, [])), [])"
---       , "MainParameter ((0, ChangeKeys (11, [])), [Nothing])"
---       , "MainParameter ((0, ChangeKeys (111, [])), [Nothing, Nothing])"
---       -- , "MainParameter ((0, ChangeKeys (111, [])), [Just \"" ++ T.unpack (formatSignature exampleSignature) ++ "\"])"
---       ] ++
---       fmap
---         (\athensOperation ->
---            "MainParameter ((0, Operation " ++ athensOperation ++ "), [])")
---         managedLedgerAthensTests
 

@@ -8,57 +8,56 @@ module Main
 import Prelude hiding (readEither, words)
 
 import Options.Applicative.Help.Pretty (Doc, linebreak)
-import qualified Data.Text as T
-import qualified Data.Text.Lazy as TL
+-- import qualified Data.Text as T
+-- import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.IO as TL
 import qualified Options.Applicative as Opt
 
 import Lorentz
-import Lorentz.Contracts.GenericMultisig.Wrapper
+-- import Lorentz.Contracts.GenericMultisig.Wrapper
 import Lorentz.Contracts.Util ()
-import Michelson.Macro
-import Michelson.Parser
-import Michelson.Runtime
-import Michelson.TypeCheck
+-- import Michelson.Macro
+-- import Michelson.Parser
+-- import Michelson.Runtime
+-- import Michelson.TypeCheck
 import Util.IO
-import qualified Lorentz.Contracts.ManagedLedger.Athens as Athens
-import qualified Lorentz.Contracts.ManagedLedger.Babylon as Babylon
-import qualified Lorentz.Contracts.ManagedLedger.Types as ManagedLedger
+import qualified Lorentz.Contracts.ManagedLedger as ManagedLedger
+-- import qualified Lorentz.Contracts.ManagedLedger.Types as ManagedLedger
 import Lorentz.Contracts.Parse
 
 import Data.Version (showVersion)
 import Paths_lorentz_contract_param (version)
 
 data CmdLnArgs
-  = ManagedLedgerAthens
+  = ManagedLedger
       { admin       :: Address
-      , paused      :: Bool
-      , totalSupply :: Natural
-      , proxyAdmin  :: Address
+      -- , paused      :: Bool
+      -- , totalSupply :: Natural
+      -- , proxyAdmin  :: Address
       }
-  | ManagedLedgerBabylon
-      { admin       :: Address
-      }
-  | WrappedMultisigContractNat
-      { initialNat :: Natural
-      , threshold  :: Natural
-      , signerKeys :: [PublicKey]
-      }
-  | WrappedMultisigContractAthens
-      { admin       :: Address
-      , paused      :: Bool
-      , totalSupply :: Natural
-      , proxyAdmin  :: Address
-      , threshold   :: Natural
-      , signerKeys  :: [PublicKey]
-      }
-  | WrappedMultisigContractGeneric
-      { wrappedContractName :: String
-      , contractFilePath :: Maybe FilePath
-      , contractInitialStorage :: String
-      , threshold   :: Natural
-      , signerKeys  :: [PublicKey]
-      }
+  -- | ManagedLedgerManagedLedger
+  --     { admin       :: Address
+  --     }
+  -- | WrappedMultisigContractNat
+  --     { initialNat :: Natural
+  --     , threshold  :: Natural
+  --     , signerKeys :: [PublicKey]
+  --     }
+  -- | WrappedMultisigContractManagedLedger
+  --     { admin       :: Address
+  --     , paused      :: Bool
+  --     , totalSupply :: Natural
+  --     , proxyAdmin  :: Address
+  --     , threshold   :: Natural
+  --     , signerKeys  :: [PublicKey]
+  --     }
+  -- | WrappedMultisigContractGeneric
+  --     { wrappedContractName :: String
+  --     , contractFilePath :: Maybe FilePath
+  --     , contractInitialStorage :: String
+  --     , threshold   :: Natural
+  --     , signerKeys  :: [PublicKey]
+  --     }
   | GenericMultisigContract223
       { threshold   :: Natural
       , signerKeyPairs  :: [(PublicKey, PublicKey)]
@@ -66,11 +65,11 @@ data CmdLnArgs
 
 argParser :: Opt.Parser CmdLnArgs
 argParser = Opt.subparser $ mconcat
-  [ managedLedgerAthensSubCmd
-  , managedLedgerBabylonSubCmd
-  , wrappedMultisigContractNatSubCmd
-  , wrappedMultisigContractAthensSubCmd
-  , wrappedMultisigContractGenericSubCmd
+  [ managedLedgerSubCmd
+  -- , managedLedgerManagedLedgerSubCmd
+  -- , wrappedMultisigContractNatSubCmd
+  -- , wrappedMultisigContractManagedLedgerSubCmd
+  -- , wrappedMultisigContractGenericSubCmd
   , genericMultisigContract223SubCmd
   ]
   where
@@ -79,54 +78,46 @@ argParser = Opt.subparser $ mconcat
       Opt.info (Opt.helper <*> parser) $
       Opt.progDesc desc
 
-    managedLedgerAthensSubCmd =
+    managedLedgerSubCmd =
       mkCommandParser
-        "ManagedLedgerAthens"
-        (ManagedLedgerAthens <$> parseAddress "admin" <*>
-         parseBool "paused" <*>
-         parseNatural "totalSupply" <*>
-         parseAddress "proxyAdmin")
-        "Make initial storage for ManagedLedgerAthens"
-
-    managedLedgerBabylonSubCmd =
-      mkCommandParser
-        "ManagedLedgerBabylon"
-        (ManagedLedgerBabylon <$> parseAddress "admin")
-        -- (ManagedLedgerBabylon <$> parseAddress "admin" <*>
+        "ManagedLedger"
+        (ManagedLedger <$> parseAddress "admin")
+        -- <*>
         --  parseBool "paused" <*>
         --  parseNatural "totalSupply")
-        "Make initial storage for ManagedLedgerBabylon"
+         -- parseAddress "proxyAdmin")
+        "Make initial storage for ManagedLedger"
 
-    wrappedMultisigContractNatSubCmd =
-      mkCommandParser
-        "WrappedMultisigContractNat"
-        (WrappedMultisigContractNat <$> parseNatural "initialNat" <*>
-         parseNatural "threshold" <*>
-         parseSignerKeys "signerKeys")
-        "Make initial storage for WrappedMultisigContractNat"
+    -- wrappedMultisigContractNatSubCmd =
+    --   mkCommandParser
+    --     "WrappedMultisigContractNat"
+    --     (WrappedMultisigContractNat <$> parseNatural "initialNat" <*>
+    --      parseNatural "threshold" <*>
+    --      parseSignerKeys "signerKeys")
+    --     "Make initial storage for WrappedMultisigContractNat"
 
-    wrappedMultisigContractAthensSubCmd =
-      mkCommandParser
-        "WrappedMultisigContractAthens"
-        (WrappedMultisigContractAthens <$> parseAddress "admin" <*>
-         parseBool "paused" <*>
-         parseNatural "totalSupply" <*>
-         parseAddress "proxyAdmin" <*>
-         parseNatural "threshold" <*>
-         parseSignerKeys "signerKeys")
-        "Make initial storage for WrappedMultisigContractAthens"
+    -- wrappedMultisigContractManagedLedgerSubCmd =
+    --   mkCommandParser
+    --     "WrappedMultisigContractManagedLedger"
+    --     (WrappedMultisigContractManagedLedger <$> parseAddress "admin" <*>
+    --      parseBool "paused" <*>
+    --      parseNatural "totalSupply" <*>
+    --      parseAddress "proxyAdmin" <*>
+    --      parseNatural "threshold" <*>
+    --      parseSignerKeys "signerKeys")
+    --     "Make initial storage for WrappedMultisigContractManagedLedger"
 
-    wrappedMultisigContractGenericSubCmd =
-      mkCommandParser
-        "WrappedMultisigContractGeneric"
-        (WrappedMultisigContractGeneric <$>
-         parseString "contractName" <*>
-         Opt.optional (parseString "contractFilePath") <*>
-         parseString "contractInitialStorage" <*>
-         parseNatural "threshold" <*>
-         parseSignerKeys "signerKeys")
-        ("Make initial storage for some wrapped Michelson contract.\n" ++
-         "Omit the 'contractFilePath' option to pass the contract through STDIN.")
+    -- wrappedMultisigContractGenericSubCmd =
+    --   mkCommandParser
+    --     "WrappedMultisigContractGeneric"
+    --     (WrappedMultisigContractGeneric <$>
+    --      parseString "contractName" <*>
+    --      Opt.optional (parseString "contractFilePath") <*>
+    --      parseString "contractInitialStorage" <*>
+    --      parseNatural "threshold" <*>
+    --      parseSignerKeys "signerKeys")
+    --     ("Make initial storage for some wrapped Michelson contract.\n" ++
+    --      "Omit the 'contractFilePath' option to pass the contract through STDIN.")
 
     genericMultisigContract223SubCmd =
       mkCommandParser
@@ -169,37 +160,34 @@ main = do
     run :: CmdLnArgs -> IO ()
     run =
       \case
-        ManagedLedgerAthens {..} ->
+        ManagedLedger {..} ->
           TL.putStrLn . printLorentzValue forceSingleLine . ManagedLedger.Storage' mempty $
-          Athens.StorageFields admin paused totalSupply (Left proxyAdmin)
-        ManagedLedgerBabylon {..} ->
-          TL.putStrLn . printLorentzValue forceSingleLine $
-          Babylon.mkStorage admin mempty
-        WrappedMultisigContractNat {..} ->
-          TL.putStrLn . printLorentzValue forceSingleLine $
-          initStorageWrappedMultisigContractNat initialNat threshold signerKeys
-        WrappedMultisigContractAthens {..} ->
-          TL.putStrLn . printLorentzValue forceSingleLine $
-          initStorageWrappedMultisigContractAthens
-            admin
-            paused
-            totalSupply
-            (Left proxyAdmin)
-            threshold
-            signerKeys
-        WrappedMultisigContractGeneric {..} -> do
-          uContract <- expandContract <$> readAndParseContract contractFilePath
-          case typeCheckContract mempty uContract of
-            Left err -> die $ show err
-            Right typeCheckedContract ->
-              let storageParser =
-                    snd
-                      (someBigMapContractStorageParams typeCheckedContract)
-                      threshold
-                      signerKeys
-               in TL.putStrLn .
-                  either (TL.pack . show) id . parseNoEnv storageParser wrappedContractName $
-                  T.pack contractInitialStorage
+          ManagedLedger.mkStorage admin mempty -- totalSupply -- (Left proxyAdmin)
+        -- WrappedMultisigContractNat {..} ->
+        --   TL.putStrLn . printLorentzValue forceSingleLine $
+        --   initStorageWrappedMultisigContractNat initialNat threshold signerKeys
+        -- WrappedMultisigContractManagedLedger {..} ->
+        --   TL.putStrLn . printLorentzValue forceSingleLine $
+        --   initStorageWrappedMultisigContractManagedLedger
+        --     admin
+        --     paused
+        --     totalSupply
+        --     (Left proxyAdmin)
+        --     threshold
+        --     signerKeys
+        -- WrappedMultisigContractGeneric {..} -> do
+        --   uContract <- expandContract <$> readAndParseContract contractFilePath
+        --   case typeCheckContract mempty uContract of
+        --     Left err -> die $ show err
+        --     Right typeCheckedContract ->
+        --       let storageParser =
+        --             snd
+        --               (someBigMapContractStorageParams typeCheckedContract)
+        --               threshold
+        --               signerKeys
+        --        in TL.putStrLn .
+        --           either (TL.pack . show) id . parseNoEnv storageParser wrappedContractName $
+        --           T.pack contractInitialStorage
         GenericMultisigContract223 {..} -> -- do
           TL.putStrLn .
           printLorentzValue True $
