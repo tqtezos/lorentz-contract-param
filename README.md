@@ -107,9 +107,9 @@ stack install
 
 ## Usage
 
-Following examples use [tezos-client][]. Follow [these instructions]
-(https://assets.tqtezos.com/quickstart/1-index) to install and point it to a
-public testnet node if you are not running your own.
+Following examples use [tezos-client][]. Follow [these
+instructions](https://assets.tqtezos.com/quickstart/1-index) to install and
+point it to a public testnet node if you are not running your own.
 
 [tezos-client]: https://tezos.gitlab.io/api/cli-commands.html
 
