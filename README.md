@@ -59,7 +59,7 @@ Install [Docker](https://www.docker.com/get-started), then
 
 ```bash
 docker pull tqtezos/lorentz-contract-param
-alias lorentz-contract="docker run lorentz-contract-param lorentz-contract
+alias lorentz-contract="docker run lorentz-contract-param lorentz-contract"
 alias lorentz-contract-storage="docker run lorentz-contract-param lorentz-contract-storage"
 alias lorentz-contract-param="docker run lorentz-contract-param lorentz-contract-param"
 ```
